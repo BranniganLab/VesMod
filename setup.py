@@ -8,7 +8,7 @@ setup(
     author='Brannigan Lab',
     author_email='grace.brannigan@rutgers.edu',
     packages=['vesicle_edge_extractor'],
-    install_requires=['numpy>=2.0.0', 'opencv-python', 'matplotlib>=3.9.1', 'scikit-image', 'nd2', 'scipy'],
+    install_requires=['numpy>=2.0.0', 'opencv-python-headless', 'matplotlib>=3.9.1', 'scikit-image', 'nd2', 'scipy'],
 
     classifiers=[
         'Development Status :: 1 - Planning',
