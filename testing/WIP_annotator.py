@@ -738,8 +738,7 @@ def summarize_annotations(output_dir: Path) -> None:
     for status, count in sorted(by_status.items()):
         print(f"  {status}: {count}")
 
-    print("
-Most recently updated:")
+    print("Most recently updated:")
     rows_sorted = sorted(rows, key=lambda row: row["updated_utc"], reverse=True)
     for row in rows_sorted[:10]:
         print(
