@@ -248,7 +248,29 @@ class ImageCatalog:
         records: list[FrameRecord] = []
 
         if nd2_manifest is not None:
-            records.extend(load_nd2_manifest(nd2_manifest, root))
+            records.extend(load_nd2_manifest(nd2_manifest, root if root.is_dir() else root.parent))
+
+        if root.is_file():
+            path = root
+            suffix = path.suffix.lower()
+
+            if suffix == ".nd2":
+                if not include_nd2:
+                    return []
+                records.extend(
+                    discover_nd2_records(
+                        nd2_path=path,
+                        nd2_mode=nd2_mode,
+                        nd2_frames=nd2_frames,
+                    )
+                )
+                return sorted(records, key=lambda record: (str(record.path), record.frame_index or -1))
+
+            if suffix in normalized_exts:
+                records.append(FrameRecord(path=path, frame_index=None))
+                return records
+
+            return []
 
         ordinary_paths = sorted(
             path
@@ -831,10 +853,16 @@ def main() -> None:
     args = parse_args()
 
     if args.command == "annotate":
+        inferred_include_nd2 = (
+            args.include_nd2
+            or args.nd2_manifest is not None
+            or args.images.suffix.lower() == ".nd2"
+            or args.nd2_mode != "none"
+        )
         catalog = ImageCatalog(
             root=args.images,
             extensions=args.ext,
-            include_nd2=args.include_nd2 or args.nd2_manifest is not None,
+            include_nd2=inferred_include_nd2,
             nd2_mode=args.nd2_mode,
             nd2_frames=args.nd2_frames,
             nd2_manifest=args.nd2_manifest,
