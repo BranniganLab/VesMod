@@ -64,6 +64,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.backend_bases import KeyEvent, MouseButton, MouseEvent
@@ -83,6 +84,10 @@ except ImportError:  # pragma: no cover
 
 DEFAULT_NUM_ANGLES = 360
 DEFAULT_IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp")
+
+# Disable Matplotlib's built-in "save figure" keyboard shortcut so that the
+# annotator can safely use the plain "s" key for saving annotation JSON.
+mpl.rcParams["keymap.save"] = []
 
 
 @dataclass(slots=True)
@@ -151,8 +156,9 @@ class FrameRecord:
     def image_id(self) -> str:
         """Return a stable on-disk identifier for this source."""
         if self.frame_index is None:
-            return self.path.stem
-        return f"{self.path.stem}__frame_{self.frame_index:05d}"
+            return self.path.stem.replace(" ", "_")
+        stem = self.path.stem.replace(" ", "_")
+        return f"{stem}__frame_{self.frame_index:05d}"
 
     @property
     def display_name(self) -> str:
@@ -331,6 +337,33 @@ class ContourModel:
         contour_xy = np.column_stack([contour_x, contour_y])
         return theta_grid, radius_grid, contour_xy
 
+    @staticmethod
+    def polygon_centroid(contour_xy: np.ndarray) -> np.ndarray:
+        """Return the area centroid of a closed contour polygon.
+
+        The centroid is computed from the fitted contour rather than trusting
+        the user's initial center click as final ground truth. If the polygon is
+        degenerate, the arithmetic mean of the contour vertices is used as a
+        fallback.
+        """
+        if contour_xy.shape[0] < 3:
+            raise ValueError("At least 3 contour points are required to compute a centroid.")
+
+        x = contour_xy[:, 0]
+        y = contour_xy[:, 1]
+        x_next = np.roll(x, -1)
+        y_next = np.roll(y, -1)
+
+        cross = x * y_next - x_next * y
+        twice_area = np.sum(cross)
+
+        if np.isclose(twice_area, 0.0):
+            return np.mean(contour_xy, axis=0)
+
+        cx = np.sum((x + x_next) * cross) / (3.0 * twice_area)
+        cy = np.sum((y + y_next) * cross) / (3.0 * twice_area)
+        return np.array([cx, cy], dtype=float)
+
 
 class BenchmarkAnnotator:
     """Interactive matplotlib-based benchmark annotator."""
@@ -422,8 +455,16 @@ class BenchmarkAnnotator:
                 np.asarray(self.edge_points_xy, dtype=float),
                 self.num_angles,
             )
+            refined_center_xy = ContourModel.polygon_centroid(contour_xy)
             closed_xy = np.vstack([contour_xy, contour_xy[0]])
             self.ax.plot(closed_xy[:, 0], closed_xy[:, 1], linewidth=1.5)
+            self.ax.plot(
+                refined_center_xy[0],
+                refined_center_xy[1],
+                marker="x",
+                markersize=10,
+                markeredgewidth=2.0,
+            )
 
         self.fig.canvas.draw_idle()
 
@@ -459,28 +500,43 @@ class BenchmarkAnnotator:
     def on_key_press(self, event: KeyEvent) -> None:
         """Handle keyboard shortcuts."""
         key = (event.key or "").lower()
-        if key == "s":
-            self.save_current_annotation()
-        elif key == "o":
-            self.save_overlay()
-        elif key == "n":
-            self.next_record()
-        elif key == "p":
-            self.previous_record()
-        elif key == "c":
-            self.edge_points_xy = []
-            self.update_status("Cleared edge points.")
-            self.redraw()
-        elif key == "r":
-            self.center_xy = None
-            self.edge_points_xy = []
-            self.update_status("Reset center and edge points.")
-            self.redraw()
-        elif key == "q":
-            plt.close(self.fig)
+        try:
+            if key == "s":
+                ann_path = self.save_current_annotation()
+                if ann_path is not None:
+                    print(f"Saved annotation: {ann_path}")
+                    overlay_path = self.save_overlay(confirm_overwrite=True)
+                    if overlay_path is not None:
+                        print(f"Saved overlay: {overlay_path}")
+            elif key == "o":
+                overlay_path = self.save_overlay()
+                if overlay_path is not None:
+                    print(f"Saved overlay: {overlay_path}")
+            elif key == "n":
+                self.next_record()
+            elif key == "p":
+                self.previous_record()
+            elif key == "c":
+                self.edge_points_xy = []
+                self.update_status("Cleared edge points.")
+                self.redraw()
+            elif key == "r":
+                self.center_xy = None
+                self.edge_points_xy = []
+                self.update_status("Reset center and edge points.")
+                self.redraw()
+            elif key == "q":
+                plt.close(self.fig)
+        except Exception as exc:
+            self.update_status(f"Error: {exc}")
+            print(f"Error handling key {key!r}: {exc}")
 
-    def save_current_annotation(self) -> Path:
-        """Save the current annotation to disk."""
+    def save_current_annotation(self) -> Path | None:
+        """Save the current annotation to disk.
+
+        If an annotation already exists for the current source, prompt before
+        overwriting it.
+        """
         if self.current_record is None or self.image_array is None:
             raise RuntimeError("No image is currently loaded.")
 
@@ -496,6 +552,16 @@ class BenchmarkAnnotator:
             edge_points,
             self.num_angles,
         )
+        refined_center_xy = ContourModel.polygon_centroid(contour_xy)
+
+        # Re-fit the contour around the refined centroid so that the saved
+        # radial representation is consistent with the stored ground-truth
+        # center rather than the user's initial click.
+        theta_grid, radius_grid, contour_xy = ContourModel.fit_radial_contour(
+            refined_center_xy,
+            edge_points,
+            self.num_angles,
+        )
 
         now = utc_timestamp()
         existing = self.store.load(self.current_record)
@@ -506,6 +572,10 @@ class BenchmarkAnnotator:
         status = "draft"
 
         if existing is not None:
+            annotation_path = self.store.annotation_path(self.current_record)
+            if not prompt_yes_no(f"Overwrite existing annotation {annotation_path}? [y/N]: "):
+                self.update_status("Annotation save cancelled.")
+                return None
             created_utc = existing.metadata.created_utc or now
             reviewer = existing.metadata.reviewer
             notes = existing.metadata.notes
@@ -515,7 +585,7 @@ class BenchmarkAnnotator:
         annotation = VesicleAnnotation(
             schema_version=1,
             image_id=self.current_record.image_id,
-            center_xy=self.center_xy.astype(float).tolist(),
+            center_xy=refined_center_xy.astype(float).tolist(),
             edge_points_xy=edge_points.astype(float).tolist(),
             theta_deg=np.rad2deg(theta_grid).astype(float).tolist(),
             radius_px=radius_grid.astype(float).tolist(),
@@ -536,19 +606,29 @@ class BenchmarkAnnotator:
 
         path = self.store.save(self.current_record, annotation)
         self.annotation = annotation
+        self.center_xy = refined_center_xy
 
         if self.autosave_overlay:
-            self.save_overlay()
+            self.save_overlay(confirm_overwrite=True)
 
         self.update_status(f"Saved annotation to {path}.")
         return path
 
-    def save_overlay(self) -> Path:
-        """Write an overlay PNG for the current image."""
+    def save_overlay(self, confirm_overwrite: bool = True) -> Path | None:
+        """Write an overlay PNG for the current image.
+
+        If an overlay already exists for the current source, prompt before
+        overwriting it unless confirmation has been disabled.
+        """
         if self.current_record is None:
             raise RuntimeError("No image is currently loaded.")
 
         output_path = self.store.overlay_path(self.current_record)
+        if confirm_overwrite and output_path.exists():
+            if not prompt_yes_no(f"Overwrite existing overlay {output_path}? [y/N]: "):
+                self.update_status("Overlay save cancelled.")
+                return None
+
         self.fig.savefig(output_path, dpi=150, bbox_inches="tight")
         self.update_status(f"Saved overlay to {output_path}.")
         return output_path
@@ -567,6 +647,20 @@ class BenchmarkAnnotator:
 def utc_timestamp() -> str:
     """Return the current UTC time in ISO 8601 format."""
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def prompt_yes_no(prompt: str) -> bool:
+    """Prompt on the terminal for a yes/no answer.
+
+    The default answer is "no".
+    """
+    while True:
+        response = input(prompt).strip().lower()
+        if response in {"y", "yes"}:
+            return True
+        if response in {"", "n", "no"}:
+            return False
+        print("Please answer y or n.")
 
 
 def require_nd2() -> None:
