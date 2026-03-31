@@ -59,6 +59,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -68,6 +69,13 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.backend_bases import KeyEvent, MouseButton, MouseEvent
+
+try:
+    import tkinter as tk
+    from tkinter import messagebox
+except ImportError:  # pragma: no cover
+    tk = None
+    messagebox = None
 
 try:
     from PIL import Image
@@ -169,14 +177,30 @@ class FrameRecord:
 
 
 class AnnotationStore:
-    """Load and save annotation JSON files in a benchmark directory."""
+    """Load and save benchmark artifacts in a benchmark directory."""
+
+    INDEX_COLUMNS = [
+        "image_id",
+        "source_image",
+        "source_frame",
+        "annotation_path",
+        "overlay_path",
+        "test_image_path",
+        "status",
+        "annotator",
+        "reviewer",
+        "updated_utc",
+    ]
 
     def __init__(self, output_dir: Path) -> None:
         self.output_dir = output_dir
         self.annotations_dir = output_dir / "annotations"
         self.overlays_dir = output_dir / "overlays"
+        self.test_images_dir = output_dir / "test_images"
+        self.index_path = output_dir / "index.csv"
         self.annotations_dir.mkdir(parents=True, exist_ok=True)
         self.overlays_dir.mkdir(parents=True, exist_ok=True)
+        self.test_images_dir.mkdir(parents=True, exist_ok=True)
 
     def annotation_path(self, record: FrameRecord) -> Path:
         """Return the JSON path for an image or image-frame annotation."""
@@ -185,6 +209,10 @@ class AnnotationStore:
     def overlay_path(self, record: FrameRecord) -> Path:
         """Return the overlay PNG path for an image or image-frame annotation."""
         return self.overlays_dir / f"{record.image_id}.png"
+
+    def test_image_path(self, record: FrameRecord) -> Path:
+        """Return the path for saving the raw test image."""
+        return self.test_images_dir / f"{record.image_id}.png"
 
     def load(self, record: FrameRecord) -> VesicleAnnotation | None:
         """Load an existing annotation, if present."""
@@ -211,6 +239,49 @@ class AnnotationStore:
         payload = asdict(annotation)
         path.write_text(json.dumps(payload, indent=2))
         return path
+
+    def update_index(
+        self,
+        *,
+        record: FrameRecord,
+        annotation: VesicleAnnotation,
+        annotation_path: Path,
+        overlay_path: Path | None,
+        test_image_path: Path | None,
+    ) -> Path:
+        """Upsert one row in the benchmark index for the current annotated frame."""
+        rows_by_id: dict[str, dict[str, str]] = {}
+
+        if self.index_path.exists():
+            with self.index_path.open(newline="") as handle:
+                reader = csv.DictReader(handle)
+                for row in reader:
+                    image_id = row.get("image_id", "")
+                    if image_id:
+                        rows_by_id[image_id] = {
+                            column: row.get(column, "") for column in self.INDEX_COLUMNS
+                        }
+
+        rows_by_id[record.image_id] = {
+            "image_id": record.image_id,
+            "source_image": str(record.path),
+            "source_frame": "" if record.frame_index is None else str(record.frame_index),
+            "annotation_path": os.path.relpath(annotation_path, self.output_dir),
+            "overlay_path": "" if overlay_path is None else os.path.relpath(overlay_path, self.output_dir),
+            "test_image_path": "" if test_image_path is None else os.path.relpath(test_image_path, self.output_dir),
+            "status": annotation.metadata.status,
+            "annotator": annotation.metadata.annotator,
+            "reviewer": annotation.metadata.reviewer,
+            "updated_utc": annotation.metadata.updated_utc,
+        }
+
+        sorted_rows = [rows_by_id[key] for key in sorted(rows_by_id)]
+        with self.index_path.open("w", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=self.INDEX_COLUMNS)
+            writer.writeheader()
+            writer.writerows(sorted_rows)
+
+        return self.index_path
 
 
 class ImageCatalog:
@@ -502,12 +573,41 @@ class BenchmarkAnnotator:
         key = (event.key or "").lower()
         try:
             if key == "s":
-                ann_path = self.save_current_annotation()
-                if ann_path is not None:
-                    print(f"Saved annotation: {ann_path}")
-                    overlay_path = self.save_overlay(confirm_overwrite=True)
-                    if overlay_path is not None:
-                        print(f"Saved overlay: {overlay_path}")
+                assert self.current_record is not None
+                needs_overwrite_confirmation = any(
+                    path.exists()
+                    for path in (
+                        self.store.annotation_path(self.current_record),
+                        self.store.overlay_path(self.current_record),
+                        self.store.test_image_path(self.current_record),
+                    )
+                )
+                overwrite_ok = True
+                if needs_overwrite_confirmation:
+                    overwrite_ok = prompt_yes_no(
+                        f"Overwrite existing benchmark files for {self.current_record.image_id}?"
+                    )
+                if overwrite_ok:
+                    ann_path = self.save_current_annotation(confirm_overwrite=False)
+                    if ann_path is not None:
+                        print(f"Saved annotation: {ann_path}")
+                        overlay_path = self.save_overlay(confirm_overwrite=False)
+                        if overlay_path is not None:
+                            print(f"Saved overlay: {overlay_path}")
+                        test_img_path = self.save_test_image(confirm_overwrite=False)
+                        if test_img_path is not None:
+                            print(f"Saved test image: {test_img_path}")
+                        assert self.annotation is not None
+                        index_path = self.store.update_index(
+                            record=self.current_record,
+                            annotation=self.annotation,
+                            annotation_path=ann_path,
+                            overlay_path=overlay_path,
+                            test_image_path=test_img_path,
+                        )
+                        print(f"Updated benchmark index: {index_path}")
+                else:
+                    self.update_status("Save cancelled.")
             elif key == "o":
                 overlay_path = self.save_overlay()
                 if overlay_path is not None:
@@ -531,11 +631,12 @@ class BenchmarkAnnotator:
             self.update_status(f"Error: {exc}")
             print(f"Error handling key {key!r}: {exc}")
 
-    def save_current_annotation(self) -> Path | None:
+    def save_current_annotation(self, confirm_overwrite: bool = True) -> Path | None:
         """Save the current annotation to disk.
 
         If an annotation already exists for the current source, prompt before
-        overwriting it.
+        overwriting it unless confirmation has already been granted for the
+        current save operation.
         """
         if self.current_record is None or self.image_array is None:
             raise RuntimeError("No image is currently loaded.")
@@ -573,8 +674,8 @@ class BenchmarkAnnotator:
 
         if existing is not None:
             annotation_path = self.store.annotation_path(self.current_record)
-            if not prompt_yes_no(f"Overwrite existing annotation {annotation_path}? [y/N]: "):
-                self.update_status("Annotation save cancelled.")
+            if confirm_overwrite and not prompt_yes_no(f"Overwrite existing benchmark files for {self.current_record.image_id}?"):
+                self.update_status("Save cancelled.")
                 return None
             created_utc = existing.metadata.created_utc or now
             reviewer = existing.metadata.reviewer
@@ -608,9 +709,6 @@ class BenchmarkAnnotator:
         self.annotation = annotation
         self.center_xy = refined_center_xy
 
-        if self.autosave_overlay:
-            self.save_overlay(confirm_overwrite=True)
-
         self.update_status(f"Saved annotation to {path}.")
         return path
 
@@ -625,12 +723,34 @@ class BenchmarkAnnotator:
 
         output_path = self.store.overlay_path(self.current_record)
         if confirm_overwrite and output_path.exists():
-            if not prompt_yes_no(f"Overwrite existing overlay {output_path}? [y/N]: "):
-                self.update_status("Overlay save cancelled.")
+            if not prompt_yes_no(f"Overwrite existing benchmark files for {self.current_record.image_id}?"):
+                self.update_status("Save cancelled.")
                 return None
 
         self.fig.savefig(output_path, dpi=150, bbox_inches="tight")
         self.update_status(f"Saved overlay to {output_path}.")
+        return output_path
+
+    def save_test_image(self, confirm_overwrite: bool = True) -> Path | None:
+        if self.current_record is None or self.image_array is None:
+            raise RuntimeError("No image is currently loaded.")
+
+        output_path = self.store.test_image_path(self.current_record)
+
+        if confirm_overwrite and output_path.exists():
+            if not prompt_yes_no(f"Overwrite existing benchmark files for {self.current_record.image_id}?"):
+                self.update_status("Save cancelled.")
+                return None
+
+        from PIL import Image
+        arr = self.image_array
+        if arr.dtype != np.uint8:
+            arr_to_save = arr.astype(np.uint16)
+        else:
+            arr_to_save = arr
+        Image.fromarray(arr_to_save).save(output_path)
+
+        self.update_status(f"Saved test image to {output_path}.")
         return output_path
 
     def next_record(self) -> None:
@@ -650,12 +770,21 @@ def utc_timestamp() -> str:
 
 
 def prompt_yes_no(prompt: str) -> bool:
-    """Prompt on the terminal for a yes/no answer.
+    """Prompt for a yes/no answer.
 
-    The default answer is "no".
+    Prefer a GUI popup when Tk is available. Fall back to a terminal prompt
+    otherwise. The default answer is "no".
     """
+    if messagebox is not None and tk is not None:
+        root = tk.Tk()
+        root.withdraw()
+        try:
+            return bool(messagebox.askyesno("Confirm overwrite", prompt, parent=root))
+        finally:
+            root.destroy()
+
     while True:
-        response = input(prompt).strip().lower()
+        response = input(f"{prompt} [y/N]: ").strip().lower()
         if response in {"y", "yes"}:
             return True
         if response in {"", "n", "no"}:
