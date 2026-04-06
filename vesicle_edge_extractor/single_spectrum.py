@@ -7,8 +7,7 @@ Created on Tue Jan 21 15:04:46 2025.
 """
 from pathlib import Path
 import numpy as np
-from flicker_utils import read_and_format_csv, calc_sq_amplitudes, interpolate_indices_vectorized
-from filter_data import filter_data
+from vesicle_edge_extractor.spectrum_utils import read_and_format_csv, calc_sq_amplitudes, interpolate_indices_vectorized, filter_data
 from collections import namedtuple
 from statsmodels.tsa import stattools
 from lmfit.models import ExponentialModel
