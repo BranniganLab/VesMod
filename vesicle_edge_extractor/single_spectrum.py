@@ -6,6 +6,7 @@ Created on Tue Jan 21 15:04:46 2025.
 @author: js2746
 """
 from pathlib import Path
+import json
 import numpy as np
 from vesicle_edge_extractor.spectrum_utils import read_and_format_csv, calc_sq_amplitudes, interpolate_indices_vectorized, filter_data
 from collections import namedtuple
@@ -116,6 +117,8 @@ class SingleSpectrum:
             self.avg_amps2 = np.mean(amps2.real, axis=0)
             self.path = path
             self._filtered_spectra, _ = calc_sq_amplitudes(filtered_full_data, norm)
+
+        self.to_json(path.with_suffix(".json"))
 
     @property
     def ideal_block_size(self):
@@ -310,3 +313,27 @@ class SingleSpectrum:
             decay_lengths[decay_lengths < 1] = 1
         n_samples = self.total_frames // block_size
         return n_samples / decay_lengths
+
+    def _to_dict(self, include_arrays=True):
+        """Convert class attributes to a dict."""
+        data = {
+            "path": str(self.path) if getattr(self, "path", None) is not None else None,
+            "r0": float(self.r0) if getattr(self, "r0", None) is not None else None,
+            "frame_count": self.frame_count,
+        }
+
+        if include_arrays:
+            data["modes"] = (
+                self.modes.tolist() if getattr(self, "modes", None) is not None else None
+            )
+            data["avg_amps2"] = (
+                self.avg_amps2.tolist() if getattr(self, "avg_amps2", None) is not None else None
+            )
+
+        return data
+
+    def to_json(self, outfile, include_arrays=True, indent=2):
+        """Save class attributes to json."""
+        outfile = Path(outfile)
+        with outfile.open("w", encoding="utf-8") as f:
+            json.dump(self._to_dict(include_arrays=include_arrays), f, indent=indent)
