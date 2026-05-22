@@ -8,7 +8,7 @@ Created on Tue Jan 21 15:04:46 2025.
 from pathlib import Path
 import json
 import numpy as np
-from vesicle_edge_extractor.spectrum_utils import read_and_format_csv, calc_sq_amplitudes, interpolate_indices_vectorized, filter_data
+from vesicle_edge_extractor.spectrum_utils import read_and_format_csv, calc_sq_amplitudes, interpolate_indices_vectorized, filter_data, fit_spectrum_to_theory_lmfit
 from collections import namedtuple
 from statsmodels.tsa import stattools
 from lmfit.models import ExponentialModel
@@ -82,17 +82,11 @@ class SingleSpectrum:
 
         # ensure that dtheta is equal for each sample
         if Ntheta is not None and Ntheta < input_data.shape[1]:
-            indices = np.linspace(0, Ntheta - 1, Ntheta)
-            new_indices = indices * (input_data.shape[1] / Ntheta)
-            input_data = interpolate_indices_vectorized(input_data, new_indices)
+            zero_to_ntheta = np.linspace(0, Ntheta - 1, Ntheta)
+            new_evenly_spaced_indices = zero_to_ntheta * (input_data.shape[1] / Ntheta)
+            input_data = interpolate_indices_vectorized(input_data, new_evenly_spaced_indices)
         elif Ntheta is not None and Ntheta > input_data.shape[1]:
-            print(f"max_cols ({Ntheta}) is greater than {input_data.shape[1]} for file {path}")
-            self.modes = None
-            self.avg_amps2 = None
-            self.path = path
-            self.r0 = None
-            self._filtered_spectra = None
-            return
+            raise IndexError(f"Input array has {input_data.shape[1]} columns; cannot interpolate into {Ntheta} columns")
 
         self.unfiltered_frames = input_data
         self._total_frames = self.unfiltered_frames.shape[0]
@@ -109,6 +103,8 @@ class SingleSpectrum:
             self.path = path
             self.r0 = None
             self._filtered_spectra = None
+            self.kC_3_8 = None
+            self.kC_8_13 = None
         else:
             self.r0 = np.mean(filtered_useable_data)
             N_samples = filtered_useable_data.shape[1]
@@ -117,6 +113,8 @@ class SingleSpectrum:
             self.avg_amps2 = np.mean(amps2.real, axis=0)
             self.path = path
             self._filtered_spectra, _ = calc_sq_amplitudes(filtered_full_data, norm)
+            self.kC_3_8 = fit_spectrum_to_theory_lmfit(self.isolate_mode_range(3, 8), 500, free_sigma=True)
+            self.kC_8_13 = fit_spectrum_to_theory_lmfit(self.isolate_mode_range(8, 13), 500, free_sigma=True)
 
         self.to_json(path.with_suffix(".json"))
 
@@ -320,6 +318,8 @@ class SingleSpectrum:
             "path": str(self.path) if getattr(self, "path", None) is not None else None,
             "r0": float(self.r0) if getattr(self, "r0", None) is not None else None,
             "frame_count": self.frame_count,
+            "kC_3_8": self.kC_3_8,
+            "kC_8_13": self.kC_8_13,
         }
 
         if include_arrays:
