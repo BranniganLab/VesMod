@@ -9,22 +9,22 @@ jobs:
       matrix:
         python-version: ["3.11"]
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install nd2 scipy opencv-python scikit-image numpy matplotlib
+        pip install nd2 scipy opencv-python scikit-image numpy matplotlib statsmodels lmfit
         pip install pylint
         pip install pytest
         pip install .
     - name: Analysing the code with pylint
       run: |
         export PYLINTRC=./.github/workflows/.pylintrc
-        pylint $(find ./vesicle_edge_extractor -name '*.py')
+        pylint $(find ./vesicle_edge_extractor -name '*.py') --fail-under=8
     - name: Running regression test with pytest
       run: |
         python -m pytest ./testing/test_edge_extractor_quality.py

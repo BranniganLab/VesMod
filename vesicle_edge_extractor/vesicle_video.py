@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
-from vesicle_edge_extractor.utils import convert_to_cartesian, measure_second_derivative
+from vesicle_edge_extractor.vesicle_video_utils import convert_to_cartesian, measure_second_derivative
 
 
 @dataclass
