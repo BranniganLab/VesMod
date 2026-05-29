@@ -1,8 +1,8 @@
-This package is designed to find the edge of a single vesicle that has been filmed on a phase contrast microscope. The video should be cropped so that just the vesicle of interest (and not other vesicles) is in the FOV.
+VesMod is designed to calculate the membrane bending MODulus by measuring the fluctuation spectrum of a VESicle video. It has two components: VesEdge, which detects the vesicle edge from a video of a vesicle, and EdgeMod, which calculates the bending modulus from the vesicle edge.
 
 To install:
 > cd vesicle_edge_extractor
 >
 > pip install .
 
-Sample usage is included in example_usage.py.
+Sample usage for VesEdge is included in example_usage.py. Sample usage for EdgeMod is forthcoming.
