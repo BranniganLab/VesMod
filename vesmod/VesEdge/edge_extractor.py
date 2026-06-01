@@ -33,8 +33,12 @@ def extract_edge_from_frame(frame, debug_path=None):
         The Cartesian coordinates of the approximate vesicle center.
 
     """
+    if debug_path is not None:
+        _make_debug_image(frame, debug_path)
+        return
+
     # step 1: find internal vesicle point
-    center_of_mass = approximate_vesicle_com(frame, debug_path=debug_path)
+    center_of_mass = approximate_vesicle_com(frame)
 
     # step 2: naive refinement of edge region
     polar_sobel, scaling_factor = wrap_image_to_polar(filters.sobel(frame), center_of_mass)
@@ -59,7 +63,7 @@ def extract_edge_from_frame(frame, debug_path=None):
     return r_vals, center_of_mass
 
 
-def make_debug_image(frame, output_path):
+def _make_debug_image(frame, output_path):
     """
     Make a debug image that shows each step in the process.
 
@@ -83,7 +87,7 @@ def make_debug_image(frame, output_path):
     axes[1][3].imshow(frame, cmap='gray')
     axes[1][0].set_visible(False)
 
-    center_of_mass = approximate_vesicle_com(frame)
+    center_of_mass = approximate_vesicle_com(frame, debug_path=output_path)
     polar_image, scaling_factor = wrap_image_to_polar(filters.sobel(frame), center_of_mass)
     axes[0][1].imshow(polar_image * 100, cmap='gray', vmin=0, vmax=.4)
     axes[0][0].scatter(center_of_mass[1], center_of_mass[0], color='tab:red', marker="+", s=20)
@@ -99,7 +103,6 @@ def make_debug_image(frame, output_path):
     ifft = zero_out_all_but_lowest_n_modes(max_of_masked_region, n=7)
     axes[0][2].imshow(masked_polar_image_nan, cmap='gray', vmin=0, vmax=.004)
     axes[0][2].plot(max_of_masked_region, np.arange(0, polar_image.shape[0]), color='tab:orange')
-    # axes[0][2].plot(ifft, np.arange(0, polar_image.shape[0]), color='tab:blue')
 
     bad_x2, bad_y2 = convert_to_cartesian((center_of_mass[1], center_of_mass[0]), max_of_masked_region / scaling_factor)
     axes[1][2].plot(bad_x2, bad_y2, color='tab:orange')
