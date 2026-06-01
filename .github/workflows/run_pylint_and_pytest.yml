@@ -24,7 +24,8 @@ jobs:
     - name: Analysing the code with pylint
       run: |
         export PYLINTRC=./.github/workflows/.pylintrc
-        pylint $(find ./vesicle_edge_extractor -name '*.py') --fail-under=8
+        pylint $(find ./VesEdge -name '*.py') --fail-under=8
+        pylint $(find ./EdgeMod -name '*.py') --fail-under=6
     - name: Running regression test with pytest
       run: |
         python -m pytest ./testing/test_edge_extractor_quality.py
