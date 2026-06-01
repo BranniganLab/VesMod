@@ -12,28 +12,6 @@ from scipy.special import lpmv
 from lmfit import Model
 
 
-def read_and_format_csv(path):
-    """
-    Read in and format the csv.
-
-    Parameters
-    ----------
-    path : str or Path
-        The path to your .csv file.
-
-    Returns
-    -------
-    ndarray
-        A 2D array containing the radii as a function of theta and time.
-    float
-        The radius of the reference circle.
-
-    """
-    csv = np.genfromtxt(path, delimiter=',', skip_header=False, missing_values="NaN", filling_values=np.nan)
-    r0 = np.nanmean(csv)
-    return csv, r0
-
-
 def calc_sq_amplitudes(data, norm):
     """
     Take a 2d ndarray and perform FFT along dimension 1. Return squared amplitudes\

@@ -70,10 +70,7 @@ class SingleSpectrum:
             assert isinstance(Ntheta, int), "Ntheta must either be None or an int"
 
         # read in the file specified by path
-        if ftype == '.csv':
-            input_data, _ = read_and_format_csv(path)
-        elif ftype == ".npy":
-            input_data = np.load(path)
+        input_data = np.load(path)
 
         # prune the trajectory if frame_cutoff specified
         if frame_cutoff is not None and frame_cutoff < input_data.shape[0]:
