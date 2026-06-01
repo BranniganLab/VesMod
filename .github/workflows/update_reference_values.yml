@@ -19,7 +19,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install nd2 scipy opencv-python scikit-image numpy matplotlib
+        pip install nd2 scipy opencv-python scikit-image numpy matplotlib lmfit
         pip install pylint
         pip install pytest
         pip install .
