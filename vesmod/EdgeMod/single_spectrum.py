@@ -77,13 +77,15 @@ class SingleSpectrum:
         if Ntheta is not None and Ntheta < input_data.shape[1]:
             zero_to_ntheta = np.linspace(0, Ntheta - 1, Ntheta)
             new_evenly_spaced_indices = zero_to_ntheta * (input_data.shape[1] / Ntheta)
-            downsampled_data = downsample_to_new_indices(input_data, new_evenly_spaced_indices)
+            input_data = downsample_to_new_indices(input_data, new_evenly_spaced_indices)
         elif Ntheta is not None and Ntheta > input_data.shape[1]:
             raise IndexError(f"Input array has {input_data.shape[1]} columns; cannot downsample into {Ntheta} columns")
 
-        self.r0 = np.mean(downsampled_data)
-        self.avg_amps2 = self.calc_avg_sq_amplitudes(downsampled_data)
-        self.modes = self.calc_integer_modes(downsampled_data)
+        self.r0 = np.mean(input_data)
+        self.avg_amps2 = self.calc_avg_sq_amplitudes(input_data)
+        self.modes = self.calc_integer_modes()
+        self.kC = None
+        self.surface_tension = None
 
     def calc_avg_sq_amplitudes(self, r_vals_over_time: np.ndarray) -> np.ndarray:
         """
@@ -124,7 +126,7 @@ class SingleSpectrum:
         modes = np.round(freqs * self.avg_amps2.shape[1]).astype(int)
         return modes
 
-    def isolate_mode_range(self, lower_bound, upper_bound, filtered_full=False):
+    def isolate_mode_range(self, lower_bound, upper_bound):
         """
         Return all modes greater than or equal to lower_bound and less than \
         upper_bound, and their associated avg squared amplitudes.

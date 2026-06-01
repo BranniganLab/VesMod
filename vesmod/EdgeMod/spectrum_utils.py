@@ -92,7 +92,7 @@ def fit_spectrum_to_theory_lmfit(fitting_group, lmax, free_sigma=False, weighted
         result = model.fit(fitting_group.avg_amps2, q=fitting_group.modes, params=pars, max_nfev=20000)
     if result.best_values['kC'] != 15:
         return result.best_values['kC'], result.best_values['sigma']
-    print(f"kC: {result.best_values['kC']} and sigma: {result.best_values['gamma']}")
+    print(f"kC: {result.best_values['kC']} and sigma: {result.best_values['sigma']}")
     raise ValueError("Fitting did not converge. Best fit for kC equals initial guess (15 kBT).")
 
 
