@@ -35,7 +35,7 @@ class VesicleVideo:
             on frame i. Evenly spaced in theta, ranging from 0 to 2pi.
         x_vals, y_vals : numpy ndarrays
             The Cartesian coordinates of the vesicle edge.
-        status : list
+        status : list[int]
             List of ints containing status code for each frame. 1 = useable frame,
             2 = error on edge extraction, 3 = unreliable edge extraction.
     """
@@ -176,6 +176,8 @@ class VesicleVideo:
 
     def save_edge_to_npy(self, path):
         """Save the r_vals attr to an .npy file, setting frames with bad edge extraction to np.nan."""
+        if np.isnan(self.r_vals).all():
+            raise AttributeError("Edge detection has not occurred, or went wrong.")
         output_values = self.r_vals.copy()
         mask = np.array(self.status) != 1
         output_values[mask, :] = np.nan
