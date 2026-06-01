@@ -24,6 +24,8 @@ class VesicleVideo:
     ----------
         frames : numpy ndarray
             The 3D array of raw images. 0th dimension is frame number.
+        pixel_to_micron_ratio : float
+            The number of pixels to 1 micron in your microscope image.
         vesicle_centers : list of tuples
             List of len(frames.shape[0]) containing Cartesian coordinates of the
             approximate vesicle center for each frame. Needed for wrapping images
@@ -39,6 +41,7 @@ class VesicleVideo:
     """
 
     frames: np.ndarray
+    pixel_to_micron_ratio: float
     vesicle_centers: list = field(init=False)
     r_vals: np.ndarray = field(init=False)
     x_vals: np.ndarray = field(init=False)
@@ -62,9 +65,11 @@ class VesicleVideo:
 
         """
         if not isinstance(self.frames, np.ndarray):
-            raise TypeError("frames must be a numpy ndarray")
+            raise TypeError("frames must be a numpy ndarray.")
         if len(self.frames.shape) != 3:
-            raise IndexError("frames must be a 3D array")
+            raise IndexError("frames must be a 3D array.")
+        if self.pixel_to_micron_ratio <= 0:
+            raise ValueError("pixel_to_micron_ratio must be positive.")
         self.vesicle_centers = [None] * self.frames.shape[0]
         self.r_vals = np.full((self.frames.shape[0], self.frames.shape[1]), np.nan)
         self.x_vals = np.full((self.frames.shape[0], self.frames.shape[1]), np.nan)
@@ -91,6 +96,7 @@ class VesicleVideo:
         for frame_num, _ in enumerate(self.frames):
             try:
                 r_vals, vesicle_center = extractor_func(self.frames[frame_num, :, :])
+                r_vals = r_vals * self.pixel_to_micron_ratio
                 self._add_edge_from_frame(frame_num, r_vals, vesicle_center, curvature_threshold)
             except ValueError:
                 print(f"Error on frame {frame_num}")
