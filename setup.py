@@ -1,13 +1,13 @@
 from setuptools import setup
 
 setup(
-    name='vesicle_edge_extractor',
+    name='VesMod',
     version='1.0',
-    description='Find the edge of a single vesicle from phase contrast microscope .nd2 files',
-    url='https://github.com/BranniganLab/vesicle_edge_extractor',
+    description='Extract the bending MODulus from a video of a VESicle',
+    url='https://github.com/BranniganLab/VesMod',
     author='Brannigan Lab',
     author_email='grace.brannigan@rutgers.edu',
-    packages=['vesicle_edge_extractor'],
+    packages=['vesmod'],
     install_requires=['numpy>=2.0.0', 'opencv-python-headless', 'matplotlib>=3.9.1', 'scikit-image', 'nd2', 'scipy'],
 
     classifiers=[
