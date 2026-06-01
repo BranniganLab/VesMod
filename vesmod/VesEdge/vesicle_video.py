@@ -91,22 +91,22 @@ class VesicleVideo:
         for frame_num, _ in enumerate(self.frames):
             try:
                 r_vals, vesicle_center = extractor_func(self.frames[frame_num, :, :])
-                self.add_edge_from_frame(r_vals, frame_num, vesicle_center, curvature_threshold)
+                self._add_edge_from_frame(frame_num, r_vals, vesicle_center, curvature_threshold)
             except ValueError:
                 print(f"Error on frame {frame_num}")
                 self.status[frame_num] = 2
 
-    def add_edge_from_frame(self, r_vals, frame_num, vesicle_center, curvature_threshold):
+    def _add_edge_to_video_frame(self, frame_num, r_vals, vesicle_center, curvature_threshold):
         """
         Save detected edge information for a given frame.
 
         Parameters
         ----------
+        frame_num : int
+            The frame number.
         r_vals : list or numpy ndarray
             The list or 1D array of radial distances from the vesicle_center,
             spaced evenly from 0 to 2pi.
-        frame_num : int
-            The frame number.
         vesicle_center : tuple
             The origin (in x, y) of the polar coordinate system.
         curvature_threshold : float
@@ -167,3 +167,10 @@ class VesicleVideo:
         ani = FuncAnimation(fig, animate, frames=self.frames.shape[0], interval=150, blit=False, repeat_delay=1000)
         ani.save(output_path)
         plt.close()
+
+    def save_edge_to_npy(self, path):
+        """Save the r_vals attr to an .npy file, setting frames with bad edge extraction to np.nan."""
+        output_values = self.r_vals.copy()
+        mask = np.array(self.status) != 1
+        output_values[mask, :] = np.nan
+        np.save(path, output_values)
