@@ -166,7 +166,7 @@ class SingleSpectrum:
         Returns
         -------
         tuple[float, float]
-            The best fitting kC and float values within the fitting range.
+            The best fitting kC and sigma values within the fitting range.
 
         Side Effects
         ------------
@@ -193,7 +193,8 @@ class SingleSpectrum:
         data = {
             "path": str(self.path) if getattr(self, "path", None) is not None else None,
             "r0": float(self.r0) if getattr(self, "r0", None) is not None else None,
-            "kC": self.kC,
+            "kC": float(self.kC) if getattr(self, "kC", None) is not None else None,
+            "surface_tension": float(self.surface_tension) if getattr(self, "surface_tension", None) is not None else None,
         }
 
         if include_arrays:
