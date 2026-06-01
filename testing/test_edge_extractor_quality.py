@@ -11,8 +11,7 @@ import math
 from pathlib import Path
 import json
 import numpy as np
-from vesicle_edge_extractor.vesicle_video import VesicleVideo
-from vesicle_edge_extractor.edge_extractor import extract_edge_from_frame
+from vesmod.VesEdge import VesicleVideo, extract_edge_from_frame
 
 
 # --------------------------------------------------------------------
