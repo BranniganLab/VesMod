@@ -147,7 +147,7 @@ class SingleSpectrum:
         mode_high: int = 8,
         lmax: int = 500,
         free_sigma: bool = True
-    ) -> float:
+    ) -> tuple(float, float):
         """
         Fit specific range of self.avg_amps2 to theoretical prediction.
 
@@ -163,17 +163,17 @@ class SingleSpectrum:
 
         Returns
         -------
-        float
-            The fit kC from the portion of the spectrum defined by fitting_range.
+        tuple[float, float]
+            The best fitting kC and float values within the fitting range.
 
         Side Effects
         ------------
-        Saves kC to self.kC.
+        Saves kC to self.kC and sigma to self.surface_tension.
         """
         fitting_range = self.isolate_mode_range(mode_low, mode_high)
-        kC = fit_spectrum_to_theory_lmfit(fitting_range, lmax, free_sigma)
-        self.kC = kC
-        return kC
+        fit = fit_spectrum_to_theory_lmfit(fitting_range, lmax, free_sigma)
+        self.kC, self.surface_tension = fit
+        return fit
 
     def _to_dict(self, include_arrays=True):
         """

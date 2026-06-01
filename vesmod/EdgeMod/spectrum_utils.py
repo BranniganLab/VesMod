@@ -90,11 +90,10 @@ def fit_spectrum_to_theory_lmfit(fitting_group, lmax, free_sigma=False, weighted
         result = model.fit(fitting_group.avg_amps2, q=fitting_group.modes, weights=(1 / fitting_group.std_amps2), params=pars, max_nfev=20000)
     else:
         result = model.fit(fitting_group.avg_amps2, q=fitting_group.modes, params=pars, max_nfev=20000)
-    if (result.best_values['kC'] != 15):
+    if result.best_values['kC'] != 15:
         return result.best_values['kC'], result.best_values['sigma']
-    else:
-        print(f"kC: {result.best_values['kC']} and sigma: {result.best_values['gamma'] / result.best_values['kC']}")
-        return "NULL"
+    print(f"kC: {result.best_values['kC']} and sigma: {result.best_values['gamma']}")
+    raise ValueError("Fitting did not converge. Best fit for kC equals initial guess (15 kBT).")
 
 
 def HSS97(q, kC, sigma, lmax):
