@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
-from vesmod.VesEdge import convert_to_cartesian, measure_wrapped_finite_second_difference
+from .vesicle_video_utils import convert_to_cartesian, measure_wrapped_finite_second_difference
 
 
 @dataclass
