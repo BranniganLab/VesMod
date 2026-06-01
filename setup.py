@@ -8,7 +8,7 @@ setup(
     author='Brannigan Lab',
     author_email='grace.brannigan@rutgers.edu',
     packages=['vesmod'],
-    install_requires=['numpy>=2.0.0', 'opencv-python-headless', 'matplotlib>=3.9.1', 'scikit-image', 'nd2', 'scipy'],
+    install_requires=['numpy>=2.0.0', 'opencv-python-headless', 'matplotlib>=3.9.1', 'scikit-image', 'nd2', 'scipy', 'lmfit'],
 
     classifiers=[
         'Development Status :: 1 - Planning',
