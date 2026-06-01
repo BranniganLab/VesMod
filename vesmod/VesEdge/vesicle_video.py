@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
-from vesicle_edge_extractor.vesicle_video_utils import convert_to_cartesian, measure_second_derivative
+from .vesicle_video_utils import convert_to_cartesian, measure_wrapped_finite_second_difference
 
 
 @dataclass
@@ -121,7 +121,7 @@ class VesicleVideo:
         self.r_vals[frame_num] = r_vals
         self.vesicle_centers[frame_num] = vesicle_center
         self.x_vals[frame_num], self.y_vals[frame_num] = convert_to_cartesian((vesicle_center[1], vesicle_center[0],), r_vals)
-        if (measure_second_derivative(r_vals) > curvature_threshold).any():
+        if (measure_wrapped_finite_second_difference(r_vals) > curvature_threshold).any():
             self.status[frame_num] = 3
         else:
             self.status[frame_num] = 1

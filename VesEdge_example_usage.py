@@ -2,14 +2,14 @@ from pathlib import Path
 import glob
 import nd2
 import numpy as np
-from vesicle_edge_extractor.vesicle_video import VesicleVideo
-from vesicle_edge_extractor.edge_extractor import extract_edge_from_frame
+from vesmod.VesEdge import VesicleVideo, extract_edge_from_frame
 
 
-for file in glob.glob('/home/js2746/DOPC_Cer*/CPG*/**/*.nd2', recursive=True):
+for file in glob.glob(YOUR_PATH_HERE+'*.nd2', recursive=True):
     path = Path(file).resolve()
     print(f"working on file {path.stem}")
     if path.with_suffix(".gif").exists():
+        # skip this file because edge extraction already performed
         continue
     intensities = nd2.imread(path)
     video = VesicleVideo(intensities)
