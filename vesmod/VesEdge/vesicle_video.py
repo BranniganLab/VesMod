@@ -173,4 +173,4 @@ class VesicleVideo:
         output_values = self.r_vals.copy()
         mask = np.array(self.status) != 1
         output_values[mask, :] = np.nan
-        np.save(path, output_values)
+        np.save(path.with_suffix('.npy'), output_values)

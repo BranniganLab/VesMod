@@ -15,4 +15,4 @@ for file in glob.glob(YOUR_PATH_HERE+'*.nd2', recursive=True):
     video = VesicleVideo(intensities)
     video.extract_edges(extract_edge_from_frame, curvature_threshold=5)
     video.make_vesicle_gif(path, True)
-    np.save(path.with_suffix(".npy"), video.r_vals)
+    video.save_edge_to_npy(path)
