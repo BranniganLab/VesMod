@@ -107,6 +107,7 @@ class SingleSpectrum:
 
         # Take average over time
         avg_amps2 = np.mean(amps2.real, axis=0)
+        return avg_amps2
 
     def calc_integer_modes(self) -> np.ndarray[int]:
         """
