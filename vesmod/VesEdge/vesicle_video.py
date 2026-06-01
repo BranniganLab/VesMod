@@ -164,6 +164,6 @@ class VesicleVideo:
                 elif self.status[i] == 3:
                     ax.plot(self.x_vals[i], self.y_vals[i], color='tab:red')
 
-        ani = FuncAnimation(fig, animate, frames=self.frames.shape[0] - 1, interval=150, blit=False, repeat_delay=1000)
+        ani = FuncAnimation(fig, animate, frames=self.frames.shape[0], interval=150, blit=False, repeat_delay=1000)
         ani.save(output_path)
         plt.close()
