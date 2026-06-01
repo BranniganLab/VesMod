@@ -6,10 +6,11 @@ Created on Tue Jan 21 15:04:46 2025.
 @author: js2746
 """
 from pathlib import Path
+from types import NoneType
 from collections import namedtuple
 import json
 import numpy as np
-from .spectrum_utils import read_and_format_csv, calc_sq_amplitudes, interpolate_indices_vectorized, fit_spectrum_to_theory_lmfit
+from .spectrum_utils import calc_sq_amplitudes, interpolate_indices_vectorized, fit_spectrum_to_theory_lmfit
 
 FrameCount = namedtuple("FrameCount", ['total_frames', 'useable_frames', 'pct_useable'])
 MiniSpectrum = namedtuple("MiniSpectrum", ['modes', 'avg_amps2', 'std_amps2'])
@@ -55,19 +56,21 @@ class SingleSpectrum:
 
         """
         # make sure path is correct
-        assert isinstance(path, (str, Path)), "path must be a str or a pathlib Path object."
+        if not isinstance(path, (str, Path)):
+            raise TypeError("Path must be a str or a pathlib Path object.")
         if isinstance(path, str):
             path = Path(path)
-        assert path.is_file() is True, "path does not appear to point to a file."
-        ftype = path.suffix
-        assert ftype in ['.csv', '.npy'], "Edge extraction outputs should be .csv or .npy files."
+        if not path.is_file():
+            raise ValueError("path does not appear to point to a file.")
+        if path.suffix != '.npy':
+            raise ValueError("path must end in .npy")
 
         # make sure frame_cutoff is either None or is an int
-        if frame_cutoff is not None:
-            assert isinstance(frame_cutoff, int), "frame_cutoff must either be None or an int."
+        if not isinstance(frame_cutoff, (int, NoneType)):
+            raise TypeError("frame_cutoff must either be None or an int.")
 
-        if Ntheta is not None:
-            assert isinstance(Ntheta, int), "Ntheta must either be None or an int"
+        if not isinstance(Ntheta, (int, NoneType)):
+            raise TypeError("Ntheta must either be None or an int")
 
         # read in the file specified by path
         input_data = np.load(path)
