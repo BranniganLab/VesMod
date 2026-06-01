@@ -8,7 +8,7 @@ Created on Tue Jan 21 15:04:46 2025.
 from pathlib import Path
 import json
 import numpy as np
-from vesmod.EdgeMod import read_and_format_csv, calc_sq_amplitudes, interpolate_indices_vectorized, filter_data, fit_spectrum_to_theory_lmfit
+from .spectrum_utils import read_and_format_csv, calc_sq_amplitudes, interpolate_indices_vectorized, filter_data, fit_spectrum_to_theory_lmfit
 from collections import namedtuple
 from statsmodels.tsa import stattools
 from lmfit.models import ExponentialModel
