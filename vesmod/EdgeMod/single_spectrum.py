@@ -10,7 +10,7 @@ from types import NoneType
 from collections import namedtuple
 import json
 import numpy as np
-from .spectrum_utils import calc_sq_amplitudes, interpolate_indices_vectorized, fit_spectrum_to_theory_lmfit
+from .spectrum_utils import downsample_to_new_indices, fit_spectrum_to_theory_lmfit
 
 MiniSpectrum = namedtuple("MiniSpectrum", ['modes', 'avg_amps2', 'std_amps2'])
 
@@ -59,17 +59,12 @@ class SingleSpectrum:
         if path.suffix != '.npy':
             raise ValueError("path must end in .npy")
 
-        # make sure frame_cutoff is either None or is a positive int
-        if not isinstance(frame_cutoff, (int, NoneType)):
-            raise TypeError("frame_cutoff must either be None or an int.")
-        if (isinstance(frame_cutoff, int)) and (frame_cutoff <= 0):
-            raise ValueError("frame_cutoff must be a positive int.")
-
-        # make sure Ntheta is either None or is a positive int
-        if not isinstance(Ntheta, (int, NoneType)):
-            raise TypeError("Ntheta must either be None or an int")
-        if (isinstance(Ntheta, int)) and (frame_cutoff <= 0):
-            raise ValueError("Ntheta must be a positive int.")
+        # make sure frame_cutoff and Ntheta are either None or a positive int
+        for var, varname in zip([frame_cutoff, Ntheta], ["frame_cutoff", "Ntheta"]):
+            if not isinstance(var, (int, NoneType)):
+                raise TypeError(f"{varname} must either be None or an int.")
+            if (isinstance(var, int)) and (var <= 0):
+                raise ValueError(f"{varname} must be a positive int.")
 
         # read in the file specified by path
         input_data = np.load(path)
@@ -78,20 +73,55 @@ class SingleSpectrum:
         if frame_cutoff is not None and frame_cutoff < input_data.shape[0]:
             input_data = input_data[:frame_cutoff, :]
 
-        # ensure that dtheta is equal for each sample
+        # downsample to Ntheta to ensure that dtheta is equal across all replicas
         if Ntheta is not None and Ntheta < input_data.shape[1]:
             zero_to_ntheta = np.linspace(0, Ntheta - 1, Ntheta)
             new_evenly_spaced_indices = zero_to_ntheta * (input_data.shape[1] / Ntheta)
-            input_data = interpolate_indices_vectorized(input_data, new_evenly_spaced_indices)
+            downsampled_data = downsample_to_new_indices(input_data, new_evenly_spaced_indices)
         elif Ntheta is not None and Ntheta > input_data.shape[1]:
             raise IndexError(f"Input array has {input_data.shape[1]} columns; cannot downsample into {Ntheta} columns")
 
-        self.r0 = np.mean(input_data)
-        N_samples = input_data.shape[1]
-        norm = 1. / (self.r0 * N_samples)
-        amps2, self.modes = calc_sq_amplitudes(input_data, norm)
-        self.avg_amps2 = np.mean(amps2.real, axis=0)
-        self.path = path
+        self.r0 = np.mean(downsampled_data)
+        self.avg_amps2 = self.calc_avg_sq_amplitudes(downsampled_data)
+        self.modes = self.calc_integer_modes(downsampled_data)
+
+    def calc_avg_sq_amplitudes(self, r_vals_over_time: np.ndarray) -> np.ndarray:
+        """
+        Calculate the normalized Fourier transform, then square and average.
+
+        Parameters
+        ----------
+        r_vals_over_time : np.ndarray
+            2D array where each row contains the r values for a given frame of
+            a vesicle video.
+        """
+        # Calculate normalizing factor
+        n_samples = r_vals_over_time.shape[1]
+        norm = 1. / (self.r0 * n_samples)
+
+        # Fourier transform and normalize
+        amps = np.fft.fft(r_vals_over_time, axis=1, norm='backward') * norm
+
+        # Multiply by complex conjugate
+        amps2 = amps * amps.conj()
+
+        # Take average over time
+        avg_amps2 = np.mean(amps2.real, axis=0)
+
+    def calc_integer_modes(self) -> np.ndarray[int]:
+        """
+        Calculate the integer Fourier modes q for your spectrum.
+
+        numpy's fftfreq will return normalized floats. Multiply by # of modes
+        to get ints.
+
+        Returns
+        -------
+        np.ndarray[int]
+        """
+        freqs = np.fft.fftfreq(self.avg_amps2.shape[1])
+        modes = np.round(freqs * self.avg_amps2.shape[1]).astype(int)
+        return modes
 
     def isolate_mode_range(self, lower_bound, upper_bound, filtered_full=False):
         """

@@ -12,40 +12,7 @@ from scipy.special import lpmv
 from lmfit import Model
 
 
-def calc_sq_amplitudes(data, norm):
-    """
-    Take a 2d ndarray and perform FFT along dimension 1. Return squared amplitudes\
-    and their associated frequencies.
-
-    Parameters
-    ----------
-    data : ndarray
-        Radius as a function of theta (dimension 1) and time (dimension 0).
-    norm : float
-        The normalization factor to apply to your amplitudes.
-
-    Returns
-    -------
-    amps2 : ndarray
-        amplitude values for each q, squared.
-    freqs : ndarray
-        q values.
-
-    """
-    # perform fft, square, and average over time
-    amps = np.fft.fft(data, axis=1, norm='backward') * norm
-    amps2 = amps * amps.conj()
-
-    # get q values
-    freqs = np.fft.fftfreq(amps2.shape[1])
-
-    # fftfreq normalizes automatically; un-normalize to get integer q values
-    freqs = np.round(freqs * amps2.shape[1]).astype(int)
-
-    return amps2, freqs
-
-
-def interpolate_indices_vectorized(data: np.ndarray, index_floats: np.ndarray) -> np.ndarray:
+def downsample_to_new_indices(data: np.ndarray, index_floats: np.ndarray) -> np.ndarray:
     """
     For each row in the 2D `data` array, return the values at each of the float indices\
     provided in `index_floats`, using linear interpolation if necessary.
