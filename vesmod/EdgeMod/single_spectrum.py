@@ -12,24 +12,18 @@ import json
 import numpy as np
 from .spectrum_utils import calc_sq_amplitudes, interpolate_indices_vectorized, fit_spectrum_to_theory_lmfit
 
-FrameCount = namedtuple("FrameCount", ['total_frames', 'useable_frames', 'pct_useable'])
 MiniSpectrum = namedtuple("MiniSpectrum", ['modes', 'avg_amps2', 'std_amps2'])
 
 
 class SingleSpectrum:
     """
-    Contains the average squared amplitudes from one vesicle \
-    video only. Multiple SingleSpectrum objects can be combined into a \
-    CombinedSpectra object.
+    Calculate the fluctuation spectrum of a vesicle video.
 
     Attributes
     ----------
     path : Path
-        The path to the csv file that holds the edge extraction data pertaining\
+        The path to the npy file that holds the edge extraction data pertaining\
         to this spectrum.
-    unfiltered_frames : ndarray
-        2D array containing the vesicle radius for each theta bin for each frame,\
-        before filter is applied.
     modes : ndarray of ints or None
         The modes for each amplitude. Each value is an integer. If \
         useable_frames == 0, this is set to None.
@@ -41,7 +35,7 @@ class SingleSpectrum:
 
     """
 
-    def __init__(self, path, Ntheta=None, frame_cutoff=None, filter_type='strict'):
+    def __init__(self, path, Ntheta=None, frame_cutoff=None):
         """
         Create a SingleSpectrum object.
 
@@ -65,12 +59,17 @@ class SingleSpectrum:
         if path.suffix != '.npy':
             raise ValueError("path must end in .npy")
 
-        # make sure frame_cutoff is either None or is an int
+        # make sure frame_cutoff is either None or is a positive int
         if not isinstance(frame_cutoff, (int, NoneType)):
             raise TypeError("frame_cutoff must either be None or an int.")
+        if (isinstance(frame_cutoff, int)) and (frame_cutoff <= 0):
+            raise ValueError("frame_cutoff must be a positive int.")
 
+        # make sure Ntheta is either None or is a positive int
         if not isinstance(Ntheta, (int, NoneType)):
             raise TypeError("Ntheta must either be None or an int")
+        if (isinstance(Ntheta, int)) and (frame_cutoff <= 0):
+            raise ValueError("Ntheta must be a positive int.")
 
         # read in the file specified by path
         input_data = np.load(path)
@@ -85,7 +84,7 @@ class SingleSpectrum:
             new_evenly_spaced_indices = zero_to_ntheta * (input_data.shape[1] / Ntheta)
             input_data = interpolate_indices_vectorized(input_data, new_evenly_spaced_indices)
         elif Ntheta is not None and Ntheta > input_data.shape[1]:
-            raise IndexError(f"Input array has {input_data.shape[1]} columns; cannot interpolate into {Ntheta} columns")
+            raise IndexError(f"Input array has {input_data.shape[1]} columns; cannot downsample into {Ntheta} columns")
 
         self.r0 = np.mean(input_data)
         N_samples = input_data.shape[1]
@@ -93,39 +92,71 @@ class SingleSpectrum:
         amps2, self.modes = calc_sq_amplitudes(input_data, norm)
         self.avg_amps2 = np.mean(amps2.real, axis=0)
         self.path = path
-        self.kC = fit_spectrum_to_theory_lmfit(self.isolate_mode_range(3, 8), 500, free_sigma=True)
-
-        self.to_json(path.with_suffix(".json"))
 
     def isolate_mode_range(self, lower_bound, upper_bound, filtered_full=False):
         """
         Return all modes greater than or equal to lower_bound and less than \
-        upper_bound and their associated avg squared amplitudes.
+        upper_bound, and their associated avg squared amplitudes.
 
         Returns
         -------
         MiniSpectrum : namedtuple
-            modes : ndarray
-                The modes within range [lower_bound:upper_bound).
-            avg_amps2 : ndarray
-                The avg squared amplitudes of those modes.
-            std_amps2 : ndarray
-                The standard deviation of the avg_amps2
 
         """
-        if self.modes is not None:
-            mask1 = self.modes >= lower_bound
-            mask2 = self.modes < upper_bound
-            combined_mask = mask1 & mask2
-            if filtered_full:
-                return MiniSpectrum(self.modes[combined_mask], self._filtered_spectra[:, combined_mask].real, None)
-            else:
-                return MiniSpectrum(self.modes[combined_mask], self.avg_amps2[combined_mask], None)
-        else:
-            return None
+        if self.modes is None:
+            raise AttributeError("There are no modes; Cannot return mode range.")
+        mask1 = self.modes >= lower_bound
+        mask2 = self.modes < upper_bound
+        combined_mask = mask1 & mask2
+        return MiniSpectrum(self.modes[combined_mask], self.avg_amps2[combined_mask], None)
+
+    def extract_kc_from_fit(
+        self,
+        mode_low: int = 3,
+        mode_high: int = 8,
+        lmax: int = 500,
+        free_sigma: bool = True
+    ) -> float:
+        """
+        Fit specific range of self.avg_amps2 to theoretical prediction.
+
+        Parameters
+        ----------
+        mode_low, mode_high : ints
+            Fit modes greater than or equal to mode_low and less than mode_high.
+        lmax : int
+            Maximum iteration index in theoretical summation. Default is 500.
+        free_sigma : bool
+            If True, allow surface tension (sigma) to vary. If False, set sigma
+            to zero and do not let it vary during fitting.
+
+        Returns
+        -------
+        float
+            The fit kC from the portion of the spectrum defined by fitting_range.
+
+        Side Effects
+        ------------
+        Saves kC to self.kC.
+        """
+        fitting_range = self.isolate_mode_range(mode_low, mode_high)
+        kC = fit_spectrum_to_theory_lmfit(fitting_range, lmax, free_sigma)
+        self.kC = kC
+        return kC
 
     def _to_dict(self, include_arrays=True):
-        """Convert class attributes to a dict."""
+        """
+        Convert class attributes to a dict.
+
+        Parameters
+        ----------
+        include_arrays : bool, optional
+            If True, include modes and avg_amps2 values. Default is True.
+
+        Returns
+        -------
+        dict
+        """
         data = {
             "path": str(self.path) if getattr(self, "path", None) is not None else None,
             "r0": float(self.r0) if getattr(self, "r0", None) is not None else None,
@@ -143,7 +174,18 @@ class SingleSpectrum:
         return data
 
     def to_json(self, outfile, include_arrays=True, indent=2):
-        """Save class attributes to json."""
-        outfile = Path(outfile)
+        """
+        Save class attributes to json.
+
+        Parameters
+        ----------
+        include_arrays : bool, optional
+            If True, include modes and avg_amps2 values. Default is True.
+
+        Side Effects
+        ------------
+        Saves json to file system.
+        """
+        outfile = Path(outfile).with_suffix('.json')
         with outfile.open("w", encoding="utf-8") as f:
             json.dump(self._to_dict(include_arrays=include_arrays), f, indent=indent)
