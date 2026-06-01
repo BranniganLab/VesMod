@@ -2,4 +2,4 @@
 from .vesicle_video import VesicleVideo
 from .edge_extractor import extract_edge_from_frame
 
-__all__ = [VesicleVideo, extract_edge_from_frame]
+__all__ = ["VesicleVideo", "extract_edge_from_frame"]
