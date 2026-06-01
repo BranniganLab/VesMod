@@ -132,7 +132,7 @@ class VesicleVideo:
         else:
             self.status[frame_num] = 1
 
-    def make_vesicle_gif(self, path, trace=True):
+    def make_vesicle_gif(self, path, show_trace=True):
         """
         Make a .gif of the vesicle, with or without the detected edges shown.
 
@@ -140,13 +140,13 @@ class VesicleVideo:
         ----------
         path : pathlib Path
             The location and filename to save this .gif to.
-        trace : Bool, optional
+        show_trace : Bool, optional
             Whether or not to display the detected edges. The default is True.
 
         Raises
         ------
         ValueError
-            If trace is True, but there are no edges saved.
+            If show_trace is True, but there are no edges saved.
 
         Returns
         -------
@@ -155,7 +155,7 @@ class VesicleVideo:
         """
         if not isinstance(path, Path):
             path = Path(path).resolve()
-        if (trace and np.isnan(self.x_vals[0]).any()):
+        if (show_trace and np.isnan(self.x_vals[0]).any()):
             raise ValueError("trace was set to True, but there are no edges detected for this vesicle.")
         output_path = path.with_suffix('.gif')
         fig, ax = plt.subplots()
@@ -164,7 +164,7 @@ class VesicleVideo:
             ax.clear()
             ax.set_title(f"frame {i} / {self.frames.shape[0]}")
             ax.imshow(self.frames[i], cmap='gray', animated='True')
-            if trace:
+            if show_trace:
                 if self.status[i] == 1:
                     ax.plot(self.x_vals[i], self.y_vals[i], color='tab:green')
                 elif self.status[i] == 3:

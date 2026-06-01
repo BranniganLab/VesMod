@@ -19,6 +19,6 @@ for file in glob.glob(fpath + '*.nd2', recursive=True):
         continue
     intensities = nd2.imread(path)
     video = VesicleVideo(intensities, pixel_to_micron_ratio)
-    video.extract_edges(extract_edge_from_frame, curvature_threshold=5)
-    video.make_vesicle_gif(path, True)
+    video.extract_edges(extract_edge_from_frame, curvature_threshold=10)
+    video.make_vesicle_gif(path, show_trace=True)
     video.save_edge_to_npy(path)
