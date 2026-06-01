@@ -114,7 +114,7 @@ class SingleSpectrum:
         Calculate the integer Fourier modes q for your spectrum.
 
         numpy's fftfreq will return normalized floats. Multiply by # of modes
-        to get ints.
+        (positive and negative) to get ints.
 
         Returns
         -------
