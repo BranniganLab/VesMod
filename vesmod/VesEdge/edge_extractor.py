@@ -10,7 +10,7 @@ from skimage import filters
 from skimage.measure import regionprops
 import matplotlib.pyplot as plt
 import numpy as np
-from vesicle_edge_extractor.vesicle_video_utils import wrap_image_to_polar, isolate_region_of_array, zero_out_all_but_lowest_n_modes, convert_to_cartesian
+from vesmod.VesEdge import wrap_image_to_polar, isolate_region_of_array, zero_out_all_but_lowest_n_modes, convert_to_cartesian
 
 
 def extract_edge_from_frame(frame, debug_path=None):
