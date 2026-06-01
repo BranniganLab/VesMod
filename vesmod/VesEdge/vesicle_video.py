@@ -175,10 +175,11 @@ class VesicleVideo:
         plt.close()
 
     def save_edge_to_npy(self, path):
-        """Save the r_vals attr to an .npy file, setting frames with bad edge extraction to np.nan."""
+        """Save r_vals to a .npy file, removing frames with bad edge extraction."""
         if np.isnan(self.r_vals).all():
             raise AttributeError("Edge detection has not occurred, or went wrong.")
-        output_values = self.r_vals.copy()
-        mask = np.array(self.status) != 1
-        output_values[mask, :] = np.nan
-        np.save(path.with_suffix('.npy'), output_values)
+        output_values = []
+        for frame in enumerate(self.status):
+            if self.status[frame] == 1:
+                output_values.append(self.r_vals[frame, :])
+        np.save(path.with_suffix('.npy'), np.array(output_values))
