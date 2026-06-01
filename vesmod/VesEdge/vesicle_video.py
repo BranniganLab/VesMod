@@ -97,7 +97,7 @@ class VesicleVideo:
             try:
                 r_vals, vesicle_center = extractor_func(self.frames[frame_num, :, :])
                 r_vals = r_vals * self.pixel_to_micron_ratio
-                self._add_edge_from_frame(frame_num, r_vals, vesicle_center, curvature_threshold)
+                self._add_edge_to_video_frame(frame_num, r_vals, vesicle_center, curvature_threshold)
             except ValueError:
                 print(f"Error on frame {frame_num}")
                 self.status[frame_num] = 2
