@@ -21,7 +21,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from vesicle_edge_extractor.vesicle_video import VesicleVideo
+from vesmod.VesEdge import VesicleVideo
 
 ExtractorFunc = Callable[[np.ndarray], tuple[np.ndarray, tuple[float, float]]]
 
@@ -74,7 +74,7 @@ def extractor_func() -> ExtractorFunc:
 
     Replace the import below with your real extractor function.
     """
-    from vesicle_edge_extractor.edge_extractor import extract_edge_from_frame
+    from vesmod.VesEdge import extract_edge_from_frame
 
     return extract_edge_from_frame
 

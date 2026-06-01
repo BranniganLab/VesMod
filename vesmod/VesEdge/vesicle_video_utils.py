@@ -203,9 +203,9 @@ def isolate_region_of_array(arr, mask_center, threshold, set_bg_to_nan=False):
     return masked_copy
 
 
-def measure_second_derivative(arr):
+def measure_wrapped_finite_second_difference(arr):
     """
-    Wrap the array and measure its second derivative.
+    Wrap the array and measure its second difference.
 
     Parameters
     ----------

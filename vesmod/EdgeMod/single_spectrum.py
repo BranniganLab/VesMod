@@ -8,10 +8,9 @@ Created on Tue Jan 21 15:04:46 2025.
 from pathlib import Path
 import json
 import numpy as np
-from vesicle_edge_extractor.spectrum_utils import read_and_format_csv, calc_sq_amplitudes, interpolate_indices_vectorized, filter_data, fit_spectrum_to_theory_lmfit
+from .spectrum_utils import read_and_format_csv, calc_sq_amplitudes, interpolate_indices_vectorized, filter_data, fit_spectrum_to_theory_lmfit
 from collections import namedtuple
-from statsmodels.tsa import stattools
-from lmfit.models import ExponentialModel
+
 FrameCount = namedtuple("FrameCount", ['total_frames', 'useable_frames', 'pct_useable'])
 MiniSpectrum = namedtuple("MiniSpectrum", ['modes', 'avg_amps2', 'std_amps2'])
 
@@ -119,30 +118,6 @@ class SingleSpectrum:
         self.to_json(path.with_suffix(".json"))
 
     @property
-    def ideal_block_size(self):
-        """
-        Determine the block size that will eliminate all NaNs once block averaging\
-        is performed. This is defined as the longest contiguous block of NaNs in\
-        the array column.
-
-        Returns
-        -------
-        int.
-
-        """
-        temp_block_size = 0
-        size_list = []
-        for val in np.isnan(self._filtered_spectra[:, 0]):
-            if val:
-                temp_block_size += 1
-            else:
-                size_list.append(temp_block_size)
-                temp_block_size = 0
-        size_list.append(temp_block_size)
-        final_block_size = max(size_list) + 1
-        return int(final_block_size)
-
-    @property
     def frame_count(self):
         """
         Count the total number of frames in this SingleSpectrum, count how \
@@ -159,32 +134,6 @@ class SingleSpectrum:
         """
         pct_useable = self._useable_frames / self._total_frames
         return FrameCount(self._total_frames, self._useable_frames, pct_useable)
-
-    def block_average(self, block_size=None):
-        """
-        Calculate block average of self._filtered_spectra using specified step\
-        size.
-
-        Parameters
-        ----------
-        block_size : int
-            The step size to use when block averaging.
-
-        Returns
-        -------
-        block_avg : ndarray
-            2D ndarray of block averaged values.
-
-        """
-        if not block_size:
-            block_size = self.ideal_block_size
-        assert isinstance(block_size, (int, np.int64)), "block_size must be an integer"
-        assert block_size > 0, "block_size must be positive"
-        num_rows = int(self._filtered_spectra.shape[0] // block_size)
-        block_avg = np.zeros((num_rows, self._filtered_spectra.shape[1]))
-        for row in range(num_rows):
-            block_avg[row, :] = np.nanmean(self._filtered_spectra[(block_size * row):(block_size * (row + 1)), :].real, axis=0)
-        return block_avg
 
     def isolate_mode_range(self, lower_bound, upper_bound, filtered_full=False):
         """
@@ -212,105 +161,6 @@ class SingleSpectrum:
                 return MiniSpectrum(self.modes[combined_mask], self.avg_amps2[combined_mask], None)
         else:
             return None
-
-    def measure_autocorrelation(self, block_size, nlags):
-        """
-        Measure the autocorrelation of the squared amplitudes corresponding to \
-        each non-negative mode. If there are too few samples to calculate auto-\
-        correlation with nlags lags, return "NULL".
-
-        Parameters
-        ----------
-        block_size : int
-            The block size to use for block averaging.
-        nlags : int
-            The number of lags (taus) to calculate autocorrelation for.
-
-        Returns
-        -------
-        autocorrelations : ndarray
-            2D array containing autocorrelation coefficients for each lag for \
-            each mode. (dimensions = nmodes X nlags + 1)
-
-        """
-        positive_modes = self.isolate_mode_range(0, np.inf)
-        num_rows = int(self._filtered_spectra.shape[0] // block_size)
-        if num_rows < nlags + 1:
-            return "NULL", positive_modes.modes
-        nmodes = len(positive_modes.modes)
-        block_avg = self.block_average(block_size)
-        autocorrelations = np.zeros((nmodes, nlags + 1))
-        for mode in range(nmodes):
-            autocorrelations[mode, :] = stattools.acf(block_avg[:, mode], nlags=nlags)
-        return autocorrelations, positive_modes
-
-    def measure_characteristic_decay_lengths(self, block_size, nlags):
-        """
-        Measure the characteristic decay length (tau) of the autocorrelation \
-        of each non-negative mode in the spectrum. If there are too few samples\
-        to make the calculation, return "NULL".
-
-        Parameters
-        ----------
-        block_size : int
-            The block size to use for block averaging.
-        nlags : int
-            The number of lags to use in the autocorrelation computation.
-
-        Returns
-        -------
-        ndarray
-            1D array of decay lengths, corresponding to each non-negative mode\
-            in the spectrum.
-        ndarray
-            1D array of the x axis used (can be used for plotting).
-
-        """
-        decay_lengths = []
-        autocorrelations, modes = self.measure_autocorrelation(block_size, nlags)
-        if isinstance(autocorrelations, str):
-            return "NULL", "NULL", modes
-        x_axis = np.linspace(0, nlags * block_size, nlags + 1)
-        for acf in autocorrelations:
-            model = ExponentialModel(nan_policy='propagate')
-            params = model.make_params(amplitude={'value': 1, 'vary': False}, decay=.7 * block_size)
-            out = model.fit(acf, params, x=x_axis)
-            decay_lengths.append(out.best_values['decay'])
-        assert len(decay_lengths) == autocorrelations.shape[0], "something went wrong"
-        return np.array(decay_lengths), x_axis, modes
-
-    def calc_correlation_time(self, dx):
-        pass
-
-    def calc_n_decorr_samples(self, block_size, nlags, bounded=False):
-        """
-        Calculate the number of decorrelated samples for each mode. Number of\
-        decorrelated samples is defined as:\
-        decay length / (number of frames // block size).
-
-        Parameters
-        ----------
-        block_size : int
-            The block size to use for block averaging.
-        nlags : int
-            The number of lags to use in the autocorrelation computation.
-        bounded : boolean
-            If False, number of decorrelated samples can be less than one. If \
-            True, number of decorrelated samples must be 1 or greater.
-
-        Returns
-        -------
-        ndarray
-            1D array of number of decorrelated samples present in the replica.
-
-        """
-        decay_lengths, _, modes = self.measure_characteristic_decay_lengths(block_size, nlags)
-        if isinstance(decay_lengths, str):
-            return np.ones(modes.shape[0])
-        if bounded:
-            decay_lengths[decay_lengths < 1] = 1
-        n_samples = self.total_frames // block_size
-        return n_samples / decay_lengths
 
     def _to_dict(self, include_arrays=True):
         """Convert class attributes to a dict."""
