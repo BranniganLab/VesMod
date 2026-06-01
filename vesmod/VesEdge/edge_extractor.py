@@ -35,7 +35,7 @@ def extract_edge_from_frame(frame, debug_path=None):
     """
     if debug_path is not None:
         _make_debug_image(frame, debug_path)
-        return
+        return None, None
 
     # step 1: find internal vesicle point
     center_of_mass = approximate_vesicle_com(frame)
