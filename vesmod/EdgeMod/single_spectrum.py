@@ -8,7 +8,7 @@ Created on Tue Jan 21 15:04:46 2025.
 from pathlib import Path
 import json
 import numpy as np
-from .spectrum_utils import read_and_format_csv, calc_sq_amplitudes, interpolate_indices_vectorized, filter_data, fit_spectrum_to_theory_lmfit
+from .spectrum_utils import read_and_format_csv, calc_sq_amplitudes, interpolate_indices_vectorized, fit_spectrum_to_theory_lmfit
 from collections import namedtuple
 
 FrameCount = namedtuple("FrameCount", ['total_frames', 'useable_frames', 'pct_useable'])
@@ -87,53 +87,15 @@ class SingleSpectrum:
         elif Ntheta is not None and Ntheta > input_data.shape[1]:
             raise IndexError(f"Input array has {input_data.shape[1]} columns; cannot interpolate into {Ntheta} columns")
 
-        self.unfiltered_frames = input_data
-        self._total_frames = self.unfiltered_frames.shape[0]
-
-        # remove frames that contain bad edge extraction results
-        filtered_useable_data, filtered_full_data = filter_data(self.unfiltered_frames, filter_type)
-
-        self._useable_frames = filtered_useable_data.shape[0]
-
-        if self._useable_frames == 0:
-            # Trajectory is completely unuseable (all frames were removed by filtering step)
-            self.modes = None
-            self.avg_amps2 = None
-            self.path = path
-            self.r0 = None
-            self._filtered_spectra = None
-            self.kC_3_8 = None
-            self.kC_8_13 = None
-        else:
-            self.r0 = np.mean(filtered_useable_data)
-            N_samples = filtered_useable_data.shape[1]
-            norm = 1. / (self.r0 * N_samples)
-            amps2, self.modes = calc_sq_amplitudes(filtered_useable_data, norm)
-            self.avg_amps2 = np.mean(amps2.real, axis=0)
-            self.path = path
-            self._filtered_spectra, _ = calc_sq_amplitudes(filtered_full_data, norm)
-            self.kC_3_8 = fit_spectrum_to_theory_lmfit(self.isolate_mode_range(3, 8), 500, free_sigma=True)
-            self.kC_8_13 = fit_spectrum_to_theory_lmfit(self.isolate_mode_range(8, 13), 500, free_sigma=True)
+        self.r0 = np.mean(input_data)
+        N_samples = input_data.shape[1]
+        norm = 1. / (self.r0 * N_samples)
+        amps2, self.modes = calc_sq_amplitudes(input_data, norm)
+        self.avg_amps2 = np.mean(amps2.real, axis=0)
+        self.path = path
+        self.kC = fit_spectrum_to_theory_lmfit(self.isolate_mode_range(3, 8), 500, free_sigma=True)
 
         self.to_json(path.with_suffix(".json"))
-
-    @property
-    def frame_count(self):
-        """
-        Count the total number of frames in this SingleSpectrum, count how \
-        many frames are useable (successful edge detection and passed \
-        filtering), and determine the percentage of useable frames.
-
-        Returns
-        -------
-        FrameCount : namedtuple
-            total_frames : int
-            useable_frames : int
-            pct_useable : float
-
-        """
-        pct_useable = self._useable_frames / self._total_frames
-        return FrameCount(self._total_frames, self._useable_frames, pct_useable)
 
     def isolate_mode_range(self, lower_bound, upper_bound, filtered_full=False):
         """
@@ -167,9 +129,7 @@ class SingleSpectrum:
         data = {
             "path": str(self.path) if getattr(self, "path", None) is not None else None,
             "r0": float(self.r0) if getattr(self, "r0", None) is not None else None,
-            "frame_count": self.frame_count,
-            "kC_3_8": self.kC_3_8,
-            "kC_8_13": self.kC_8_13,
+            "kC": self.kC,
         }
 
         if include_arrays:
