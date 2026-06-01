@@ -6,10 +6,10 @@ Created on Tue Jan 21 15:04:46 2025.
 @author: js2746
 """
 from pathlib import Path
+from collections import namedtuple
 import json
 import numpy as np
 from .spectrum_utils import read_and_format_csv, calc_sq_amplitudes, interpolate_indices_vectorized, fit_spectrum_to_theory_lmfit
-from collections import namedtuple
 
 FrameCount = namedtuple("FrameCount", ['total_frames', 'useable_frames', 'pct_useable'])
 MiniSpectrum = namedtuple("MiniSpectrum", ['modes', 'avg_amps2', 'std_amps2'])
