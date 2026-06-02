@@ -6,29 +6,24 @@ Created on Tue Jan 21 15:04:46 2025.
 @author: js2746
 """
 from pathlib import Path
+from types import NoneType
+from collections import namedtuple
 import json
 import numpy as np
-from .spectrum_utils import read_and_format_csv, calc_sq_amplitudes, interpolate_indices_vectorized, filter_data, fit_spectrum_to_theory_lmfit
-from collections import namedtuple
+from .spectrum_utils import downsample_to_new_indices, fit_spectrum_to_theory_lmfit
 
-FrameCount = namedtuple("FrameCount", ['total_frames', 'useable_frames', 'pct_useable'])
 MiniSpectrum = namedtuple("MiniSpectrum", ['modes', 'avg_amps2', 'std_amps2'])
 
 
 class SingleSpectrum:
     """
-    Contains the average squared amplitudes from one vesicle \
-    video only. Multiple SingleSpectrum objects can be combined into a \
-    CombinedSpectra object.
+    Calculate the fluctuation spectrum of a vesicle video.
 
     Attributes
     ----------
     path : Path
-        The path to the csv file that holds the edge extraction data pertaining\
+        The path to the npy file that holds the edge extraction data pertaining\
         to this spectrum.
-    unfiltered_frames : ndarray
-        2D array containing the vesicle radius for each theta bin for each frame,\
-        before filter is applied.
     modes : ndarray of ints or None
         The modes for each amplitude. Each value is an integer. If \
         useable_frames == 0, this is set to None.
@@ -40,7 +35,7 @@ class SingleSpectrum:
 
     """
 
-    def __init__(self, path, Ntheta=None, frame_cutoff=None, filter_type='strict'):
+    def __init__(self, path, Ntheta=None, frame_cutoff=None):
         """
         Create a SingleSpectrum object.
 
@@ -55,121 +50,151 @@ class SingleSpectrum:
 
         """
         # make sure path is correct
-        assert isinstance(path, (str, Path)), "path must be a str or a pathlib Path object."
+        if not isinstance(path, (str, Path)):
+            raise TypeError("Path must be a str or a pathlib Path object.")
         if isinstance(path, str):
             path = Path(path)
-        assert path.is_file() is True, "path does not appear to point to a file."
-        ftype = path.suffix
-        assert ftype in ['.csv', '.npy'], "Edge extraction outputs should be .csv or .npy files."
+        if not path.is_file():
+            raise ValueError("path does not appear to point to a file.")
+        if path.suffix != '.npy':
+            raise ValueError("path must end in .npy")
 
-        # make sure frame_cutoff is either None or is an int
-        if frame_cutoff is not None:
-            assert isinstance(frame_cutoff, int), "frame_cutoff must either be None or an int."
-
-        if Ntheta is not None:
-            assert isinstance(Ntheta, int), "Ntheta must either be None or an int"
+        # make sure frame_cutoff and Ntheta are either None or a positive int
+        for var, varname in zip([frame_cutoff, Ntheta], ["frame_cutoff", "Ntheta"]):
+            if not isinstance(var, (int, NoneType)):
+                raise TypeError(f"{varname} must either be None or an int.")
+            if (isinstance(var, int)) and (var <= 0):
+                raise ValueError(f"{varname} must be a positive int.")
 
         # read in the file specified by path
-        if ftype == '.csv':
-            input_data, _ = read_and_format_csv(path)
-        elif ftype == ".npy":
-            input_data = np.load(path)
+        input_data = np.load(path)
 
         # prune the trajectory if frame_cutoff specified
         if frame_cutoff is not None and frame_cutoff < input_data.shape[0]:
             input_data = input_data[:frame_cutoff, :]
 
-        # ensure that dtheta is equal for each sample
+        # downsample to Ntheta to ensure that dtheta is equal across all replicas
         if Ntheta is not None and Ntheta < input_data.shape[1]:
             zero_to_ntheta = np.linspace(0, Ntheta - 1, Ntheta)
             new_evenly_spaced_indices = zero_to_ntheta * (input_data.shape[1] / Ntheta)
-            input_data = interpolate_indices_vectorized(input_data, new_evenly_spaced_indices)
+            input_data = downsample_to_new_indices(input_data, new_evenly_spaced_indices)
         elif Ntheta is not None and Ntheta > input_data.shape[1]:
-            raise IndexError(f"Input array has {input_data.shape[1]} columns; cannot interpolate into {Ntheta} columns")
+            raise IndexError(f"Input array has {input_data.shape[1]} columns; cannot downsample into {Ntheta} columns")
 
-        self.unfiltered_frames = input_data
-        self._total_frames = self.unfiltered_frames.shape[0]
+        self.r0 = np.mean(input_data)
+        self.avg_amps2 = self.calc_avg_sq_amplitudes(input_data)
+        self.modes = self.calc_integer_modes()
+        self.kC = None
+        self.surface_tension = None
 
-        # remove frames that contain bad edge extraction results
-        filtered_useable_data, filtered_full_data = filter_data(self.unfiltered_frames, filter_type)
-
-        self._useable_frames = filtered_useable_data.shape[0]
-
-        if self._useable_frames == 0:
-            # Trajectory is completely unuseable (all frames were removed by filtering step)
-            self.modes = None
-            self.avg_amps2 = None
-            self.path = path
-            self.r0 = None
-            self._filtered_spectra = None
-            self.kC_3_8 = None
-            self.kC_8_13 = None
-        else:
-            self.r0 = np.mean(filtered_useable_data)
-            N_samples = filtered_useable_data.shape[1]
-            norm = 1. / (self.r0 * N_samples)
-            amps2, self.modes = calc_sq_amplitudes(filtered_useable_data, norm)
-            self.avg_amps2 = np.mean(amps2.real, axis=0)
-            self.path = path
-            self._filtered_spectra, _ = calc_sq_amplitudes(filtered_full_data, norm)
-            self.kC_3_8 = fit_spectrum_to_theory_lmfit(self.isolate_mode_range(3, 8), 500, free_sigma=True)
-            self.kC_8_13 = fit_spectrum_to_theory_lmfit(self.isolate_mode_range(8, 13), 500, free_sigma=True)
-
-        self.to_json(path.with_suffix(".json"))
-
-    @property
-    def frame_count(self):
+    def calc_avg_sq_amplitudes(self, r_vals_over_time: np.ndarray) -> np.ndarray:
         """
-        Count the total number of frames in this SingleSpectrum, count how \
-        many frames are useable (successful edge detection and passed \
-        filtering), and determine the percentage of useable frames.
+        Calculate the normalized Fourier transform, then square and average.
+
+        Parameters
+        ----------
+        r_vals_over_time : np.ndarray
+            2D array where each row contains the r values for a given frame of
+            a vesicle video.
+        """
+        # Calculate normalizing factor
+        n_samples = r_vals_over_time.shape[1]
+        norm = 1. / (self.r0 * n_samples)
+
+        # Fourier transform and normalize
+        amps = np.fft.fft(r_vals_over_time, axis=1, norm='backward') * norm
+
+        # Multiply by complex conjugate
+        amps2 = amps * amps.conj()
+
+        # Take average over time
+        avg_amps2 = np.mean(amps2.real, axis=0)
+        return avg_amps2
+
+    def calc_integer_modes(self) -> np.ndarray[int]:
+        """
+        Calculate the integer Fourier modes q for your spectrum.
+
+        numpy's fftfreq will return normalized floats. Multiply by # of modes
+        (positive and negative) to get ints.
 
         Returns
         -------
-        FrameCount : namedtuple
-            total_frames : int
-            useable_frames : int
-            pct_useable : float
-
+        np.ndarray[int]
         """
-        pct_useable = self._useable_frames / self._total_frames
-        return FrameCount(self._total_frames, self._useable_frames, pct_useable)
+        freqs = np.fft.fftfreq(self.avg_amps2.shape[1])
+        modes = np.round(freqs * self.avg_amps2.shape[1]).astype(int)
+        return modes
 
-    def isolate_mode_range(self, lower_bound, upper_bound, filtered_full=False):
+    def isolate_mode_range(self, lower_bound, upper_bound):
         """
         Return all modes greater than or equal to lower_bound and less than \
-        upper_bound and their associated avg squared amplitudes.
+        upper_bound, and their associated avg squared amplitudes.
 
         Returns
         -------
         MiniSpectrum : namedtuple
-            modes : ndarray
-                The modes within range [lower_bound:upper_bound).
-            avg_amps2 : ndarray
-                The avg squared amplitudes of those modes.
-            std_amps2 : ndarray
-                The standard deviation of the avg_amps2
 
         """
-        if self.modes is not None:
-            mask1 = self.modes >= lower_bound
-            mask2 = self.modes < upper_bound
-            combined_mask = mask1 & mask2
-            if filtered_full:
-                return MiniSpectrum(self.modes[combined_mask], self._filtered_spectra[:, combined_mask].real, None)
-            else:
-                return MiniSpectrum(self.modes[combined_mask], self.avg_amps2[combined_mask], None)
-        else:
-            return None
+        if self.modes is None:
+            raise AttributeError("There are no modes; Cannot return mode range.")
+        mask1 = self.modes >= lower_bound
+        mask2 = self.modes < upper_bound
+        combined_mask = mask1 & mask2
+        return MiniSpectrum(self.modes[combined_mask], self.avg_amps2[combined_mask], None)
+
+    def extract_kc_from_fit(
+        self,
+        mode_low: int = 3,
+        mode_high: int = 8,
+        lmax: int = 500,
+        free_sigma: bool = True
+    ) -> tuple(float, float):
+        """
+        Fit specific range of self.avg_amps2 to theoretical prediction.
+
+        Parameters
+        ----------
+        mode_low, mode_high : ints
+            Fit modes greater than or equal to mode_low and less than mode_high.
+        lmax : int
+            Maximum iteration index in theoretical summation. Default is 500.
+        free_sigma : bool
+            If True, allow surface tension (sigma) to vary. If False, set sigma
+            to zero and do not let it vary during fitting.
+
+        Returns
+        -------
+        tuple[float, float]
+            The best fitting kC and sigma values within the fitting range.
+
+        Side Effects
+        ------------
+        Saves kC to self.kC and sigma to self.surface_tension.
+        """
+        fitting_range = self.isolate_mode_range(mode_low, mode_high)
+        fit = fit_spectrum_to_theory_lmfit(fitting_range, lmax, free_sigma)
+        self.kC, self.surface_tension = fit
+        return fit
 
     def _to_dict(self, include_arrays=True):
-        """Convert class attributes to a dict."""
+        """
+        Convert class attributes to a dict.
+
+        Parameters
+        ----------
+        include_arrays : bool, optional
+            If True, include modes and avg_amps2 values. Default is True.
+
+        Returns
+        -------
+        dict
+        """
         data = {
             "path": str(self.path) if getattr(self, "path", None) is not None else None,
             "r0": float(self.r0) if getattr(self, "r0", None) is not None else None,
-            "frame_count": self.frame_count,
-            "kC_3_8": self.kC_3_8,
-            "kC_8_13": self.kC_8_13,
+            "kC": float(self.kC) if getattr(self, "kC", None) is not None else None,
+            "surface_tension": float(self.surface_tension) if getattr(self, "surface_tension", None) is not None else None,
         }
 
         if include_arrays:
@@ -183,7 +208,18 @@ class SingleSpectrum:
         return data
 
     def to_json(self, outfile, include_arrays=True, indent=2):
-        """Save class attributes to json."""
-        outfile = Path(outfile)
+        """
+        Save class attributes to json.
+
+        Parameters
+        ----------
+        include_arrays : bool, optional
+            If True, include modes and avg_amps2 values. Default is True.
+
+        Side Effects
+        ------------
+        Saves json to file system.
+        """
+        outfile = Path(outfile).with_suffix('.json')
         with outfile.open("w", encoding="utf-8") as f:
             json.dump(self._to_dict(include_arrays=include_arrays), f, indent=indent)

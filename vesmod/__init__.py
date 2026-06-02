@@ -4,6 +4,6 @@ VesMod
 Extract the bending MODulus from a video of a VESicle
 """
 
-from ._version import __version__
+from importlib.metadata import version
 
-__version__ = "__version__"
+__version__ = version("vesmod")

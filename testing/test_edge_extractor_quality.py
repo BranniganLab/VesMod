@@ -54,7 +54,7 @@ def sample_videos():
     video_list = {}
     for path in test_file_dir.iterdir():
         if path.suffix == '.npy':
-            video = VesicleVideo(np.load(path))
+            video = VesicleVideo(np.load(path), 1)
             video.extract_edges(extract_edge_from_frame)
             video_list[path.stem] = video
 
@@ -90,7 +90,7 @@ def test_extraction_quality(request, filename, sample_videos):
     video = sample_videos[filename]
     hist = np.bincount(video.status)
     meas_pct_usbl_frames = hist[1] / np.sum(hist)
-    
+
     expected_value_file = Path(__file__).parent / "reference_values" /  f"expected_value_{filename}.json"
 
     key = "expected pct useable value"
@@ -103,9 +103,9 @@ def test_extraction_quality(request, filename, sample_videos):
     else:
         with open(expected_value_file) as f:
             saved_data = json.load(f)
-    
+
         exp_pct_usbl_frames = saved_data[key]
-    
+
         assert math.isclose(
             meas_pct_usbl_frames, exp_pct_usbl_frames, abs_tol=0.01
         ), (
