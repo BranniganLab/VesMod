@@ -11,6 +11,7 @@ from collections import namedtuple
 import json
 import numpy as np
 from .spectrum_utils import downsample_to_new_indices, fit_spectrum_to_theory_lmfit
+from vesmod.VesEdge import VesicleVideo
 
 MiniSpectrum = namedtuple("MiniSpectrum", ['modes', 'avg_amps2', 'std_amps2'])
 
@@ -35,29 +36,32 @@ class SingleSpectrum:
 
     """
 
-    def __init__(self, path, Ntheta=None, frame_cutoff=None):
+    def __init__(self, edges_over_time: str | Path | VesicleVideo, Ntheta=None, frame_cutoff=None):
         """
         Create a SingleSpectrum object.
 
         Parameters
         ----------
-        path : str or Path
-            The path to the file you want to analyze.
+        path : str or Path or VesicleVideo
+            The path to the file you want to analyze or the VesicleVideo object.
         Ntheta : int or None, optional
             The number of theta values to store.
         frame_cutoff : int or None, optional
             The number of frames to retain in your trajectory. The default is None.
 
         """
-        # make sure path is correct
-        if not isinstance(path, (str, Path)):
-            raise TypeError("Path must be a str or a pathlib Path object.")
-        if isinstance(path, str):
-            path = Path(path)
-        if not path.is_file():
-            raise ValueError("path does not appear to point to a file.")
-        if path.suffix != '.npy':
-            raise ValueError("path must end in .npy")
+        if isinstance(edges_over_time, VesicleVideo):
+            input_data = edges_over_time.r_vals
+        elif isinstance(edges_over_time, (Path, str)):
+            if isinstance(edges_over_time, str):
+                edges_over_time = Path(edges_over_time)
+            if not edges_over_time.is_file():
+                raise ValueError("edges_over_time does not appear to be a file.")
+            if edges_over_time.suffix != '.npy':
+                raise ValueError("edges_over_time must end in .npy")
+            input_data = np.load(edges_over_time)
+        else:
+            raise TypeError("edges_over_time must be a str, pathlib Path, or VesicleVideo.")
 
         # make sure frame_cutoff and Ntheta are either None or a positive int
         for var, varname in zip([frame_cutoff, Ntheta], ["frame_cutoff", "Ntheta"]):
@@ -65,9 +69,6 @@ class SingleSpectrum:
                 raise TypeError(f"{varname} must either be None or an int.")
             if (isinstance(var, int)) and (var <= 0):
                 raise ValueError(f"{varname} must be a positive int.")
-
-        # read in the file specified by path
-        input_data = np.load(path)
 
         # prune the trajectory if frame_cutoff specified
         if frame_cutoff is not None and frame_cutoff < input_data.shape[0]:
