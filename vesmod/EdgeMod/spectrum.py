@@ -84,12 +84,12 @@ class Spectrum:
             raise IndexError(f"Input array has {input_data.shape[1]} columns; cannot downsample into {Ntheta} columns")
 
         self.r0 = np.mean(input_data)
-        self.avg_amps2 = self.calc_avg_sq_amplitudes(input_data)
-        self.modes = self.calc_integer_modes()
+        self.avg_amps2 = self._calc_avg_sq_amplitudes(input_data)
+        self.modes = self._calc_integer_modes()
         self.kC = None
         self.surface_tension = None
 
-    def calc_avg_sq_amplitudes(self, r_vals_over_time: np.ndarray) -> np.ndarray:
+    def _calc_avg_sq_amplitudes(self, r_vals_over_time: np.ndarray) -> np.ndarray:
         """
         Calculate the normalized Fourier transform, then square and average.
 
@@ -114,7 +114,7 @@ class Spectrum:
         avg_amps2 = np.mean(amps2.real, axis=0)
         return avg_amps2
 
-    def calc_integer_modes(self) -> np.ndarray[int]:
+    def _calc_integer_modes(self) -> np.ndarray[int]:
         """
         Calculate the integer Fourier modes q for your spectrum.
 
@@ -149,8 +149,8 @@ class Spectrum:
 
     def extract_kc_from_fit(
         self,
-        mode_low: int = 3,
-        mode_high: int = 8,
+        lower_bound: int = 3,
+        upper_bound: int = 8,
         lmax: int = 500,
         free_sigma: bool = True
     ) -> tuple(float, float):
@@ -159,8 +159,8 @@ class Spectrum:
 
         Parameters
         ----------
-        mode_low, mode_high : ints
-            Fit modes greater than or equal to mode_low and less than mode_high.
+        lower_bound, upper_bound : ints
+            Fit modes greater than or equal to lower_bound and less than upper_bound.
         lmax : int
             Maximum iteration index in theoretical summation. Default is 500.
         free_sigma : bool
@@ -177,7 +177,7 @@ class Spectrum:
         Saves kC to self.kC and sigma to self.surface_tension.
 
         """
-        fitting_range = self.isolate_mode_range(mode_low, mode_high)
+        fitting_range = self.isolate_mode_range(lower_bound, upper_bound)
         fit = fit_spectrum_to_theory_lmfit(fitting_range, lmax, free_sigma)
         self.kC, self.surface_tension = fit
         return fit
