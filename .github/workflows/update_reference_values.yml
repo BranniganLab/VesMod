@@ -37,7 +37,7 @@ jobs:
 
     - name: Update reference files
       run: |
-        python -m pytest ./testing/test_edge_extractor_quality.py --update-ref-values
+        python -m pytest ./tests/test_edge_extractor_quality.py --update-ref-values
 
     - name: Commit changes if any
       run: |
