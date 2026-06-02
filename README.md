@@ -5,4 +5,4 @@ To install:
 >
 > pip install .
 
-Sample usage for VesEdge is included in VesEdge_example_usage.py. Sample usage for EdgeMod is forthcoming.
+Sample usage for VesEdge is included in VesEdge_example_usage.py. Sample usage for EdgeMod is included in EdgeMod_example_usage.py.
