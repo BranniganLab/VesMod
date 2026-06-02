@@ -98,6 +98,7 @@ class Spectrum:
         r_vals_over_time : np.ndarray
             2D array where each row contains the r values for a given frame of
             a vesicle video.
+
         """
         # Calculate normalizing factor
         n_samples = r_vals_over_time.shape[1]
@@ -123,6 +124,7 @@ class Spectrum:
         Returns
         -------
         np.ndarray[int]
+
         """
         freqs = np.fft.fftfreq(self.avg_amps2.shape[1])
         modes = np.round(freqs * self.avg_amps2.shape[1]).astype(int)
@@ -173,6 +175,7 @@ class Spectrum:
         Side Effects
         ------------
         Saves kC to self.kC and sigma to self.surface_tension.
+
         """
         fitting_range = self.isolate_mode_range(mode_low, mode_high)
         fit = fit_spectrum_to_theory_lmfit(fitting_range, lmax, free_sigma)
@@ -191,6 +194,7 @@ class Spectrum:
         Returns
         -------
         dict
+
         """
         data = {
             "r0": float(self.r0) if getattr(self, "r0", None) is not None else None,
@@ -225,6 +229,7 @@ class Spectrum:
         Side Effects
         ------------
         Saves json to file system.
+
         """
         outfile = Path(outfile).with_suffix('.json')
         with outfile.open("w", encoding="utf-8") as f:
