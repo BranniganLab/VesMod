@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "VesMod"
+version = "1.0.0"
+description = "Extract the bending modulus from a video of a vesicle."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "Brannigan Lab", email = "grace.brannigan@rutgers.edu" },
+]
+keywords = [
+    "vesicle",
+    "membrane",
+    "bending modulus",
+    "edge detection",
+    "biophysics",
+]
+classifiers = [
+    "Development Status :: 1 - Planning",
+    "Intended Audience :: Science/Research",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Image Processing",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+dependencies = [
+    "numpy>=2.0.0",
+    "opencv-python-headless",
+    "matplotlib>=3.9.1",
+    "scikit-image",
+    "nd2",
+    "scipy",
+    "lmfit",
+]
+
+[project.urls]
+Homepage = "https://github.com/BranniganLab/VesMod"
+Repository = "https://github.com/BranniganLab/VesMod"
+Issues = "https://github.com/BranniganLab/VesMod/issues"
+
+[project.scripts]
+vesedge = "vesmod.cli.vesedge_cli:main"
+edgemod = "vesmod.cli.edgemod_cli:main"
+
+[tool.setuptools]
+packages = { find = { include = ["vesmod", "vesmod.*"] } }
+
+[tool.setuptools.package-data]
+vesmod = ["py.typed"]
