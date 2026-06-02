@@ -1,4 +1,4 @@
 """Import the necessary files."""
-from .single_spectrum import SingleSpectrum
+from .single_spectrum import Spectrum
 
-__all__ = ["SingleSpectrum"]
+__all__ = ["Spectrum"]
