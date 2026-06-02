@@ -1,7 +1,7 @@
 """
 Example usage for EdgeMod.
 
-Update fpath and run this file, or adapt for your own use.
+Update runtime parameters and run this file, or adapt for your own use.
 """
 from pathlib import Path
 import glob
