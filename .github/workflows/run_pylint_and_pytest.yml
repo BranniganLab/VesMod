@@ -28,4 +28,4 @@ jobs:
         pylint $(find ./vesmod/EdgeMod -name '*.py') --fail-under=6
     - name: Running regression test with pytest
       run: |
-        python -m pytest ./testing/test_edge_extractor_quality.py
+        python -m pytest ./tests/test_edge_extractor_quality.py
