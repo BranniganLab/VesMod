@@ -31,7 +31,12 @@ class Spectrum:
 
     """
 
-    def __init__(self, edges_over_time: str | Path | VesicleVideo, Ntheta=None, frame_cutoff=None):
+    def __init__(
+        self,
+        edges_over_time: str | Path | VesicleVideo,
+        Ntheta=None,
+        frame_cutoff=None
+    ) -> None:
         """
         Create a SingleSpectrum object.
 
@@ -123,7 +128,7 @@ class Spectrum:
         modes = np.round(freqs * self.avg_amps2.shape[1]).astype(int)
         return modes
 
-    def isolate_mode_range(self, lower_bound, upper_bound):
+    def isolate_mode_range(self, lower_bound: int, upper_bound: int) -> MiniSpectrum:
         """
         Return all modes greater than or equal to lower_bound and less than \
         upper_bound, and their associated avg squared amplitudes.
@@ -174,7 +179,7 @@ class Spectrum:
         self.kC, self.surface_tension = fit
         return fit
 
-    def _to_dict(self, include_arrays=True):
+    def _to_dict(self, include_arrays=True) -> dict:
         """
         Convert class attributes to a dict.
 
@@ -203,7 +208,12 @@ class Spectrum:
 
         return data
 
-    def to_json(self, outfile, include_arrays=True, indent=2):
+    def to_json(
+        self,
+        outfile: str | Path,
+        include_arrays: bool = True,
+        indent: int = 2,
+    ) -> None:
         """
         Save class attributes to json.
 
