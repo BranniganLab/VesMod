@@ -98,6 +98,3 @@ Please include:
 * Steps to reproduce
 * Example data when possible
 * Unit tests for new functionality
-
-```
-```
