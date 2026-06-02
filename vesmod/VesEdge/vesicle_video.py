@@ -68,7 +68,7 @@ class VesicleVideo:
             raise TypeError("frames must be a numpy ndarray.")
         if len(self.frames.shape) != 3:
             raise IndexError("frames must be a 3D array.")
-        if self.pixel_to_micron_ratio <= 0:
+        if self.micron_to_pixel_ratio <= 0:
             raise ValueError("pixel_to_micron_ratio must be positive.")
         self.vesicle_centers = [None] * self.frames.shape[0]
         self.r_vals = np.full((self.frames.shape[0], self.frames.shape[1]), np.nan)
@@ -92,11 +92,16 @@ class VesicleVideo:
         -------
         None.
 
+        Side Effects
+        ------------
+        - Saves self.r_vals with units of microns
+        - If error encountered on a frame, sets self.status to 2 for that frame.
+
         """
         for frame_num, _ in enumerate(self.frames):
             try:
                 r_vals, vesicle_center = extractor_func(self.frames[frame_num, :, :])
-                r_vals = r_vals * self.pixel_to_micron_ratio
+                r_vals = r_vals * self.micron_to_pixel_ratio
                 self._add_edge_to_video_frame(frame_num, r_vals, vesicle_center, curvature_threshold)
             except ValueError:
                 print(f"Error on frame {frame_num}")
