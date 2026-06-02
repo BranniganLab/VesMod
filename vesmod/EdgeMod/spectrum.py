@@ -16,23 +16,18 @@ from vesmod.VesEdge import VesicleVideo
 MiniSpectrum = namedtuple("MiniSpectrum", ['modes', 'avg_amps2', 'std_amps2'])
 
 
-class SingleSpectrum:
+class Spectrum:
     """
     Calculate the fluctuation spectrum of a vesicle video.
 
     Attributes
     ----------
-    path : Path
-        The path to the npy file that holds the edge extraction data pertaining\
-        to this spectrum.
-    modes : ndarray of ints or None
-        The modes for each amplitude. Each value is an integer. If \
-        useable_frames == 0, this is set to None.
-    avg_amps2 : ndarray of floats or None
-        The squared amplitudes of each mode, averaged over the trajectory. If \
-        useable_frames == 0, this is set to None.
+    modes : ndarray[int]
+        The modes for each amplitude. Each value is an integer.
+    avg_amps2 : ndarray[float]
+        The squared amplitudes of each mode, averaged over the trajectory.
     r0 : float
-        The average vesicle radius, in arbitrary units.
+        The average vesicle radius, in microns.
 
     """
 
@@ -42,12 +37,13 @@ class SingleSpectrum:
 
         Parameters
         ----------
-        path : str or Path or VesicleVideo
-            The path to the file you want to analyze or the VesicleVideo object.
+        edges_over_time : str or Path or VesicleVideo
+            The path (str or Path) to the .npy file containing edge extraction r_vals or
+            the VesicleVideo object itself.
         Ntheta : int or None, optional
-            The number of theta values to store.
+            The number of theta values to store. Default is None.
         frame_cutoff : int or None, optional
-            The number of frames to retain in your trajectory. The default is None.
+            The number of frames to retain in your trajectory. Default is None.
 
         """
         if isinstance(edges_over_time, VesicleVideo):
@@ -192,7 +188,6 @@ class SingleSpectrum:
         dict
         """
         data = {
-            "path": str(self.path) if getattr(self, "path", None) is not None else None,
             "r0": float(self.r0) if getattr(self, "r0", None) is not None else None,
             "kC": float(self.kC) if getattr(self, "kC", None) is not None else None,
             "surface_tension": float(self.surface_tension) if getattr(self, "surface_tension", None) is not None else None,
