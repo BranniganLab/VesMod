@@ -7,7 +7,7 @@ from pathlib import Path
 import glob
 from vesmod.EdgeMod import Spectrum
 
-fpath = "YOUR/PATH/HERE/"  # path to the directory containing your .nd2 file(s)
+fpath = "YOUR/PATH/HERE/"  # path to the directory containing your .npy file(s)
 
 for file in glob.glob(fpath + '*.npy', recursive=True):
     path = Path(file).resolve()
