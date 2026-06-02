@@ -24,8 +24,8 @@ class VesicleVideo:
     ----------
         frames : numpy ndarray
             The 3D array of raw images. 0th dimension is frame number.
-        pixel_to_micron_ratio : float
-            The number of pixels to 1 micron in your microscope image.
+        micron_to_pixel_ratio : float
+            The number of microns to pixels in your microscope image.
         vesicle_centers : list of tuples
             List of len(frames.shape[0]) containing Cartesian coordinates of the
             approximate vesicle center for each frame. Needed for wrapping images
@@ -41,7 +41,7 @@ class VesicleVideo:
     """
 
     frames: np.ndarray
-    pixel_to_micron_ratio: float
+    micron_to_pixel_ratio: float
     vesicle_centers: list = field(init=False)
     r_vals: np.ndarray = field(init=False)
     x_vals: np.ndarray = field(init=False)
