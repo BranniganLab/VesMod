@@ -1,7 +1,7 @@
 """
 Example usage for VesEdge.
 
-Update fpath and pixel_to_micron_ratio and run this file, or adapt for your own use.
+Update fpath and micron_to_pixel_ratio and run this file, or adapt for your own use.
 """
 from pathlib import Path
 import glob
