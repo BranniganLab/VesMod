@@ -164,8 +164,7 @@ def Nlq_Plq0_squared(l, q):
 
 def calc_sigma_from_reduced_sigma(r0, reduced_sigma, kc):
     kBT_295 = 4.0728e-21
-    r0_micron = r0 / 13.44  # comes from Josh's microscope settings; 13.44 pixels = 1 micron
-    r0_meter = r0_micron / 1e6
+    r0_meter = r0 / 1e6
     r0_meter2 = r0_meter ** 2
     sigma = reduced_sigma * kc * kBT_295 / r0_meter2  # units of J/m^2 or N/m (same thing)
     return sigma

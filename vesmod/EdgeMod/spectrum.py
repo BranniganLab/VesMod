@@ -10,7 +10,7 @@ from types import NoneType
 from collections import namedtuple
 import json
 import numpy as np
-from .spectrum_utils import downsample_to_new_indices, fit_spectrum_to_theory_lmfit
+from .spectrum_utils import downsample_to_new_indices, fit_spectrum_to_theory_lmfit, calc_sigma_from_reduced_sigma
 from vesmod.VesEdge import VesicleVideo
 
 MiniSpectrum = namedtuple("MiniSpectrum", ['modes', 'avg_amps2', 'std_amps2'])
@@ -179,8 +179,9 @@ class Spectrum:
         """
         fitting_range = self.isolate_mode_range(lower_bound, upper_bound)
         fit = fit_spectrum_to_theory_lmfit(fitting_range, lmax, free_sigma)
-        self.kC, self.surface_tension = fit
-        return fit
+        self.kC, reduced_sigma = fit
+        self.surface_tension = calc_sigma_from_reduced_sigma(self.r0, reduced_sigma, self.kc)
+        return self.kc, self.surface_tension
 
     def _to_dict(self, include_arrays=True) -> dict:
         """
