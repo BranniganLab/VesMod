@@ -6,7 +6,7 @@ Created on Thu Jun  4 13:31:11 2026
 @author: js2746
 """
 import numpy as np
-from vesmod.EdgeMod import MiniSpectrum
+from vesmod.EdgeMod.spectrum import MiniSpectrum
 from vesmod.EdgeMod.spectrum_utils import fit_spectrum_to_theory_lmfit
 
 class AverageOfSpectra():
