@@ -101,7 +101,6 @@ class VesicleVideo:
         for frame_num, _ in enumerate(self.frames):
             try:
                 r_vals, vesicle_center = extractor_func(self.frames[frame_num, :, :])
-                r_vals = r_vals * self.micron_to_pixel_ratio
                 self._add_edge_to_video_frame(frame_num, r_vals, vesicle_center, curvature_threshold)
             except ValueError:
                 print(f"Error on frame {frame_num}")
@@ -129,7 +128,7 @@ class VesicleVideo:
         None.
 
         """
-        self.r_vals[frame_num] = r_vals
+        self.r_vals[frame_num] = r_vals * self.micron_to_pixel_ratio
         self.vesicle_centers[frame_num] = vesicle_center
         self.x_vals[frame_num], self.y_vals[frame_num] = convert_to_cartesian((vesicle_center[1], vesicle_center[0],), r_vals)
         if (measure_wrapped_finite_second_difference(r_vals) > curvature_threshold).any():
