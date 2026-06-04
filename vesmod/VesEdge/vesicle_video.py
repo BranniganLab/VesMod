@@ -184,7 +184,7 @@ class VesicleVideo:
         if np.isnan(self.r_vals).all():
             raise AttributeError("Edge detection has not occurred, or went wrong.")
         output_values = []
-        for frame in enumerate(self.status):
-            if self.status[frame] == 1:
-                output_values.append(self.r_vals[frame, :])
+        for frame_num, status in enumerate(self.status):
+            if status == 1:
+                output_values.append(self.r_vals[frame_num, :])
         np.save(path.with_suffix('.npy'), np.array(output_values))

@@ -64,7 +64,7 @@ class AverageOfSpectra():
         lower_bound: int = 3,
         upper_bound: int = 8,
         lmax: int = 500,
-    ) -> tuple(float, float):
+    ) -> tuple[float, float]:
         """
         Fit specific range of self.avg_amps2 to theoretical prediction.
 
