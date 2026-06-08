@@ -9,7 +9,7 @@ Created on Mon Apr  6 14:09:33 2026
 import numpy as np
 import math
 from scipy.special import lpmv
-from scipy.Constants import Boltzmann
+from scipy.constants import Boltzmann
 from lmfit import Model
 
 
