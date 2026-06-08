@@ -20,6 +20,14 @@ class AverageOfSpectra():
         return np.mean(np.array(self.spectra_list), axis=0)
 
     @property
+    def avg_amps2_std(self) -> np.ndarray:
+        return np.std(np.array(self.spectra_list), axis=0, ddof=1)
+
+    @property
+    def avg_amps2_ste(self) -> np.ndarray:
+        return self.avg_amps2_std / len(self.spectra_list)
+
+    @property
     def kC(self) -> float:
         return self._extract_kC_from_fit()
 
@@ -31,12 +39,12 @@ class AverageOfSpectra():
     def kC_ste(self) -> float:
         return self.kC_std / np.sqrt(len(self.kC_list))
 
-    def add_spectrum(self, avg_amps2: np.ndarray, modes: np.ndarray[int], kC: float) -> None:
+    def add_spectrum(self, avg_amps2: list[float], modes: list[int], kC: float) -> None:
         if isinstance(self.modes, np.ndarray):
-            if not np.array_equal(modes, self.modes):
+            if not np.array_equal(np.array(modes), self.modes):
                 raise ValueError(f"{modes} does not equal {self.modes}")
         elif self.modes is None:
-            self.modes = modes
+            self.modes = np.array(modes)
         else:
             raise TypeError(f"self.modes must be ndarray or None, not {type(self.modes)}")
         self.spectra_list.append(avg_amps2)
@@ -59,7 +67,7 @@ class AverageOfSpectra():
         combined_mask = mask1 & mask2
         return MiniSpectrum(self.modes[combined_mask], self.avg_amps2[combined_mask], None)
 
-    def _extract_kc_from_fit(
+    def _extract_kC_from_fit(
         self,
         lower_bound: int = 3,
         upper_bound: int = 8,

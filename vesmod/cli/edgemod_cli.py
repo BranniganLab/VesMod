@@ -86,7 +86,7 @@ def process_file(path: Path, args: argparse.Namespace) -> None:
         return
 
     print(f"Working on file {path.stem}")
-    spectrum = Spectrum(path, Ntheta=args.n_theta)
+    spectrum = Spectrum(path)
     kc, sigma = spectrum.extract_kc_from_fit(
         lower_bound=args.lower_fitting_bound,
         upper_bound=args.upper_fitting_bound,

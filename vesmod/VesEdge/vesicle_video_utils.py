@@ -221,3 +221,27 @@ def measure_wrapped_finite_second_difference(arr):
     wrapped_array = np.pad(arr, pad_width=2, mode='wrap')
     second_deriv = np.diff(wrapped_array, n=2)[1: -1]
     return second_deriv
+
+
+def downsample_to_new_indices(data: np.ndarray, index_floats: np.ndarray) -> np.ndarray:
+    """
+    Return values from a 1D array at float-valued indices using linear interpolation.
+
+    The first element is appended to the end so that interpolation can wrap across
+    the periodic boundary.
+    """
+    if data.ndim != 1:
+        raise ValueError("Input data must be a 1D array.")
+    if index_floats.ndim != 1:
+        raise ValueError("Index array must be 1D.")
+
+    if np.any(index_floats < 0) or np.any(index_floats > data.size):
+        raise IndexError("One or more indices are out of bounds.")
+
+    wrapped_data = np.append(data, data[0])
+
+    lower_indices = np.floor(index_floats).astype(int)
+    upper_indices = np.ceil(index_floats).astype(int)
+    weights = index_floats - lower_indices
+
+    return ((1 - weights) * wrapped_data[lower_indices] + weights * wrapped_data[upper_indices])

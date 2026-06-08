@@ -130,6 +130,85 @@ def HSS97(q, kC, sigma, lmax):
     return function
 
 
+def filter_data(csv_data):
+    """
+    Move row by row through csv_data. If row passes filter_row(), add it to a \
+    new array. At the end, remove any rows of new array that are all zeros or \
+    contain a NaN.
+
+    Parameters
+    ----------
+    csv_data : ndarray
+        2D input array to be filtered.
+    filter_type : str, optional
+        If 'permissive', filter out rows that have NaN values only. If 'strict',
+        filter out rows that have NaN values and rows that have curvature aberrations.
+        Default is 'strict'.
+
+    Returns
+    -------
+    filtered_useable_data : ndarray
+        Array with filtered rows stripped out.
+    filtered_full_data : ndarray
+        Array with filtered rows kept in, but set to np.nan.
+
+    """
+    assert isinstance(csv_data, np.ndarray), "csv_data must be a numpy array."
+    assert len(csv_data.shape) == 2, "csv_data must be a 2D array."
+    filtered_useable_data = np.zeros_like(csv_data)
+    filtered_full_data = np.zeros_like(csv_data)
+    index = 0
+    for row in range(csv_data.shape[0]):
+        if (filter_row(csv_data[row, :]) == 1) and (np.nan not in csv_data[row, :]):
+            filtered_useable_data[index, :] = csv_data[row, :]
+            filtered_full_data[row, :] = csv_data[row, :]
+            index += 1
+        else:
+            filtered_full_data[row, :] = np.nan
+
+    # remove unused rows at bottom
+    filtered_useable_data = filtered_useable_data[:index, :]
+
+    assert csv_data.shape[1] == filtered_useable_data.shape[1], "Something went wrong. The second dimension should not have been resized."
+    return filtered_useable_data, filtered_full_data
+
+
+def filter_row(row_data, threshold=5):
+    """
+    Filter a row of data. If the row is full of NaNs, return 2. If the row \
+    contains poorly-segmented values (I.E. there is a big discontinuity from \
+    one point to the next), return 3. Otherwise return 1.
+
+    Parameters
+    ----------
+    row_data : ndarray
+        1D ndarray of r values spaced by dtheta.
+    threshold : float
+        The absolute curvature value allowable between consecutive radii.
+
+    Returns
+    -------
+    int
+        1 = healthy, 2 = frame skipped, or 3 = poorly segmented.
+
+    """
+    assert isinstance(row_data, np.ndarray), "row_data must be a numpy ndarray"
+    assert len(row_data.shape) == 1, "row_data must be a 1d numpy array."
+    assert threshold > 0, "threshold should be a positive number"
+    if np.isnan(row_data).any():
+        # edge extraction suffered an error and skipped this frame, return 2
+        return 2
+    else:
+        wrapped_array = np.pad(row_data, pad_width=2, mode='wrap')
+        curv_data = np.diff(wrapped_array, n=2)[1: -1]
+        assert curv_data.shape == row_data.shape, "curv_data and row_data should be same shape."
+        if max(np.abs(curv_data)) >= threshold:
+            return 3
+
+    # if you get this far, edge extraction was probably fine, return 1
+    return 1
+
+
 def Nlq_Plq0_squared(l, q):
     """
     Generate the nomarlized associated legendre polynomial N_{lq} * P_{lq}(0)\

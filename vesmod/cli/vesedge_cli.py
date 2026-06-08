@@ -37,13 +37,23 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--curvature-threshold",
         type=float,
-        default=10,
+        default=5,
         help="Curvature threshold passed to extract_edges. Default: 10.",
     )
     parser.add_argument(
-        "--no-trace",
+        "--no-gif",
         action="store_true",
-        help="Do not show the accumulated trace in the output GIF.",
+        help="Do not output a GIF.",
+    )
+    parser.add_argument(
+        "--downsample",
+        action="store_true",
+        help="If used, downsamples edge extraction outputs to --n_samples evenly-spaced values.",
+    )
+    parser.add_argument(
+        "--n_samples",
+        default=120,
+        help="If --downsample is used, downsamples edge extraction outputs to --n_samples evenly-spaced values. Default is 120.",
     )
     parser.add_argument(
         "--overwrite",
@@ -77,12 +87,17 @@ def process_file(path: Path, args: argparse.Namespace) -> None:
 
     print(f"Working on file {path.stem}")
     intensities = nd2.imread(path)
-    video = VesicleVideo(intensities, args.micron_to_pixel_ratio)
+    if args.downsample:
+        video = VesicleVideo(intensities, args.micron_to_pixel_ratio, args.n_samples)
+    else:
+        video = VesicleVideo(intensities, args.micron_to_pixel_ratio, None)
+
     video.extract_edges(
         extract_edge_from_frame,
         curvature_threshold=args.curvature_threshold,
     )
-    video.make_vesicle_gif(path, show_trace=not args.no_trace)
+    if not args.no_gif:
+        video.make_vesicle_gif(path)
     video.save_edge_to_npy(path)
 
 
