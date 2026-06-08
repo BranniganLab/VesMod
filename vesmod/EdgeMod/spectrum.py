@@ -10,7 +10,7 @@ from types import NoneType
 from collections import namedtuple
 import json
 import numpy as np
-from .spectrum_utils import downsample_to_new_indices, fit_spectrum_to_theory_lmfit, calc_sigma_from_reduced_sigma, filter_data
+from .spectrum_utils import downsample_to_new_indices, fit_spectrum_to_theory_lmfit, calc_sigma_from_reduced_sigma
 from vesmod.VesEdge import VesicleVideo
 
 MiniSpectrum = namedtuple("MiniSpectrum", ['modes', 'avg_amps2', 'std_amps2'])
@@ -72,8 +72,6 @@ class Spectrum:
         # prune the trajectory if frame_cutoff specified
         if frame_cutoff is not None and frame_cutoff < input_data.shape[0]:
             input_data = input_data[:frame_cutoff, :]
-
-        self.filtered_data = input_data
 
         self.r0 = np.mean(input_data)
         self.avg_amps2 = self._calc_avg_sq_amplitudes(input_data)
@@ -201,9 +199,6 @@ class Spectrum:
             )
             data["avg_amps2"] = (
                 self.avg_amps2.tolist() if getattr(self, "avg_amps2", None) is not None else None
-            )
-            data["filtered_data"] = (
-                self.filtered_data.tolist() if getattr(self, "filtered_data", None) is not None else None
             )
 
         return data
