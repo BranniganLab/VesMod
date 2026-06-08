@@ -149,30 +149,8 @@ def calc_tension_from_reduced_tension(r0, reduced_sigma, kc, temperature):
     the tension.
 
     """
-    one_kBT = kBT(temperature)
-    r0_meter = r0 / 1e6
-    r0_meter2 = r0_meter ** 2
+    one_kBT = Boltzmann * temperature                 # units of Joules
+    r0_meter = r0 / 1e6                               # units of meters
+    r0_meter2 = r0_meter ** 2                         # units of meters^2
     sigma = reduced_sigma * kc * one_kBT / r0_meter2  # units of J/m^2 or N/m (same thing)
     return sigma
-
-
-def kBT(temperature: float) -> float:
-    """
-    Calculate the thermal energy k_B T.
-
-    Parameters
-    ----------
-    temperature : float
-        Temperature in Kelvin.
-
-    Returns
-    -------
-    float
-        Thermal energy k_B T in Joules.
-    """
-    k_B = Boltzmann  # J/K
-    return k_B * temperature
-
-
-def area_change_pct(sigma, ka):
-    return (sigma / ka) * 100
