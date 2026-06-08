@@ -244,4 +244,4 @@ def downsample_to_new_indices(data: np.ndarray, index_floats: np.ndarray) -> np.
     upper_indices = np.ceil(index_floats).astype(int)
     weights = index_floats - lower_indices
 
-    return ((1 - weights) * wrapped_data[lower_indices] + weights * wrapped_data[upper_indices])
+    return (1 - weights) * wrapped_data[lower_indices] + weights * wrapped_data[upper_indices]

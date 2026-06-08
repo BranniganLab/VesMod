@@ -10,8 +10,8 @@ from types import NoneType
 from collections import namedtuple
 import json
 import numpy as np
-from .spectrum_utils import fit_spectrum_to_theory_lmfit, calc_tension_from_reduced_tension
 from vesmod.VesEdge import VesicleVideo
+from .spectrum_utils import fit_spectrum_to_theory_lmfit, calc_tension_from_reduced_tension
 
 MiniSpectrum = namedtuple("MiniSpectrum", ['modes', 'avg_amps2', 'std_amps2'])
 
