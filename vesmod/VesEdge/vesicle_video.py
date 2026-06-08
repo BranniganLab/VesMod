@@ -149,7 +149,8 @@ class VesicleVideo:
             r_vals = self._downsample_r_vals(r_vals, self.n_angular_samples)
 
         finite_second_difference = measure_wrapped_finite_second_difference(r_vals)
-        if (np.fabs(finite_second_difference) >= curvature_threshold).any():
+        #if (np.fabs(finite_second_difference) >= curvature_threshold).any():
+        if (finite_second_difference > curvature_threshold).any():
             self.status[frame_num] = 3
         elif np.isnan(finite_second_difference).any():
             self.status[frame_num] = 2
