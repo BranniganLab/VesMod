@@ -10,7 +10,7 @@ from types import NoneType
 from collections import namedtuple
 import json
 import numpy as np
-from .spectrum_utils import downsample_to_new_indices, fit_spectrum_to_theory_lmfit, calc_sigma_from_reduced_sigma
+from .spectrum_utils import fit_spectrum_to_theory_lmfit, calc_tension_from_reduced_tension
 from vesmod.VesEdge import VesicleVideo
 
 MiniSpectrum = namedtuple("MiniSpectrum", ['modes', 'avg_amps2', 'std_amps2'])
@@ -142,7 +142,8 @@ class Spectrum:
         lower_bound: int = 3,
         upper_bound: int = 8,
         lmax: int = 500,
-        free_sigma: bool = True
+        free_sigma: bool = True,
+        temperature: float = 295
     ) -> tuple[float, float]:
         """
         Fit specific range of self.avg_amps2 to theoretical prediction.
@@ -156,6 +157,8 @@ class Spectrum:
         free_sigma : bool
             If True, allow surface tension (sigma) to vary. If False, set sigma
             to zero and do not let it vary during fitting.
+        temperature : float
+            The temperature in Kelvin. Default is 295 K.
 
         Returns
         -------
@@ -170,7 +173,7 @@ class Spectrum:
         fitting_range = self.isolate_mode_range(lower_bound, upper_bound)
         fit = fit_spectrum_to_theory_lmfit(fitting_range, lmax, free_sigma)
         self.kC, reduced_sigma = fit
-        self.surface_tension = calc_sigma_from_reduced_sigma(self.r0, reduced_sigma, self.kC)
+        self.surface_tension = calc_tension_from_reduced_tension(self.r0, reduced_sigma, self.kC, temperature)
         return self.kC, self.surface_tension
 
     def _to_dict(self, include_arrays=True) -> dict:

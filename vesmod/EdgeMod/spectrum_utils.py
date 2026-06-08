@@ -9,56 +9,8 @@ Created on Mon Apr  6 14:09:33 2026
 import numpy as np
 import math
 from scipy.special import lpmv
+from scipy.Constants import Boltzmann
 from lmfit import Model
-
-
-def downsample_to_new_indices(data: np.ndarray, index_floats: np.ndarray) -> np.ndarray:
-    """
-    For each row in the 2D `data` array, return the values at each of the float indices\
-    provided in `index_floats`, using linear interpolation if necessary.
-
-    Parameters
-    ----------
-    - data: 2D numpy array of shape (R, C)
-    - index_floats: 1D numpy array of shape (N,)
-
-    Returns
-    -------
-    - 2D numpy array of shape (R, N) with interpolated values
-    """
-    if data.ndim != 2:
-        raise ValueError("Input data must be a 2D array.")
-    if index_floats.ndim != 1:
-        raise ValueError("Index array must be 1D.")
-
-    R, C = data.shape
-    N = index_floats.shape[0]
-
-    # Check bounds
-    if np.any(index_floats < 0) or np.any(index_floats > C):
-        raise IndexError("One or more indices are out of bounds.")
-
-    # Wrap first column around to last column
-    first_col = data[:, 0]
-    first_col = first_col[:, np.newaxis]
-    data = np.hstack((data, first_col))
-
-    # Floor and ceil indices
-    lower_indices = np.floor(index_floats).astype(int)
-    upper_indices = np.ceil(index_floats).astype(int)
-    weights = index_floats - lower_indices  # shape: (N,)
-
-    # Broadcast row indices for gathering values
-    row_indices = np.arange(R)[:, None]  # shape: (R, 1)
-
-    # Gather values at lower and upper indices
-    val_lower = data[row_indices, lower_indices]  # shape: (R, N)
-    val_upper = data[row_indices, upper_indices]  # shape: (R, N)
-
-    # Perform linear interpolation
-    result = (1 - weights) * val_lower + weights * val_upper  # shape: (R, N)
-    assert result.shape == (R, N), f"result not the right shape; expected ({R}, {N}) but got {result.shape}"
-    return result
 
 
 def fit_spectrum_to_theory_lmfit(fitting_group, lmax, free_sigma=False, weighted=False):
@@ -162,12 +114,64 @@ def Nlq_Plq0_squared(l, q):
     return total
 
 
-def calc_sigma_from_reduced_sigma(r0, reduced_sigma, kc):
-    kBT_295 = 4.0728e-21
+def calc_tension_from_reduced_tension(r0, reduced_sigma, kc, temperature):
+    """
+    Convert a dimensionless reduced membrane tension to a physical tension.
+
+    The reduced tension used in the Hackl, Seifert, and Sackmann (1997)
+    fluctuation spectrum theory is related to the physical membrane tension
+    by
+
+    sigma = reduced_sigma * kc * k_B * T / r0^2
+
+    where ``kc`` is expressed in units of kBT and ``r0`` is the vesicle radius.
+
+    Parameters
+    ----------
+    r0 : float
+        Average vesicle radius in microns.
+    reduced_sigma : float
+        Dimensionless reduced tension obtained from fitting the fluctuation
+        spectrum.
+    kc : float
+        Membrane bending modulus in units of kBT.
+    temperature : float
+        Temperature in Kelvin.
+
+    Returns
+    -------
+    float
+        Physical membrane tension in N/m (equivalently J/m²).
+
+    Notes
+    -----
+    The input radius is converted from microns to meters before computing
+    the tension.
+
+    """
+    one_kBT = kBT(temperature)
     r0_meter = r0 / 1e6
     r0_meter2 = r0_meter ** 2
-    sigma = reduced_sigma * kc * kBT_295 / r0_meter2  # units of J/m^2 or N/m (same thing)
+    sigma = reduced_sigma * kc * one_kBT / r0_meter2  # units of J/m^2 or N/m (same thing)
     return sigma
+
+
+def kBT(temperature: float) -> float:
+    """
+    Calculate the thermal energy k_B T.
+
+    Parameters
+    ----------
+    temperature : float
+        Temperature in Kelvin.
+
+    Returns
+    -------
+    float
+        Thermal energy k_B T in Joules.
+    """
+    k_B = Boltzmann  # J/K
+    return k_B * temperature
 
 
 def area_change_pct(sigma, ka):

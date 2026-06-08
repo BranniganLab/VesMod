@@ -56,6 +56,12 @@ def parse_args() -> argparse.Namespace:
         help="Do not fit surface tension sigma as a free parameter.",
     )
     parser.add_argument(
+        "--temperature",
+        type=float,
+        default=295,
+        help="Temperature in Kelvin when experiment performed. Default: 295.",
+    )
+    parser.add_argument(
         "--skip-existing-json",
         action="store_true",
         help="Skip an input file when its .json output already exists.",
@@ -92,6 +98,7 @@ def process_file(path: Path, args: argparse.Namespace) -> None:
         upper_bound=args.upper_fitting_bound,
         lmax=args.lmax,
         free_sigma=not args.fixed_sigma,
+        temperature=args.temperature
     )
     print(f"kc={kc}, sigma={sigma}")
     spectrum.to_json(path)
