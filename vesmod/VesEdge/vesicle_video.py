@@ -100,8 +100,6 @@ class VesicleVideo:
         curvature_threshold : float, OPTIONAL
             The level of curvature allowed between two contiguous r_vals before
             edge extraction would be deemed unreliable. Default is 10.
-        downsample_to_n : int or False
-            If not False, downsample the output to n evenly spaced values.
 
         Returns
         -------
