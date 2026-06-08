@@ -54,7 +54,7 @@ def sample_videos():
     video_list = {}
     for path in test_file_dir.iterdir():
         if path.suffix == '.npy':
-            video = VesicleVideo(np.load(path), 1)
+            video = VesicleVideo(np.load(path), 1, None)
             video.extract_edges(extract_edge_from_frame)
             video_list[path.stem] = video
 
