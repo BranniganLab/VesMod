@@ -127,7 +127,7 @@ def calc_tension_from_reduced_tension(
     fluctuation spectrum theory is related to the physical membrane tension
     by
 
-    sigma = reduced_sigma * kc * k_B * T / r0^2
+    sigma = tilde_sigma * kc * k_B * T / r0^2
 
     where ``kc`` is expressed in units of kBT and ``r0`` is the vesicle radius.
 
