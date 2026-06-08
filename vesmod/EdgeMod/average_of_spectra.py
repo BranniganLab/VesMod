@@ -15,6 +15,9 @@ class AverageOfSpectra():
         self.kC_list: list[float] = []
         self.modes: np.ndarray[int] = None
 
+    def __len__(self) -> int:
+        return len(self.kC_list)
+
     @property
     def avg_amps2(self) -> np.ndarray:
         return np.mean(np.array(self.spectra_list), axis=0)

@@ -25,4 +25,4 @@ for file in glob.glob(file_dir + "*.json"):
     if np.abs(data["surface_tension"]) < sigma_max:
         average.add_spectrum(data["avg_amps2"], data["modes"], data["kC"])
 
-print(average.kC, average.kC_ste)
+print(average.kC, average.kC_ste, len(average))
