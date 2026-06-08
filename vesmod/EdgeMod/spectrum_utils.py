@@ -48,14 +48,14 @@ def fit_spectrum_to_theory_lmfit(fitting_group, lmax, free_sigma=False, weighted
     raise ValueError("Fitting did not converge. Best fit for kC equals initial guess (15 kBT).")
 
 
-def HSS97(q, kC, sigma, lmax):
+def HSS97(q: list[int], kC: float, sigma: float, lmax: int) -> list[float]:
     """
     Generate function to be fit in order to estimate kC and sigma. See Hackl,\
     Seifert, and Sackmann 1997 eqs 7 & 8.
 
     Parameters
     ----------
-    q : int
+    q : list[int]
         Wave number / independent variable.
     kC : float
         Bending modulus to be fit.
@@ -82,7 +82,7 @@ def HSS97(q, kC, sigma, lmax):
     return function
 
 
-def Nlq_Plq0_squared(l, q):
+def Nlq_Plq0_squared(l: int, q: int) -> float:
     """
     Generate the nomarlized associated legendre polynomial N_{lq} * P_{lq}(0)\
     squared. See Hackl, Seifert, and Sackmann 1997 for more details.
@@ -114,9 +114,14 @@ def Nlq_Plq0_squared(l, q):
     return total
 
 
-def calc_tension_from_reduced_tension(r0, reduced_sigma, kc, temperature):
+def calc_tension_from_reduced_tension(
+    r0: float,
+    reduced_tension: float,
+    kc: float,
+    temperature: float,
+) -> float:
     """
-    Convert a dimensionless reduced membrane tension to a physical tension.
+    Convert a dimensionless reduced membrane tension to a physical tension in N/m.
 
     The reduced tension used in the Hackl, Seifert, and Sackmann (1997)
     fluctuation spectrum theory is related to the physical membrane tension
@@ -149,8 +154,8 @@ def calc_tension_from_reduced_tension(r0, reduced_sigma, kc, temperature):
     the tension.
 
     """
-    one_kBT = Boltzmann * temperature                 # units of Joules
-    r0_meter = r0 / 1e6                               # units of meters
-    r0_meter2 = r0_meter ** 2                         # units of meters^2
-    sigma = reduced_sigma * kc * one_kBT / r0_meter2  # units of J/m^2 or N/m (same thing)
+    one_kBT = Boltzmann * temperature                   # units of Joules
+    r0_meter = r0 / 1e6                                 # units of meters
+    r0_meter2 = r0_meter ** 2                           # units of meters^2
+    sigma = reduced_tension * kc * one_kBT / r0_meter2  # units of J/m^2 or N/m
     return sigma
