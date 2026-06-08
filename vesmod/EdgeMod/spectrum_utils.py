@@ -5,12 +5,14 @@ Created on Mon Apr  6 14:09:33 2026
 
 @author: js2746
 """
-
-import numpy as np
 import math
+from collections import namedtuple
+import numpy as np
 from scipy.special import lpmv
 from scipy.constants import Boltzmann
 from lmfit import Model
+
+MiniSpectrum = namedtuple("MiniSpectrum", ['modes', 'avg_amps2', 'std_amps2'])
 
 
 def fit_spectrum_to_theory_lmfit(fitting_group, lmax, free_sigma=False, weighted=False):

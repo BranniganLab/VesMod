@@ -6,8 +6,7 @@ Created on Thu Jun  4 13:31:11 2026
 @author: js2746
 """
 import numpy as np
-from vesmod.EdgeMod.spectrum import MiniSpectrum
-from vesmod.EdgeMod.spectrum_utils import fit_spectrum_to_theory_lmfit
+from vesmod.EdgeMod.spectrum_utils import fit_spectrum_to_theory_lmfit, MiniSpectrum
 
 class AverageOfSpectra():
     def __init__(self) -> None:
@@ -16,30 +15,37 @@ class AverageOfSpectra():
         self.modes: np.ndarray[int] = None
 
     def __len__(self) -> int:
+        """Return length of kC_list."""
         return len(self.kC_list)
 
     @property
     def avg_amps2(self) -> np.ndarray:
+        """Return mean of spectra_list along time dimension."""
         return np.mean(np.array(self.spectra_list), axis=0)
 
     @property
     def avg_amps2_std(self) -> np.ndarray:
+        """Take standard deviation of spectra_list along time dimension."""
         return np.std(np.array(self.spectra_list), axis=0, ddof=1)
 
     @property
     def avg_amps2_ste(self) -> np.ndarray:
+        """Calculate standard error."""
         return self.avg_amps2_std / len(self.spectra_list)
 
     @property
     def kC(self) -> float:
+        """Calculate kC from fit."""
         return self._extract_kC_from_fit()
 
     @property
     def kC_std(self) -> float:
+        """Calculate standard deviation from dispersion among replica kC values."""
         return np.std(self.kC_list, ddof=1)
 
     @property
     def kC_ste(self) -> float:
+        """Calculate standard error."""
         return self.kC_std / np.sqrt(len(self.kC_list))
 
     def add_spectrum(self, avg_amps2: list[float], modes: list[int], kC: float) -> None:
