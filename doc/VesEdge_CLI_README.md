@@ -36,49 +36,26 @@ vesedge --help
 
 ## Quick Start
 
-Process one ND2 file:
+Process one ND2 file (sample.nd2) with micron : pixel ratio of 1.0 : 13.44, downsampling to 180 evenly-spaced angular bins, and other default values:
 
 ```bash
-vesedge sample.nd2
-```
-
-Process every ND2 file in a directory:
-
-```bash
-vesedge ./videos
-```
-
-Process every ND2 file in a directory and its subdirectories:
-
-```bash
-vesedge ./videos --recursive 
+vesedge sample.nd2 --micron-to-pixel-ratio 0.0744 --downsample --n-samples 180
 ```
 
 ---
 
 ## Command Line Interface
 
-```bash
-vesedge INPUT_PATH [OPTIONS]
-```
 
-`INPUT_PATH` must be either:
+### File Selection Options
 
-- a single `.nd2` file
-- a directory containing `.nd2` files
-
----
-
-
-## File Selection Options
-
-### Single file
+#### Single file
 
 ```bash
 vesedge sample.nd2
 ```
 
-### Directory
+#### Directory
 
 ```bash
 vesedge ./videos
@@ -92,7 +69,7 @@ When `INPUT_PATH` is a directory, VesEdge processes files matching:
 
 in that directory.
 
-### Recursive directory search
+#### Recursive directory search
 
 ```bash
 vesedge ./videos --recursive
@@ -107,9 +84,9 @@ With `--recursive`, VesEdge processes files matching:
 ---
 
 
-## Downsampling
+### Downsampling
 
-### `--downsample`
+#### `--downsample`
 
 ```bash
 vesedge sample.nd2 --downsample
@@ -117,7 +94,7 @@ vesedge sample.nd2 --downsample
 
 When `--downsample` is used, VesEdge resamples each contour to a fixed number of evenly spaced angular samples.
 
-### `--n_samples`
+#### `--n_samples`
 
 ```bash
 vesedge sample.nd2 --downsample --n_samples 360
@@ -137,9 +114,9 @@ Using a fixed value of `--n_samples` is recommended when comparing contours acro
 ---
 
 
-## Curvature-Based Quality Control
+### Curvature-Based Quality Control
 
-### `--curvature-threshold`
+#### `--curvature-threshold`
 
 ```bash
 vesedge sample.nd2 --curvature-threshold 5
@@ -160,7 +137,7 @@ Default:
 ---
 
 
-### `--micron-to-pixel-ratio`
+#### `--micron-to-pixel-ratio`
 
 ```bash
 vesedge sample.nd2 --micron-to-pixel-ratio 0.0744
@@ -183,7 +160,7 @@ The saved `.npy` file stores radial distances in microns.
 
 ---
 
-## GIF Output
+### GIF Output
 
 By default, VesEdge writes a GIF for each processed ND2 file.
 
@@ -197,9 +174,9 @@ The GIF is intended for visual quality control. Accepted and unreliable traces a
 
 ---
 
-## Overwriting Existing Output
+### Overwriting Existing Output
 
-### `--overwrite`
+#### `--overwrite`
 
 By default, VesEdge skips an input file if the corresponding GIF already exists.
 
