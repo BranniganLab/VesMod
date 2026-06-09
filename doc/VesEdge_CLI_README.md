@@ -136,6 +136,7 @@ Default:
 
 ---
 
+### Microscope calibration
 
 #### `--micron-to-pixel-ratio`
 
