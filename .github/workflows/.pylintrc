@@ -4,4 +4,4 @@ disable=line-too-long,duplicate-code,no-name-in-module,no-member
 [BASIC]
 
 # to update: add a name to this list without spaces or new lines
-good-names=kC,kC_ste,kC_std,VesEdge,EdgeMod,kC_list,HSS97,Nlq_Plq0_squared,Nlq,Plq0,sqrtNlq,one_kBT
+good-names=kC,kC_ste,kC_std,VesEdge,EdgeMod,kC_list,HSS97,Nlq_Plq0_squared,Nlq,Plq0,sqrtNlq,one_kBT,_extract_kC_from_fit
