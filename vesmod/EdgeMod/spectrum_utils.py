@@ -112,7 +112,7 @@ def Nlq_Plq0_squared(l: int, q: int) -> float:
     try:
         total = (sqrtNlq * Plq0)**2
     except FloatingPointError:
-        raise Exception(f"FloatingPointError when l = {l}; q = {q}")
+        raise FloatingPointError(f"FloatingPointError when l = {l}; q = {q}")
     return total
 
 
