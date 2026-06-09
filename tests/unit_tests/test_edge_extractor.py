@@ -35,7 +35,10 @@ def test_approximate_vesicle_com_creates_debug_output(tmp_path):
 
 def test_extract_edge_from_frame_debug_mode_returns_none(tmp_path):
     """Test that extract_edge_from_frame skips edge extraction and returns None values when debug output is requested."""
-    image = np.zeros((50, 50))
+    n = 101
+    y, x = np.indices((n, n))
+    r = np.sqrt((x - 50)**2 + (y - 50)**2)
+    image = np.exp(-((r - 25)**2) / 2)
 
     r_vals, center = extract_edge_from_frame(
         image,
