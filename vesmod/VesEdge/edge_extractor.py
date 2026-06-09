@@ -23,7 +23,7 @@ def extract_edge_from_frame(frame, debug_path=None):
     frame : numpy ndarray
         The 2D array of intensity values from a vesicle video frame.
     debug_path : pathlib Path, optional
-        If not None, output debug images to debug_path. The default is None.
+        If not None, output debug images to debug_path directory. The default is None.
 
     Returns
     -------
