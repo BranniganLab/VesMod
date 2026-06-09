@@ -19,7 +19,7 @@ def test_convert_to_cartesian_places_points_around_center():
 
     x_vals, y_vals = convert_to_cartesian(center, r_vals)
 
-    theta = np.linspace(0, 2 * np.pi, 4)
+    theta = np.linspace(0, 2 * np.pi, 4, endpoint=False)
     np.testing.assert_allclose(x_vals[:-1], np.cos(theta) + center[0])
     np.testing.assert_allclose(y_vals[:-1], np.sin(theta) + center[1])
 
