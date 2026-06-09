@@ -67,7 +67,7 @@ class AverageOfSpectra():
     @property
     def avg_amps2_ste(self) -> np.ndarray:
         """Calculate standard error."""
-        return self.avg_amps2_std / len(self.spectra_list)
+        return self.avg_amps2_std / np.sqrt(len(self.spectra_list))
 
     @property
     def kC(self) -> float:
