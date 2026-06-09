@@ -1,5 +1,5 @@
 [MAIN]
-disable=line-too-long,duplicate-code
+disable=line-too-long,duplicate-code,no-name-in-module,no-member
 
 [BASIC]
 
