@@ -153,7 +153,7 @@ def test_isolate_mode_range_returns_selected_modes_and_average_amplitudes():
 
     np.testing.assert_array_equal(mini_spectrum.modes, np.array([2, 3]))
     np.testing.assert_allclose(mini_spectrum.avg_amps2, np.array([30.0, 45.0]))
-    assert mini_spectrum.avg_amps2_std is None
+    assert mini_spectrum.std_amps2 is None
 
 
 def test_isolate_mode_range_raises_error_when_no_modes_have_been_added():
@@ -191,7 +191,7 @@ def test_extract_kC_from_fit_uses_isolated_mode_range_and_returns_first_fit_valu
     assert calls["free_sigma"] is False
     np.testing.assert_array_equal(calls["fitting_range"].modes, np.array([2, 3]))
     np.testing.assert_allclose(calls["fitting_range"].avg_amps2, np.array([30.0, 45.0]))
-    assert calls["fitting_range"].avg_amps2_std is None
+    assert calls["fitting_range"].std_amps2 is None
 
 
 def test_kC_property_returns_value_from_extract_kC_from_fit(monkeypatch):
