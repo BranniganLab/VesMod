@@ -161,7 +161,9 @@ The saved `.npy` file stores radial distances in microns.
 
 ---
 
-### GIF Output
+### Output options
+
+#### `--no-gif`
 
 By default, VesEdge writes a GIF for each processed ND2 file.
 
@@ -174,8 +176,6 @@ vesedge sample.nd2 --no-gif
 The GIF is intended for visual quality control. Accepted and unreliable traces are displayed differently so that rejected frames can be inspected.
 
 ---
-
-### Overwriting Existing Output
 
 #### `--overwrite`
 
