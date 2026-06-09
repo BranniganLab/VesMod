@@ -27,12 +27,6 @@ def parse_args() -> argparse.Namespace:
         help="Search subdirectories when input_path is a directory.",
     )
     parser.add_argument(
-        "--n-theta",
-        type=int,
-        default=120,
-        help="Number of angular bins to downsample to. Default: 120.",
-    )
-    parser.add_argument(
         "--lower-fitting-bound",
         type=int,
         default=3,
@@ -61,11 +55,6 @@ def parse_args() -> argparse.Namespace:
         default=295,
         help="Temperature in Kelvin when experiment performed. Default: 295.",
     )
-    parser.add_argument(
-        "--skip-existing-json",
-        action="store_true",
-        help="Skip an input file when its .json output already exists.",
-    )
     return parser.parse_args()
 
 
@@ -87,9 +76,6 @@ def iter_npy_files(input_path: Path, recursive: bool) -> list[Path]:
 def process_file(path: Path, args: argparse.Namespace) -> None:
     """Fit one edge file and save its spectrum metadata to JSON."""
     output_path = path.with_suffix(".json")
-    if args.skip_existing_json and output_path.exists():
-        print(f"Skipping {path.name}: {output_path.name} already exists")
-        return
 
     print(f"Working on file {path.stem}")
     spectrum = Spectrum(path)
