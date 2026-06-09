@@ -81,7 +81,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--overwrite",
         action="store_true",
-        help="Process files even when the corresponding .gif already exists.",
+        help="Process files even when corresponding output files already exist.",
     )
     return parser.parse_args()
 
