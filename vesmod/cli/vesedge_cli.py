@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import argparse
 import importlib
+import importlib.util
 from pathlib import Path
 
 import nd2
 
-from vesmod.VesEdge import VesicleVideo, extract_edge_from_frame
+from vesmod.VesEdge import VesicleVideo
 
 
 def parse_args() -> argparse.Namespace:
