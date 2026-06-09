@@ -205,6 +205,8 @@ def isolate_region_of_array(arr, mask_center, window_fraction, set_bg_to_nan=Fal
         # static mask: preserve within threshold of mask_center for all rows.
         lower_bound = int(mask_center - mask_center * window_fraction)
         upper_bound = int(mask_center + mask_center * window_fraction) + 1
+        lower_bound = max(0, lower_bound)
+        upper_bound = min(arr.shape[1], upper_bound)
         masked_copy[:, lower_bound:upper_bound] = arr[:, lower_bound:upper_bound]
     elif isinstance(mask_center, (np.ndarray, list)):
         # moving mask: preserve within threshold of mask_center[i] on row i.
@@ -215,6 +217,8 @@ def isolate_region_of_array(arr, mask_center, window_fraction, set_bg_to_nan=Fal
         for index, center_value in enumerate(mask_center):
             lower_bound = int(center_value - center_value * window_fraction)
             upper_bound = int(center_value + center_value * window_fraction) + 1
+            lower_bound = max(0, lower_bound)
+            upper_bound = min(arr.shape[1], upper_bound)
             masked_copy[index, lower_bound:upper_bound] = arr[index, lower_bound:upper_bound]
     else:
         raise TypeError("mask_center must be a scalar, list, or numpy ndarray.")
