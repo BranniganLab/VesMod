@@ -8,7 +8,7 @@ from vesmod.VesEdge.vesicle_video import VesicleVideo
 
 def test_post_init_allocates_internal_arrays():
     """Test that construction creates storage arrays with expected dimensions and default values."""
-    frames = np.zeros((3, 50, 50))
+    frames = np.zeros((3, 200, 200))
 
     video = VesicleVideo(frames, micron_to_pixel_ratio=0.5)
 
@@ -60,7 +60,11 @@ def test_downsample_r_vals_returns_input_when_same_length():
 
 def test_add_edge_marks_good_frame():
     """Test that a smooth contour with low curvature receives status code 1."""
-    video = VesicleVideo(np.zeros((1, 200, 200)), 1.0)
+    video = VesicleVideo(
+        np.zeros((1, 120, 120)),
+        1.0,
+        n_angular_samples=120,
+    )
 
     r_vals = np.full(120, 20.0)
 
@@ -76,7 +80,11 @@ def test_add_edge_marks_good_frame():
 
 def test_add_edge_marks_bad_curvature():
     """Test that excessive wrapped second differences result in status code 3."""
-    video = VesicleVideo(np.zeros((1, 200, 200)), 1.0)
+    video = VesicleVideo(
+        np.zeros((1, 120, 120)),
+        1.0,
+        n_angular_samples=120,
+    )
 
     r_vals = np.zeros(120)
     r_vals[0] = 100
@@ -93,7 +101,7 @@ def test_add_edge_marks_bad_curvature():
 
 def test_extract_edges_marks_exceptions_as_status_2():
     """Test that extractor exceptions are caught and stored as status code 2."""
-    video = VesicleVideo(np.zeros((2, 50, 50)), 1.0)
+    video = VesicleVideo(np.zeros((2, 200, 200)), 1.0)
 
     def failing_extractor(frame):
         raise RuntimeError("failure")
@@ -105,7 +113,7 @@ def test_extract_edges_marks_exceptions_as_status_2():
 
 def test_save_edge_to_npy_only_saves_good_frames(tmp_path):
     """Test that save_edge_to_npy writes only frames whose status code equals 1."""
-    video = VesicleVideo(np.zeros((3, 50, 50)), 1.0)
+    video = VesicleVideo(np.zeros((3, 200, 200)), 1.0)
 
     video.r_vals[:] = 1
     video.status[:] = [1, 2, 1]
@@ -121,7 +129,7 @@ def test_save_edge_to_npy_only_saves_good_frames(tmp_path):
 
 def test_save_edge_to_npy_requires_detected_edges(tmp_path):
     """Test that save_edge_to_npy raises when all edge values remain NaN."""
-    video = VesicleVideo(np.zeros((2, 50, 50)), 1.0)
+    video = VesicleVideo(np.zeros((2, 200, 200)), 1.0)
 
     with pytest.raises(AttributeError):
         video.save_edge_to_npy(tmp_path / "edges")
