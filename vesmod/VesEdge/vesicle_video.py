@@ -114,6 +114,8 @@ class VesicleVideo:
         for frame_num, _ in enumerate(self.frames):
             try:
                 r_vals, vesicle_center = extractor_func(self.frames[frame_num, :, :])
+                if r_vals.shape[0] != self.n_angular_samples:
+                    raise IndexError(f"Expected {self.n_angular_samples} samples but got {r_vals.shape[0]}")
                 self._add_edge_to_video_frame(frame_num, r_vals, vesicle_center, curvature_threshold)
             except Exception:
                 print(f"Error on frame {frame_num}")
