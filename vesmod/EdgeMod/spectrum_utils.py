@@ -111,8 +111,8 @@ def Nlq_Plq0_squared(l: int, q: int) -> float:
     np.seterr(all='raise')
     try:
         total = (sqrtNlq * Plq0)**2
-    except FloatingPointError:
-        raise FloatingPointError(f"FloatingPointError when l = {l}; q = {q}")
+    except FloatingPointError as exc:
+        raise FloatingPointError(f"FloatingPointError when l = {l}; q = {q}") from exc
     return total
 
 
