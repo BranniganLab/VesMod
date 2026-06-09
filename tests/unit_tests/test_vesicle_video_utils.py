@@ -128,6 +128,46 @@ def test_isolate_region_of_array_requires_matching_lengths():
         isolate_region_of_array(np.ones((3, 10)), np.array([1, 2]), 0.1)
 
 
+def test_isolate_region_of_array_clips_negative_lower_bound():
+    """Test that masks beginning before column zero are clipped to zero.
+
+    This verifies that small mask centers do not trigger negative slicing,
+    which would otherwise preserve values from the end of the row instead of
+    preserving columns starting at zero.
+    """
+    arr = np.arange(20).reshape(2, 10)
+
+    masked = isolate_region_of_array(
+        arr,
+        mask_center=2,
+        window_fraction=2.0,
+    )
+
+    expected = np.zeros_like(arr)
+    expected[:, 0:7] = arr[:, 0:7]
+
+    np.testing.assert_array_equal(masked, expected)
+
+
+def test_isolate_region_of_array_clips_negative_lower_bound_rowwise():
+    """Test that row-specific masks clip negative lower bounds to zero."""
+    arr = np.arange(30).reshape(3, 10)
+    mask_center = np.array([2, 5, 8])
+
+    masked = isolate_region_of_array(
+        arr,
+        mask_center=mask_center,
+        window_fraction=2.0,
+    )
+
+    expected = np.zeros_like(arr)
+    expected[0, 0:7] = arr[0, 0:7]
+    expected[1, 0:10] = arr[1, 0:10]
+    expected[2, 0:10] = arr[2, 0:10]
+
+    np.testing.assert_array_equal(masked, expected)
+
+
 def test_measure_wrapped_finite_second_difference_returns_zero_for_constant_array():
     """Test that the wrapped second difference of a constant array is zero everywhere."""
     arr = np.ones(10)
