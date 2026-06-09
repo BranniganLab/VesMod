@@ -81,7 +81,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--overwrite",
         action="store_true",
-        help="Process files even when the corresponding .gif already exists.",
+        help="Process files even when corresponding output files already exist.",
     )
     return parser.parse_args()
 
@@ -136,9 +136,16 @@ def load_extractor_from_file(file_path: Path, function_name: str):
 
 def process_file(path: Path, args: argparse.Namespace) -> None:
     """Extract edges from one ND2 video and save standard outputs."""
-    gif_path = path.with_suffix(".gif")
-    if gif_path.exists() and not args.overwrite:
-        print(f"Skipping {path.name}: {gif_path.name} already exists")
+    output_paths = [path.with_suffix(".npy")]
+
+    if not args.no_gif:
+        output_paths.append(path.with_suffix(".gif"))
+
+    existing_paths = [output_path for output_path in output_paths if output_path.exists()]
+
+    if existing_paths and not args.overwrite:
+        existing_names = ", ".join(output_path.name for output_path in existing_paths)
+        print(f"Skipping {path.name}: output file(s) already exist: {existing_names}")
         return
 
     if args.extractor_file is not None:
