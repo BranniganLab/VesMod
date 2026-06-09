@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 from scipy.constants import Boltzmann
 
-from vesmod.spectrum_utils import (
+from vesmod.EdgeMod.spectrum_utils import (
     HSS97,
     MiniSpectrum,
     Nlq_Plq0_squared,
