@@ -93,32 +93,35 @@ class VesicleVideo:
         """
         Extract edges from every frame.
 
-        Parameters
-        ----------
-        extractor_func : function
-            The edge extractor function you wish to use.
-        curvature_threshold : float, OPTIONAL
-            The level of curvature allowed between two contiguous r_vals before
-            edge extraction would be deemed unreliable. Default is 10.
-
-        Returns
-        -------
-        None.
-
-        Side Effects
-        ------------
-        - Saves self.r_vals with units of microns
-        - If error encountered on a frame, sets self.status to 2 for that frame.
-
+        Frames that fail edge extraction are marked with status 2. If every frame
+        fails, raise a RuntimeError because this likely indicates a systemic problem
+        with the extractor, input video, or extraction configuration.
         """
+        failed_frames = []
+
         for frame_num, _ in enumerate(self.frames):
             try:
                 r_vals, vesicle_center = extractor_func(self.frames[frame_num, :, :])
-                self._add_edge_to_video_frame(frame_num, r_vals, vesicle_center, curvature_threshold)
-            except Exception:
+                if r_vals.ndim != 1:
+                    raise ValueError("Extractor must return a 1D array of r-values.")
+                self._add_edge_to_video_frame(
+                    frame_num,
+                    r_vals,
+                    vesicle_center,
+                    curvature_threshold,
+                )
+            except Exception as error:
                 print(f"Error on frame {frame_num}")
                 traceback.print_exc()
                 self.status[frame_num] = 2
+                failed_frames.append(frame_num)
+
+        if len(failed_frames) == self.frames.shape[0]:
+            raise RuntimeError(
+                "Edge extraction failed on every frame. This likely indicates a "
+                "systemic issue with the extractor function, input video, or "
+                "extraction settings."
+            )
 
     def _add_edge_to_video_frame(self, frame_num, r_vals, vesicle_center, curvature_threshold):
         """
