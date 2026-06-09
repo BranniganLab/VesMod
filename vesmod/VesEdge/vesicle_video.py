@@ -85,8 +85,8 @@ class VesicleVideo:
             self.r_vals = np.full((self.frames.shape[0], self.n_angular_samples), np.nan)
         else:
             self.r_vals = np.full((self.frames.shape[0], self.frames.shape[1]), np.nan)
-        self.x_vals = np.full((self.frames.shape[0], self.frames.shape[1]), np.nan)
-        self.y_vals = np.full((self.frames.shape[0], self.frames.shape[1]), np.nan)
+        self.x_vals = np.full((self.frames.shape[0], self.frames.shape[1] + 1), np.nan)
+        self.y_vals = np.full((self.frames.shape[0], self.frames.shape[1] + 1), np.nan)
         self.status = np.zeros(self.frames.shape[0]).astype(int)
 
     def extract_edges(self, extractor_func, curvature_threshold=5):
