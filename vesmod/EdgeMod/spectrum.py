@@ -7,13 +7,10 @@ Created on Tue Jan 21 15:04:46 2025.
 """
 from pathlib import Path
 from types import NoneType
-from collections import namedtuple
 import json
 import numpy as np
-from .spectrum_utils import downsample_to_new_indices, fit_spectrum_to_theory_lmfit
 from vesmod.VesEdge import VesicleVideo
-
-MiniSpectrum = namedtuple("MiniSpectrum", ['modes', 'avg_amps2', 'std_amps2'])
+from .spectrum_utils import fit_spectrum_to_theory_lmfit, calc_tension_from_reduced_tension, MiniSpectrum
 
 
 class Spectrum:
@@ -34,7 +31,6 @@ class Spectrum:
     def __init__(
         self,
         edges_over_time: str | Path | VesicleVideo,
-        Ntheta=None,
         frame_cutoff=None
     ) -> None:
         """
@@ -64,24 +60,15 @@ class Spectrum:
         else:
             raise TypeError("edges_over_time must be a str, pathlib Path, or VesicleVideo.")
 
-        # make sure frame_cutoff and Ntheta are either None or a positive int
-        for var, varname in zip([frame_cutoff, Ntheta], ["frame_cutoff", "Ntheta"]):
-            if not isinstance(var, (int, NoneType)):
-                raise TypeError(f"{varname} must either be None or an int.")
-            if (isinstance(var, int)) and (var <= 0):
-                raise ValueError(f"{varname} must be a positive int.")
+        # make sure frame_cutoff is either None or a positive int
+        if not isinstance(frame_cutoff, (int, NoneType)):
+            raise TypeError("frame_cutoff must either be None or an int.")
+        if (isinstance(frame_cutoff, int)) and (frame_cutoff <= 0):
+            raise ValueError("frame_cutoff must be a positive int.")
 
         # prune the trajectory if frame_cutoff specified
         if frame_cutoff is not None and frame_cutoff < input_data.shape[0]:
             input_data = input_data[:frame_cutoff, :]
-
-        # downsample to Ntheta to ensure that dtheta is equal across all replicas
-        if Ntheta is not None and Ntheta < input_data.shape[1]:
-            zero_to_ntheta = np.linspace(0, Ntheta - 1, Ntheta)
-            new_evenly_spaced_indices = zero_to_ntheta * (input_data.shape[1] / Ntheta)
-            input_data = downsample_to_new_indices(input_data, new_evenly_spaced_indices)
-        elif Ntheta is not None and Ntheta > input_data.shape[1]:
-            raise IndexError(f"Input array has {input_data.shape[1]} columns; cannot downsample into {Ntheta} columns")
 
         self.r0 = np.mean(input_data)
         self.avg_amps2 = self._calc_avg_sq_amplitudes(input_data)
@@ -126,8 +113,8 @@ class Spectrum:
         np.ndarray[int]
 
         """
-        freqs = np.fft.fftfreq(self.avg_amps2.shape[1])
-        modes = np.round(freqs * self.avg_amps2.shape[1]).astype(int)
+        freqs = np.fft.fftfreq(self.avg_amps2.shape[0])
+        modes = np.round(freqs * self.avg_amps2.shape[0]).astype(int)
         return modes
 
     def isolate_mode_range(self, lower_bound: int, upper_bound: int) -> MiniSpectrum:
@@ -152,8 +139,9 @@ class Spectrum:
         lower_bound: int = 3,
         upper_bound: int = 8,
         lmax: int = 500,
-        free_sigma: bool = True
-    ) -> tuple(float, float):
+        free_sigma: bool = True,
+        temperature: float = 295
+    ) -> tuple[float, float]:
         """
         Fit specific range of self.avg_amps2 to theoretical prediction.
 
@@ -166,6 +154,8 @@ class Spectrum:
         free_sigma : bool
             If True, allow surface tension (sigma) to vary. If False, set sigma
             to zero and do not let it vary during fitting.
+        temperature : float
+            The temperature in Kelvin. Default is 295 K.
 
         Returns
         -------
@@ -179,8 +169,9 @@ class Spectrum:
         """
         fitting_range = self.isolate_mode_range(lower_bound, upper_bound)
         fit = fit_spectrum_to_theory_lmfit(fitting_range, lmax, free_sigma)
-        self.kC, self.surface_tension = fit
-        return fit
+        self.kC, reduced_sigma = fit
+        self.surface_tension = calc_tension_from_reduced_tension(self.r0, reduced_sigma, self.kC, temperature)
+        return self.kC, self.surface_tension
 
     def _to_dict(self, include_arrays=True) -> dict:
         """

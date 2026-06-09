@@ -11,6 +11,8 @@ jobs:
         python-version: ["3.11"]
     steps:
     - uses: actions/checkout@v6
+      with:
+        ref: ${{ github.ref_name  }}
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v6
       with:
@@ -31,7 +33,9 @@ jobs:
 
     - name: Create new branch
       run: |
-        BRANCH_NAME="update-reference-$(date +%Y%m%d%H%M%S)"
+        BASE_BRANCH="${GITHUB_REF_NAME}"
+        BRANCH_NAME="update-reference-${BASE_BRANCH}-$(date +%Y%m%d%H%M%S)"
+        echo "BASE_BRANCH=$BASE_BRANCH" >> $GITHUB_ENV
         echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
         git checkout -b $BRANCH_NAME
 
@@ -41,7 +45,7 @@ jobs:
 
     - name: Commit changes if any
       run: |
-        git add testing/reference_values/
+        git add tests/reference_values/
         if ! git diff --cached --quiet; then
           git commit -m "Update reference files"
           git push origin $BRANCH_NAME
@@ -57,5 +61,5 @@ jobs:
         gh pr create \
           --title "Update reference values" \
           --body "Automated update of reference values." \
-          --base main \
-          --head $BRANCH_NAME
+          --base "$BASE_BRANCH" \
+          --head "$BRANCH_NAME"
