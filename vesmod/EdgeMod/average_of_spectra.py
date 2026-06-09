@@ -1,14 +1,50 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Thu Jun  4 13:31:11 2026
+Tools for averaging fluctuation spectra across multiple replicas.
 
-@author: js2746
+This module provides the AverageOfSpectra class, which aggregates 
+Spectrum objects and bending modulus estimates from multiple replicas
+of the same system. The class calculates ensemble-averaged squared
+amplitudes, replica-to-replica uncertainty estimates, and an
+overall bending modulus obtained by fitting the averaged spectrum
+to the theoretical fluctuation model.
+
+Typical usage consists of adding one Spectrum per replica using
+:add_spectrum:, then accessing the averaged amplitudes through
+:attr:`avg_amps2` or the fitted bending modulus through
+:attr:`kC`.
 """
 import numpy as np
 from vesmod.EdgeMod.spectrum_utils import fit_spectrum_to_theory_lmfit, MiniSpectrum
 
+
 class AverageOfSpectra():
+    """
+    Store and analyze fluctuation spectra from multiple replicas.
+
+    Each replica contributes a spectrum of average squared mode
+    amplitudes and an independently determined bending modulus.
+    All spectra must be defined on the same set of Fourier modes.
+
+    The class provides properties for calculating:
+
+    * Ensemble-averaged squared amplitudes.
+    * Standard deviations and standard errors across replicas.
+    * Mean bending modulus obtained by fitting the averaged spectrum.
+    * Uncertainty estimates based on replica-to-replica variation.
+
+    Attributes
+    ----------
+    spectra_list : list[np.ndarray]
+        Average squared amplitudes from each replica.
+    kC_list : list[float]
+        Bending modulus estimate associated with each replica.
+    modes : np.ndarray or None
+        Fourier mode indices shared by all stored spectra.
+        Set automatically when the first spectrum is added.
+    """
+
     def __init__(self) -> None:
         self.spectra_list: list[np.ndarray] = []
         self.kC_list: list[float] = []
@@ -31,7 +67,7 @@ class AverageOfSpectra():
     @property
     def avg_amps2_ste(self) -> np.ndarray:
         """Calculate standard error."""
-        return self.avg_amps2_std / len(self.spectra_list)
+        return self.avg_amps2_std / np.sqrt(len(self.spectra_list))
 
     @property
     def kC(self) -> float:
@@ -49,6 +85,35 @@ class AverageOfSpectra():
         return self.kC_std / np.sqrt(len(self.kC_list))
 
     def add_spectrum(self, avg_amps2: list[float], modes: list[int], kC: float) -> None:
+        """
+        Add a spectrum replica to the ensemble.
+
+        Parameters
+        ----------
+        avg_amps2 : array-like of float
+            Average squared fluctuation amplitudes for each Fourier mode.
+        modes : array-like of int
+            Fourier mode indices corresponding to ``avg_amps2``.
+            The mode array must match that of all previously added
+            spectra.
+        kC : float
+            Bending modulus determined from this replica.
+
+        Raises
+        ------
+        ValueError
+            If ``modes`` does not match the mode indices already stored
+            in the object.
+        TypeError
+            If ``self.modes`` is neither ``None`` nor a NumPy array.
+
+        Notes
+        -----
+        The first spectrum added defines the mode indices used by the
+        ensemble. All subsequent spectra must use the same modes so that
+        replica averages can be computed element-wise.
+
+        """
         if isinstance(self.modes, np.ndarray):
             if not np.array_equal(np.array(modes), self.modes):
                 raise ValueError(f"{modes} does not equal {self.modes}")
