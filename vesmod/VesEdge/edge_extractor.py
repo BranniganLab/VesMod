@@ -5,6 +5,7 @@ Created on Mon Dec 22 12:27:16 2025.
 
 @author: js2746
 """
+from pathlib import Path
 from scipy import ndimage
 from skimage import filters
 from skimage.measure import regionprops
@@ -34,6 +35,8 @@ def extract_edge_from_frame(frame, debug_path=None):
 
     """
     if debug_path is not None:
+        debug_path = Path(debug_path)
+        debug_path.mkdir(parents=True, exist_ok=True)
         _make_debug_image(frame, debug_path)
         return None, None
 
@@ -133,7 +136,7 @@ def _make_debug_image(frame, output_path):
     axes[0][2].set_ylabel(r"$\theta$")
     axes[0][3].set_ylabel(r"$\theta$")
     axes[0][3].set_xlabel(r"$\rho$")
-    plt.savefig(output_path)
+    plt.savefig(output_path / "edge_extraction_debug.pdf")
     plt.clf()
     plt.close()
 
