@@ -165,8 +165,8 @@ def test_extract_kc_from_fit_uses_mode_range_and_saves_fit_results(monkeypatch):
         calls["tension_args"] = (r0, reduced_tension, kc, temperature)
         return 9.9
 
-    monkeypatch.setattr("vesmod.spectrum.fit_spectrum_to_theory_lmfit", fake_fit_spectrum_to_theory_lmfit)
-    monkeypatch.setattr("vesmod.spectrum.calc_tension_from_reduced_tension", fake_calc_tension_from_reduced_tension)
+    monkeypatch.setattr("vesmod.EdgeMod.spectrum.fit_spectrum_to_theory_lmfit", fake_fit_spectrum_to_theory_lmfit)
+    monkeypatch.setattr("vesmod.EdgeMod.spectrum.calc_tension_from_reduced_tension", fake_calc_tension_from_reduced_tension)
 
     kc, surface_tension = spectrum.extract_kc_from_fit(
         lower_bound=2,
