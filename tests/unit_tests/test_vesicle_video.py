@@ -110,7 +110,7 @@ def test_extract_edges_marks_exceptions_as_status_2():
     def failing_extractor(frame):
         raise RuntimeError("failure")
 
-    with pytest.raises(RuntimeError, match="failed on all"):
+    with pytest.raises(RuntimeError, match="failed on every"):
         video.extract_edges(failing_extractor)
 
     np.testing.assert_array_equal(video.status, [2, 2])
