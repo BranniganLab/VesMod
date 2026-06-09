@@ -128,6 +128,12 @@ When reporting an issue, please include:
 
 ---
 
+## License
+
+VesMod is distributed under the GNU General Public License v3.0
+(or, at your option, any later version). See the LICENSE file
+for details.
+
 ## Citation
 
 If VesMod contributes to a publication, please cite the associated manuscript and software repository.
