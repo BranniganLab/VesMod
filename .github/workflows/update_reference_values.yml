@@ -11,8 +11,8 @@ jobs:
         python-version: ["3.11"]
     steps:
     - uses: actions/checkout@v6
-    with:
-      ref: ${{ github.ref_name  }}
+      with:
+        ref: ${{ github.ref_name  }}
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v6
       with:
@@ -33,7 +33,7 @@ jobs:
 
     - name: Create new branch
       run: |
-        BASE_BRANCH = "${GITHUB_REF_NAME}"
+        BASE_BRANCH="${GITHUB_REF_NAME}"
         BRANCH_NAME="update-reference-${BASE_BRANCH}-$(date +%Y%m%d%H%M%S)"
         echo "BASE_BRANCH=$BASE_BRANCH" >> $GITHUB_ENV
         echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
