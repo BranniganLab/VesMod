@@ -6,7 +6,7 @@ import json
 import numpy as np
 import pytest
 
-from vesmod.EdgeMode import Spectrum, MiniSpectrum
+from vesmod.EdgeMod import Spectrum, MiniSpectrum
 
 
 def test_init_from_npy_calculates_r0_avg_amps2_and_integer_modes(tmp_path):
