@@ -41,7 +41,7 @@ jobs:
 
     - name: Commit changes if any
       run: |
-        git add testing/reference_values/
+        git add tests/reference_values/
         if ! git diff --cached --quiet; then
           git commit -m "Update reference files"
           git push origin $BRANCH_NAME
