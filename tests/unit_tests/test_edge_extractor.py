@@ -41,7 +41,7 @@ def test_extract_edge_from_frame_debug_mode_returns_none(tmp_path):
 
     r_vals, center = extract_edge_from_frame(
         image,
-        debug_path=tmp_path.joinpath("debug.pdf"),
+        debug_path=tmp_path,
     )
 
     assert r_vals is None
