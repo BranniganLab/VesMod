@@ -44,7 +44,7 @@ vesedge sample.nd2 --micron-to-pixel-ratio 0.0744 --downsample --n-samples 180
 
 ---
 
-## Command Line Interface
+## Command Line Interface Arguments
 
 
 ### File Selection Options
