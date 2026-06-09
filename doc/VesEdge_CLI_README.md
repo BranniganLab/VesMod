@@ -97,10 +97,10 @@ Downsampling occurs before curvature-based quality control. Consequently, using 
 
 Using a fixed number of samples is recommended when comparing contours across datasets or extraction algorithms. The default is 120 samples. To specify a different number, use `--n-samples`
 
-#### `--n_samples`
+#### `--n-samples`
 
 ```bash
-vesedge sample.nd2 --downsample --n_samples 360
+vesedge sample.nd2 --downsample --n-samples 360
 ```
 
 ---
