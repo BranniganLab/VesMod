@@ -20,7 +20,7 @@ keywords = [
     "biophysics",
 ]
 classifiers = [
-    "Development Status :: 1 - Planning",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
