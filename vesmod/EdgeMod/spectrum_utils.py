@@ -15,6 +15,43 @@ from lmfit import Model
 MiniSpectrum = namedtuple("MiniSpectrum", ['modes', 'avg_amps2', 'std_amps2'])
 
 
+def _validate_lmfit_result(result, fitting_group, free_sigma):
+    """Raise ValueError if the lmfit result is not physically or numerically reliable."""
+    if not result.success:
+        raise ValueError(f"Spectrum fit failed: {result.message}")
+
+    kC = result.params["kC"]
+    sigma = result.params["sigma"]
+
+    if kC.value <= kC.min or kC.value >= kC.max:
+        raise ValueError(f"Spectrum fit put kC on a parameter bound: kC={kC.value}")
+
+    if free_sigma and (sigma.value <= sigma.min or sigma.value >= sigma.max):
+        raise ValueError(
+            f"Spectrum fit put sigma on a parameter bound: sigma={sigma.value}"
+        )
+
+    if kC.stderr is None:
+        raise ValueError("Spectrum fit did not estimate uncertainty for kC.")
+
+    if kC.stderr / abs(kC.value) > 0.5:
+        raise ValueError(
+            f"Spectrum fit has poorly constrained kC: "
+            f"kC={kC.value}, stderr={kC.stderr}"
+        )
+
+    residuals = np.asarray(result.residual)
+    y = np.asarray(fitting_group.avg_amps2)
+
+    rmse = np.sqrt(np.mean(residuals**2))
+    rel_rmse = rmse / np.mean(np.abs(y))
+
+    if rel_rmse > 0.25:
+        raise ValueError(
+            f"Spectrum fit residuals are too large: relative RMSE={rel_rmse:.3f}"
+        )
+
+
 def fit_spectrum_to_theory_lmfit(fitting_group, lmax, free_sigma=False, weighted=False):
     """
     Fit a Mini_spectrum to the theory from Hackl, Seifert, and Sachmann 1997 \
@@ -40,14 +77,17 @@ def fit_spectrum_to_theory_lmfit(fitting_group, lmax, free_sigma=False, weighted
     """
     model = Model(HSS97)
     pars = model.make_params(kC={'value': 15, 'min': 1, 'max': 500, 'vary': True}, sigma={'value': 0, 'min': -100, 'max': 1000, 'vary': free_sigma}, lmax={'value': lmax, 'vary': False})
-    if weighted and fitting_group.std_amps2.all():
+
+    use_weights = (weighted and np.all(np.isfinite(fitting_group.std_amps2)) and np.all(fitting_group.std_amps2 > 0))
+
+    if use_weights:
         result = model.fit(fitting_group.avg_amps2, q=fitting_group.modes, weights=(1 / fitting_group.std_amps2), params=pars, max_nfev=20000)
     else:
         result = model.fit(fitting_group.avg_amps2, q=fitting_group.modes, params=pars, max_nfev=20000)
-    if result.best_values['kC'] != 15:
-        return result.best_values['kC'], result.best_values['sigma']
-    print(f"kC: {result.best_values['kC']} and sigma: {result.best_values['sigma']}")
-    raise ValueError("Fitting did not converge. Best fit for kC equals initial guess (15 kBT).")
+
+    _validate_lmfit_result(result, fitting_group, free_sigma)
+
+    return result.best_values['kC'], result.best_values['sigma']
 
 
 def HSS97(q: list[int], kC: float, sigma: float, lmax: int) -> list[float]:
