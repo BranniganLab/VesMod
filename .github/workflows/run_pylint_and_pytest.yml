@@ -25,7 +25,10 @@ jobs:
       run: |
         export PYLINTRC=./.github/workflows/.pylintrc
         pylint $(find ./vesmod/VesEdge -name '*.py') --fail-under=8
-        pylint $(find ./vesmod/EdgeMod -name '*.py') --fail-under=6
-    - name: Running regression test with pytest
+        pylint $(find ./vesmod/EdgeMod -name '*.py') --fail-under=8
+    - name: Running unit tests with pytest
+      run: |
+        python -m pytest ./tests/unit_tests/test*.py
+    - name: Running approval tests with pytest
       run: |
         python -m pytest ./tests/test_edge_extractor_quality.py
