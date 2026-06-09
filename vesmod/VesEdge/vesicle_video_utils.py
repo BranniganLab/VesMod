@@ -138,42 +138,57 @@ def zero_out_all_but_lowest_n_modes(arr, n):
     return ifft.real
 
 
-def isolate_region_of_array(arr, mask_center, threshold, set_bg_to_nan=False):
+def isolate_region_of_array(arr, mask_center, window_fraction, set_bg_to_nan=False):
     """
-    Use a mask to preserve region of array within threshold of mask_center.
+    Mask a 2D array to retain only a local region around one or more center positions.
 
-    If mask_center is a scalar, preserve within threshold of mask_center on all
-    rows. If mask_center is a list or ndarray, preserve within threshold of
-    mask_center[i] on each row i.
+    A copy of ``arr`` is returned in which values outside a window centered on
+    ``mask_center`` are replaced with either 0 or ``np.nan``. The half-width of
+    the retained window is defined as a fraction of the center position itself:
+
+    ``half_width = center * window_fraction``
+
+    If ``mask_center`` is a scalar, the same mask is applied to every row. If
+    ``mask_center`` is a list or ndarray, a separate mask is applied to each
+    row using the corresponding center value.
 
     Parameters
     ----------
-    arr : 2D numpy ndarray
-        The original image/array that you wish to mask.
-    mask_center : int, float, list or numpy ndarray
-        The center column index from which to mask. If a scalar is provided,
-        use a static mask over all rows. If a list or ndarray is provided, use
-        a moving mask over each row.
-    threshold : int
-        How many bins on either side of mask_center to preserve.
-    set_bg_to_nan : bool, OPTIONAL
-        If True, set all values outside of mask to np.nan. If False, set all
-        values outside of mask to 0.
+    arr : np.ndarray
+        Two-dimensional array to be masked.
+    mask_center : int, float, list, or np.ndarray
+        Center column index (or indices) defining the retained region. A scalar
+        applies a static mask to all rows, while a list or ndarray applies a
+        row-specific mask.
+    window_fraction : float
+        Fractional half-width of the retained region. For a center position
+        ``c``, values are preserved from
 
-    Raises
-    ------
-    IndexError
-        If arr is not a 2D array or if arr and mask_center are different sizes
-        along 0th dimension.
-    TypeError
-        If arr isn't a numpy array or if mask_center isn't an scalar, array or
-        list.
+        ``c - c * window_fraction``
+
+        to
+
+        ``c + c * window_fraction``.
+
+        For example, ``window_fraction=0.05`` retains approximately ±5% of the
+        center position on either side of the center.
+    set_bg_to_nan : bool, optional
+        If ``True``, values outside the retained region are set to ``np.nan``.
+        Otherwise they are set to 0.
 
     Returns
     -------
-    masked_copy : 2D numpy ndarray
-        The original arr with all values set to 0 or np.nan except those
-        within the masked region.
+    np.ndarray
+        Copy of ``arr`` with values outside the retained region removed.
+
+    Raises
+    ------
+    TypeError
+        If ``arr`` is not a NumPy array or if ``mask_center`` is not a scalar,
+        list, or NumPy array.
+    IndexError
+        If ``arr`` is not two-dimensional or if a row-wise ``mask_center``
+        array does not match the number of rows in ``arr``.
 
     """
     if not isinstance(arr, np.ndarray):
@@ -188,8 +203,8 @@ def isolate_region_of_array(arr, mask_center, threshold, set_bg_to_nan=False):
 
     if np.isscalar(mask_center):
         # static mask: preserve within threshold of mask_center for all rows.
-        lower_bound = int(mask_center - mask_center * threshold)
-        upper_bound = int(mask_center + mask_center * threshold) + 1
+        lower_bound = int(mask_center - mask_center * window_fraction)
+        upper_bound = int(mask_center + mask_center * window_fraction) + 1
         masked_copy[:, lower_bound:upper_bound] = arr[:, lower_bound:upper_bound]
     elif isinstance(mask_center, (np.ndarray, list)):
         # moving mask: preserve within threshold of mask_center[i] on row i.
@@ -198,8 +213,8 @@ def isolate_region_of_array(arr, mask_center, threshold, set_bg_to_nan=False):
         if mask_center.shape[0] != arr.shape[0]:
             raise IndexError("arr and mask_center must be same size in 0th dimension")
         for index, center_value in enumerate(mask_center):
-            lower_bound = int(center_value - center_value * threshold)
-            upper_bound = int(center_value + center_value * threshold) + 1
+            lower_bound = int(center_value - center_value * window_fraction)
+            upper_bound = int(center_value + center_value * window_fraction) + 1
             masked_copy[index, lower_bound:upper_bound] = arr[index, lower_bound:upper_bound]
     else:
         raise TypeError("mask_center must be a scalar, list, or numpy ndarray.")
