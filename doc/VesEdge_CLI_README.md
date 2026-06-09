@@ -97,10 +97,22 @@ Downsampling occurs before curvature-based quality control. Consequently, using 
 
 Using a fixed number of samples is recommended when comparing contours across datasets or extraction algorithms. The default is 120 samples. To specify a different number, use `--n-samples`
 
+Default:
+
+```text
+False
+```
+
 #### `--n-samples`
 
 ```bash
 vesedge sample.nd2 --downsample --n-samples 360
+```
+
+Default:
+
+```text
+120
 ```
 
 ---
@@ -150,6 +162,11 @@ For example, if the microscope image has 13.44 pixels per micron, use 0.0744 bec
 
 The saved `.npy` file stores radial distances in microns.
 
+Default:
+
+```text
+1
+```
 
 ---
 
@@ -167,6 +184,12 @@ vesedge sample.nd2 --no-gif
 
 The GIF is intended for visual quality control. Accepted and unreliable traces are displayed differently so that rejected frames can be inspected.
 
+Default:
+
+```text
+False
+```
+
 ---
 
 #### `--overwrite`
@@ -177,6 +200,12 @@ Force reprocessing:
 
 ```bash
 vesedge sample.nd2 --overwrite
+```
+
+Default:
+
+```text
+False
 ```
 
 ---
