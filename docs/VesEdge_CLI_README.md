@@ -22,7 +22,7 @@ Install VesEdge into your Python environment.
 
 ```bash
 git clone <repository-url>
-cd VesMod/vesmod
+cd VesMod
 pip install .
 ```
 
