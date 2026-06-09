@@ -88,14 +88,12 @@ With `--recursive`, VesEdge processes files matching:
 
 #### `--downsample`
 
-When `--downsample` is used, VesEdge resamples each contour to a fixed number of evenly spaced angular samples.
+Using a fixed number of angular samples is recommended when comparing contours across datasets or extraction algorithms. When `--downsample` is used, VesEdge resamples each contour to a fixed number of evenly spaced angular samples.
 
 ```bash
 vesedge sample.nd2 --downsample
 ```
 Downsampling occurs before curvature-based quality control. Consequently, using `--downsample` may affect which frames are classified as reliable or unreliable.
-
-Using a fixed number of samples is recommended when comparing contours across datasets or extraction algorithms. The default is 120 samples. To specify a different number, use `--n-samples`
 
 Default:
 
@@ -104,6 +102,8 @@ False
 ```
 
 #### `--n-samples`
+
+The default is to `--downsample` to 120 samples. To specify a different number, use `--n-samples`
 
 ```bash
 vesedge sample.nd2 --downsample --n-samples 360
