@@ -53,7 +53,7 @@ def parse_args() -> argparse.Namespace:
         help="If used, downsamples edge extraction outputs to --n_samples evenly-spaced values.",
     )
     parser.add_argument(
-        "--n_samples",
+        "--n-samples",
         default=120,
         type=int,
         help="If --downsample is used, downsamples edge extraction outputs to --n_samples evenly-spaced values. Default is 120.",
