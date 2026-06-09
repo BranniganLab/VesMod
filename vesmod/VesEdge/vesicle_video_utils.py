@@ -35,12 +35,16 @@ def convert_to_cartesian(center_point, r_vals):
     else:
         num_r = len(r_vals)
     origin_x, origin_y = center_point
-    theta = np.linspace(0, 2 * np.pi, num_r)
+    theta = np.linspace(0, 2 * np.pi, num_r, endpoint=False)
     cos_theta = np.cos(theta)
     sin_theta = np.sin(theta)
 
     x_vals = r_vals * cos_theta + origin_x
     y_vals = r_vals * sin_theta + origin_y
+
+    # close curve for plotting purposes
+    x_vals = np.append(x_vals, x_vals[0])
+    y_vals = np.append(y_vals, y_vals[0])
     return x_vals, y_vals
 
 
