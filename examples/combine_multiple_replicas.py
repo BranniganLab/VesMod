@@ -9,12 +9,12 @@ import numpy as np
 import glob
 from pathlib import Path
 import json
-from vesmod.EdgeMod import AverageOfSpectra
+from vesmod.EdgeMod import SpectrumEnsemble
 
 file_dir = '/home/js2746/DOPC_Cer_fluctuations/Replacement_DOPC/vesmod_test/'
 sigma_max = 1.325e-7  # surface tension cutoff in N/m
 
-average = AverageOfSpectra()
+ensemble = SpectrumEnsemble()
 
 for file in glob.glob(file_dir + "*.json"):
     path = Path(file).resolve()
@@ -23,6 +23,6 @@ for file in glob.glob(file_dir + "*.json"):
         data = json.load(json_data)
 
     if np.abs(data["surface_tension"]) < sigma_max:
-        average.add_spectrum(data["avg_amps2"], data["modes"], data["kC"])
+        ensemble.add_spectrum(data["avg_amps2"], data["modes"], data["kC"])
 
-print(average.kC, average.kC_ste, len(average))
+print(ensemble.kC, ensemble.kC_ste, len(ensemble))
