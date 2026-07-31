@@ -3,7 +3,7 @@
 """
 Tools for averaging fluctuation spectra across multiple replicas.
 
-This module provides the AverageOfSpectra class, which aggregates 
+This module provides the SpectrumEnsemble class, which aggregates
 Spectrum objects and bending modulus estimates from multiple replicas
 of the same system. The class calculates ensemble-averaged squared
 amplitudes, replica-to-replica uncertainty estimates, and an
@@ -19,7 +19,7 @@ import numpy as np
 from vesmod.EdgeMod.spectrum_utils import fit_spectrum_to_theory_lmfit, MiniSpectrum
 
 
-class AverageOfSpectra():
+class SpectrumEnsemble:
     """
     Store and analyze fluctuation spectra from multiple replicas.
 

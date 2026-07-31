@@ -93,7 +93,13 @@ def wrap_image_to_polar(image, origin_coords):
 
     """
     max_r = np.sqrt(((image.shape[0] / 2.0) ** 2.0) + ((image.shape[1] / 2.0) ** 2.0))
-    polar_image = cv2.linearPolar(image, (origin_coords[1], origin_coords[0]), max_r, cv2.WARP_FILL_OUTLIERS + cv2.WARP_POLAR_LINEAR)
+    polar_image = cv2.warpPolar(
+        image,
+        image.shape[::-1],  # OpenCV expects (width, height)
+        (origin_coords[1], origin_coords[0]),
+        max_r,
+        cv2.WARP_FILL_OUTLIERS | cv2.WARP_POLAR_LINEAR,
+    )
     scaling_factor = polar_image.shape[1] / max_r
     return polar_image, scaling_factor
 
