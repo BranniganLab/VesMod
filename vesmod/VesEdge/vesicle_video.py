@@ -14,7 +14,7 @@ from numpy.typing import NDArray
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from .vesicle_video_utils import downsample_to_new_indices
-from .edge_filtering import EdgeQC, EdgeQCConfig
+from .edge_filtering import EdgeQC, EdgeQCConfig, check_curvature, check_image_support, check_edge_populations
 
 type EdgeResult = EdgeDetection | EdgeDetectionFailure
 
@@ -298,6 +298,24 @@ class VesicleVideo:
             raise TypeError(f"Extractor must return an NDArray, not {type(r_vals)}.")
         if r_vals.ndim != 1:
             raise ValueError("Extractor must return a 1D array of r-values.")
+
+    def _run_frame_qc(self, frame: np.ndarray, edge: EdgeDetection) -> None:
+        check_curvature(
+            edge,
+            threshold=self.qc_config.curvature_threshold,
+        )
+        check_image_support(
+            frame,
+            edge,
+            threshold=self.qc_config.image_support_threshold,
+        )
+
+    def _run_trajectory_qc(self) -> None:
+        check_edge_populations(
+            self.detections,
+            bic_threshold=self.qc_config.population_bic_threshold,
+            max_minor_fraction=self.qc_config.max_minor_population_fraction,
+        )
 
     def make_vesicle_gif(self, path, show_trace=True):
         """
