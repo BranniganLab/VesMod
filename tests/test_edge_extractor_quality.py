@@ -99,11 +99,9 @@ def sample_videos():
 
     qc_config = EdgeQCConfig(
         curvature_threshold=10.0,
-        image_support_threshold=0.5,
         population_bic_threshold=10.0,
         max_minor_population_fraction=0.25,
         enable_curvature_qc=True,
-        enable_image_support_qc=False,
         enable_population_qc=False,
     )
 
@@ -198,14 +196,6 @@ def test_only_curvature_qc_was_run(
         assert (
             result.qc.curvature_score
             is not None
-        )
-        assert (
-            result.qc.image_support_fraction
-            is None
-        )
-        assert (
-            result.qc.minimum_image_support
-            is None
         )
         assert (
             result.qc.population_label
