@@ -306,7 +306,7 @@ class VesicleVideo:
             ax.clear()
             ax.set_title(f"frame {i} / {self.frames.shape[0]}")
             ax.imshow(self.frames[i], cmap='gray', animated='True')
-            if show_trace:
+            if show_trace and isinstance(self.detections[i], EdgeDetection):
                 contour = self.detections[i].full_contour
                 if self.detections[i].accepted:
                     ax.plot(contour.x, contour.y, color='tab:green')
@@ -321,6 +321,6 @@ class VesicleVideo:
         """Save radii to a .npy file, removing frames with bad edge extraction."""
         output_values = []
         for edge in self.detections:
-            if edge.accepted:
+            if isinstance(edge, EdgeDetection) and edge.accepted:
                 output_values.append(edge.radii_microns)
         np.save(path.with_suffix('.npy'), np.array(output_values))
