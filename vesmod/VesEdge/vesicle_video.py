@@ -300,6 +300,24 @@ class VesicleVideo:
             raise ValueError("Extractor must return a 1D array of r-values.")
 
     def _run_frame_qc(self, frame: np.ndarray, edge: EdgeDetection) -> None:
+        """
+        Run quality-control checks that operate on a single detected edge.
+
+        Applies all QC checks that require only the current video frame and its
+        corresponding edge detection. Results are recorded in the detection's
+        QC information.
+
+        Parameters
+        ----------
+        frame : numpy.ndarray
+            Image frame from which the edge was extracted.
+        edge : EdgeDetection
+            Edge detection to evaluate.
+
+        Returns
+        -------
+        None
+        """
         check_curvature(
             edge,
             threshold=self.qc_config.curvature_threshold,
@@ -311,6 +329,18 @@ class VesicleVideo:
         )
 
     def _run_trajectory_qc(self) -> None:
+        """
+        Run quality-control checks that require detections across video frames.
+    
+        Applies QC checks that use information from multiple edge detections in
+        the video, such as identifying anomalous populations based on vesicle
+        center and radius. Results are recorded in the QC information associated
+        with the affected detections.
+    
+        Returns
+        -------
+        None
+        """
         check_edge_populations(
             self.detections,
             bic_threshold=self.qc_config.population_bic_threshold,
