@@ -14,6 +14,7 @@ class QCFlag(Enum):
     CURVATURE = auto()
     IMAGE_SUPPORT = auto()
     POPULATION_OUTLIER = auto()
+    ERROR = auto()
 
 
 @dataclass

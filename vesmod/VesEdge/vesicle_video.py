@@ -15,6 +15,7 @@ from matplotlib.animation import FuncAnimation
 from .vesicle_video_utils import convert_to_cartesian, measure_wrapped_finite_second_difference, downsample_to_new_indices
 from .edge_filtering import EdgeQC
 
+type EdgeResult = EdgeDetection | EdgeDetectionFailure
 
 @dataclass
 class EdgeDetection:
@@ -26,16 +27,20 @@ class EdgeDetection:
     center : tuple(float, float)
         Cartesian coordinates (x, y) of the approximate vesicle center for each
         frame. Needed for wrapping images to/from polar coordinates.
-    radii : NDArray[np.float64]
+    sampled_radii : NDArray[np.float64]
         The distances from `center` to the edge of the vesicle.
         Evenly spaced in theta, ranging from 0 to 2pi (not inclusive).
-    theta_vals : NDArray[np.float64]
+    sampled_theta : NDArray[np.float64]
         Evenly spaced angular values ranging from 0 to 2pi (not inclusive).
+        Step size is determined by how many values are in `sampled_radii`.
+    contour_x, contour_y : NDArray[np.float64]
+        The Cartesian coordinates of the full detected edge prior to down-
+        sampling. First and last bins overlap for plotting purposes.
+    sampled_x, sampled_y : NDArray[np.float64]
+        The Cartesian coordinates of the downsampled detected edge. First and
+        last bins overlap for plotting purposes.
     qc : EdgeQC
         Quality control information from the `edge_filtering` module.
-    x_vals, y_vals : NDArray[np.float64]
-        The Cartesian coordinates of the vesicle edge. First and last bins
-        overlap for plotting purposes.
     median_radius : float
         The median radius value from this `EdgeDetection`.
     accepted : bool
@@ -43,43 +48,52 @@ class EdgeDetection:
     """
 
     center: tuple[float, float]
-    radii: NDArray[np.float64]
+    sampled_radii: NDArray[np.float64]
+    contour_x: NDArray[np.float64]
+    contour_y: NDArray[np.float64]
     qc: EdgeQC = field(default_factory=EdgeQC)
 
     @property
-    def theta_vals(self) -> NDArray[np.float64]:
+    def sampled_theta(self) -> NDArray[np.float64]:
         """Evenly spaced angular values ranging from 0 to 2pi (not inclusive)."""
-        return np.linspace(0, 2 * np.pi, self.radii.shape[0], endpoint=False)
+        return np.linspace(0, 2 * np.pi, self.sampled_radii.shape[0], endpoint=False)
 
     @property
-    def x_vals(self) -> NDArray[np.float64]:
+    def sampled_x(self) -> NDArray[np.float64]:
         """
-        The x-coordinates of the vesicle edge.
+        The x-coordinates of the contour represented as r(theta) on the \
+        standardized angular grid.
 
         First and last bins overlap for plotting purposes.
         """
-        x_vals = self.radii * np.cos(self.theta_vals) + self.center[0]
+        x_vals = self.sampled_radii * np.cos(self.sampled_theta) + self.center[0]
         return np.append(x_vals, x_vals[0])
 
     @property
-    def y_vals(self) -> NDArray[np.float64]:
+    def sampled_y(self) -> NDArray[np.float64]:
         """
-        The y-coordinates of the vesicle edge.
+        The y-coordinates of the contour represented as r(theta) on the \
+        standardized angular grid.
 
         First and last bins overlap for plotting purposes.
         """
-        y_vals = self.radii * np.sin(self.theta_vals) + self.center[1]
+        y_vals = self.sampled_radii * np.sin(self.sampled_theta) + self.center[1]
         return np.append(y_vals, y_vals[0])
 
     @property
     def median_radius(self) -> float:
         """The median radius value from this `EdgeDetection`."""
-        return float(np.median(self.r_vals))
+        return float(np.median(self.sampled_radii))
 
     @property
     def accepted(self) -> bool:
         """Whether or not this `EdgeDetection` passed QC in `edge_filtering`."""
         return self.qc.passed
+
+
+@dataclass(frozen=True)
+class EdgeDetectionFailure:
+    error: str
 
 
 @dataclass
@@ -100,11 +114,11 @@ class VesicleVideo:
     frames: np.ndarray
     micron_to_pixel_ratio: float
     n_angular_samples: int | None = 120
-    detections: list[EdgeDetection] = []
+    detections: list[EdgeResult] = []
 
     def __post_init__(self):
         """
-        Do argument validation on frames. Initialize all else to None, nan, or 0.
+        Do argument validation.
 
         Raises
         ------
@@ -112,6 +126,11 @@ class VesicleVideo:
             If frames is not an ndarray.
         IndexError
             If frames is not a 3D ndarray.
+            If n_angular_samples is greater than the number of samples.
+        ValueError
+            If pixel_to_micron_ratio is not positive.
+            If n_angular_samples is not positive.
+            if n_angular_samples is not an int or None.
 
         Returns
         -------
@@ -132,31 +151,18 @@ class VesicleVideo:
         elif not isinstance(self.n_angular_samples, type(None)):
             raise ValueError("n_angular_samples must be an int or None.")
 
-        self.vesicle_centers = [None] * self.frames.shape[0]
-        if self.n_angular_samples is not None:
-            self.r_vals = np.full((self.frames.shape[0], self.n_angular_samples), np.nan)
-        else:
-            self.r_vals = np.full((self.frames.shape[0], self.frames.shape[1]), np.nan)
-        self.x_vals = np.full((self.frames.shape[0], self.frames.shape[1] + 1), np.nan)
-        self.y_vals = np.full((self.frames.shape[0], self.frames.shape[1] + 1), np.nan)
-        self.status = np.zeros(self.frames.shape[0]).astype(int)
-
     def extract_edges(self, extractor_func, curvature_threshold=5):
         """
         Extract edges from every frame.
 
-        Frames that fail edge extraction are marked with status 2. If every frame
-        fails, raise a RuntimeError because this likely indicates a systemic problem
-        with the extractor, input video, or extraction configuration.
+        Frames that fail edge extraction are marked with `EdgeDetectionFailure`.
         """
-        failed_frames = []
-
-        for frame_num, _ in enumerate(self.frames):
+        for frame_num, frame in enumerate(self.frames):
             try:
                 r_vals, vesicle_center = extractor_func(self.frames[frame_num, :, :])
                 if r_vals.ndim != 1:
                     raise ValueError("Extractor must return a 1D array of r-values.")
-                self._add_edge_to_video_frame(
+                detected_edge = self._add_edge_to_video_frame(
                     frame_num,
                     r_vals,
                     vesicle_center,
@@ -165,15 +171,12 @@ class VesicleVideo:
             except Exception as error:
                 print(f"Error on frame {frame_num}")
                 traceback.print_exc()
-                self.status[frame_num] = 2
-                failed_frames.append(frame_num)
+                self.detections.append(EdgeDetectionFailure(str(error)))
+                continue
 
-        if len(failed_frames) == self.frames.shape[0]:
-            raise RuntimeError(
-                "Edge extraction failed on every frame. This likely indicates a "
-                "systemic issue with the extractor function, input video, or "
-                "extraction settings."
-            )
+            self._run_frame_qc(frame, detected_edge, curvature_threshold)
+            self.detections.append(detected_edge)
+        self._run_trajectory_qc()
 
     def _add_edge_to_video_frame(self, frame_num, r_vals, vesicle_center, curvature_threshold):
         """
@@ -187,7 +190,7 @@ class VesicleVideo:
             The list or 1D array of radial distances from the vesicle_center,
             spaced evenly from 0 to 2pi.
         vesicle_center : tuple
-            The origin (in x, y) of the polar coordinate system.
+            The origin (in y, x) of the polar coordinate system.
         curvature_threshold : float
             The level of curvature allowed between two contiguous r_vals before
             edge extraction would be deemed unreliable.
@@ -197,11 +200,19 @@ class VesicleVideo:
         None.
 
         """
-        self.vesicle_centers[frame_num] = vesicle_center
-        self.x_vals[frame_num], self.y_vals[frame_num] = convert_to_cartesian((vesicle_center[1], vesicle_center[0],), r_vals)
-
+        x_vals, y_vals = convert_to_cartesian((vesicle_center[1], vesicle_center[0],), r_vals)
         if self.n_angular_samples is not None:
             r_vals = self._downsample_r_vals(r_vals, self.n_angular_samples)
+        rescaled_r = r_vals * self.micron_to_pixel_ratio
+
+        edge = EdgeDetection(
+            (vesicle_center[1], vesicle_center[0]),
+            rescaled_r,
+            x_vals,
+            y_vals,
+        )
+        
+        self.detections[frame_num] = edge
 
         finite_second_difference = measure_wrapped_finite_second_difference(r_vals)
         if (np.fabs(finite_second_difference) >= curvature_threshold).any():
@@ -210,8 +221,6 @@ class VesicleVideo:
             self.status[frame_num] = 2
         else:
             self.status[frame_num] = 1
-
-        self.r_vals[frame_num] = r_vals * self.micron_to_pixel_ratio
 
     def _downsample_r_vals(self, r_vals: np.ndarray, n_samples: int = 120) -> np.ndarray:
         """
