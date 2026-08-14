@@ -13,7 +13,7 @@ import numpy as np
 from numpy.typing import NDArray
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
-from .vesicle_video_utils import convert_to_cartesian, measure_wrapped_finite_second_difference, downsample_to_new_indices
+from .vesicle_video_utils import downsample_to_new_indices
 from .edge_filtering import EdgeQC, EdgeQCConfig
 
 type EdgeResult = EdgeDetection | EdgeDetectionFailure
@@ -244,7 +244,7 @@ class VesicleVideo:
         if self.extraction_config.n_angular_samples is not None:
             downsampled_r_vals = self._downsample_r_vals(r_vals, self.extraction_config.n_angular_samples)
             analysis_contour = ImageContour(center, downsampled_r_vals)
-            rescaled_r = downsampled_r_vals * self.extraction_config.pixels_per_micron
+            rescaled_r = downsampled_r_vals / self.extraction_config.pixels_per_micron
         else:
             analysis_contour = full_contour
             rescaled_r = r_vals * self.extraction_config.pixels_per_micron
