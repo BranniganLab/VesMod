@@ -14,105 +14,18 @@ from numpy.typing import NDArray
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from .vesicle_video_utils import downsample_to_new_indices
-from .edge_filtering import EdgeQC, EdgeQCConfig, check_curvature, check_image_support, check_edge_populations
-
-
-
-
-@dataclass(frozen=True)
-class ImageContour:
-    """
-    The polar and Cartesian coordinates of a contour in the frame of reference \
-    of the image they are extracted from.
-
-    Attributes
-    ----------
-    origin : tuple(float, float)
-        Cartesian coordinates (x, y) of the origin point in the original image's
-        frame of reference.
-    r : NDArray[np.float64]
-        The distances from `center` to the edge of the vesicle. Evenly spaced
-        in theta, ranging from 0 to 2pi (not inclusive).
-    theta : NDArray[np.float64]
-        Evenly spaced angular values ranging from 0 to 2pi (not inclusive).
-        Step size is determined by how many values are in `r`.
-    x, y : NDArray[np.float64]
-        The Cartesian coordinates of the Contour. First and last bins overlap
-        for plotting purposes.
-    """
-
-    origin: tuple[float, float]
-    r: NDArray[np.float64]
-
-    @property
-    def theta(self) -> NDArray[np.float64]:
-        """Evenly spaced angular values ranging from 0 to 2pi (not inclusive)."""
-        return np.linspace(0, 2 * np.pi, self.r.shape[0], endpoint=False)
-
-    @property
-    def x(self) -> NDArray[np.float64]:
-        """
-        The x-coordinates of the contour.
-
-        First and last bins overlap for plotting purposes.
-        """
-        x_vals = self.r * np.cos(self.theta) + self.origin[0]
-        return np.append(x_vals, x_vals[0])
-
-    @property
-    def y(self) -> NDArray[np.float64]:
-        """
-        The y-coordinates of the contour.
-
-        First and last bins overlap for plotting purposes.
-        """
-        y_vals = self.r * np.sin(self.theta) + self.origin[1]
-        return np.append(y_vals, y_vals[0])
-
-
-@dataclass
-class EdgeDetection:
-    """
-    Detected edge on one frame of a `VesicleVideo`.
-
-    Attributes
-    ----------
-    contour : VesicleContour
-        The full detected contour.
-    analysis_contour : VesicleContour
-        The contour points after downsampling (if performed).
-    radii_microns : NDArray[np.float64]
-        The radial profile of the vesicle, derived from the `analysis_contour`
-        and the `pixels_per_micron`.
-    qc : EdgeQC
-        Quality control information from the `edge_filtering` module.
-    median_radius : float
-        The median radius value from this `EdgeDetection`.
-    accepted : bool
-        Whether or not this `EdgeDetection` passed QC in `edge_filtering`.
-    """
-
-    full_contour: ImageContour
-    analysis_contour: ImageContour
-    radii_microns: NDArray[np.float64]
-    qc: EdgeQC = field(default_factory=EdgeQC)
-
-    @property
-    def median_radius(self) -> float:
-        """The median radius value from this `EdgeDetection`."""
-        return float(np.median(self.radii_microns))
-
-    @property
-    def accepted(self) -> bool:
-        """Whether or not this `EdgeDetection` passed QC in `edge_filtering`."""
-        return self.qc.passed
-
-
-@dataclass(frozen=True)
-class EdgeDetectionFailure:
-    """Holds an error message upon Edge Detection failing due to an error."""
-
-    error: str
+from .models import (
+    EdgeDetection,
+    EdgeDetectionFailure,
+    EdgeResult,
+    ImageContour,
+)
+from .edge_filtering import (
+    EdgeQCConfig,
+    check_curvature,
+    check_edge_populations,
+    check_image_support,
+)
 
 
 @dataclass(frozen=True)
@@ -150,9 +63,6 @@ class EdgeExtractionConfig:
                 raise ValueError("n_angular_samples must be positive")
         elif not isinstance(self.n_angular_samples, type(None)):
             raise TypeError("n_angular_samples must be an int or None.")
-
-
-EdgeResult = EdgeDetection | EdgeDetectionFailure
 
 
 @dataclass
@@ -330,17 +240,18 @@ class VesicleVideo:
             frame,
             edge,
             threshold=self.qc_config.image_support_threshold,
+            search_radius=self.qc_config.image_support_search_radius,
         )
 
     def _run_trajectory_qc(self) -> None:
         """
         Run quality-control checks that require detections across video frames.
-    
+
         Applies QC checks that use information from multiple edge detections in
         the video, such as identifying anomalous populations based on vesicle
         center and radius. Results are recorded in the QC information associated
         with the affected detections.
-    
+
         Returns
         -------
         None
