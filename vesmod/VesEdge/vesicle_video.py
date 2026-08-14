@@ -9,9 +9,77 @@ from dataclasses import dataclass, field
 from pathlib import Path
 import traceback
 import numpy as np
+from numpy.typing import NDArray
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from .vesicle_video_utils import convert_to_cartesian, measure_wrapped_finite_second_difference, downsample_to_new_indices
+from .edge_filtering import EdgeQC
+
+
+@dataclass
+class EdgeDetection:
+    """
+    Detected edge on one frame of a `VesicleVideo`.
+
+    Attributes
+    ----------
+    center : tuple(float, float)
+        Cartesian coordinates (x, y) of the approximate vesicle center for each
+        frame. Needed for wrapping images to/from polar coordinates.
+    radii : NDArray[np.float64]
+        The distances from `center` to the edge of the vesicle.
+        Evenly spaced in theta, ranging from 0 to 2pi (not inclusive).
+    theta_vals : NDArray[np.float64]
+        Evenly spaced angular values ranging from 0 to 2pi (not inclusive).
+    qc : EdgeQC
+        Quality control information from the `edge_filtering` module.
+    x_vals, y_vals : NDArray[np.float64]
+        The Cartesian coordinates of the vesicle edge. First and last bins
+        overlap for plotting purposes.
+    median_radius : float
+        The median radius value from this `EdgeDetection`.
+    accepted : bool
+        Whether or not this `EdgeDetection` passed QC in `edge_filtering`.
+    """
+
+    center: tuple[float, float]
+    radii: NDArray[np.float64]
+    qc: EdgeQC = field(default_factory=EdgeQC)
+
+    @property
+    def theta_vals(self) -> NDArray[np.float64]:
+        """Evenly spaced angular values ranging from 0 to 2pi (not inclusive)."""
+        return np.linspace(0, 2 * np.pi, self.radii.shape[0], endpoint=False)
+
+    @property
+    def x_vals(self) -> NDArray[np.float64]:
+        """
+        The x-coordinates of the vesicle edge.
+
+        First and last bins overlap for plotting purposes.
+        """
+        x_vals = self.radii * np.cos(self.theta_vals) + self.center[0]
+        return np.append(x_vals, x_vals[0])
+
+    @property
+    def y_vals(self) -> NDArray[np.float64]:
+        """
+        The y-coordinates of the vesicle edge.
+
+        First and last bins overlap for plotting purposes.
+        """
+        y_vals = self.radii * np.sin(self.theta_vals) + self.center[1]
+        return np.append(y_vals, y_vals[0])
+
+    @property
+    def median_radius(self) -> float:
+        """The median radius value from this `EdgeDetection`."""
+        return float(np.median(self.r_vals))
+
+    @property
+    def accepted(self) -> bool:
+        """Whether or not this `EdgeDetection` passed QC in `edge_filtering`."""
+        return self.qc.passed
 
 
 @dataclass
@@ -27,28 +95,12 @@ class VesicleVideo:
             The 3D array of raw images. 0th dimension is frame number.
         micron_to_pixel_ratio : float
             The number of microns to pixels in your microscope image.
-        vesicle_centers : list of tuples
-            List of len(frames.shape[0]) containing Cartesian coordinates of the
-            approximate vesicle center for each frame. Needed for wrapping images
-            to/from polar coordinates.
-        r_vals : numpy ndarray
-            The distance from vesicle_center on frame i to the edge of the vesicle
-            on frame i. Evenly spaced in theta, ranging from 0 to 2pi.
-        x_vals, y_vals : numpy ndarrays
-            The Cartesian coordinates of the vesicle edge.
-        status : list[int]
-            List of ints containing status code for each frame. 1 = useable frame,
-            2 = error on edge extraction, 3 = unreliable edge extraction.
     """
 
     frames: np.ndarray
     micron_to_pixel_ratio: float
     n_angular_samples: int | None = 120
-    vesicle_centers: list = field(init=False)
-    r_vals: np.ndarray = field(init=False)
-    x_vals: np.ndarray = field(init=False)
-    y_vals: np.ndarray = field(init=False)
-    status: list = field(init=False)
+    detections: list[EdgeDetection] = []
 
     def __post_init__(self):
         """
