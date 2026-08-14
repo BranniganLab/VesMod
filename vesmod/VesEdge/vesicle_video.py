@@ -109,7 +109,13 @@ class VesicleVideo:
         if downsample_to is not None and downsample_to > self.frames.shape[1]:
             raise IndexError(f"Cannot downsample r_vals with len {self.frames.shape[1]} to {downsample_to}.")
 
-    def extract_edges(self, extractor_func: Callable[NDArray[np.float64]]):
+    def extract_edges(
+        self,
+        extractor_func: Callable[
+            [NDArray[np.float64]],
+            tuple[NDArray[np.float64], tuple[float, float]],
+        ],
+    ) -> None:
         """
         Extract edges from every frame and save as `EdgeDetection`.
 
@@ -136,13 +142,17 @@ class VesicleVideo:
             self.detections.append(detected_edge)
         self._run_trajectory_qc()
 
-    def _compile_edge_detection_results(self, r_vals, vesicle_center):
+    def _compile_edge_detection_results(
+        self,
+        r_vals: NDArray[np.float64],
+        vesicle_center: tuple[float, float],
+    ) -> EdgeDetection:
         """
         Save detected edge information for a given frame.
 
         Parameters
         ----------
-        r_vals : list or numpy ndarray
+        r_vals : numpy ndarray
             The list or 1D array of radial distances from the vesicle_center,
             spaced evenly from 0 to 2pi.
         vesicle_center : tuple
@@ -166,7 +176,11 @@ class VesicleVideo:
         edge = EdgeDetection(full_contour, analysis_contour, rescaled_r)
         return edge
 
-    def _downsample_r_vals(self, r_vals: np.ndarray, n_samples: int = 120) -> np.ndarray:
+    def _downsample_r_vals(
+        self,
+        r_vals: NDArray[np.float64],
+        n_samples: int = 120
+    ) -> NDArray[np.float64]:
         """
         Downsample a vesicle edge profile to a fixed number of angular samples.
 
@@ -206,7 +220,7 @@ class VesicleVideo:
         downsampled_r_vals = downsample_to_new_indices(r_vals, new_evenly_spaced_indices)
         return downsampled_r_vals
 
-    def _validate_extractor_results(self, r_vals):
+    def _validate_extractor_results(self, r_vals: NDArray[np.float64]) -> None:
         """Check to make sure extractor returns a 1D ndarray."""
         if not isinstance(r_vals, np.ndarray):
             raise TypeError(f"Extractor must return an NDArray, not {type(r_vals)}.")
@@ -262,7 +276,7 @@ class VesicleVideo:
             max_minor_fraction=self.qc_config.max_minor_population_fraction,
         )
 
-    def make_vesicle_gif(self, path, show_trace=True):
+    def make_vesicle_gif(self, path: Path, show_trace: bool = True) -> None:
         """
         Make a .gif of the vesicle, with or without the detected edges shown.
 
@@ -303,7 +317,7 @@ class VesicleVideo:
         ani.save(output_path)
         plt.close()
 
-    def save_edge_to_npy(self, path):
+    def save_edge_to_npy(self, path: Path) -> None:
         """Save radii to a .npy file, removing frames with bad edge extraction."""
         output_values = []
         for edge in self.detections:
