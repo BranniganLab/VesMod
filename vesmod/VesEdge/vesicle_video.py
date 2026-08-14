@@ -247,7 +247,7 @@ class VesicleVideo:
             rescaled_r = downsampled_r_vals / self.extraction_config.pixels_per_micron
         else:
             analysis_contour = full_contour
-            rescaled_r = r_vals * self.extraction_config.pixels_per_micron
+            rescaled_r = r_vals / self.extraction_config.pixels_per_micron
 
         edge = EdgeDetection(full_contour, analysis_contour, rescaled_r)
         return edge
