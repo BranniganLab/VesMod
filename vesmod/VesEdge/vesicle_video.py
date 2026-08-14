@@ -322,8 +322,6 @@ class VesicleVideo:
         """
         if not isinstance(path, Path):
             path = Path(path).resolve()
-        if (show_trace and np.isnan(self.x_vals[0]).any()):
-            raise ValueError("trace was set to True, but there are no edges detected for this vesicle.")
         output_path = path.with_suffix('.gif')
         fig, ax = plt.subplots()
 
@@ -332,21 +330,20 @@ class VesicleVideo:
             ax.set_title(f"frame {i} / {self.frames.shape[0]}")
             ax.imshow(self.frames[i], cmap='gray', animated='True')
             if show_trace:
-                if self.status[i] == 1:
-                    ax.plot(self.x_vals[i], self.y_vals[i], color='tab:green')
-                elif self.status[i] == 3:
-                    ax.plot(self.x_vals[i], self.y_vals[i], color='tab:red')
+                contour = self.detections[i].full_contour
+                if self.detections[i].accepted:
+                    ax.plot(contour.x, contour.y, color='tab:green')
+                else:
+                    ax.plot(contour.x, contour.y, color='tab:red')
 
         ani = FuncAnimation(fig, animate, frames=self.frames.shape[0], interval=150, blit=False, repeat_delay=1000)
         ani.save(output_path)
         plt.close()
 
     def save_edge_to_npy(self, path):
-        """Save r_vals to a .npy file, removing frames with bad edge extraction."""
-        if np.isnan(self.r_vals).all():
-            raise AttributeError("Edge detection has not occurred, or went wrong.")
+        """Save radii to a .npy file, removing frames with bad edge extraction."""
         output_values = []
-        for frame_num, status in enumerate(self.status):
-            if status == 1:
-                output_values.append(self.r_vals[frame_num, :])
+        for edge in self.detections:
+            if edge.accepted:
+                output_values.append(edge.radii_microns)
         np.save(path.with_suffix('.npy'), np.array(output_values))
