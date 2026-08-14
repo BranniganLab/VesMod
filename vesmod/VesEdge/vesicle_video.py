@@ -246,16 +246,19 @@ class VesicleVideo:
         -------
         None
         """
-        check_curvature(
-            edge,
-            threshold=self.qc_config.curvature_threshold,
-        )
-        check_image_support(
-            frame,
-            edge,
-            threshold=self.qc_config.image_support_threshold,
-            search_radius=self.qc_config.image_support_search_radius,
-        )
+        if self.qc_config.enable_curvature_qc:
+            check_curvature(
+                edge,
+                threshold=self.qc_config.curvature_threshold,
+            )
+
+        if self.qc_config.enable_image_support_qc:
+            check_image_support(
+                frame,
+                edge,
+                threshold=self.qc_config.image_support_threshold,
+                search_radius=self.qc_config.image_support_search_radius,
+            )
 
     def _run_trajectory_qc(self) -> None:
         """
@@ -270,11 +273,12 @@ class VesicleVideo:
         -------
         None
         """
-        check_edge_populations(
-            self.detections,
-            bic_threshold=self.qc_config.population_bic_threshold,
-            max_minor_fraction=self.qc_config.max_minor_population_fraction,
-        )
+        if self.qc_config.enable_population_qc:
+            check_edge_populations(
+                self.detections,
+                bic_threshold=self.qc_config.population_bic_threshold,
+                max_minor_fraction=self.qc_config.max_minor_population_fraction,
+            )
 
     def make_vesicle_gif(self, path: Path, show_trace: bool = True) -> None:
         """

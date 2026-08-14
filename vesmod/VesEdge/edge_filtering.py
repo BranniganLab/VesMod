@@ -50,6 +50,9 @@ class EdgeQCConfig:
     population_bic_threshold: float
     max_minor_population_fraction: float
     image_support_search_radius: int = 5
+    enable_curvature_qc: bool = True
+    enable_image_support_qc: bool = True
+    enable_population_qc: bool = True
 
     def __post_init__(self) -> None:
         """
