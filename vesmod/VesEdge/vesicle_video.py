@@ -16,7 +16,7 @@ from matplotlib.animation import FuncAnimation
 from .vesicle_video_utils import downsample_to_new_indices
 from .edge_filtering import EdgeQC, EdgeQCConfig, check_curvature, check_image_support, check_edge_populations
 
-type EdgeResult = EdgeDetection | EdgeDetectionFailure
+EdgeResult = EdgeDetection | EdgeDetectionFailure
 
 
 @dataclass(frozen=True)
