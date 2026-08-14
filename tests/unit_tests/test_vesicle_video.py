@@ -29,7 +29,6 @@ def qc_config():
     """Return a standard edge-QC configuration for tests."""
     return EdgeQCConfig(
         curvature_threshold=5.0,
-        image_support_threshold=0.5,
         population_bic_threshold=10.0,
         max_minor_population_fraction=0.25,
     )
@@ -245,16 +244,9 @@ def test_run_frame_qc_calls_all_frame_level_checks(monkeypatch, video):
     def fake_curvature(edge, threshold):
         calls.append(("curvature", threshold))
 
-    def fake_image_support(frame, edge, threshold, search_radius):
-        calls.append(("image_support", threshold, search_radius))
-
     monkeypatch.setattr(
         "vesmod.VesEdge.vesicle_video.check_curvature",
         fake_curvature,
-    )
-    monkeypatch.setattr(
-        "vesmod.VesEdge.vesicle_video.check_image_support",
-        fake_image_support,
     )
 
     edge = video._compile_edge_detection_results(
@@ -266,11 +258,6 @@ def test_run_frame_qc_calls_all_frame_level_checks(monkeypatch, video):
 
     assert calls == [
         ("curvature", video.qc_config.curvature_threshold),
-        (
-            "image_support",
-            video.qc_config.image_support_threshold,
-            video.qc_config.image_support_search_radius,
-        ),
     ]
 
 
@@ -293,8 +280,7 @@ def test_run_trajectory_qc_calls_population_check(monkeypatch, video):
     assert observed["detections"] is video.detections
     assert observed["bic_threshold"] == video.qc_config.population_bic_threshold
     assert (
-        observed["max_minor_fraction"]
-        == video.qc_config.max_minor_population_fraction
+        observed["max_minor_fraction"] == video.qc_config.max_minor_population_fraction
     )
 
 

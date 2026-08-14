@@ -79,7 +79,6 @@ class QCFlag(Enum):
     """Reasons a successfully extracted edge may fail quality control."""
 
     CURVATURE = auto()
-    IMAGE_SUPPORT = auto()
     POPULATION_OUTLIER = auto()
 
 
@@ -95,12 +94,6 @@ class EdgeQC:
     curvature_score : float | None
         Maximum absolute wrapped finite second difference of the analysis
         contour. None if curvature QC has not been run.
-    image_support_fraction : float | None
-        Fraction of angular positions at which the detected edge has
-        sufficient image support. None if image-support QC has not been run.
-    minimum_image_support : float | None
-        Minimum relative image-support value along the contour. None if
-        image-support QC has not been run.
     population_label : int | None
         Population assigned during trajectory-level population clustering.
         None if population QC has not been run.
@@ -114,9 +107,6 @@ class EdgeQC:
     flags: set[QCFlag] = field(default_factory=set)
 
     curvature_score: float | None = None
-
-    image_support_fraction: float | None = None
-    minimum_image_support: float | None = None
 
     population_label: int | None = None
     population_probability: float | None = None

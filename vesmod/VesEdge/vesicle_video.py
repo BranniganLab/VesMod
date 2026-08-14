@@ -24,7 +24,6 @@ from .edge_filtering import (
     EdgeQCConfig,
     check_curvature,
     check_edge_populations,
-    check_image_support,
 )
 
 
@@ -250,14 +249,6 @@ class VesicleVideo:
             check_curvature(
                 edge,
                 threshold=self.qc_config.curvature_threshold,
-            )
-
-        if self.qc_config.enable_image_support_qc:
-            check_image_support(
-                frame,
-                edge,
-                threshold=self.qc_config.image_support_threshold,
-                search_radius=self.qc_config.image_support_search_radius,
             )
 
     def _run_trajectory_qc(self) -> None:

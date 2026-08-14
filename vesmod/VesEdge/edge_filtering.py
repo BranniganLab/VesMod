@@ -12,7 +12,6 @@ from dataclasses import dataclass
 
 import numpy as np
 from numpy.typing import NDArray
-from scipy.ndimage import map_coordinates, sobel
 from sklearn.mixture import GaussianMixture
 
 from .models import EdgeDetection, EdgeResult, QCFlag
@@ -29,9 +28,6 @@ class EdgeQCConfig:
     curvature_threshold : float
         Maximum allowed absolute wrapped finite second difference of an
         analysis contour.
-    image_support_threshold : float
-        Minimum relative radial-gradient support required at every angular
-        position along a detected contour. Must be between 0 and 1.
     population_bic_threshold : float
         Minimum improvement in Bayesian information criterion (BIC) required
         for a two-population Gaussian mixture model to be preferred over a
@@ -40,18 +36,12 @@ class EdgeQCConfig:
         Maximum fraction of otherwise accepted detections that may belong to
         the smaller population for that population to be automatically
         rejected.
-    image_support_search_radius : int
-        Number of pixels inward and outward from the detected contour over
-        which to search for stronger local image-gradient support.
     """
 
     curvature_threshold: float
-    image_support_threshold: float
     population_bic_threshold: float
     max_minor_population_fraction: float
-    image_support_search_radius: int = 5
     enable_curvature_qc: bool = True
-    enable_image_support_qc: bool = True
     enable_population_qc: bool = True
 
     def __post_init__(self) -> None:
@@ -72,15 +62,6 @@ class EdgeQCConfig:
                 "curvature_threshold must be non-negative."
             )
 
-        if not np.isfinite(self.image_support_threshold):
-            raise ValueError(
-                "image_support_threshold must be finite."
-            )
-        if not 0 <= self.image_support_threshold <= 1:
-            raise ValueError(
-                "image_support_threshold must be between 0 and 1."
-            )
-
         if not np.isfinite(self.population_bic_threshold):
             raise ValueError(
                 "population_bic_threshold must be finite."
@@ -98,15 +79,6 @@ class EdgeQCConfig:
             raise ValueError(
                 "max_minor_population_fraction must be greater than or "
                 "equal to 0 and less than 0.5."
-            )
-
-        if not isinstance(self.image_support_search_radius, int):
-            raise TypeError(
-                "image_support_search_radius must be an int."
-            )
-        if self.image_support_search_radius <= 0:
-            raise ValueError(
-                "image_support_search_radius must be positive."
             )
 
 
@@ -210,216 +182,6 @@ def check_curvature(
         edge.qc.flags.add(QCFlag.CURVATURE)
     else:
         edge.qc.flags.discard(QCFlag.CURVATURE)
-
-
-def check_image_support(
-    frame: NDArray[np.float64],
-    edge: EdgeDetection,
-    threshold: float,
-    search_radius: int = 5,
-) -> None:
-    """
-    Check whether a detected contour is supported by image gradients.
-
-    At each angular position, the image gradient is projected onto the radial
-    direction. The gradient magnitude at the detected contour is compared
-    with the strongest radial gradient found within `search_radius` pixels
-    inward or outward.
-
-    Relative support at one angular position is defined as
-
-        gradient magnitude at detected edge
-        -----------------------------------
-        strongest local radial gradient
-
-    The edge fails this QC check if any angular position has relative support
-    below `threshold`.
-
-    Parameters
-    ----------
-    frame : NDArray[np.float64]
-        Two-dimensional image from which the edge was extracted.
-    edge : EdgeDetection
-        Edge detection to evaluate.
-    threshold : float
-        Minimum relative image support required at every angular position.
-        Must be between 0 and 1.
-    search_radius : int, optional
-        Number of pixels inward and outward from the detected contour over
-        which to search. Default is 5.
-
-    Returns
-    -------
-    None
-    """
-    if frame.ndim != 2:
-        raise ValueError("frame must be a 2D array.")
-
-    if not np.isfinite(threshold):
-        raise ValueError("threshold must be finite.")
-    if not 0 <= threshold <= 1:
-        raise ValueError(
-            "threshold must be between 0 and 1."
-        )
-
-    if not isinstance(search_radius, int):
-        raise TypeError(
-            "search_radius must be an int."
-        )
-    if search_radius <= 0:
-        raise ValueError(
-            "search_radius must be positive."
-        )
-
-    contour = edge.full_contour
-
-    if not np.all(np.isfinite(contour.r)):
-        edge.qc.image_support_fraction = 0.0
-        edge.qc.minimum_image_support = 0.0
-        edge.qc.flags.add(QCFlag.IMAGE_SUPPORT)
-        return
-
-    image = np.asarray(
-        frame,
-        dtype=float,
-    )
-
-    gradient_x = sobel(
-        image,
-        axis=1,
-        mode="nearest",
-    )
-    gradient_y = sobel(
-        image,
-        axis=0,
-        mode="nearest",
-    )
-
-    radial_offsets = np.arange(
-        -search_radius,
-        search_radius + 1,
-        dtype=float,
-    )
-
-    candidate_radii = (
-        contour.r[:, np.newaxis]
-        + radial_offsets[np.newaxis, :]
-    )
-
-    cos_theta = np.cos(
-        contour.theta
-    )[:, np.newaxis]
-
-    sin_theta = np.sin(
-        contour.theta
-    )[:, np.newaxis]
-
-    candidate_x = (
-        contour.origin[0]
-        + candidate_radii * cos_theta
-    )
-
-    candidate_y = (
-        contour.origin[1]
-        + candidate_radii * sin_theta
-    )
-
-    frame_height, frame_width = image.shape
-
-    inside_image = (
-        (candidate_x >= 0)
-        & (candidate_x <= frame_width - 1)
-        & (candidate_y >= 0)
-        & (candidate_y <= frame_height - 1)
-    )
-
-    coordinates = np.vstack(
-        (
-            candidate_y.ravel(),
-            candidate_x.ravel(),
-        )
-    )
-
-    sampled_gradient_x = map_coordinates(
-        gradient_x,
-        coordinates,
-        order=1,
-        mode="nearest",
-    ).reshape(candidate_x.shape)
-
-    sampled_gradient_y = map_coordinates(
-        gradient_y,
-        coordinates,
-        order=1,
-        mode="nearest",
-    ).reshape(candidate_y.shape)
-
-    radial_gradient = np.abs(
-        sampled_gradient_x * cos_theta
-        + sampled_gradient_y * sin_theta
-    )
-
-    radial_gradient = np.where(
-        inside_image,
-        radial_gradient,
-        -np.inf,
-    )
-
-    edge_index = search_radius
-
-    edge_gradient = radial_gradient[
-        :,
-        edge_index,
-    ]
-
-    strongest_local_gradient = np.max(
-        radial_gradient,
-        axis=1,
-    )
-
-    valid_points = (
-        inside_image[:, edge_index]
-        & np.isfinite(edge_gradient)
-        & np.isfinite(strongest_local_gradient)
-        & (strongest_local_gradient > 0)
-    )
-
-    relative_support = np.zeros(
-        contour.r.shape[0],
-        dtype=float,
-    )
-
-    relative_support[valid_points] = (
-        edge_gradient[valid_points]
-        / strongest_local_gradient[valid_points]
-    )
-
-    relative_support = np.clip(
-        relative_support,
-        0.0,
-        1.0,
-    )
-
-    supported = (
-        relative_support >= threshold
-    )
-
-    edge.qc.image_support_fraction = float(
-        np.mean(supported)
-    )
-
-    edge.qc.minimum_image_support = float(
-        np.min(relative_support)
-    )
-
-    if np.all(supported):
-        edge.qc.flags.discard(
-            QCFlag.IMAGE_SUPPORT
-        )
-    else:
-        edge.qc.flags.add(
-            QCFlag.IMAGE_SUPPORT
-        )
 
 
 def check_edge_populations(
