@@ -16,7 +16,7 @@ from matplotlib.animation import FuncAnimation
 from .vesicle_video_utils import downsample_to_new_indices
 from .edge_filtering import EdgeQC, EdgeQCConfig, check_curvature, check_image_support, check_edge_populations
 
-EdgeResult = EdgeDetection | EdgeDetectionFailure
+
 
 
 @dataclass(frozen=True)
@@ -152,6 +152,9 @@ class EdgeExtractionConfig:
             raise TypeError("n_angular_samples must be an int or None.")
 
 
+EdgeResult = EdgeDetection | EdgeDetectionFailure
+
+
 @dataclass
 class VesicleVideo:
     """
@@ -172,9 +175,9 @@ class VesicleVideo:
     """
 
     frames: np.ndarray
-    extraction_config = EdgeExtractionConfig
+    extraction_config: EdgeExtractionConfig
     qc_config: EdgeQCConfig
-    detections: list[EdgeResult] = []
+    detections: list[EdgeResult] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         """
@@ -192,8 +195,9 @@ class VesicleVideo:
             raise TypeError("frames must be a numpy ndarray.")
         if len(self.frames.shape) != 3:
             raise IndexError("frames must be a 3D array.")
-        if self.extraction_config.n_angular_samples > self.frames.shape[1]:
-            raise IndexError(f"Cannot downsample r_vals with len {self.frames.shape[1]} to {self.extraction_config.n_angular_samples}.")
+        downsample_to = self.extraction_config.n_angular_samples
+        if downsample_to is not None and downsample_to > self.frames.shape[1]:
+            raise IndexError(f"Cannot downsample r_vals with len {self.frames.shape[1]} to {downsample_to}.")
 
     def extract_edges(self, extractor_func: Callable[NDArray[np.float64]]):
         """
