@@ -127,6 +127,7 @@ class VesicleVideo:
             a 2D numpy array as an input (one frame). Must output a 1D NDArray
             of radii and a tuple containing the vesicle center in (y,x) format.
         """
+        self.detections = []
         for frame in self.frames:
             try:
                 r_vals, vesicle_center = extractor_func(frame)
