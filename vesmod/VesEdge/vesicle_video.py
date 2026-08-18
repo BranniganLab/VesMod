@@ -286,7 +286,8 @@ class VesicleVideo:
         Raises
         ------
         ValueError
-            If show_trace is True, but there are no edges saved.
+            If ``show_trace`` is True and there is not exactly one detection
+            result for every video frame.
 
         Returns
         -------
