@@ -160,7 +160,7 @@ class VesicleVideo:
 
         Returns
         -------
-        None.
+        EdgeDetection
 
         """
         center = (vesicle_center[1], vesicle_center[0])
