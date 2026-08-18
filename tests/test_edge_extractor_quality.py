@@ -28,6 +28,47 @@ from vesmod.VesEdge.models import (
 )
 
 
+def _get_sample_video_paths():
+    """
+    Return the paths to all sample vesicle videos.
+
+    Returns
+    -------
+    list[Path]
+        Sorted paths to the sample ``.npy`` files.
+
+    Raises
+    ------
+    pytest.exit
+        If the sample-video directory does not exist or contains no
+        ``.npy`` files.
+    """
+    test_file_dir = (
+        Path(__file__).parent
+        / "sample_vesicle_videos"
+    )
+
+    if not test_file_dir.exists():
+        pytest.exit(
+            f"Test data directory does not exist: {test_file_dir}",
+            returncode=1,
+        )
+
+    paths = sorted(
+        path
+        for path in test_file_dir.iterdir()
+        if path.suffix == ".npy"
+    )
+
+    if not paths:
+        pytest.exit(
+            f"No files found in test directory: {test_file_dir}",
+            returncode=1,
+        )
+
+    return paths
+
+
 # --------------------------------------------------------------------
 # Hook: Make each test run once for each file by using filename as a
 # parametrized variable. DO NOT RENAME THIS FUNCTION OR ITS ARGUMENT!
@@ -41,22 +82,8 @@ def pytest_generate_tests(metafunc):
     if "filename" not in metafunc.fixturenames:
         return
 
-    test_file_dir = (
-        Path(metafunc.definition.fspath).parent
-        / "sample_vesicle_videos"
-    )
-
-    filenames = sorted(
-        path.stem
-        for path in test_file_dir.iterdir()
-        if path.suffix == ".npy"
-    )
-
-    if not filenames:
-        pytest.exit(
-            f"No files found to parameterize test: {test_file_dir}",
-            returncode=1,
-        )
+    paths = _get_sample_video_paths()
+    filenames = [path.stem for path in paths]
 
     metafunc.parametrize(
         "filename",
@@ -82,15 +109,7 @@ def sample_videos():
     dict[str, VesicleVideo]
         Mapping from sample-video filename stem to processed VesicleVideo.
     """
-    test_file_dir = (
-        Path(__file__).parent
-        / "sample_vesicle_videos"
-    )
-
-    if not test_file_dir.exists():
-        pytest.fail(
-            f"Test data directory does not exist: {test_file_dir}"
-        )
+    paths = _get_sample_video_paths()
 
     extraction_config = EdgeExtractionConfig(
         pixels_per_micron=1.0,
@@ -107,10 +126,7 @@ def sample_videos():
 
     video_list = {}
 
-    for path in test_file_dir.iterdir():
-        if path.suffix != ".npy":
-            continue
-
+    for path in paths:
         video = VesicleVideo(
             np.load(path),
             extraction_config,
@@ -121,11 +137,6 @@ def sample_videos():
         )
 
         video_list[path.stem] = video
-
-    if not video_list:
-        pytest.fail(
-            f"No files found in test directory: {test_file_dir}"
-        )
 
     return video_list
 
