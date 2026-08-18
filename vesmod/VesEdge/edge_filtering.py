@@ -36,6 +36,10 @@ class EdgeQCConfig:
         Maximum fraction of otherwise accepted detections that may belong to
         the smaller population for that population to be automatically
         rejected.
+    enable_curvature_qc : bool
+        Whether frame-level curvature QC runs. Default is True.
+    enable_population_qc : bool
+        Whether trajectory-level population QC runs. Default is True.
     """
 
     curvature_threshold: float
