@@ -50,8 +50,6 @@ class EdgeQCConfig:
 
         Raises
         ------
-        TypeError
-            If `image_support_search_radius` is not an integer.
         ValueError
             If any numeric parameter lies outside its allowed range.
         """
