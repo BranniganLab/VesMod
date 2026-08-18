@@ -360,6 +360,7 @@ def check_edge_populations(
         usable_edges,
         labels,
         assigned_probabilities,
+        strict=True
     ):
         edge.qc.population_label = int(
             label
@@ -401,6 +402,7 @@ def check_edge_populations(
         for edge, label in zip(
             usable_edges,
             labels,
+            strict=True
         ):
             if label == minor_label:
                 edge.qc.flags.add(
