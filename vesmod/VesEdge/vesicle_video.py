@@ -297,6 +297,9 @@ class VesicleVideo:
             path = Path(path).resolve()
         output_path = path.with_suffix('.gif')
         fig, ax = plt.subplots()
+        if show_trace:
+            if len(self.detections) != self.frames.shape[0]:
+                raise IndexError(f"There are {len(self.detections)} detections and {self.frames.shape[0]} frames.")
 
         def animate(i):
             ax.clear()
@@ -316,6 +319,8 @@ class VesicleVideo:
     def save_edge_to_npy(self, path: Path) -> None:
         """Save radii to a .npy file, removing frames with bad edge extraction."""
         output_values = []
+        if not isinstance(path, Path):
+            path = Path(path).resolve()
         for edge in self.detections:
             if isinstance(edge, EdgeDetection) and edge.accepted:
                 output_values.append(edge.radii_microns)
