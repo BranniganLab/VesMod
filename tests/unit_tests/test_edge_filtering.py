@@ -350,3 +350,30 @@ def test_check_edge_populations_does_not_reject_large_second_population():
         QCFlag.POPULATION_OUTLIER not in edge.qc.flags
         for edge in edges
     )
+
+def test_check_edge_populations_reconsiders_previous_population_outliers():
+    """Test that rerunning population QC reconsider previously flagged edges."""
+    edges = [
+        _make_edge(
+            origin=(0.1 * index, 0.0),
+            radius=10.0 + 0.05 * index,
+        )
+        for index in range(5)
+    ]
+
+    edges[0].qc.flags.add(
+        QCFlag.POPULATION_OUTLIER
+    )
+
+    result = check_edge_populations(
+        edges,
+        bic_threshold=1e9,
+        max_minor_fraction=0.25,
+    )
+
+    assert result.population_sizes == (5,)
+
+    assert all(
+        QCFlag.POPULATION_OUTLIER not in edge.qc.flags
+        for edge in edges
+    )

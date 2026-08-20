@@ -14,7 +14,12 @@ import numpy as np
 from numpy.typing import NDArray
 from sklearn.mixture import GaussianMixture
 
-from .models import EdgeDetection, EdgeResult, QCFlag
+from .models import (
+    EdgeDetection,
+    EdgeResult,
+    QCFlag,
+    FRAME_QC_FLAGS,
+)
 from .vesicle_video_utils import measure_wrapped_finite_second_difference
 
 
@@ -228,7 +233,14 @@ def check_edge_populations(
         max_minor_fraction,
     )
 
-    usable_edges = _get_usable_edges(detections)
+    usable_edges = _get_usable_edges(
+        detections
+    )
+
+    for edge in usable_edges:
+        edge.qc.flags.discard(
+            QCFlag.POPULATION_OUTLIER
+        )
 
     if len(usable_edges) < 4:
         _assign_single_population(
@@ -303,13 +315,23 @@ def _validate_population_parameters(
 def _get_usable_edges(
     detections: list[EdgeResult],
 ) -> list[EdgeDetection]:
-    """Return successful detections that passed frame-level QC."""
+    """Return detections eligible for trajectory-level population QC."""
     return [
         result
         for result in detections
         if isinstance(result, EdgeDetection)
-        and result.qc.passed
+        and _passes_frame_qc(result)
     ]
+
+
+def _passes_frame_qc(
+        edge: EdgeDetection,
+    ) -> bool:
+        """Return whether an edge passed all frame-level QC checks."""
+        return not (
+            edge.qc.flags
+            & FRAME_QC_FLAGS
+        )
 
 
 def _population_features(
