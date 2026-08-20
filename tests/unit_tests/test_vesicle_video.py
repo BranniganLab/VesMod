@@ -399,3 +399,59 @@ def test_save_edge_to_npy_only_saves_accepted_detections(tmp_path, video):
         saved[0],
         accepted_edge.radii_microns,
     )
+
+
+def test_extract_edges_replaces_previous_detections(
+    monkeypatch,
+    extraction_config,
+    qc_config,
+):
+    """Test that repeated extraction replaces previous detection results."""
+    video = VesicleVideo(
+        np.zeros((2, 200, 200)),
+        extraction_config,
+        qc_config,
+    )
+
+    def extractor(frame):
+        return np.full(200, 20.0), (60.0, 50.0)
+
+    monkeypatch.setattr(
+        video,
+        "_run_frame_qc",
+        lambda frame, edge: None,
+    )
+    monkeypatch.setattr(
+        video,
+        "_run_trajectory_qc",
+        lambda: None,
+    )
+
+    video.extract_edges(extractor)
+    first_detections = list(video.detections)
+
+    video.extract_edges(extractor)
+
+    assert len(video.detections) == video.frames.shape[0]
+    assert all(
+        second is not first
+        for second, first in zip(
+            video.detections,
+            first_detections,
+        )
+    )
+
+
+def test_make_vesicle_gif_with_trace_requires_detections(
+    video,
+    tmp_path,
+):
+    """Verify traced GIFs cannot be rendered before edge extraction."""
+    with pytest.raises(
+        ValueError,
+        match="detections",
+    ):
+        video.make_vesicle_gif(
+            tmp_path / "vesicle.gif",
+            show_trace=True,
+        )
