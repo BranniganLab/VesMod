@@ -75,7 +75,7 @@ class VesicleVideo:
     ----------
         frames : numpy ndarray
             The 3D array of raw images. 0th dimension is frame number.
-        extraction_config : EdgeExtractorConfig
+        extraction_config : EdgeExtractionConfig
             The configuration parameters for the edge extractor.
         qc_config : EdgeQCConfig
             The configuration parameters for the quality control checks.
