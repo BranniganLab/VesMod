@@ -92,24 +92,40 @@ def pytest_generate_tests(metafunc):
     )
 
 
-# ----------------------------------------------------------
-# Fixture: Expensive processing of all videos only done once
-# ----------------------------------------------------------
+# ------------------------------------------------------------
+# Fixtures: Process each sample lazily and cache successful runs
+# ------------------------------------------------------------
 @pytest.fixture(scope="session")
-def sample_videos():
-    """
-    Load and process each sample video once per test session.
+def processed_sample_videos():
+    """Return a session cache of successfully processed sample videos."""
+    return {}
 
-    The acceptance test deliberately enables only curvature QC so that its
-    reference usable-frame percentages remain comparable with historical
-    reference values.
+
+@pytest.fixture
+def sample_video(
+    filename,
+    processed_sample_videos,
+):
+    """
+    Load and process the sample video for the current parameterized case.
+
+    Successfully extracted videos are cached for the rest of the test session
+    so each sample is processed at most once. Extraction failures remain
+    isolated to the filename that triggered them.
 
     Returns
     -------
-    dict[str, VesicleVideo]
-        Mapping from sample-video filename stem to processed VesicleVideo.
+    VesicleVideo
+        Processed video corresponding to ``filename``.
     """
-    paths = _get_sample_video_paths()
+    if filename in processed_sample_videos:
+        return processed_sample_videos[filename]
+
+    path = next(
+        path
+        for path in _get_sample_video_paths()
+        if path.stem == filename
+    )
 
     extraction_config = EdgeExtractionConfig(
         pixels_per_micron=1.0,
@@ -124,21 +140,17 @@ def sample_videos():
         enable_population_qc=False,
     )
 
-    video_list = {}
+    video = VesicleVideo(
+        np.load(path),
+        extraction_config,
+        qc_config,
+    )
+    video.extract_edges(
+        extract_edge_from_frame
+    )
 
-    for path in paths:
-        video = VesicleVideo(
-            np.load(path),
-            extraction_config,
-            qc_config,
-        )
-        video.extract_edges(
-            extract_edge_from_frame
-        )
-
-        video_list[path.stem] = video
-
-    return video_list
+    processed_sample_videos[filename] = video
+    return video
 
 
 # ----------------------------
@@ -146,12 +158,12 @@ def sample_videos():
 # ----------------------------
 def test_whether_edges_extracted(
     filename,
-    sample_videos,
+    sample_video,
 ):
     """
     Verify that edge extraction succeeds for every frame in each sample video.
     """
-    video = sample_videos[filename]
+    video = sample_video
 
     failures = [
         result
@@ -187,7 +199,7 @@ def test_whether_edges_extracted(
 
 def test_only_curvature_qc_was_run(
     filename,
-    sample_videos,
+    sample_video,
 ):
     """
     Verify that the acceptance test applies only curvature-based QC.
@@ -195,7 +207,7 @@ def test_only_curvature_qc_was_run(
     Every successfully detected edge should have a curvature score, while
     image-support and population-QC measurements should remain unset.
     """
-    video = sample_videos[filename]
+    video = sample_video
 
     for result in video.detections:
         if isinstance(
@@ -224,7 +236,7 @@ def test_only_curvature_qc_was_run(
 def test_extraction_quality(
     request,
     filename,
-    sample_videos,
+    sample_video,
 ):
     """
     Compare the fraction of usable frames with the stored reference value.
@@ -232,7 +244,7 @@ def test_extraction_quality(
     A frame is usable when edge extraction succeeded and the resulting
     EdgeDetection passed the enabled QC checks.
     """
-    video = sample_videos[filename]
+    video = sample_video
 
     n_usable_frames = sum(
         isinstance(result, EdgeDetection)
