@@ -47,14 +47,16 @@ A typical frame shape might be:
 
 ### Output: `r_vals`
 
-`r_vals` must be a one-dimensional list or NumPy array of radial distances from the vesicle center to the vesicle edge.
+`r_vals` must be a one-dimensional NumPy `ndarray` of radial distances
+from the vesicle center to the vesicle edge.
 
 Requirements:
 
+- a NumPy `ndarray`
 - one-dimensional
 - numeric
 - evenly spaced in angle
-- ordered from `0` to `2π`
+- ordered from `0` to `2π` (exclusive)
 - measured in pixels, not microns
 
 Example:
