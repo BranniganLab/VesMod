@@ -228,7 +228,7 @@ class VesicleVideo:
             raise TypeError(f"Extractor must return an NDArray, not {type(r_vals)}.")
         if r_vals.ndim != 1:
             raise ValueError("Extractor must return a 1D array of r-values.")
-    
+
     def _validate_detection_lengths(self) -> None:
         """Verify successful detections have consistent analysis-contour lengths."""
         unique_lengths = {
