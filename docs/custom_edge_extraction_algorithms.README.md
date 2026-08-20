@@ -219,10 +219,18 @@ A good custom extractor should:
 - raise an exception when extraction genuinely fails
 - return `r_vals` in pixels
 - return `vesicle_center` in `(row, column)` order
-- use a consistent number of angular samples when possible
+- use a consistent number of angular samples across successful frames
+  when downsampling is disabled
 - avoid returning NaNs unless the frame should be treated as failed or unreliable
 
-VesEdge catches exceptions raised by the extractor on individual frames, marks those frames as failed, and continues processing subsequent frames.
+VesEdge catches exceptions raised by the extractor on individual frames,
+records those frames as extraction failures, and continues processing
+subsequent frames.
+
+After all frames have been processed, VesEdge raises an error if the
+extractor did not successfully detect an edge in any frame. It also
+raises an error if successful detections have inconsistent angular sample
+counts when they have not been standardized by downsampling.
 
 ---
 
