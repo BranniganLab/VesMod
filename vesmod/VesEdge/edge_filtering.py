@@ -22,6 +22,9 @@ from .models import (
 )
 from .vesicle_video_utils import measure_wrapped_finite_second_difference
 
+POPULATION_FEATURE_COUNT = 3
+MIN_POPULATION_SAMPLE_COUNT = 2 * (POPULATION_FEATURE_COUNT + 1)
+
 
 @dataclass(frozen=True)
 class EdgeQCConfig:
@@ -155,6 +158,11 @@ def check_curvature(
     threshold : float
         Maximum allowed absolute wrapped finite second difference.
 
+    Raises
+    ------
+    ValueError
+        If ``threshold`` is non-finite or negative.
+
     Returns
     -------
     None
@@ -223,6 +231,13 @@ def check_edge_populations(
         population for that population to be automatically rejected. Must be
         greater than or equal to 0 and less than 0.5.
 
+    Raises
+    ------
+    ValueError
+        If ``bic_threshold`` is non-finite or negative, or if
+        ``max_minor_fraction`` is non-finite or outside the interval
+        ``[0, 0.5)``.
+
     Returns
     -------
     EdgePopulationResult
@@ -242,7 +257,7 @@ def check_edge_populations(
             QCFlag.POPULATION_OUTLIER
         )
 
-    if len(usable_edges) < 4:
+    if len(usable_edges) < MIN_POPULATION_SAMPLE_COUNT:
         _assign_single_population(
             usable_edges,
             clear_outlier_flag=False,
