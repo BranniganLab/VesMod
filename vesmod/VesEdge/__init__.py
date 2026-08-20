@@ -7,10 +7,10 @@ from .models import EdgeDetection, EdgeDetectionFailure, EdgeResult, QCFlag
 __all__ = [
     "EdgeDetection",
     "EdgeDetectionFailure",
-    "VesicleVideo",
     "EdgeExtractionConfig",
+    "EdgeQCConfig",
     "EdgeResult",
     "QCFlag",
+    "VesicleVideo",
     "extract_edge_from_frame",
-    "EdgeQCConfig",
 ]
