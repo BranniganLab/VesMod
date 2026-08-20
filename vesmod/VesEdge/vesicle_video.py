@@ -142,6 +142,7 @@ class VesicleVideo:
             self.detections.append(detected_edge)
         self._validate_detection_lengths()
         self._run_trajectory_qc()
+        self._validate_usable_detections()
 
     def _compile_edge_detection_results(
         self,
@@ -242,6 +243,18 @@ class VesicleVideo:
         if len(unique_lengths) > 1:
             raise ValueError(
                 "Extracted edges have inconsistent numbers of angular samples."
+            )
+
+    def _validate_usable_detections(self) -> None:
+        """Verify that at least one detected edge passes quality control."""
+        if not any(
+            isinstance(detection, EdgeDetection)
+            and detection.accepted
+            for detection in self.detections
+        ):
+            raise ValueError(
+                "Edge extraction produced detections, but no frames passed "
+                "quality control."
             )
 
     def _run_frame_qc(self, frame: np.ndarray, edge: EdgeDetection) -> None:
