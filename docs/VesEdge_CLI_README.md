@@ -1,6 +1,6 @@
 # VesEdge CLI
 
-VesEdge is a command-line tool for extracting vesicle contours from ND2 microscopy videos. It reads one or more `.nd2` files, runs an edge extractor on each frame, performs contour quality control, optionally writes a visual QC GIF, and saves accepted contours to a NumPy `.npy` file.
+VesEdge is a command-line tool for extracting vesicle contours from ND2 microscopy videos. It reads one or more `.nd2` files, runs an edge extractor on each frame, performs frame- and trajectory-level quality control, optionally writes a visual QC GIF, and saves accepted contours to a NumPy `.npy` file.
 
 ## Features
 
@@ -9,7 +9,8 @@ VesEdge is a command-line tool for extracting vesicle contours from ND2 microsco
 - Default VesEdge edge extraction
 - User-supplied edge extraction functions
 - Optional angular downsampling
-- Curvature-based contour quality control
+- Frame-level curvature quality control
+- Trajectory-level center/radius population quality control
 - GIF output for visual inspection
 - NumPy output for downstream analysis
 
@@ -18,7 +19,6 @@ VesEdge is a command-line tool for extracting vesicle contours from ND2 microsco
 ## Installation
 
 Install VesEdge into your Python environment.
-
 
 ```bash
 git clone <repository-url>
@@ -36,16 +36,15 @@ vesedge --help
 
 ## Quick Start
 
-Process one ND2 file (sample.nd2) with micron : pixel ratio of 1.0 : 13.44, downsampling to 180 evenly-spaced angular bins, and other default values:
+Process one ND2 file with a microscope calibration of 13.44 pixels per micron, downsampling to 180 evenly spaced angular bins, and using the default quality-control settings:
 
 ```bash
-vesedge sample.nd2 --micron-to-pixel-ratio 0.0744 --downsample --n-samples 180
+vesedge sample.nd2 --pixels-per-micron 13.44 --downsample --n-samples 180
 ```
 
 ---
 
 ## Command Line Interface Arguments
-
 
 ### File Selection Options
 
@@ -83,6 +82,31 @@ With `--recursive`, VesEdge processes files matching:
 
 ---
 
+### Microscope Calibration
+
+#### `--pixels-per-micron`
+
+```bash
+vesedge sample.nd2 --pixels-per-micron 13.44
+```
+
+This value is the microscope calibration in:
+
+```text
+pixels per micron
+```
+
+For example, if 1 micron corresponds to 13.44 pixels in the image, use `13.44`.
+
+The saved `.npy` file stores radial distances in microns.
+
+Default:
+
+```text
+1
+```
+
+---
 
 ### Downsampling
 
@@ -93,7 +117,8 @@ Using a fixed number of angular samples is recommended when comparing contours a
 ```bash
 vesedge sample.nd2 --downsample
 ```
-Downsampling occurs before curvature-based quality control. Consequently, using `--downsample` may affect which frames are classified as reliable or unreliable.
+
+Downsampling occurs before quality control. Consequently, using `--downsample` may affect which frames are classified as reliable or unreliable.
 
 Default:
 
@@ -103,7 +128,7 @@ False
 
 #### `--n-samples`
 
-The default is to `--downsample` to 120 samples. To specify a different number, use `--n-samples`
+The default is to downsample to 120 samples. To specify a different number, use `--n-samples`:
 
 ```bash
 vesedge sample.nd2 --downsample --n-samples 360
@@ -117,8 +142,7 @@ Default:
 
 ---
 
-
-### Curvature-Based Quality Control
+### Frame-Level Curvature Quality Control
 
 #### `--curvature-threshold`
 
@@ -126,11 +150,9 @@ Default:
 vesedge sample.nd2 --curvature-threshold 5
 ```
 
-After edge extraction and downsampling, VesEdge computes a wrapped finite second difference of each contour. If the absolute finite second difference exceeds the curvature threshold, the frame is classified as unreliable.
+After edge extraction and optional downsampling, VesEdge computes a wrapped finite second difference of each contour. If the absolute finite second difference exceeds the curvature threshold, the detection fails curvature QC.
 
-Larger values are more permissive.
-
-Smaller values are more stringent.
+Larger values are more permissive. Smaller values are more stringent.
 
 Default:
 
@@ -140,37 +162,63 @@ Default:
 
 ---
 
-### Microscope calibration
+### Trajectory-Level Population Quality Control
 
-#### `--micron-to-pixel-ratio`
+After frame-level QC, VesEdge compares the centers and median radii of eligible detections across the video. This check is intended to identify a small, distinct population of detections, such as frames in which the edge extractor switched from the vesicle to another object.
+
+Population QC uses three features for each eligible detection:
+
+- x-coordinate of the detected vesicle center
+- y-coordinate of the detected vesicle center
+- median vesicle radius
+
+The features are robustly scaled and compared using one- and two-component Gaussian mixture models.
+
+#### `--population-bic-threshold`
+
+Minimum improvement in Bayesian information criterion (BIC) required before VesEdge prefers a two-population model:
 
 ```bash
-vesedge sample.nd2 --micron-to-pixel-ratio 0.0744
+vesedge sample.nd2 --population-bic-threshold 10
 ```
 
-This value is the physical calibration of the image in:
-
-```text
-microns per pixel
-```
-
-For example, if the microscope image has 13.44 pixels per micron, use 0.0744 because:
-
-```text
-1 / 13.44 = 0.0744 microns per pixel
-```
-
-The saved `.npy` file stores radial distances in microns.
+Larger values require stronger evidence for two populations.
 
 Default:
 
 ```text
-1
+10
 ```
+
+#### `--max-minor-population-fraction`
+
+Maximum fraction of eligible detections that may belong to the smaller population for that population to be rejected:
+
+```bash
+vesedge sample.nd2 --max-minor-population-fraction 0.25
+```
+
+The value must be greater than or equal to 0 and less than 0.5.
+
+Default:
+
+```text
+0.25
+```
+
+#### `--no-population-qc`
+
+Disable trajectory-level population QC:
+
+```bash
+vesedge sample.nd2 --no-population-qc
+```
+
+Population QC is enabled by default.
 
 ---
 
-### Output options
+### Output Options
 
 #### `--no-gif`
 
@@ -182,7 +230,7 @@ Disable GIF output:
 vesedge sample.nd2 --no-gif
 ```
 
-The GIF is intended for visual quality control. Accepted and unreliable traces are displayed differently so that rejected frames can be inspected.
+The GIF is intended for visual quality control. Successful edge detections can be displayed even when they fail QC so that rejected contours can be inspected.
 
 Default:
 
@@ -190,11 +238,9 @@ Default:
 False
 ```
 
----
-
 #### `--overwrite`
 
-By default, VesEdge skips an input file if the corresponding GIF already exists.
+By default, VesEdge skips an input file if any expected output file already exists. The expected outputs are the `.npy` file and, unless `--no-gif` is used, the `.gif` file.
 
 Force reprocessing:
 
@@ -210,12 +256,27 @@ False
 
 ---
 
-### Edge extraction algorithm
+### Edge Extraction Algorithm
 
-By default, VesEdge will use the built-in edge extraction algorithm contained in 
-`vesmod.VesEdge.edge_extractor:extract_edge_from_frame`. The user has the option
-of supplying their own edge extraction algorithm. See 
-`custom_edge_extraction_algorithms.README.md` for more details.
+By default, VesEdge uses the built-in edge extraction algorithm exposed as `vesmod.VesEdge:extract_edge_from_frame`. The user may instead supply a custom edge extraction algorithm. See `custom_edge_extraction_algorithms.README.md` for details.
+
+#### `--extractor`
+
+Load an extractor using `module:function` syntax:
+
+```bash
+vesedge sample.nd2 --extractor my_module:my_extractor
+```
+
+#### `--extractor-file` and `--extractor-name`
+
+Load an extractor directly from a Python file:
+
+```bash
+vesedge sample.nd2 --extractor-file ./my_extractor.py --extractor-name extract_edge_from_frame
+```
+
+The default function name is `extract_edge_from_frame`.
 
 ---
 
@@ -236,15 +297,15 @@ sample.npy
 
 unless GIF output is disabled with `--no-gif`.
 
-### GIF file
+### GIF File
 
 ```text
 sample.gif
 ```
 
-The GIF shows the detected contour overlaid on the image frames.
+The GIF shows successfully detected contours overlaid on the image frames. A contour that was extracted successfully can still appear in the GIF even if it was rejected by QC. Frames for which edge extraction itself failed have no contour to display.
 
-### NumPy file
+### NumPy File
 
 ```text
 sample.npy
@@ -266,30 +327,26 @@ The array has shape:
 
 where:
 
-- `n_accepted_frames` is the number of frames that passed quality control
+- `n_accepted_frames` is the number of successful detections that passed all enabled quality-control checks
 - `n_theta` is the number of angular samples in each saved contour
 
 Distances are stored in microns.
 
-If `--downsample` is enabled, the saved contours are the downsampled contours. These are also the contours used for curvature-based quality control.
+If `--downsample` is enabled, the saved contours are the downsampled contours. These are also the contours used for quality control.
 
 Only accepted frames are written to the `.npy` file.
 
 ---
 
-## Frame Status Codes
+## Frame Results
 
-VesEdge assigns an internal status code to each frame.
+Each input frame produces either a successful edge detection or an edge extraction failure.
 
-| Status | Meaning |
-| --- | --- |
-| `1` | Successful edge extraction |
-| `2` | Edge extraction failed |
-| `3` | Edge extraction succeeded, but the contour was classified as unreliable |
+Successful detections are then evaluated by the enabled quality-control checks. A successful detection may therefore still be rejected from the saved `.npy` output.
 
-Only frames with status `1` are saved to the `.npy` output.
+The GIF can retain successfully extracted contours even when they fail QC, allowing rejected detections to be inspected visually. Frames for which edge extraction itself failed have no contour to display.
 
-Frames with status `3` can still appear in the GIF, which allows visual inspection of contours that were detected but rejected by quality control.
+Only successful detections that pass all enabled QC checks are written to the `.npy` file.
 
 ---
 
@@ -307,7 +364,6 @@ Check that:
 
 This occurs when `INPUT_PATH` is a file, but its suffix is not `.nd2`.
 
-
 ### Custom extractor cannot be imported
 
 For `--extractor-file`, check that:
@@ -323,6 +379,18 @@ For `--extractor`, check that:
 - the named function exists
 - the named object is callable
 
+### VesEdge reports no successful detections
+
+This means edge extraction failed on every frame. For a custom extractor, check that it satisfies the required extractor interface and that it is appropriate for the input images.
+
+### VesEdge reports no frames passed quality control
+
+Edge extraction produced one or more contours, but every successful detection was rejected by the enabled QC checks. Inspect the extraction and QC settings rather than treating this as an extractor-interface failure.
+
+### Extracted edges have inconsistent numbers of angular samples
+
+Without downsampling, all successful extractor outputs must contain the same number of angular samples. Enable `--downsample` or modify a custom extractor so that successful results use a consistent angular sampling.
+
 ### Frames are missing from the `.npy` file
 
 Only accepted frames are saved.
@@ -330,14 +398,15 @@ Only accepted frames are saved.
 Frames may be omitted because:
 
 - edge extraction raised an exception
-- the returned contour contained invalid values
+- the returned contour was invalid
 - the finite second difference exceeded `--curvature-threshold`
+- trajectory-level population QC classified the detection as part of a small outlier population
 
-Inspect the GIF output to determine which frames were rejected.
+Inspect the GIF output to determine which successfully extracted contours were rejected.
 
-### Changing `--n_samples` changes accepted frames
+### Changing `--n-samples` changes accepted frames
 
-This can happen because downsampling occurs before curvature-based quality control. Changing the number of angular samples changes the contour used for the finite-second-difference check.
+This can happen because downsampling occurs before quality control. Changing the number of angular samples changes the contour used for the finite-second-difference check and can therefore change frame-level QC results.
 
 ---
 
