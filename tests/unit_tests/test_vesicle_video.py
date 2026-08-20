@@ -92,6 +92,32 @@ def test_edge_extraction_config_requires_positive_pixels_per_micron():
         )
 
 
+def test_edge_extraction_config_converts_integer_valued_sample_count():
+    """Test that integer-valued sample counts are normalized to int."""
+    config = EdgeExtractionConfig(
+        pixels_per_micron=1.0,
+        n_angular_samples=120.0,
+    )
+
+    assert config.n_angular_samples == 120
+    assert isinstance(
+        config.n_angular_samples,
+        int,
+    )
+
+
+def test_edge_extraction_config_rejects_non_integer_sample_count():
+    """Test that non-integer sample counts are rejected."""
+    with pytest.raises(
+        ValueError,
+        match="integer-valued",
+    ):
+        EdgeExtractionConfig(
+            pixels_per_micron=1.0,
+            n_angular_samples=120.5,
+        )
+
+
 def test_edge_extraction_config_requires_positive_n_angular_samples():
     """Test that n_angular_samples must be positive when supplied."""
     with pytest.raises(ValueError):
@@ -509,6 +535,7 @@ def test_extract_edges_replaces_previous_detections(
         for second, first in zip(
             video.detections,
             first_detections,
+            strict=True,
         )
     )
 
