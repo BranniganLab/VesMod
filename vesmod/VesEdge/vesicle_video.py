@@ -156,6 +156,13 @@ class VesicleVideo:
             The extractor function you wish to use to extract edges. Must take
             a 2D numpy array as an input (one frame). Must output a 1D NDArray
             of radii and a tuple containing the vesicle center in (y,x) format.
+
+        Raises
+        ------
+        ValueError
+            If no frame produced a successful detection.
+            If successful detections have inconsistent angular sample counts.
+            If no detection passed quality control.
         """
         self.detections = []
         for frame in self.frames:
