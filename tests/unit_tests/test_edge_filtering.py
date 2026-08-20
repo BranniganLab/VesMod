@@ -146,7 +146,7 @@ def test_check_edge_populations_rejects_invalid_parameters(
 
 
 def test_check_edge_populations_short_circuits_for_too_few_edges():
-    """Test that fewer than four usable edges are treated as one population."""
+    """Test that fewer than eight usable edges are treated as one population."""
     edges = [
         _make_edge(origin=(float(index), 0.0))
         for index in range(7)
@@ -346,6 +346,7 @@ def test_check_edge_populations_does_not_reject_large_second_population():
         QCFlag.POPULATION_OUTLIER not in edge.qc.flags
         for edge in edges
     )
+
 
 def test_check_edge_populations_reconsiders_previous_population_outliers():
     """Test that rerunning population QC reconsider previously flagged edges."""
