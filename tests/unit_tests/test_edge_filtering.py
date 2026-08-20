@@ -148,10 +148,8 @@ def test_check_edge_populations_rejects_invalid_parameters(
 def test_check_edge_populations_short_circuits_for_too_few_edges():
     """Test that fewer than four usable edges are treated as one population."""
     edges = [
-        _make_edge(
-            origin=(float(index), 0.0)
-        )
-        for index in range(3)
+        _make_edge(origin=(float(index), 0.0))
+        for index in range(7)
     ]
 
     result = check_edge_populations(
@@ -219,11 +217,9 @@ def test_check_edge_populations_keeps_one_population_when_bic_gain_is_insufficie
             ),
             radius=10.0 + 0.05 * index,
         )
-        for index in range(6)
+        for index in range(10)
     ]
 
-    # Verify that rerunning population QC clears stale
-    # population-outlier state.
     edges[0].qc.flags.add(
         QCFlag.POPULATION_OUTLIER
     )
@@ -235,7 +231,7 @@ def test_check_edge_populations_keeps_one_population_when_bic_gain_is_insufficie
     )
 
     assert not result.two_populations_detected
-    assert result.population_sizes == (6,)
+    assert result.population_sizes == (10,)
     assert result.rejected_population is None
     assert result.bic_one_population is not None
     assert result.bic_two_populations is not None
