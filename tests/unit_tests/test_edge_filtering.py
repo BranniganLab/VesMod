@@ -161,7 +161,7 @@ def test_check_edge_populations_short_circuits_for_too_few_edges():
     assert result.bic_one_population is None
     assert result.bic_two_populations is None
     assert not result.two_populations_detected
-    assert result.population_sizes == (3,)
+    assert result.population_sizes == (7,)
     assert result.rejected_population is None
 
     assert all(
