@@ -441,8 +441,8 @@ def _single_population_result(
 ) -> EdgePopulationResult:
     """Build a result describing a single detected population."""
     return EdgePopulationResult(
-        bic_one_population=bic_values[0],
-        bic_two_populations=bic_values[1],
+        bic_one_population=bic_one,
+        bic_two_populations=bic_two,
         two_populations_detected=False,
         population_sizes=(population_size,),
         rejected_population=None,
@@ -496,8 +496,8 @@ def _apply_two_population_results(
     )
 
     return EdgePopulationResult(
-        bic_one_population=bic_one,
-        bic_two_populations=bic_two,
+        bic_one_population=bic_values[0],
+        bic_two_populations=bic_values[1],
         two_populations_detected=True,
         population_sizes=tuple(
             int(count)
