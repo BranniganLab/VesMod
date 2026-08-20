@@ -238,7 +238,8 @@ class VesicleVideo:
         }
         if not unique_lengths:
             raise ValueError(
-                "Edge extraction produced no successful detections."
+                "Edge extraction produced no successful detections. "
+                "Check the edge extractor implementation or input images."
             )
         if len(unique_lengths) > 1:
             raise ValueError(
