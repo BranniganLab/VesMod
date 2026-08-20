@@ -553,3 +553,11 @@ def test_make_vesicle_gif_with_trace_requires_detections(
             tmp_path / "vesicle.gif",
             show_trace=True,
         )
+
+
+def test_save_edge_to_npy_raises_without_accepted_detections(tmp_path, video):
+    """Test that saving fails when no detection passed quality control."""
+    video.detections.append(EdgeDetectionFailure("failure"))
+
+    with pytest.raises(ValueError, match="no accepted edge detections"):
+        video.save_edge_to_npy(tmp_path / "edges")
