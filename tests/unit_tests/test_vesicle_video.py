@@ -334,7 +334,7 @@ def test_extract_edges_raises_when_all_frames_fail(
 
     with pytest.raises(
         ValueError,
-        match="no usable frames",
+        match="no successful detections",
     ):
         video.extract_edges(failing_extractor)
 
