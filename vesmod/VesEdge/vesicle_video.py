@@ -140,6 +140,7 @@ class VesicleVideo:
 
             self._run_frame_qc(frame, detected_edge)
             self.detections.append(detected_edge)
+        self._validate_detection_lengths()
         self._run_trajectory_qc()
 
     def _compile_edge_detection_results(
@@ -226,6 +227,22 @@ class VesicleVideo:
             raise TypeError(f"Extractor must return an NDArray, not {type(r_vals)}.")
         if r_vals.ndim != 1:
             raise ValueError("Extractor must return a 1D array of r-values.")
+    
+    def _validate_detection_lengths(self) -> None:
+        """Verify successful detections have consistent analysis-contour lengths."""
+        unique_lengths = {
+            detection.radii_microns.shape[0]
+            for detection in self.detections
+            if isinstance(detection, EdgeDetection)
+        }
+        if not unique_lengths:
+            raise ValueError(
+                "Edge extraction produced no successful detections."
+            )
+        if len(unique_lengths) > 1:
+            raise ValueError(
+                "Extracted edges have inconsistent numbers of angular samples."
+            )
 
     def _run_frame_qc(self, frame: np.ndarray, edge: EdgeDetection) -> None:
         """
@@ -325,4 +342,8 @@ class VesicleVideo:
         for edge in self.detections:
             if isinstance(edge, EdgeDetection) and edge.accepted:
                 output_values.append(edge.radii_microns)
+        if not output_values:
+            raise ValueError(
+                "Cannot save edges: no accepted edge detections are available."
+            )
         np.save(path.with_suffix('.npy'), np.array(output_values))
