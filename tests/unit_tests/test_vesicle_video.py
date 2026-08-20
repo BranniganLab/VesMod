@@ -1,5 +1,4 @@
-from pathlib import Path
-
+"""Unit tests for vesicle_video.py."""
 import numpy as np
 import pytest
 
