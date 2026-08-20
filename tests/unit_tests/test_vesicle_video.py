@@ -363,6 +363,28 @@ def test_extract_edges_raises_when_all_extractions_fail(
     )
 
 
+def test_run_frame_qc_skips_curvature_when_disabled(monkeypatch, extraction_config):
+    """Test that disabling curvature QC skips the curvature check."""
+    qc_config = EdgeQCConfig(
+        curvature_threshold=5.0,
+        population_bic_threshold=10.0,
+        max_minor_population_fraction=0.25,
+        enable_curvature_qc=False,
+    )
+    video = VesicleVideo(np.zeros((1, 200, 200)), extraction_config, qc_config)
+    calls = []
+
+    monkeypatch.setattr(
+        "vesmod.VesEdge.vesicle_video.check_curvature",
+        lambda edge, threshold: calls.append(threshold),
+    )
+
+    edge = video._compile_edge_detection_results(np.full(200, 20.0), (60.0, 50.0))
+    video._run_frame_qc(video.frames[0], edge)
+
+    assert calls == []
+
+
 def test_extract_edges_preserves_frame_order_after_failure(
     monkeypatch,
     extraction_config,
