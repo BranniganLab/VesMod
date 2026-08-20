@@ -368,6 +368,78 @@ def test_extract_edges_preserves_frame_order_after_failure(
     assert isinstance(video.detections[2], EdgeDetection)
 
 
+def test_extract_edges_rejects_inconsistent_detection_lengths(
+        monkeypatch,
+        qc_config,
+    ):
+        """Test that successful detections must have consistent sample counts."""
+        extraction_config = EdgeExtractionConfig(
+            pixels_per_micron=1.0,
+            n_angular_samples=None,
+        )
+        frames = np.zeros((2, 200, 200))
+        frames[1] = 1.0
+    
+        video = VesicleVideo(
+            frames,
+            extraction_config,
+            qc_config,
+        )
+    
+        def extractor(frame):
+            if np.all(frame == 1.0):
+                return np.full(180, 20.0), (60.0, 50.0)
+            return np.full(200, 20.0), (60.0, 50.0)
+    
+        monkeypatch.setattr(
+            video,
+            "_run_frame_qc",
+            lambda frame, edge: None,
+        )
+    
+        with pytest.raises(
+            ValueError,
+            match="inconsistent numbers of angular samples",
+        ):
+            video.extract_edges(extractor)
+
+
+def test_extract_edges_raises_when_no_frames_pass_qc(
+        monkeypatch,
+        extraction_config,
+        qc_config,
+    ):
+        """Test that extraction reports when every detected edge fails QC."""
+        video = VesicleVideo(
+            np.zeros((2, 200, 200)),
+            extraction_config,
+            qc_config,
+        )
+    
+        def extractor(frame):
+            return np.full(200, 20.0), (60.0, 50.0)
+    
+        def reject_edge(frame, edge):
+            edge.qc.flags.add(QCFlag.CURVATURE)
+    
+        monkeypatch.setattr(
+            video,
+            "_run_frame_qc",
+            reject_edge,
+        )
+        monkeypatch.setattr(
+            video,
+            "_run_trajectory_qc",
+            lambda: None,
+        )
+    
+        with pytest.raises(
+            ValueError,
+            match="no frames passed quality control",
+        ):
+            video.extract_edges(extractor)
+
+
 def test_save_edge_to_npy_only_saves_accepted_detections(tmp_path, video):
     """Test that only successfully detected edges that pass QC are saved."""
     accepted_edge = video._compile_edge_detection_results(
