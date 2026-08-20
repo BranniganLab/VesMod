@@ -331,7 +331,7 @@ class VesicleVideo:
         fig, ax = plt.subplots()
         if show_trace:
             if len(self.detections) != self.frames.shape[0]:
-                raise IndexError(f"There are {len(self.detections)} detections and {self.frames.shape[0]} frames.")
+                raise ValueError(f"There are {len(self.detections)} detections and {self.frames.shape[0]} frames.")
 
         def animate(i):
             ax.clear()
