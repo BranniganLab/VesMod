@@ -21,6 +21,7 @@ from .models import (
     ImageContour,
 )
 from .edge_filtering import (
+    EdgePopulationResult,
     EdgeQCConfig,
     check_curvature,
     check_edge_populations,
@@ -104,12 +105,18 @@ class VesicleVideo:
             The configuration parameters for the quality control checks.
         detections : list[EdgeResult]
             The edge detections for each frame.
+        population_result : EdgePopulationResult | None
+            The relevant details from trajectory QC.
     """
 
     frames: np.ndarray
     extraction_config: EdgeExtractionConfig
     qc_config: EdgeQCConfig
     detections: list[EdgeResult] = field(default_factory=list)
+    population_result: EdgePopulationResult | None = field(
+        default=None,
+        init=False,
+    )
 
     def __post_init__(self) -> None:
         """
@@ -319,8 +326,10 @@ class VesicleVideo:
         -------
         None
         """
+        self.population_result = None
+
         if self.qc_config.enable_population_qc:
-            check_edge_populations(
+            self.population_result = check_edge_populations(
                 self.detections,
                 bic_threshold=self.qc_config.population_bic_threshold,
                 max_minor_fraction=self.qc_config.max_minor_population_fraction,

@@ -286,29 +286,6 @@ def test_run_frame_qc_calls_all_frame_level_checks(monkeypatch, video):
     ]
 
 
-def test_run_trajectory_qc_calls_population_check(monkeypatch, video):
-    """Test that trajectory QC passes detections and configured thresholds."""
-    observed = {}
-
-    def fake_population_check(detections, bic_threshold, max_minor_fraction):
-        observed["detections"] = detections
-        observed["bic_threshold"] = bic_threshold
-        observed["max_minor_fraction"] = max_minor_fraction
-
-    monkeypatch.setattr(
-        "vesmod.VesEdge.vesicle_video.check_edge_populations",
-        fake_population_check,
-    )
-
-    video._run_trajectory_qc()
-
-    assert observed["detections"] is video.detections
-    assert observed["bic_threshold"] == video.qc_config.population_bic_threshold
-    assert (
-        observed["max_minor_fraction"] == video.qc_config.max_minor_population_fraction
-    )
-
-
 def test_extract_edges_records_successful_detections(
     monkeypatch,
     extraction_config,
@@ -560,6 +537,43 @@ def test_extract_edges_replaces_previous_detections(
             strict=True,
         )
     )
+
+
+def test_run_trajectory_qc_calls_population_check(
+        monkeypatch,
+        video,
+    ):
+        """Test that trajectory QC stores the population-analysis result."""
+        observed = {}
+        expected_result = object()
+
+        def fake_population_check(
+            detections,
+            bic_threshold,
+            max_minor_fraction,
+        ):
+            observed["detections"] = detections
+            observed["bic_threshold"] = bic_threshold
+            observed["max_minor_fraction"] = max_minor_fraction
+            return expected_result
+
+        monkeypatch.setattr(
+            "vesmod.VesEdge.vesicle_video.check_edge_populations",
+            fake_population_check,
+        )
+
+        video._run_trajectory_qc()
+
+        assert observed["detections"] is video.detections
+        assert (
+            observed["bic_threshold"]
+            == video.qc_config.population_bic_threshold
+        )
+        assert (
+            observed["max_minor_fraction"]
+            == video.qc_config.max_minor_population_fraction
+        )
+        assert video.population_result is expected_result
 
 
 def test_make_vesicle_gif_with_trace_requires_detections(
