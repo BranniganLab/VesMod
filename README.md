@@ -16,8 +16,11 @@ Features include:
 
 * Automated vesicle edge detection
 * Processing of ND2 microscopy videos
-* Contour quality control
-* NumPy contour export
+* User-supplied edge extraction algorithms
+* Frame-level curvature quality control
+* Trajectory-level center/radius population quality control
+* Optional angular downsampling
+* NumPy export of accepted contours
 * Annotated GIF generation for visual inspection
 
 Detailed documentation:
@@ -80,7 +83,9 @@ edgemod --help
 vesedge sample.nd2
 ```
 
-This generates:
+VesEdge extracts a contour from each frame, applies the configured
+frame- and trajectory-level quality-control checks, and saves only
+accepted contours for downstream analysis. This generates:
 
 ```text
 sample.npy
