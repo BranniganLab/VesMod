@@ -44,24 +44,47 @@ class EdgeExtractionConfig:
     n_angular_samples: int | None = 120
 
     def __post_init__(self) -> None:
-        """
-        Do argument validation.
-
-        Raises
-        ------
-        TypeError
-            If `n_angular_samples` is not `int` or `None`.
-        ValueError
-            If `pixels_per_micron` is not positive.
-            If `n_angular_samples` is not positive.
-        """
+        """Validate and normalize edge-extraction configuration."""
         if self.pixels_per_micron <= 0:
-            raise ValueError("pixels_per_micron must be positive.")
-        if isinstance(self.n_angular_samples, int):
-            if self.n_angular_samples <= 0:
-                raise ValueError("n_angular_samples must be positive")
-        elif not isinstance(self.n_angular_samples, type(None)):
-            raise TypeError("n_angular_samples must be an int or None.")
+            raise ValueError(
+                "pixels_per_micron must be positive."
+            )
+
+        if self.n_angular_samples is None:
+            return
+
+        if not isinstance(
+            self.n_angular_samples,
+            (int, float),
+        ):
+            raise TypeError(
+                "n_angular_samples must be an integer-valued number or None."
+            )
+
+        if not np.isfinite(self.n_angular_samples):
+            raise ValueError(
+                "n_angular_samples must be finite."
+            )
+
+        if not float(self.n_angular_samples).is_integer():
+            raise ValueError(
+                "n_angular_samples must be integer-valued."
+            )
+
+        n_angular_samples = int(
+            self.n_angular_samples
+        )
+
+        if n_angular_samples <= 0:
+            raise ValueError(
+                "n_angular_samples must be positive."
+            )
+
+        object.__setattr__(
+            self,
+            "n_angular_samples",
+            n_angular_samples,
+        )
 
 
 @dataclass
