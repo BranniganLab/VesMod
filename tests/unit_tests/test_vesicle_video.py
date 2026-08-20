@@ -311,12 +311,12 @@ def test_extract_edges_records_successful_detections(
     )
 
 
-def test_extract_edges_records_extractor_exceptions(
+def test_extract_edges_raises_when_all_frames_fail(
     monkeypatch,
     extraction_config,
     qc_config,
 ):
-    """Test that extractor exceptions are retained as EdgeDetectionFailure results."""
+    """Test that extraction fails when no usable frames are produced."""
     video = VesicleVideo(
         np.zeros((2, 200, 200)),
         extraction_config,
@@ -326,16 +326,23 @@ def test_extract_edges_records_extractor_exceptions(
     def failing_extractor(frame):
         raise RuntimeError("failure")
 
-    monkeypatch.setattr(video, "_run_trajectory_qc", lambda: None)
+    monkeypatch.setattr(
+        video,
+        "_run_trajectory_qc",
+        lambda: None,
+    )
 
-    video.extract_edges(failing_extractor)
+    with pytest.raises(
+        ValueError,
+        match="no usable frames",
+    ):
+        video.extract_edges(failing_extractor)
 
     assert len(video.detections) == 2
     assert all(
         isinstance(result, EdgeDetectionFailure)
         for result in video.detections
     )
-    assert all(result.error == "failure" for result in video.detections)
 
 
 def test_extract_edges_preserves_frame_order_after_failure(
