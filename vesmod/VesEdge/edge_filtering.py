@@ -269,21 +269,23 @@ def check_edge_populations(
     features = _population_features(usable_edges)
     scaled_features = _robust_scale(features)
     (
-        one_population_model,
         two_population_model,
-        bic_one,
-        bic_two,
-    ) = _fit_population_models(scaled_features)
+        bic_values,
+    ) = _fit_population_models(
+        scaled_features
+    )
 
-    if bic_one - bic_two < bic_threshold:
+    if (
+        bic_values[0] - bic_values[1]
+        < bic_threshold
+    ):
         _assign_single_population(
             usable_edges,
             clear_outlier_flag=True,
         )
         return _single_population_result(
             len(usable_edges),
-            bic_one,
-            bic_two,
+            *bic_values,
         )
 
     labels = two_population_model.predict(
@@ -297,8 +299,7 @@ def check_edge_populations(
         usable_edges,
         labels,
         probabilities,
-        bic_one,
-        bic_two,
+        bic_values,
         max_minor_fraction,
     )
 
@@ -340,13 +341,13 @@ def _get_usable_edges(
 
 
 def _passes_frame_qc(
-        edge: EdgeDetection,
-    ) -> bool:
-        """Return whether an edge passed all frame-level QC checks."""
-        return not (
-            edge.qc.flags
-            & FRAME_QC_FLAGS
-        )
+    edge: EdgeDetection,
+) -> bool:
+    """Return whether an edge passed all frame-level QC checks."""
+    return not (
+        edge.qc.flags
+        & FRAME_QC_FLAGS
+    )
 
 
 def _population_features(
@@ -378,9 +379,7 @@ def _fit_population_models(
     scaled_features: NDArray[np.float64],
 ) -> tuple[
     GaussianMixture,
-    GaussianMixture,
-    float,
-    float,
+    tuple[float, float],
 ]:
     """Fit one- and two-population Gaussian mixture models."""
     one_population_model = GaussianMixture(
@@ -396,8 +395,12 @@ def _fit_population_models(
         random_state=0,
     )
 
-    one_population_model.fit(scaled_features)
-    two_population_model.fit(scaled_features)
+    one_population_model.fit(
+        scaled_features
+    )
+    two_population_model.fit(
+        scaled_features
+    )
 
     bic_one = float(
         one_population_model.bic(
@@ -411,10 +414,8 @@ def _fit_population_models(
     )
 
     return (
-        one_population_model,
         two_population_model,
-        bic_one,
-        bic_two,
+        (bic_one, bic_two),
     )
 
 
@@ -440,8 +441,8 @@ def _single_population_result(
 ) -> EdgePopulationResult:
     """Build a result describing a single detected population."""
     return EdgePopulationResult(
-        bic_one_population=bic_one,
-        bic_two_populations=bic_two,
+        bic_one_population=bic_values[0],
+        bic_two_populations=bic_values[1],
         two_populations_detected=False,
         population_sizes=(population_size,),
         rejected_population=None,
@@ -452,8 +453,7 @@ def _apply_two_population_results(
     usable_edges: list[EdgeDetection],
     labels: NDArray[np.integer],
     probabilities: NDArray[np.float64],
-    bic_one: float,
-    bic_two: float,
+    bic_values: tuple[float, float],
     max_minor_fraction: float,
 ) -> EdgePopulationResult:
     """Record two-population assignments and reject a small minor population."""
