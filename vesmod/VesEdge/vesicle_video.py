@@ -328,10 +328,12 @@ class VesicleVideo:
         if not isinstance(path, Path):
             path = Path(path).resolve()
         output_path = path.with_suffix('.gif')
-        fig, ax = plt.subplots()
+
         if show_trace:
             if len(self.detections) != self.frames.shape[0]:
                 raise ValueError(f"There are {len(self.detections)} detections and {self.frames.shape[0]} frames.")
+
+        fig, ax = plt.subplots()
 
         def animate(i):
             ax.clear()
