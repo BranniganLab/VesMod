@@ -223,6 +223,64 @@ def check_edge_populations(
     EdgePopulationResult
         Results of the one- versus two-population comparison.
     """
+    _validate_population_parameters(
+        bic_threshold,
+        max_minor_fraction,
+    )
+
+    usable_edges = _get_usable_edges(detections)
+
+    if len(usable_edges) < 4:
+        _assign_single_population(
+            usable_edges,
+            clear_outlier_flag=False,
+        )
+        return _single_population_result(
+            len(usable_edges)
+        )
+
+    features = _population_features(usable_edges)
+    scaled_features = _robust_scale(features)
+    (
+        one_population_model,
+        two_population_model,
+        bic_one,
+        bic_two,
+    ) = _fit_population_models(scaled_features)
+
+    if bic_one - bic_two < bic_threshold:
+        _assign_single_population(
+            usable_edges,
+            clear_outlier_flag=True,
+        )
+        return _single_population_result(
+            len(usable_edges),
+            bic_one,
+            bic_two,
+        )
+
+    labels = two_population_model.predict(
+        scaled_features
+    )
+    probabilities = two_population_model.predict_proba(
+        scaled_features
+    )
+
+    return _apply_two_population_results(
+        usable_edges,
+        labels,
+        probabilities,
+        bic_one,
+        bic_two,
+        max_minor_fraction,
+    )
+
+
+def _validate_population_parameters(
+    bic_threshold: float,
+    max_minor_fraction: float,
+) -> None:
+    """Validate trajectory-level population-QC parameters."""
     if not np.isfinite(bic_threshold):
         raise ValueError(
             "bic_threshold must be finite."
@@ -231,7 +289,6 @@ def check_edge_populations(
         raise ValueError(
             "bic_threshold must be non-negative."
         )
-
     if not np.isfinite(max_minor_fraction):
         raise ValueError(
             "max_minor_fraction must be finite."
@@ -242,26 +299,23 @@ def check_edge_populations(
             "equal to 0 and less than 0.5."
         )
 
-    usable_edges = [
+
+def _get_usable_edges(
+    detections: list[EdgeResult],
+) -> list[EdgeDetection]:
+    """Return successful detections that passed frame-level QC."""
+    return [
         result
         for result in detections
         if isinstance(result, EdgeDetection)
         and result.qc.passed
     ]
 
-    if len(usable_edges) < 4:
-        for edge in usable_edges:
-            edge.qc.population_label = 0
-            edge.qc.population_probability = 1.0
 
-        return EdgePopulationResult(
-            bic_one_population=None,
-            bic_two_populations=None,
-            two_populations_detected=False,
-            population_sizes=(len(usable_edges),),
-            rejected_population=None,
-        )
-
+def _population_features(
+    usable_edges: list[EdgeDetection],
+) -> NDArray[np.float64]:
+    """Build and validate center/radius features for population QC."""
     features = np.asarray(
         [
             (
@@ -280,17 +334,24 @@ def check_edge_populations(
             "must be finite."
         )
 
-    scaled_features = _robust_scale(
-        features
-    )
+    return features
 
+
+def _fit_population_models(
+    scaled_features: NDArray[np.float64],
+) -> tuple[
+    GaussianMixture,
+    GaussianMixture,
+    float,
+    float,
+]:
+    """Fit one- and two-population Gaussian mixture models."""
     one_population_model = GaussianMixture(
         n_components=1,
         covariance_type="full",
         reg_covar=1e-6,
         random_state=0,
     )
-
     two_population_model = GaussianMixture(
         n_components=2,
         covariance_type="full",
@@ -298,59 +359,71 @@ def check_edge_populations(
         random_state=0,
     )
 
-    one_population_model.fit(
-        scaled_features
-    )
-
-    two_population_model.fit(
-        scaled_features
-    )
+    one_population_model.fit(scaled_features)
+    two_population_model.fit(scaled_features)
 
     bic_one = float(
         one_population_model.bic(
             scaled_features
         )
     )
-
     bic_two = float(
         two_population_model.bic(
             scaled_features
         )
     )
 
-    delta_bic = bic_one - bic_two
+    return (
+        one_population_model,
+        two_population_model,
+        bic_one,
+        bic_two,
+    )
 
-    if delta_bic < bic_threshold:
-        for edge in usable_edges:
-            edge.qc.population_label = 0
-            edge.qc.population_probability = 1.0
+
+def _assign_single_population(
+    usable_edges: list[EdgeDetection],
+    *,
+    clear_outlier_flag: bool,
+) -> None:
+    """Assign detections to one population."""
+    for edge in usable_edges:
+        edge.qc.population_label = 0
+        edge.qc.population_probability = 1.0
+        if clear_outlier_flag:
             edge.qc.flags.discard(
                 QCFlag.POPULATION_OUTLIER
             )
 
-        return EdgePopulationResult(
-            bic_one_population=bic_one,
-            bic_two_populations=bic_two,
-            two_populations_detected=False,
-            population_sizes=(len(usable_edges),),
-            rejected_population=None,
-        )
 
-    labels = two_population_model.predict(
-        scaled_features
+def _single_population_result(
+    population_size: int,
+    bic_one: float | None = None,
+    bic_two: float | None = None,
+) -> EdgePopulationResult:
+    """Build a result describing a single detected population."""
+    return EdgePopulationResult(
+        bic_one_population=bic_one,
+        bic_two_populations=bic_two,
+        two_populations_detected=False,
+        population_sizes=(population_size,),
+        rejected_population=None,
     )
 
-    probabilities = (
-        two_population_model.predict_proba(
-            scaled_features
-        )
-    )
 
+def _apply_two_population_results(
+    usable_edges: list[EdgeDetection],
+    labels: NDArray[np.integer],
+    probabilities: NDArray[np.float64],
+    bic_one: float,
+    bic_two: float,
+    max_minor_fraction: float,
+) -> EdgePopulationResult:
+    """Record two-population assignments and reject a small minor population."""
     assigned_probabilities = probabilities[
         np.arange(labels.shape[0]),
         labels,
     ]
-
     unique_labels, counts = np.unique(
         labels,
         return_counts=True,
@@ -360,54 +433,30 @@ def check_edge_populations(
         usable_edges,
         labels,
         assigned_probabilities,
-        strict=True
+        strict=True,
     ):
-        edge.qc.population_label = int(
-            label
-        )
-
+        edge.qc.population_label = int(label)
         edge.qc.population_probability = float(
             probability
         )
-
         edge.qc.flags.discard(
             QCFlag.POPULATION_OUTLIER
         )
 
-    minor_index = int(
-        np.argmin(counts)
-    )
-
-    minor_label = int(
-        unique_labels[minor_index]
-    )
-
-    minor_count = int(
-        counts[minor_index]
-    )
-
+    minor_index = int(np.argmin(counts))
+    minor_label = int(unique_labels[minor_index])
     minor_fraction = (
-        minor_count
+        int(counts[minor_index])
         / len(usable_edges)
     )
 
-    rejected_population = None
-
-    if (
-        minor_fraction
-        <= max_minor_fraction
-    ):
-        rejected_population = minor_label
-
-        for edge, label in zip(
-            usable_edges,
-            labels,
-            strict=True
-        ):
-            if label == minor_label:
-                edge.qc.flags.add(
-                    QCFlag.POPULATION_OUTLIER
-                )
+    rejected_population = _reject_minor_population(
+        usable_edges,
+        labels,
+        minor_label,
+        minor_fraction,
+        max_minor_fraction,
+    )
 
     return EdgePopulationResult(
         bic_one_population=bic_one,
@@ -419,6 +468,30 @@ def check_edge_populations(
         ),
         rejected_population=rejected_population,
     )
+
+
+def _reject_minor_population(
+    usable_edges: list[EdgeDetection],
+    labels: NDArray[np.integer],
+    minor_label: int,
+    minor_fraction: float,
+    max_minor_fraction: float,
+) -> int | None:
+    """Flag the minor population when it falls below the rejection threshold."""
+    if minor_fraction > max_minor_fraction:
+        return None
+
+    for edge, label in zip(
+        usable_edges,
+        labels,
+        strict=True,
+    ):
+        if label == minor_label:
+            edge.qc.flags.add(
+                QCFlag.POPULATION_OUTLIER
+            )
+
+    return minor_label
 
 
 def _robust_scale(
