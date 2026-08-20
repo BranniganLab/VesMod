@@ -374,7 +374,17 @@ class VesicleVideo:
         plt.close()
 
     def save_edge_to_npy(self, path: Path) -> None:
-        """Save radii to a .npy file, removing frames with bad edge extraction."""
+        """
+        Save accepted radii to a .npy file.
+
+        Frames with failed edge extraction and frames rejected by quality
+        control are excluded.
+
+        Raises
+        ------
+        ValueError
+            If no accepted edge detection is available.
+        """
         output_values = []
         if not isinstance(path, Path):
             path = Path(path).resolve()
