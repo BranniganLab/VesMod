@@ -311,12 +311,11 @@ def test_extract_edges_records_successful_detections(
     )
 
 
-def test_extract_edges_raises_when_all_frames_fail(
-    monkeypatch,
+def test_extract_edges_raises_when_all_extractions_fail(
     extraction_config,
     qc_config,
 ):
-    """Test that extraction fails when no usable frames are produced."""
+    """Test that extraction fails when the extractor fails on every frame."""
     video = VesicleVideo(
         np.zeros((2, 200, 200)),
         extraction_config,
@@ -325,12 +324,6 @@ def test_extract_edges_raises_when_all_frames_fail(
 
     def failing_extractor(frame):
         raise RuntimeError("failure")
-
-    monkeypatch.setattr(
-        video,
-        "_run_trajectory_qc",
-        lambda: None,
-    )
 
     with pytest.raises(
         ValueError,
