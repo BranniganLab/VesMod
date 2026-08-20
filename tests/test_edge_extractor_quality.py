@@ -205,7 +205,7 @@ def test_only_curvature_qc_was_run(
     Verify that the acceptance test applies only curvature-based QC.
 
     Every successfully detected edge should have a curvature score, while
-    image-support and population-QC measurements should remain unset.
+    population-QC measurements should remain unset.
     """
     video = sample_video
 
