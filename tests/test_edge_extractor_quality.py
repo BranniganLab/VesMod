@@ -5,7 +5,7 @@ Acceptance tests for VesEdge extraction quality.
 
 These tests intentionally run only the legacy curvature QC check so that
 reference acceptance rates remain comparable with values generated before
-image-support and trajectory-population QC were added.
+trajectory-population QC was added.
 """
 
 import json
