@@ -249,6 +249,30 @@ def test_checkpoint_preserves_variable_native_lengths(tmp_path):
 
     assert loaded.successful_detections[0].full_contour.r.shape == (6,)
     assert loaded.successful_detections[1].full_contour.r.shape == (9,)
+    np.testing.assert_array_equal(
+        loaded.successful_detections[0].full_contour.r,
+        first.full_contour.r,
+    )
+    np.testing.assert_array_equal(
+        loaded.successful_detections[1].full_contour.r,
+        second.full_contour.r,
+    )
+
+
+def test_checkpoint_rejects_differing_contour_origins(tmp_path):
+    """Test checkpoints do not silently discard a distinct analysis origin."""
+    config = EdgeExtractionConfig(
+        pixels_per_micron=2.0,
+        n_angular_samples=4,
+    )
+    detection = EdgeDetection(
+        ImageContour((1.0, 2.0), np.ones(6)),
+        ImageContour((3.0, 4.0), np.ones(4)),
+    )
+    edge_results = VesicleEdges(config, [detection])
+
+    with pytest.raises(ValueError, match="full and analysis contour origins differ"):
+        edge_results.save_checkpoint(tmp_path / "invalid.npz")
 
 
 def test_from_checkpoint_can_be_re_qced_with_new_settings(
