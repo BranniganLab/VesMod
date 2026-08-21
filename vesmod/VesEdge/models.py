@@ -54,23 +54,13 @@ class ImageContour:
 
     @property
     def x(self) -> NDArray[np.float64]:
-        """
-        Return the x-coordinates of the contour.
-
-        The first coordinate is repeated at the end so the contour is closed
-        when plotted.
-        """
+        """Return x-coordinates, closing the contour for plotting."""
         x_vals = self.r * np.cos(self.theta) + self.origin[0]
         return np.append(x_vals, x_vals[0])
 
     @property
     def y(self) -> NDArray[np.float64]:
-        """
-        Return the y-coordinates of the contour.
-
-        The first coordinate is repeated at the end so the contour is closed
-        when plotted.
-        """
+        """Return y-coordinates, closing the contour for plotting."""
         y_vals = self.r * np.sin(self.theta) + self.origin[1]
         return np.append(y_vals, y_vals[0])
 
@@ -105,9 +95,7 @@ class EdgeQC:
     """
 
     flags: set[QCFlag] = field(default_factory=set)
-
     curvature_score: float | None = None
-
     population_label: int | None = None
     population_probability: float | None = None
 
@@ -130,30 +118,13 @@ class EdgeDetection:
         Contour used for subsequent analysis. If downsampling was requested,
         this is the downsampled contour. Otherwise, this is the same contour
         as `full_contour`.
-    radii_microns : NDArray[np.float64]
-        Radial profile from `analysis_contour` converted to physical units.
     qc : EdgeQC
         Quality-control information associated with this detection.
-    median_radius : float
-        Median physical radius of the analysis contour.
-    accepted : bool
-        Whether the detection has passed all QC checks run so far.
     """
 
     full_contour: ImageContour
     analysis_contour: ImageContour
-    radii_microns: NDArray[np.float64]
     qc: EdgeQC = field(default_factory=EdgeQC)
-
-    @property
-    def median_radius(self) -> float:
-        """Return the median radius of the analysis contour in microns."""
-        return float(np.median(self.radii_microns))
-
-    @property
-    def accepted(self) -> bool:
-        """Return whether this edge detection has passed quality control."""
-        return self.qc.passed
 
 
 @dataclass(frozen=True)
