@@ -39,16 +39,14 @@ class Spectrum:
         Parameters
         ----------
         edges_over_time : str or Path or VesicleVideo
-            The path (str or Path) to the .npy file containing edge extraction r_vals or
-            the VesicleVideo object itself.
-        Ntheta : int or None, optional
-            The number of theta values to store. Default is None.
+            The path (str or Path) to the .npy file containing edge extraction
+            outputs or the VesicleVideo object itself.
         frame_cutoff : int or None, optional
             The number of frames to retain in your trajectory. Default is None.
 
         """
         if isinstance(edges_over_time, VesicleVideo):
-            input_data = edges_over_time.r_vals
+            input_data = edges_over_time.radii_microns
         elif isinstance(edges_over_time, (Path, str)):
             if isinstance(edges_over_time, str):
                 edges_over_time = Path(edges_over_time)
