@@ -14,58 +14,16 @@ from .spectrum_utils import fit_spectrum_to_theory_lmfit, calc_tension_from_redu
 
 
 class Spectrum:
-    """
-    Calculate the fluctuation spectrum of a vesicle edge trajectory.
-
-    Attributes
-    ----------
-    modes : ndarray[int]
-        The modes for each amplitude. Each value is an integer.
-    avg_amps2 : ndarray[float]
-        The squared amplitudes of each mode, averaged over the trajectory.
-    r0 : float
-        The average vesicle radius, in microns.
-
-    """
+    """Calculate the fluctuation spectrum of a vesicle edge trajectory."""
 
     def __init__(
         self,
         edges_over_time: str | Path | VesicleEdges,
         frame_cutoff=None
     ) -> None:
-        """
-        Create a SingleSpectrum object.
-
-        Parameters
-        ----------
-        edges_over_time : str or Path or VesicleEdges
-            Path to a ``.npy`` file containing accepted edge radii, or a
-            ``VesicleEdges`` object on which QC has already been run. When a
-            ``VesicleEdges`` object is supplied, only accepted detections are
-            included.
-        frame_cutoff : int or None, optional
-            The number of frames to retain in your trajectory. Default is None.
-
-        """
+        """Create a Spectrum from accepted radii or a QCed VesicleEdges object."""
         if isinstance(edges_over_time, VesicleEdges):
-            accepted_radii = [
-                detection.radii_microns
-                for detection in edges_over_time.accepted_detections
-            ]
-            if not accepted_radii:
-                raise ValueError(
-                    "VesicleEdges contains no accepted edge detections."
-                )
-            lengths = {
-                radii.shape[0]
-                for radii in accepted_radii
-            }
-            if len(lengths) > 1:
-                raise ValueError(
-                    "Accepted VesicleEdges detections have inconsistent "
-                    "numbers of angular samples."
-                )
-            input_data = np.stack(accepted_radii)
+            input_data = edges_over_time.accepted_radii_microns
         elif isinstance(edges_over_time, (Path, str)):
             if isinstance(edges_over_time, str):
                 edges_over_time = Path(edges_over_time)
@@ -94,16 +52,7 @@ class Spectrum:
         self.surface_tension = None
 
     def _calc_avg_sq_amplitudes(self, r_vals_over_time: np.ndarray) -> np.ndarray:
-        """
-        Calculate the normalized Fourier transform, then square and average.
-
-        Parameters
-        ----------
-        r_vals_over_time : np.ndarray
-            2D array where each row contains the r values for a given frame of
-            a vesicle video.
-
-        """
+        """Calculate the normalized Fourier transform, then square and average."""
         n_samples = r_vals_over_time.shape[1]
         norm = 1. / (self.r0 * n_samples)
         amps = np.fft.fft(r_vals_over_time, axis=1, norm='backward') * norm
