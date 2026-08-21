@@ -10,20 +10,19 @@ from pathlib import Path
 import numpy as np
 from numpy.typing import NDArray
 
+from .config import EdgeExtractionConfig, EdgeQCConfig
 from .edge_filtering import (
-    EdgePopulationResult,
-    EdgeQCConfig,
     check_curvature,
     check_edge_populations,
 )
 from .models import (
     EdgeDetection,
     EdgeDetectionFailure,
+    EdgePopulationResult,
     EdgeQC,
     EdgeResult,
     ImageContour,
 )
-from .vesicle_video import EdgeExtractionConfig
 
 CHECKPOINT_VERSION = 2
 _DETECTION_CODE = 1
