@@ -82,15 +82,6 @@ class QCFlag(Enum):
     POPULATION_OUTLIER = auto()
 
 
-FRAME_QC_FLAGS = {
-    QCFlag.CURVATURE,
-}
-
-TRAJECTORY_QC_FLAGS = {
-    QCFlag.POPULATION_OUTLIER,
-}
-
-
 @dataclass
 class EdgeQC:
     """
