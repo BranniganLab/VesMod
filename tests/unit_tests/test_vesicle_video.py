@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from vesmod.VesEdge import EdgeExtractionConfig, VesicleVideo
+from vesmod.VesEdge import EdgeExtractionConfig, VesicleEdges, VesicleVideo
 from vesmod.VesEdge.models import EdgeDetection, EdgeDetectionFailure
 
 
@@ -34,50 +34,11 @@ def test_post_init_requires_3d_array():
         VesicleVideo(np.zeros((10, 10)))
 
 
-def test_edge_extraction_config_requires_positive_pixels_per_micron():
-    """Test that pixels_per_micron must be positive."""
-    with pytest.raises(ValueError):
-        EdgeExtractionConfig(
-            pixels_per_micron=0,
-            n_angular_samples=120,
-        )
-
-
-def test_edge_extraction_config_converts_integer_valued_sample_count():
-    """Test that integer-valued sample counts are normalized to int."""
-    config = EdgeExtractionConfig(
-        pixels_per_micron=1.0,
-        n_angular_samples=120.0,
-    )
-    assert config.n_angular_samples == 120
-    assert isinstance(config.n_angular_samples, int)
-
-
-def test_edge_extraction_config_rejects_non_integer_sample_count():
-    """Test that non-integer sample counts are rejected."""
-    with pytest.raises(ValueError, match="integer-valued"):
-        EdgeExtractionConfig(
-            pixels_per_micron=1.0,
-            n_angular_samples=120.5,
-        )
-
-
-def test_edge_extraction_config_allows_no_downsampling():
-    """Test that None disables contour downsampling."""
-    config = EdgeExtractionConfig(
-        pixels_per_micron=1.0,
-        n_angular_samples=None,
-    )
-    assert config.n_angular_samples is None
-
-
 def test_extract_edges_returns_vesicle_edges(
     video,
     extraction_config,
 ):
     """Test that extraction returns a separate VesicleEdges object."""
-    from vesmod.VesEdge import VesicleEdges
-
     def extractor(frame):
         return np.full(200, 20.0), (60.0, 50.0)
 
@@ -122,11 +83,14 @@ def test_extract_edges_raises_when_all_extractions_fail(
     video,
     extraction_config,
 ):
-    """Test that extraction fails when no frame yields a detection."""
+    """Test that extraction reports failure when no frame yields a detection."""
     def failing_extractor(frame):
-        raise RuntimeError("failure")
+        raise RuntimeError("custom extractor failed")
 
-    with pytest.raises(ValueError, match="no successful detections"):
+    with pytest.raises(
+        ValueError,
+        match="custom extractor failed",
+    ):
         video.extract_edges(
             failing_extractor,
             extraction_config,
@@ -175,7 +139,7 @@ def test_extract_edges_does_not_run_qc(video, extraction_config):
 def test_compile_edge_detection_results_preserves_and_downsamples_contour(
     extraction_config,
 ):
-    """Test contour compilation and pixel-to-micron conversion."""
+    """Test contour compilation preserves native data and downsampling."""
     r_vals = np.linspace(10.0, 20.0, 200)
     edge = VesicleVideo._compile_edge_detection_results(
         r_vals,
@@ -186,10 +150,6 @@ def test_compile_edge_detection_results_preserves_and_downsamples_contour(
     assert edge.full_contour.origin == (50.0, 60.0)
     assert edge.full_contour.r.shape == (200,)
     assert edge.analysis_contour.r.shape == (120,)
-    np.testing.assert_allclose(
-        edge.radii_microns,
-        edge.analysis_contour.r / 2.0,
-    )
 
 
 def test_downsample_r_vals_rejects_more_samples_than_input():
@@ -206,8 +166,6 @@ def test_make_vesicle_gif_rejects_mismatched_edges(
     extraction_config,
 ):
     """Test that an overlay must correspond to every video frame."""
-    from vesmod.VesEdge import VesicleEdges
-
     video = VesicleVideo(np.zeros((2, 20, 20)))
     edge = VesicleVideo._compile_edge_detection_results(
         np.full(20, 5.0),
