@@ -171,3 +171,46 @@ class EdgeDetectionFailure:
 
 
 EdgeResult = EdgeDetection | EdgeDetectionFailure
+
+
+@dataclass(frozen=True)
+class EdgePopulationResult:
+    """Results from trajectory-level center/radius population analysis.
+
+    Attributes
+    ----------
+    bic_one_population : float | None
+        BIC from the one-component Gaussian mixture model. None if there were
+        too few detections to perform population analysis.
+    bic_two_populations : float | None
+        BIC from the two-component Gaussian mixture model. None if there were
+        too few detections to perform population analysis.
+    two_populations_detected : bool
+        Whether the two-component model was sufficiently favored over the
+        one-component model.
+    population_sizes : tuple[int, ...]
+        Number of detections assigned to each detected population.
+    rejected_population : int | None
+        Label of the population rejected as a minor outlier population.
+        None if no population was rejected.
+    delta_bic : float | None
+        Improvement in BIC obtained by fitting two populations rather than
+        one. Positive values favor two populations.
+    """
+
+    bic_one_population: float | None
+    bic_two_populations: float | None
+    two_populations_detected: bool
+    population_sizes: tuple[int, ...]
+    rejected_population: int | None
+
+    @property
+    def delta_bic(self) -> float | None:
+        """Return the BIC improvement from fitting two populations."""
+        if (
+            self.bic_one_population is None
+            or self.bic_two_populations is None
+        ):
+            return None
+
+        return self.bic_one_population - self.bic_two_populations
