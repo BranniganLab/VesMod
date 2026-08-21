@@ -19,10 +19,6 @@ def _args() -> argparse.Namespace:
         downsample=False,
         n_samples=120,
         pixels_per_micron=1.0,
-        curvature_threshold=5.0,
-        population_bic_threshold=10.0,
-        max_minor_population_fraction=0.25,
-        no_population_qc=False,
     )
 
 
@@ -33,17 +29,11 @@ def test_process_file_reports_extraction_failure_and_returns(
     """Test that a per-file extraction failure does not abort batch processing."""
 
     class FailingVideo:
-        def __init__(self, frames, extraction_config, qc_config):
+        def __init__(self, frames):
             pass
 
-        def extract_edges(self, extractor):
-            raise ValueError("no frames passed quality control")
-
-        def make_vesicle_gif(self, path):
-            raise AssertionError("GIF output should not be written after failure")
-
-        def save_edge_to_npy(self, path):
-            raise AssertionError("NumPy output should not be written after failure")
+        def extract_edges(self, extractor, extraction_config):
+            raise ValueError("no successful detections")
 
     path = Path("failed.nd2")
 
@@ -67,7 +57,46 @@ def test_process_file_reports_extraction_failure_and_returns(
 
     captured = capsys.readouterr()
     assert (
-        "Failed to extract edges from failed.nd2: "
-        "no frames passed quality control"
+        "Failed to extract edges from failed.nd2: no successful detections"
         in captured.out
     )
+
+
+def test_process_file_saves_checkpoint_after_success(monkeypatch):
+    """Test that successful extraction writes a reusable checkpoint."""
+    observed = {}
+
+    class FakeEdges:
+        def save_checkpoint(self, path):
+            observed["checkpoint"] = path
+
+    class SuccessfulVideo:
+        def __init__(self, frames):
+            observed["frames"] = frames
+
+        def extract_edges(self, extractor, extraction_config):
+            observed["config"] = extraction_config
+            return FakeEdges()
+
+    path = Path("sample.nd2")
+    monkeypatch.setattr(
+        vesedge_cli.nd2,
+        "imread",
+        lambda input_path: np.zeros((1, 10, 10)),
+    )
+    monkeypatch.setattr(
+        vesedge_cli,
+        "load_extractor_from_module",
+        lambda import_string: object(),
+    )
+    monkeypatch.setattr(
+        vesedge_cli,
+        "VesicleVideo",
+        SuccessfulVideo,
+    )
+
+    vesedge_cli.process_file(path, _args())
+
+    assert observed["checkpoint"] == path
+    assert observed["config"].pixels_per_micron == 1.0
+    assert observed["config"].n_angular_samples is None
