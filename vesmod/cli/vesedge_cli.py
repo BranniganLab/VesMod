@@ -232,7 +232,13 @@ def process_file(path: Path, args: argparse.Namespace) -> None:
         extraction_config,
         qc_config,
     )
-    video.extract_edges(extractor_func)
+    try:
+        video.extract_edges(extractor_func)
+    except ValueError as error:
+        print(
+            f"Failed to extract edges from {path.name}: {error}"
+        )
+        return
 
     if not args.no_gif:
         video.make_vesicle_gif(path)
