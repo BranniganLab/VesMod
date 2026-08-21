@@ -18,7 +18,6 @@ from .models import (
     EdgeDetection,
     EdgeResult,
     QCFlag,
-    FRAME_QC_FLAGS,
 )
 from .vesicle_video_utils import measure_wrapped_finite_second_difference
 
@@ -207,7 +206,7 @@ def check_edge_populations(
     """
     Identify a small anomalous center/radius population across video frames.
 
-    Only successful detections that passed all frame-level QC checks are
+    Only successful detections that passed all preceding QC checks are
     included. Each detection is represented by its image-space center
     coordinates and median physical radius.
 
@@ -223,7 +222,7 @@ def check_edge_populations(
     ----------
     detections : list[EdgeResult]
         Edge-extraction results for all video frames. Failed extractions and
-        detections that already failed frame-level QC are excluded.
+        detections that already failed preceding QC checks are excluded.
     bic_threshold : float
         Minimum reduction in BIC required to accept the two-population model.
     max_minor_fraction : float
@@ -252,11 +251,6 @@ def check_edge_populations(
         detections
     )
 
-    for edge in usable_edges:
-        edge.qc.flags.discard(
-            QCFlag.POPULATION_OUTLIER
-        )
-
     if len(usable_edges) < MIN_POPULATION_SAMPLE_COUNT:
         _assign_single_population(
             usable_edges,
@@ -281,7 +275,7 @@ def check_edge_populations(
     ):
         _assign_single_population(
             usable_edges,
-            clear_outlier_flag=True,
+            clear_outlier_flag=False,
         )
         return _single_population_result(
             len(usable_edges),
@@ -331,23 +325,13 @@ def _validate_population_parameters(
 def _get_usable_edges(
     detections: list[EdgeResult],
 ) -> list[EdgeDetection]:
-    """Return detections eligible for trajectory-level population QC."""
+    """Return successful detections that passed preceding QC checks."""
     return [
         result
         for result in detections
         if isinstance(result, EdgeDetection)
-        and _passes_frame_qc(result)
+        and result.qc.passed
     ]
-
-
-def _passes_frame_qc(
-    edge: EdgeDetection,
-) -> bool:
-    """Return whether an edge passed all frame-level QC checks."""
-    return not (
-        edge.qc.flags
-        & FRAME_QC_FLAGS
-    )
 
 
 def _population_features(
@@ -475,9 +459,6 @@ def _apply_two_population_results(
         edge.qc.population_label = int(label)
         edge.qc.population_probability = float(
             probability
-        )
-        edge.qc.flags.discard(
-            QCFlag.POPULATION_OUTLIER
         )
 
     minor_index = int(np.argmin(counts))
