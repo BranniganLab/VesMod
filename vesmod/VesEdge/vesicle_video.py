@@ -46,10 +46,10 @@ class EdgeExtractionConfig:
 
     def __post_init__(self) -> None:
         """Validate and normalize edge-extraction configuration."""
+        if np.isfinite(self.pixels_per_micron):
+            raise ValueError("pixels_per_micron must be finite.")
         if self.pixels_per_micron <= 0:
-            raise ValueError(
-                "pixels_per_micron must be positive."
-            )
+            raise ValueError("pixels_per_micron must be positive.")
 
         if self.n_angular_samples is None:
             return
