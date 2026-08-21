@@ -14,44 +14,15 @@ from matplotlib.animation import FuncAnimation
 import numpy as np
 from numpy.typing import NDArray
 
+from .config import EdgeExtractionConfig
 from .models import (
     EdgeDetection,
     EdgeDetectionFailure,
     EdgeResult,
     ImageContour,
 )
+from .vesicle_edges import VesicleEdges
 from .vesicle_video_utils import downsample_to_new_indices
-
-
-@dataclass(frozen=True)
-class EdgeExtractionConfig:
-    """Configuration parameters for edge extraction and contour preparation."""
-
-    pixels_per_micron: float = 1
-    n_angular_samples: int | None = 120
-
-    def __post_init__(self) -> None:
-        """Validate and normalize edge-extraction configuration."""
-        if not np.isfinite(self.pixels_per_micron):
-            raise ValueError("pixels_per_micron must be finite.")
-        if self.pixels_per_micron <= 0:
-            raise ValueError("pixels_per_micron must be positive.")
-
-        if self.n_angular_samples is None:
-            return
-        if not isinstance(self.n_angular_samples, (int, float)):
-            raise TypeError(
-                "n_angular_samples must be an integer-valued number or None."
-            )
-        if not np.isfinite(self.n_angular_samples):
-            raise ValueError("n_angular_samples must be finite.")
-        if not float(self.n_angular_samples).is_integer():
-            raise ValueError("n_angular_samples must be integer-valued.")
-
-        n_angular_samples = int(self.n_angular_samples)
-        if n_angular_samples <= 0:
-            raise ValueError("n_angular_samples must be positive.")
-        object.__setattr__(self, "n_angular_samples", n_angular_samples)
 
 
 @dataclass
@@ -74,7 +45,7 @@ class VesicleVideo:
             tuple[NDArray[np.float64], tuple[float, float]],
         ],
         extraction_config: EdgeExtractionConfig,
-    ) -> "VesicleEdges":
+    ) -> VesicleEdges:
         """Extract an edge from each frame without running quality control.
 
         Parameters
@@ -96,8 +67,6 @@ class VesicleVideo:
             If no frame produces a successful detection or successful analysis
             contours have inconsistent lengths.
         """
-        from .vesicle_edges import VesicleEdges
-
         detections: list[EdgeResult] = []
         for frame in self.frames:
             try:
@@ -108,7 +77,9 @@ class VesicleVideo:
                     vesicle_center,
                     extraction_config,
                 )
-            except Exception as error:
+            # Extractors are user-provided callables; any per-frame failure
+            # should be recorded without aborting the remaining trajectory.
+            except Exception as error:  # pylint: disable=broad-exception-caught
                 traceback.print_exc()
                 detections.append(EdgeDetectionFailure(str(error)))
                 continue
@@ -122,7 +93,7 @@ class VesicleVideo:
     def make_vesicle_gif(
         self,
         path: str | Path,
-        edges: "VesicleEdges | None" = None,
+        edges: VesicleEdges | None = None,
     ) -> None:
         """Save a GIF of the video, optionally overlaying extracted edges.
 
