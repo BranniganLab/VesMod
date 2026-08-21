@@ -7,7 +7,6 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-import traceback
 
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
@@ -48,18 +47,8 @@ class VesicleVideo:
     ) -> VesicleEdges:
         """Extract an edge from each frame without running quality control.
 
-        Parameters
-        ----------
-        extractor_func : Callable
-            Function accepting one 2D image frame and returning one-dimensional
-            radii plus the vesicle center in ``(y, x)`` order.
-        extraction_config : EdgeExtractionConfig
-            Configuration used to downsample and convert extracted radii.
-
-        Returns
-        -------
-        VesicleEdges
-            Ordered extraction results ready for checkpointing or QC.
+        Per-frame extractor exceptions are recorded as
+        :class:`EdgeDetectionFailure` so later frames can still be processed.
 
         Raises
         ------
@@ -80,10 +69,25 @@ class VesicleVideo:
             # Extractors are user-provided callables; any per-frame failure
             # should be recorded without aborting the remaining trajectory.
             except Exception as error:  # pylint: disable=broad-exception-caught
-                traceback.print_exc()
                 detections.append(EdgeDetectionFailure(str(error)))
                 continue
             detections.append(detected_edge)
+
+        successful_count = sum(
+            isinstance(result, EdgeDetection)
+            for result in detections
+        )
+        if successful_count == 0:
+            errors = [
+                result.error
+                for result in detections
+                if isinstance(result, EdgeDetectionFailure)
+            ]
+            error_summary = "; ".join(errors)
+            raise ValueError(
+                "Edge extraction produced no successful detections. "
+                f"Extractor errors: {error_summary}"
+            )
 
         return VesicleEdges(
             extraction_config=extraction_config,
@@ -97,14 +101,8 @@ class VesicleVideo:
     ) -> None:
         """Save a GIF of the video, optionally overlaying extracted edges.
 
-        Parameters
-        ----------
-        path : str | pathlib.Path
-            Output path. The suffix is replaced with ``.gif``.
-        edges : VesicleEdges | None, optional
-            Extracted edges to overlay. Successful detections are green when
-            accepted by a QC run and red when rejected. Before QC, successful
-            detections are shown in green.
+        Successful detections are green before QC and after passing QC, and
+        red after a completed QC run rejects them.
 
         Raises
         ------
@@ -131,7 +129,7 @@ class VesicleVideo:
                 return
             contour = result.full_contour
             color = "tab:green"
-            if edges.qc_config is not None and not result.accepted:
+            if edges.qc_config is not None and not result.qc.passed:
                 color = "tab:red"
             ax.plot(contour.x, contour.y, color=color)
 
@@ -170,7 +168,6 @@ class VesicleVideo:
         full_contour = ImageContour(center, r_vals)
         if extraction_config.n_angular_samples is None:
             analysis_contour = full_contour
-            analysis_radii = r_vals
         else:
             analysis_radii = cls._downsample_r_vals(
                 r_vals,
@@ -181,7 +178,6 @@ class VesicleVideo:
         return EdgeDetection(
             full_contour,
             analysis_contour,
-            analysis_radii / extraction_config.pixels_per_micron,
         )
 
     @staticmethod
