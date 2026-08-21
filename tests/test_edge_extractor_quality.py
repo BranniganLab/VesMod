@@ -268,6 +268,10 @@ def test_extraction_quality(
     if request.config.getoption(
         "--update-ref-values"
     ):
+        expected_value_file.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
         expected_value_file.unlink(
             missing_ok=True
         )
