@@ -22,29 +22,15 @@ def check_curvature(
     edge: EdgeDetection,
     threshold: float,
 ) -> None:
-    """
-    Check a detected edge for excessive local curvature.
+    """Check a detected edge for excessive local curvature.
 
-    Calculates the wrapped finite second difference of the radial profile in
-    `edge.analysis_contour`. The largest absolute value is recorded as the
-    curvature score. The edge fails curvature QC if this score is greater
-    than `threshold`.
-
-    Parameters
-    ----------
-    edge : EdgeDetection
-        Edge detection to evaluate.
-    threshold : float
-        Maximum allowed absolute wrapped finite second difference.
+    The edge fails curvature QC when the largest absolute wrapped finite
+    second difference of its analysis contour exceeds ``threshold``.
 
     Raises
     ------
     ValueError
         If ``threshold`` is non-finite or negative.
-
-    Returns
-    -------
-    None
     """
     if not np.isfinite(threshold):
         raise ValueError("threshold must be finite.")
@@ -76,44 +62,18 @@ def check_edge_populations(
     bic_threshold: float,
     max_minor_fraction: float,
 ) -> EdgePopulationResult:
-    """
-    Identify a small anomalous center/radius population across video frames.
+    """Identify a small anomalous center/radius population across frames.
 
     Only successful detections that passed all preceding QC checks are
-    included. Each detection is represented by its image-space center
-    coordinates and median physical radius.
-
-    The features are robustly scaled before fitting one- and two-component
-    Gaussian mixture models. The two-population model is accepted when its
-    BIC improves upon the one-population model by at least `bic_threshold`.
-
-    If two populations are detected, the smaller population is rejected only
-    if it contains no more than `max_minor_fraction` of the detections used
-    for clustering.
-
-    Parameters
-    ----------
-    detections : list[EdgeResult]
-        Edge-extraction results for all video frames. Failed extractions and
-        detections that already failed preceding QC checks are excluded.
-    bic_threshold : float
-        Minimum reduction in BIC required to accept the two-population model.
-    max_minor_fraction : float
-        Maximum fraction of detections that may belong to the smaller
-        population for that population to be automatically rejected. Must be
-        greater than or equal to 0 and less than 0.5.
+    included. Each detection is represented by its image-space center and
+    median analysis-contour radius. Features are robustly scaled before
+    fitting one- and two-component Gaussian mixture models.
 
     Raises
     ------
     ValueError
         If ``bic_threshold`` is non-finite or negative, or if
-        ``max_minor_fraction`` is non-finite or outside the interval
-        ``[0, 0.5)``.
-
-    Returns
-    -------
-    EdgePopulationResult
-        Results of the one- versus two-population comparison.
+        ``max_minor_fraction`` is non-finite or outside ``[0, 0.5)``.
     """
     _validate_population_parameters(
         bic_threshold,
@@ -123,10 +83,7 @@ def check_edge_populations(
     usable_edges = _get_usable_edges(detections)
 
     if len(usable_edges) < MIN_POPULATION_SAMPLE_COUNT:
-        _assign_single_population(
-            usable_edges,
-            clear_outlier_flag=False,
-        )
+        _assign_single_population(usable_edges)
         return _single_population_result(len(usable_edges))
 
     features = _population_features(usable_edges)
@@ -136,10 +93,7 @@ def check_edge_populations(
     )
 
     if bic_values[0] - bic_values[1] < bic_threshold:
-        _assign_single_population(
-            usable_edges,
-            clear_outlier_flag=False,
-        )
+        _assign_single_population(usable_edges)
         return _single_population_result(
             len(usable_edges),
             *bic_values,
@@ -198,7 +152,7 @@ def _population_features(
             (
                 edge.full_contour.origin[0],
                 edge.full_contour.origin[1],
-                edge.median_radius,
+                float(np.median(edge.analysis_contour.r)),
             )
             for edge in usable_edges
         ],
@@ -241,15 +195,11 @@ def _fit_population_models(
 
 def _assign_single_population(
     usable_edges: list[EdgeDetection],
-    *,
-    clear_outlier_flag: bool,
 ) -> None:
     """Assign detections to one population."""
     for edge in usable_edges:
         edge.qc.population_label = 0
         edge.qc.population_probability = 1.0
-        if clear_outlier_flag:
-            edge.qc.flags.discard(QCFlag.POPULATION_OUTLIER)
 
 
 def _single_population_result(
@@ -339,24 +289,7 @@ def _reject_minor_population(
 def _robust_scale(
     features: NDArray[np.float64],
 ) -> NDArray[np.float64]:
-    """
-    Robustly scale features before population clustering.
-
-    Each feature is centered on its median and divided by its interquartile
-    range. If the interquartile range is zero, the standard deviation is used
-    instead. Features with no variation are assigned a scale of one.
-
-    Parameters
-    ----------
-    features : NDArray[np.float64]
-        Two-dimensional array with observations along axis 0 and features
-        along axis 1.
-
-    Returns
-    -------
-    NDArray[np.float64]
-        Robustly centered and scaled features.
-    """
+    """Robustly center and scale features before population clustering."""
     medians = np.median(features, axis=0)
     first_quartile = np.percentile(features, 25, axis=0)
     third_quartile = np.percentile(features, 75, axis=0)
