@@ -24,18 +24,14 @@ def _edge(
     """Return a simple successful detection."""
     radii = np.full(n_samples, radius, dtype=float)
     contour = ImageContour(origin, radii.copy())
-    return EdgeDetection(
-        contour,
-        contour,
-        radii.copy(),
-    )
+    return EdgeDetection(contour, contour)
 
 
 @pytest.fixture
 def extraction_config():
     """Return standard extraction settings."""
     return EdgeExtractionConfig(
-        pixels_per_micron=1.0,
+        pixels_per_micron=2.0,
         n_angular_samples=8,
     )
 
@@ -64,7 +60,7 @@ def test_successful_detections_excludes_failures(extraction_config):
     """Test successful_detections filters extraction failures."""
     first = _edge()
     second = _edge(radius=12.0)
-    edges = VesicleEdges(
+    edge_results = VesicleEdges(
         extraction_config=extraction_config,
         detections=[
             first,
@@ -73,7 +69,7 @@ def test_successful_detections_excludes_failures(extraction_config):
         ],
     )
 
-    assert edges.successful_detections == [first, second]
+    assert edge_results.successful_detections == [first, second]
 
 
 def test_accepted_detections_requires_qc(edges):
@@ -89,7 +85,7 @@ def test_run_qc_requires_configuration(edges):
 
 
 def test_run_qc_updates_configuration(edges, qc_config):
-    """Test that QC records the configuration used for the current results."""
+    """Test that QC records the configuration used for completed results."""
     edges.run_qc(qc_config)
     assert edges.qc_config is qc_config
 
@@ -98,7 +94,7 @@ def test_run_qc_can_recover_previous_curvature_rejection(extraction_config):
     """Test that rerunning QC can recover a previously rejected detection."""
     detection = _edge(n_samples=20)
     detection.analysis_contour.r[5] = 30.0
-    edges = VesicleEdges(
+    edge_results = VesicleEdges(
         extraction_config=EdgeExtractionConfig(
             pixels_per_micron=1.0,
             n_angular_samples=20,
@@ -119,13 +115,14 @@ def test_run_qc_can_recover_previous_curvature_rejection(extraction_config):
     )
 
     with pytest.raises(ValueError, match="no frames passed quality control"):
-        edges.run_qc(strict)
+        edge_results.run_qc(strict)
+    assert edge_results.qc_config is strict
     assert QCFlag.CURVATURE in detection.qc.flags
 
-    edges.run_qc(permissive)
+    edge_results.run_qc(permissive)
 
     assert QCFlag.CURVATURE not in detection.qc.flags
-    assert detection.accepted
+    assert detection.qc.passed
 
 
 def test_run_qc_clears_stale_population_state(edges, qc_config):
@@ -150,15 +147,15 @@ def test_save_edge_to_npy_requires_qc(tmp_path, edges):
         edges.save_edge_to_npy(tmp_path / "edges.npy")
 
 
-def test_save_edge_to_npy_saves_only_accepted(
+def test_save_edge_to_npy_saves_only_accepted_in_microns(
     tmp_path,
     extraction_config,
 ):
-    """Test that filtered NumPy export contains only accepted radii."""
+    """Test filtered NumPy export converts accepted radii to microns."""
     accepted = _edge(radius=10.0)
     rejected = _edge(radius=10.0)
     rejected.analysis_contour.r[3] = 30.0
-    edges = VesicleEdges(
+    edge_results = VesicleEdges(
         extraction_config=extraction_config,
         detections=[accepted, rejected],
     )
@@ -168,13 +165,16 @@ def test_save_edge_to_npy_saves_only_accepted(
         max_minor_population_fraction=0.25,
         enable_population_qc=False,
     )
-    edges.run_qc(config)
+    edge_results.run_qc(config)
 
-    edges.save_edge_to_npy(tmp_path / "filtered")
+    edge_results.save_edge_to_npy(tmp_path / "filtered")
     saved = np.load(tmp_path / "filtered.npy")
 
     assert saved.shape == (1, 8)
-    np.testing.assert_array_equal(saved[0], accepted.radii_microns)
+    np.testing.assert_array_equal(
+        saved[0],
+        accepted.analysis_contour.r / 2.0,
+    )
 
 
 def test_checkpoint_round_trip_preserves_extraction_not_qc(
@@ -182,10 +182,10 @@ def test_checkpoint_round_trip_preserves_extraction_not_qc(
     extraction_config,
     qc_config,
 ):
-    """Test that checkpointing preserves raw extraction state, not QC state."""
+    """Test checkpointing preserves raw extraction state, not QC state."""
     first = _edge(radius=10.0)
     second = _edge(radius=12.0)
-    edges = VesicleEdges(
+    edge_results = VesicleEdges(
         extraction_config=extraction_config,
         detections=[
             first,
@@ -193,8 +193,8 @@ def test_checkpoint_round_trip_preserves_extraction_not_qc(
             second,
         ],
     )
-    edges.run_qc(qc_config)
-    edges.save_checkpoint(tmp_path / "sample")
+    edge_results.run_qc(qc_config)
+    edge_results.save_checkpoint(tmp_path / "sample")
 
     loaded = VesicleEdges.from_checkpoint(tmp_path / "sample.npz")
 
@@ -210,13 +210,13 @@ def test_checkpoint_round_trip_preserves_extraction_not_qc(
         for detection in loaded.successful_detections
     )
     np.testing.assert_array_equal(
-        loaded.successful_detections[0].radii_microns,
-        first.radii_microns,
+        loaded.successful_detections[0].analysis_contour.r,
+        first.analysis_contour.r,
     )
 
 
 def test_checkpoint_preserves_variable_native_lengths(tmp_path):
-    """Test that native contours may differ in length when analysis lengths match."""
+    """Test native contours may differ when analysis lengths match."""
     config = EdgeExtractionConfig(
         pixels_per_micron=2.0,
         n_angular_samples=4,
@@ -224,16 +224,14 @@ def test_checkpoint_preserves_variable_native_lengths(tmp_path):
     first = EdgeDetection(
         ImageContour((1.0, 2.0), np.arange(6, dtype=float) + 1),
         ImageContour((1.0, 2.0), np.arange(4, dtype=float) + 1),
-        (np.arange(4, dtype=float) + 1) / 2,
     )
     second = EdgeDetection(
         ImageContour((3.0, 4.0), np.arange(9, dtype=float) + 2),
         ImageContour((3.0, 4.0), np.arange(4, dtype=float) + 2),
-        (np.arange(4, dtype=float) + 2) / 2,
     )
-    edges = VesicleEdges(config, [first, second])
+    edge_results = VesicleEdges(config, [first, second])
 
-    edges.save_checkpoint(tmp_path / "variable.npz")
+    edge_results.save_checkpoint(tmp_path / "variable.npz")
     loaded = VesicleEdges.from_checkpoint(tmp_path / "variable.npz")
 
     assert loaded.successful_detections[0].full_contour.r.shape == (6,)
@@ -246,8 +244,8 @@ def test_from_checkpoint_can_be_re_qced_with_new_settings(
 ):
     """Test loaded extraction results can be evaluated under a new QC config."""
     detection = _edge()
-    edges = VesicleEdges(extraction_config, [detection])
-    edges.save_checkpoint(tmp_path / "sample.npz")
+    edge_results = VesicleEdges(extraction_config, [detection])
+    edge_results.save_checkpoint(tmp_path / "sample.npz")
 
     loaded = VesicleEdges.from_checkpoint(tmp_path / "sample.npz")
     new_config = EdgeQCConfig(
