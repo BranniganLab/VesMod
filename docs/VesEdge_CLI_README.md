@@ -170,7 +170,9 @@ edges.run_qc(qc_config)
 edges.save_edge_to_npy("sample.npy")
 ```
 
-Calling `run_qc()` again clears the prior derived QC state and applies the new configuration.
+A completed run is summarized by `edges.qc_result`, a `VesicleQCResult` containing the configuration and the results of each enabled QC stage. Curvature results are available through `edges.qc_result.curvature`, and population-analysis results through `edges.qc_result.population`. Individual detections retain their own detailed QC annotations in `EdgeDetection.qc`.
+
+Calling `run_qc()` again clears the prior derived QC state and aggregate result before applying the new configuration.
 
 ---
 
