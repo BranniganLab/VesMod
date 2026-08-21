@@ -383,13 +383,6 @@ class VesicleEdges:
     ) -> list[EdgeResult]:
         """Reconstruct ordered extraction results from checkpoint arrays."""
         result_types = checkpoint["result_types"]
-        failure_errors = checkpoint["failure_errors"]
-        origins = checkpoint["origins"]
-        analysis_radii = checkpoint["analysis_radii_pixels"]
-        radii_microns = checkpoint["radii_microns"]
-        full_values = checkpoint["full_radii_values"]
-        full_offsets = checkpoint["full_radii_offsets"]
-
         success_count = int(
             np.count_nonzero(result_types == _DETECTION_CODE)
         )
@@ -397,43 +390,39 @@ class VesicleEdges:
             np.count_nonzero(result_types == _FAILURE_CODE)
         )
         cls._validate_checkpoint_shapes(
-            result_types,
-            failure_errors,
-            origins,
-            analysis_radii,
-            radii_microns,
-            full_offsets,
-            full_values,
+            checkpoint,
             success_count,
             failure_count,
         )
 
         successful = cls._successful_detections_from_checkpoint(
-            origins,
-            analysis_radii,
-            radii_microns,
-            full_values,
-            full_offsets,
+            checkpoint["origins"],
+            checkpoint["analysis_radii_pixels"],
+            checkpoint["radii_microns"],
+            checkpoint["full_radii_values"],
+            checkpoint["full_radii_offsets"],
         )
         return cls._merge_checkpoint_results(
             result_types,
             successful,
-            failure_errors,
+            checkpoint["failure_errors"],
         )
 
     @staticmethod
     def _validate_checkpoint_shapes(
-        result_types: np.ndarray,
-        failure_errors: np.ndarray,
-        origins: np.ndarray,
-        analysis_radii: np.ndarray,
-        radii_microns: np.ndarray,
-        full_offsets: np.ndarray,
-        full_values: np.ndarray,
+        checkpoint: dict[str, np.ndarray],
         success_count: int,
         failure_count: int,
     ) -> None:
         """Validate checkpoint array counts and shapes."""
+        result_types = checkpoint["result_types"]
+        failure_errors = checkpoint["failure_errors"]
+        origins = checkpoint["origins"]
+        analysis_radii = checkpoint["analysis_radii_pixels"]
+        radii_microns = checkpoint["radii_microns"]
+        full_offsets = checkpoint["full_radii_offsets"]
+        full_values = checkpoint["full_radii_values"]
+
         valid_codes = np.isin(
             result_types,
             [_DETECTION_CODE, _FAILURE_CODE],
