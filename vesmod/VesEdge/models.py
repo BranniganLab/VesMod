@@ -13,6 +13,8 @@ from enum import Enum, auto
 import numpy as np
 from numpy.typing import NDArray
 
+from .config import EdgeQCConfig
+
 
 @dataclass(frozen=True)
 class ImageContour:
@@ -54,23 +56,13 @@ class ImageContour:
 
     @property
     def x(self) -> NDArray[np.float64]:
-        """
-        Return the x-coordinates of the contour.
-
-        The first coordinate is repeated at the end so the contour is closed
-        when plotted.
-        """
+        """Return x-coordinates, closing the contour for plotting."""
         x_vals = self.r * np.cos(self.theta) + self.origin[0]
         return np.append(x_vals, x_vals[0])
 
     @property
     def y(self) -> NDArray[np.float64]:
-        """
-        Return the y-coordinates of the contour.
-
-        The first coordinate is repeated at the end so the contour is closed
-        when plotted.
-        """
+        """Return y-coordinates, closing the contour for plotting."""
         y_vals = self.r * np.sin(self.theta) + self.origin[1]
         return np.append(y_vals, y_vals[0])
 
@@ -80,15 +72,6 @@ class QCFlag(Enum):
 
     CURVATURE = auto()
     POPULATION_OUTLIER = auto()
-
-
-FRAME_QC_FLAGS = {
-    QCFlag.CURVATURE,
-}
-
-TRAJECTORY_QC_FLAGS = {
-    QCFlag.POPULATION_OUTLIER,
-}
 
 
 @dataclass
@@ -114,9 +97,7 @@ class EdgeQC:
     """
 
     flags: set[QCFlag] = field(default_factory=set)
-
     curvature_score: float | None = None
-
     population_label: int | None = None
     population_probability: float | None = None
 
@@ -139,30 +120,13 @@ class EdgeDetection:
         Contour used for subsequent analysis. If downsampling was requested,
         this is the downsampled contour. Otherwise, this is the same contour
         as `full_contour`.
-    radii_microns : NDArray[np.float64]
-        Radial profile from `analysis_contour` converted to physical units.
     qc : EdgeQC
         Quality-control information associated with this detection.
-    median_radius : float
-        Median physical radius of the analysis contour.
-    accepted : bool
-        Whether the detection has passed all QC checks run so far.
     """
 
     full_contour: ImageContour
     analysis_contour: ImageContour
-    radii_microns: NDArray[np.float64]
     qc: EdgeQC = field(default_factory=EdgeQC)
-
-    @property
-    def median_radius(self) -> float:
-        """Return the median radius of the analysis contour in microns."""
-        return float(np.median(self.radii_microns))
-
-    @property
-    def accepted(self) -> bool:
-        """Return whether this edge detection has passed quality control."""
-        return self.qc.passed
 
 
 @dataclass(frozen=True)
@@ -180,3 +144,84 @@ class EdgeDetectionFailure:
 
 
 EdgeResult = EdgeDetection | EdgeDetectionFailure
+
+
+@dataclass(frozen=True)
+class CurvatureQCResult:
+    """Trajectory-level summary of frame curvature QC.
+
+    Attributes
+    ----------
+    scores : tuple[float, ...]
+        Curvature score for each successfully extracted detection, in detection
+        order. Non-finite contours are represented by ``nan``.
+    rejected_count : int
+        Number of detections rejected by curvature QC.
+    """
+
+    scores: tuple[float, ...]
+    rejected_count: int
+
+
+@dataclass(frozen=True)
+class EdgePopulationResult:
+    """Results from trajectory-level center/radius population analysis.
+
+    Attributes
+    ----------
+    bic_one_population : float | None
+        BIC from the one-component Gaussian mixture model. None if there were
+        too few detections to perform population analysis.
+    bic_two_populations : float | None
+        BIC from the two-component Gaussian mixture model. None if there were
+        too few detections to perform population analysis.
+    two_populations_detected : bool
+        Whether the two-component model was sufficiently favored over the
+        one-component model.
+    population_sizes : tuple[int, ...]
+        Number of detections assigned to each detected population.
+    rejected_population : int | None
+        Label of the population rejected as a minor outlier population.
+        None if no population was rejected.
+    delta_bic : float | None
+        Improvement in BIC obtained by fitting two populations rather than
+        one. Positive values favor two populations.
+    """
+
+    bic_one_population: float | None
+    bic_two_populations: float | None
+    two_populations_detected: bool
+    population_sizes: tuple[int, ...]
+    rejected_population: int | None
+
+    @property
+    def delta_bic(self) -> float | None:
+        """Return the BIC improvement from fitting two populations."""
+        if (
+            self.bic_one_population is None
+            or self.bic_two_populations is None
+        ):
+            return None
+
+        return self.bic_one_population - self.bic_two_populations
+
+
+@dataclass(frozen=True)
+class VesicleQCResult:
+    """Aggregate results from one completed VesEdge QC run.
+
+    Attributes
+    ----------
+    config : EdgeQCConfig
+        Configuration used for the QC run.
+    curvature : CurvatureQCResult | None
+        Summary of frame-level curvature QC. None when curvature QC was
+        disabled.
+    population : EdgePopulationResult | None
+        Summary of trajectory-level population QC. None when population QC was
+        disabled.
+    """
+
+    config: EdgeQCConfig
+    curvature: CurvatureQCResult | None
+    population: EdgePopulationResult | None

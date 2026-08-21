@@ -20,8 +20,8 @@ def parse_args() -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
         description=(
-            "Extract vesicle edges from one or more .nd2 files, then save a GIF "
-            "and .npy edge file for each video."
+            "Extract vesicle edges from one or more .nd2 files, apply quality "
+            "control, then save a GIF and .npy edge file for each video."
         )
     )
     parser.add_argument(
@@ -98,9 +98,8 @@ def parse_args() -> argparse.Namespace:
         "--extractor",
         default="vesmod.VesEdge:extract_edge_from_frame",
         help=(
-            "Edge extractor function as 'module:function'. "
-            "The function must accept one 2D frame and return "
-            "(r_vals, vesicle_center). Default: "
+            "Edge extractor function as 'module:function'. The function must "
+            "accept one 2D frame and return (r_vals, vesicle_center). Default: "
             "vesmod.VesEdge:extract_edge_from_frame."
         ),
     )
@@ -143,17 +142,14 @@ def load_extractor_from_module(import_string: str):
     module_name, func_name = import_string.split(":", maxsplit=1)
     module = importlib.import_module(module_name)
     extractor = getattr(module, func_name)
-
     if not callable(extractor):
         raise TypeError(f"{import_string} is not callable.")
-
     return extractor
 
 
 def load_extractor_from_file(file_path: Path, function_name: str):
     """Load an edge extractor function from a Python file."""
     file_path = file_path.expanduser().resolve()
-
     if not file_path.exists():
         raise FileNotFoundError(f"Extractor file does not exist: {file_path}")
 
@@ -166,18 +162,15 @@ def load_extractor_from_file(file_path: Path, function_name: str):
 
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-
     extractor = getattr(module, function_name)
     if not callable(extractor):
         raise TypeError(f"{function_name} in {file_path} is not callable.")
-
     return extractor
 
 
 def process_file(path: Path, args: argparse.Namespace) -> None:
-    """Extract edges from one ND2 video and save standard outputs."""
+    """Extract, QC, and save standard outputs for one ND2 video."""
     output_paths = [path.with_suffix(".npy")]
-
     if not args.no_gif:
         output_paths.append(path.with_suffix(".gif"))
 
@@ -186,7 +179,6 @@ def process_file(path: Path, args: argparse.Namespace) -> None:
         for output_path in output_paths
         if output_path.exists()
     ]
-
     if existing_paths and not args.overwrite:
         existing_names = ", ".join(
             output_path.name
@@ -208,16 +200,11 @@ def process_file(path: Path, args: argparse.Namespace) -> None:
 
     print(f"Working on file {path.stem}")
     intensities = nd2.imread(path)
-
-    n_angular_samples = (
-        args.n_samples
-        if args.downsample
-        else None
-    )
-
     extraction_config = EdgeExtractionConfig(
         pixels_per_micron=args.pixels_per_micron,
-        n_angular_samples=n_angular_samples,
+        n_angular_samples=(
+            args.n_samples if args.downsample else None
+        ),
     )
     qc_config = EdgeQCConfig(
         curvature_threshold=args.curvature_threshold,
@@ -226,23 +213,23 @@ def process_file(path: Path, args: argparse.Namespace) -> None:
         enable_curvature_qc=True,
         enable_population_qc=not args.no_population_qc,
     )
+    video = VesicleVideo(intensities)
 
-    video = VesicleVideo(
-        intensities,
-        extraction_config,
-        qc_config,
-    )
     try:
-        video.extract_edges(extractor_func)
+        edges = video.extract_edges(
+            extractor_func,
+            extraction_config,
+        )
+        edges.run_qc(qc_config)
     except ValueError as error:
         print(
-            f"Failed to extract edges from {path.name}: {error}"
+            f"Failed to process {path.name}: {error}"
         )
         return
 
     if not args.no_gif:
-        video.make_vesicle_gif(path)
-    video.save_edge_to_npy(path)
+        video.make_vesicle_gif(path, edges)
+    edges.save_edge_to_npy(path)
 
 
 def main() -> None:

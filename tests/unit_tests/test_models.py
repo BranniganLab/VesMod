@@ -3,7 +3,6 @@
 import numpy as np
 
 from vesmod.VesEdge.models import (
-    EdgeDetection,
     EdgeQC,
     ImageContour,
     QCFlag,
@@ -41,7 +40,7 @@ def test_image_contour_cartesian_coordinates_close_contour():
 
 
 def test_edge_qc_passed_reflects_flags():
-    """Test that an edge passes QC only when it has no failure flags."""
+    """Test that QC passes only when it has no failure flags."""
     qc = EdgeQC()
 
     assert qc.passed
@@ -60,41 +59,3 @@ def test_edge_qc_instances_do_not_share_flags():
 
     assert QCFlag.CURVATURE in first.flags
     assert QCFlag.CURVATURE not in second.flags
-
-
-def test_edge_detection_median_radius():
-    """Test calculation of the median radius in microns."""
-    contour = ImageContour(
-        origin=(0.0, 0.0),
-        r=np.ones(4),
-    )
-    detection = EdgeDetection(
-        full_contour=contour,
-        analysis_contour=contour,
-        radii_microns=np.array(
-            [1.0, 2.0, 4.0, 8.0],
-        ),
-    )
-
-    assert detection.median_radius == 3.0
-
-
-def test_edge_detection_accepted_reflects_qc():
-    """Test that accepted delegates to the associated QC result."""
-    contour = ImageContour(
-        origin=(0.0, 0.0),
-        r=np.ones(4),
-    )
-    detection = EdgeDetection(
-        full_contour=contour,
-        analysis_contour=contour,
-        radii_microns=np.ones(4),
-    )
-
-    assert detection.accepted
-
-    detection.qc.flags.add(
-        QCFlag.POPULATION_OUTLIER
-    )
-
-    assert not detection.accepted
