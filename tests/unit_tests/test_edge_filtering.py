@@ -3,8 +3,8 @@
 import numpy as np
 import pytest
 
+from vesmod.VesEdge.config import EdgeQCConfig
 from vesmod.VesEdge.edge_filtering import (
-    EdgeQCConfig,
     check_curvature,
     check_edge_populations,
 )
