@@ -51,6 +51,8 @@ qc_config = EdgeQCConfig(
 
 # edges = VesicleEdges.from_checkpoint("YOUR/PATH/HERE/sample.npz")
 # edges.run_qc(qc_config)
+# print(edges.qc_result.curvature)
+# print(edges.qc_result.population)
 # edges.save_edge_to_npy("YOUR/PATH/HERE/qc_standard/sample.npy")
 
 # The same checkpoint can be evaluated again without rerunning extraction.
