@@ -104,6 +104,25 @@ def test_check_curvature_rejects_large_local_deviation():
     assert QCFlag.CURVATURE in edge.qc.flags
 
 
+def test_check_curvature_accepts_score_equal_to_threshold():
+    """Test that a curvature score equal to the threshold passes QC."""
+    edge = _make_edge()
+    edge.analysis_contour.r[3] = 20.0
+
+    check_curvature(
+        edge,
+        threshold=np.inf,
+    )
+    threshold = edge.qc.curvature_score
+
+    check_curvature(
+        edge,
+        threshold=threshold,
+    )
+
+    assert QCFlag.CURVATURE not in edge.qc.flags
+
+
 @pytest.mark.parametrize(
     (
         "bic_threshold",
