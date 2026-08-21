@@ -9,7 +9,7 @@ from pathlib import Path
 from types import NoneType
 import json
 import numpy as np
-from vesmod.VesEdge import VesicleVideo
+from vesmod.VesEdge import EdgeDetection, VesicleVideo
 from .spectrum_utils import fit_spectrum_to_theory_lmfit, calc_tension_from_reduced_tension, MiniSpectrum
 
 
@@ -40,13 +40,36 @@ class Spectrum:
         ----------
         edges_over_time : str or Path or VesicleVideo
             The path (str or Path) to the .npy file containing edge extraction
-            outputs or the VesicleVideo object itself.
+            outputs or the VesicleVideo object itself. When a VesicleVideo is
+            supplied, only accepted EdgeDetection radii are included.
         frame_cutoff : int or None, optional
             The number of frames to retain in your trajectory. Default is None.
 
         """
         if isinstance(edges_over_time, VesicleVideo):
-            input_data = edges_over_time.radii_microns
+            accepted_radii = [
+                detection.radii_microns
+                for detection in edges_over_time.detections
+                if isinstance(detection, EdgeDetection)
+                and detection.accepted
+            ]
+
+            if not accepted_radii:
+                raise ValueError(
+                    "VesicleVideo contains no accepted edge detections."
+                )
+
+            lengths = {
+                radii.shape[0]
+                for radii in accepted_radii
+            }
+            if len(lengths) > 1:
+                raise ValueError(
+                    "Accepted VesicleVideo detections have inconsistent "
+                    "numbers of angular samples."
+                )
+
+            input_data = np.stack(accepted_radii)
         elif isinstance(edges_over_time, (Path, str)):
             if isinstance(edges_over_time, str):
                 edges_over_time = Path(edges_over_time)
