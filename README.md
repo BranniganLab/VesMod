@@ -20,6 +20,7 @@ Features include:
 * Frame-level curvature quality control
 * Trajectory-level center/radius population quality control
 * Rerunnable quality control with updated settings without repeating edge extraction
+* Checkpoint export and reload for later QC reanalysis
 * Optional angular downsampling
 * NumPy export of accepted contours
 * Annotated GIF generation for visual inspection
@@ -108,6 +109,28 @@ video.run_qc(new_qc_config)
 
 `run_qc()` clears previously stored QC results before applying the new
 configuration.
+
+To preserve all extraction results for later QC reanalysis, save a VesEdge
+checkpoint before discarding the in-memory `VesicleVideo`:
+
+```python
+video.save_checkpoint("sample_checkpoint.npz")
+```
+
+A checkpoint preserves successful and failed extraction results, including
+contours rejected by the current QC settings. It does not store the original
+image frames. Reload it later and apply new QC settings with:
+
+```python
+video = VesicleVideo.from_checkpoint(
+    "sample_checkpoint.npz",
+    qc_config=new_qc_config,
+)
+video.save_edge_to_npy("sample_reanalyzed.npy")
+```
+
+The regular `.npy` output remains the filtered, Spectrum-ready analysis product;
+the `.npz` checkpoint is the unfiltered VesEdge state used for later re-QC.
 
 ---
 
