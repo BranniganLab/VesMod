@@ -102,7 +102,7 @@ vesedge sample.nd2 \
     --extractor-name constant_radius_extractor
 ```
 
-The extraction CLI writes a reusable `.npz` checkpoint rather than a QC-filtered `.npy` file.
+The current CLI extracts edges, applies its configured QC checks, and writes the accepted contours to `.npy` as usual.
 
 ---
 
@@ -135,14 +135,16 @@ A good extractor should:
 - return the center in `(row, column)` order;
 - use consistent angular sampling across successful frames when downsampling is disabled.
 
-VesEdge catches exceptions raised on individual frames, records those frames as `EdgeDetectionFailure`, and continues processing later frames.
+VesEdge catches exceptions raised on individual frames, records those frames as `EdgeDetectionFailure`, and continues processing later frames. It does not print per-frame tracebacks from the library layer.
 
 After all frames are processed, extraction fails if:
 
 - no frame produced a successful detection; or
 - successful analysis contours have inconsistent angular sample counts.
 
-Quality-control outcomes are **not** extraction failures. `VesicleVideo.extract_edges()` does not run QC and returns a `VesicleEdges` object containing the reusable extraction results.
+When every frame fails, the raised error includes the recorded extractor error messages so a custom-extractor failure can be diagnosed without relying on printed tracebacks.
+
+Quality-control outcomes are **not** extraction failures. `VesicleVideo.extract_edges()` itself does not run QC and returns a `VesicleEdges` object containing reusable extraction results. The current CLI then runs QC as a separate step internally.
 
 ---
 
@@ -186,4 +188,4 @@ edges.run_qc(
 edges.save_edge_to_npy("sample.npy")
 ```
 
-This separation allows extractor development and QC tuning to be evaluated independently.
+The checkpoint stores pixel-space contours plus the extraction calibration; physical radii are derived when accepted contours are exported. This separation allows extractor development and QC tuning to be evaluated independently.
