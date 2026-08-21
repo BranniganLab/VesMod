@@ -8,6 +8,7 @@ from .models import (
     EdgeDetectionFailure,
     EdgePopulationResult,
     EdgeResult,
+    ImageContour,
     QCFlag,
     VesicleQCResult,
 )
@@ -22,6 +23,7 @@ __all__ = [
     "EdgePopulationResult",
     "EdgeQCConfig",
     "EdgeResult",
+    "ImageContour",
     "QCFlag",
     "VesicleEdges",
     "VesicleQCResult",
