@@ -134,7 +134,7 @@ def test_init_rejects_non_npy_file(tmp_path):
     """Test that file inputs must be .npy files."""
     infile = tmp_path / "edges.txt"
     infile.write_text("not an npy file")
-    with pytest.raises(ValueError, match="must end in .npy"):
+    with pytest.raises(ValueError, match=r"must end in \.npy"):
         Spectrum(infile)
 
 
@@ -316,7 +316,7 @@ def test_to_dict_includes_arrays_when_requested():
 
 
 def test_to_dict_excludes_arrays_when_requested():
-    """Test serialization can omit arrays."""
+    """Test serialization can omit arrays when requested."""
     spectrum = Spectrum.__new__(Spectrum)
     spectrum.r0 = 10.0
     spectrum.kC = None
