@@ -34,6 +34,8 @@ for file in glob.glob(fpath + "*.nd2", recursive=True):
 
     # The checkpoint is the reusable output of extraction. It stores all
     # successful detections and extraction failures, but no QC decisions.
+    # Contours remain in image-space pixels; pixels_per_micron is stored with
+    # the checkpoint so physical radii can be derived later.
     edges.save_checkpoint(path)
 
     # A GIF can be generated while the original image frames are available.
