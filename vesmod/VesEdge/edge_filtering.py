@@ -149,7 +149,7 @@ def check_curvature(
     Calculates the wrapped finite second difference of the radial profile in
     `edge.analysis_contour`. The largest absolute value is recorded as the
     curvature score. The edge fails curvature QC if this score is greater
-    than or equal to `threshold`.
+    than `threshold`.
 
     Parameters
     ----------
@@ -193,7 +193,7 @@ def check_curvature(
 
     edge.qc.curvature_score = curvature_score
 
-    if curvature_score >= threshold:
+    if curvature_score > threshold:
         edge.qc.flags.add(QCFlag.CURVATURE)
     else:
         edge.qc.flags.discard(QCFlag.CURVATURE)
