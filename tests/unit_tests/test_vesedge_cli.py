@@ -19,6 +19,10 @@ def _args() -> argparse.Namespace:
         downsample=False,
         n_samples=120,
         pixels_per_micron=1.0,
+        curvature_threshold=5.0,
+        population_bic_threshold=10.0,
+        max_minor_population_fraction=0.25,
+        no_population_qc=False,
     )
 
 
@@ -57,25 +61,28 @@ def test_process_file_reports_extraction_failure_and_returns(
 
     captured = capsys.readouterr()
     assert (
-        "Failed to extract edges from failed.nd2: no successful detections"
+        "Failed to process failed.nd2: no successful detections"
         in captured.out
     )
 
 
-def test_process_file_saves_checkpoint_after_success(monkeypatch):
-    """Test that successful extraction writes a reusable checkpoint."""
+def test_process_file_runs_qc_and_saves_filtered_output(monkeypatch):
+    """Test successful CLI processing applies QC and writes .npy output."""
     observed = {}
 
     class FakeEdges:
-        def save_checkpoint(self, path):
-            observed["checkpoint"] = path
+        def run_qc(self, qc_config):
+            observed["qc_config"] = qc_config
+
+        def save_edge_to_npy(self, path):
+            observed["npy"] = path
 
     class SuccessfulVideo:
         def __init__(self, frames):
             observed["frames"] = frames
 
         def extract_edges(self, extractor, extraction_config):
-            observed["config"] = extraction_config
+            observed["extraction_config"] = extraction_config
             return FakeEdges()
 
     path = Path("sample.nd2")
@@ -97,6 +104,8 @@ def test_process_file_saves_checkpoint_after_success(monkeypatch):
 
     vesedge_cli.process_file(path, _args())
 
-    assert observed["checkpoint"] == path
-    assert observed["config"].pixels_per_micron == 1.0
-    assert observed["config"].n_angular_samples is None
+    assert observed["npy"] == path
+    assert observed["extraction_config"].pixels_per_micron == 1.0
+    assert observed["extraction_config"].n_angular_samples is None
+    assert observed["qc_config"].curvature_threshold == 5.0
+    assert observed["qc_config"].enable_population_qc
