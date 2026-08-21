@@ -2,7 +2,7 @@
 
 VesMod is a Python package for extracting membrane contours from microscopy videos of giant unilamellar vesicles (GUVs) and estimating membrane bending rigidity from thermal shape fluctuations.
 
-The package separates image-dependent edge extraction from quality control and downstream fluctuation analysis so extracted contours can be reused under multiple QC configurations.
+The Python API separates image-dependent edge extraction from quality control and downstream fluctuation analysis so extracted contours can be reused under multiple QC configurations.
 
 ---
 
@@ -17,13 +17,13 @@ Features include:
 * Automated vesicle edge detection
 * Processing of ND2 microscopy videos
 * User-supplied edge extraction algorithms
-* Reusable `.npz` extraction checkpoints
 * Frame-level curvature quality control
 * Trajectory-level center/radius population quality control
+* Reusable `.npz` extraction checkpoints through the Python API
 * Rerunnable QC without repeating edge extraction
 * Optional angular downsampling
 * NumPy export of accepted contours
-* Annotated GIF generation while image frames are available
+* Annotated GIF generation for visual inspection
 
 Detailed documentation:
 
@@ -68,28 +68,51 @@ edgemod --help
 
 ---
 
-## Recommended Workflow
+## Typical CLI Workflow
 
-### 1. Extract once and save checkpoints
+### 1. Extract, QC, and save accepted contours
 
 ```bash
-vesedge ./videos --pixels-per-micron 13.44 --downsample --n-samples 120
+vesedge sample.nd2 \
+    --pixels-per-micron 13.44 \
+    --downsample \
+    --n-samples 120
 ```
 
-For each ND2 file, VesEdge extracts contours and writes a reusable checkpoint:
+This generates:
 
 ```text
-sample.npz
+sample.npy
 sample.gif
 ```
 
-The `.npz` file is the persistent extraction product. It contains successful detections and extraction failures, but it does **not** contain QC decisions. This allows the same extraction results to be evaluated repeatedly without rerunning image processing.
+The `.npy` file contains only contours accepted by the configured VesEdge QC checks and is ready for EdgeMod.
 
-The Python data model reflects this separation:
+### 2. Estimate membrane mechanical properties
+
+```bash
+edgemod sample.npy
+```
+
+This generates:
+
+```text
+sample.json
+```
+
+containing fitted membrane mechanical parameters.
+
+---
+
+## Reusing Extraction Results in Python
+
+The refactored API separates raw video data from extracted-edge state:
 
 ```python
 from vesmod.VesEdge import (
     EdgeExtractionConfig,
+    EdgeQCConfig,
+    VesicleEdges,
     VesicleVideo,
     extract_edge_from_frame,
 )
@@ -102,16 +125,17 @@ edges = video.extract_edges(
         n_angular_samples=120,
     ),
 )
+```
+
+Save QC-independent extraction state:
+
+```python
 edges.save_checkpoint("sample.npz")
 ```
 
-`VesicleVideo` owns raw image frames and image-dependent operations. `VesicleEdges` owns extracted contours, quality control, checkpoint persistence, and accepted-contour export.
-
-### 2. Evaluate a QC configuration
+Reload it later and apply a QC configuration without rerunning extraction:
 
 ```python
-from vesmod.VesEdge import EdgeQCConfig, VesicleEdges
-
 edges = VesicleEdges.from_checkpoint("sample.npz")
 
 qc_config = EdgeQCConfig(
@@ -121,34 +145,10 @@ qc_config = EdgeQCConfig(
 )
 
 edges.run_qc(qc_config)
-edges.save_edge_to_npy("qc_standard/sample.npy")
+edges.save_edge_to_npy("sample.npy")
 ```
 
-Loading a checkpoint does not run QC automatically. `run_qc()` clears any existing derived QC state before applying the requested configuration.
-
-The same checkpoint can then be evaluated under another configuration:
-
-```python
-permissive_qc = EdgeQCConfig(
-    curvature_threshold=15.0,
-    population_bic_threshold=10.0,
-    max_minor_population_fraction=0.25,
-)
-
-edges.run_qc(permissive_qc)
-edges.save_edge_to_npy("qc_permissive/sample.npy")
-```
-
-The `.npy` output contains only contours accepted by the current QC configuration and is the input expected by the EdgeMod CLI.
-
-### 3. Analyze accepted contours
-
-```bash
-edgemod qc_standard
-edgemod qc_permissive
-```
-
-Each `.npy` input produces a corresponding `.json` result containing fitted membrane mechanical parameters.
+The same `VesicleEdges` object can be re-QCed with different settings. Checkpoints store extraction state only; QC decisions are derived and reset on each `run_qc()` call.
 
 ---
 
@@ -156,8 +156,8 @@ Each `.npy` input produces a corresponding `.json` result containing fitted memb
 
 | File | Meaning |
 | --- | --- |
-| `.npz` | Reusable, QC-independent VesEdge extraction checkpoint |
-| `.npy` | Accepted contour radii for one specific QC configuration |
+| `.npz` | Reusable, QC-independent VesEdge extraction checkpoint created through the Python API |
+| `.npy` | Accepted contour radii for one QC configuration |
 | `.gif` | Visual inspection of image frames and extracted contours |
 | `.json` | EdgeMod spectrum/fitting output |
 
