@@ -1,10 +1,10 @@
 """Public VesEdge API."""
 
+from .config import EdgeExtractionConfig, EdgeQCConfig
 from .edge_extractor import extract_edge_from_frame
-from .edge_filtering import EdgeQCConfig
 from .models import EdgeDetection, EdgeDetectionFailure, EdgeResult, QCFlag
 from .vesicle_edges import VesicleEdges
-from .vesicle_video import EdgeExtractionConfig, VesicleVideo
+from .vesicle_video import VesicleVideo
 
 __all__ = [
     "EdgeDetection",
