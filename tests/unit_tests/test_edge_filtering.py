@@ -193,8 +193,8 @@ def test_check_edge_populations_short_circuits_for_too_few_edges():
     )
 
 
-def test_check_edge_populations_uses_only_edges_that_pass_frame_qc():
-    """Test that failures and frame-level QC rejections are excluded."""
+def test_check_edge_populations_uses_only_edges_that_pass_preceding_qc():
+    """Test that failures and previous QC rejections are excluded."""
     usable_edges = [
         _make_edge(
             origin=(float(index), 0.0)
@@ -238,10 +238,6 @@ def test_check_edge_populations_keeps_one_population_when_bic_gain_is_insufficie
         )
         for index in range(10)
     ]
-
-    edges[0].qc.flags.add(
-        QCFlag.POPULATION_OUTLIER
-    )
 
     result = check_edge_populations(
         edges,
@@ -360,34 +356,6 @@ def test_check_edge_populations_does_not_reject_large_second_population():
     assert result.two_populations_detected
     assert sorted(result.population_sizes) == [4, 6]
     assert result.rejected_population is None
-
-    assert all(
-        QCFlag.POPULATION_OUTLIER not in edge.qc.flags
-        for edge in edges
-    )
-
-
-def test_check_edge_populations_reconsiders_previous_population_outliers():
-    """Test that rerunning population QC reconsider previously flagged edges."""
-    edges = [
-        _make_edge(
-            origin=(0.1 * index, 0.0),
-            radius=10.0 + 0.05 * index,
-        )
-        for index in range(5)
-    ]
-
-    edges[0].qc.flags.add(
-        QCFlag.POPULATION_OUTLIER
-    )
-
-    result = check_edge_populations(
-        edges,
-        bic_threshold=1e9,
-        max_minor_fraction=0.25,
-    )
-
-    assert result.population_sizes == (5,)
 
     assert all(
         QCFlag.POPULATION_OUTLIER not in edge.qc.flags
