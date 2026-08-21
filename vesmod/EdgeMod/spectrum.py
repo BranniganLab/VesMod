@@ -9,13 +9,13 @@ from pathlib import Path
 from types import NoneType
 import json
 import numpy as np
-from vesmod.VesEdge import EdgeDetection, VesicleVideo
+from vesmod.VesEdge import VesicleEdges
 from .spectrum_utils import fit_spectrum_to_theory_lmfit, calc_tension_from_reduced_tension, MiniSpectrum
 
 
 class Spectrum:
     """
-    Calculate the fluctuation spectrum of a vesicle video.
+    Calculate the fluctuation spectrum of a vesicle edge trajectory.
 
     Attributes
     ----------
@@ -30,7 +30,7 @@ class Spectrum:
 
     def __init__(
         self,
-        edges_over_time: str | Path | VesicleVideo,
+        edges_over_time: str | Path | VesicleEdges,
         frame_cutoff=None
     ) -> None:
         """
@@ -38,37 +38,33 @@ class Spectrum:
 
         Parameters
         ----------
-        edges_over_time : str or Path or VesicleVideo
-            The path (str or Path) to the .npy file containing edge extraction
-            outputs or the VesicleVideo object itself. When a VesicleVideo is
-            supplied, only accepted EdgeDetection radii are included.
+        edges_over_time : str or Path or VesicleEdges
+            Path to a ``.npy`` file containing accepted edge radii, or a
+            ``VesicleEdges`` object on which QC has already been run. When a
+            ``VesicleEdges`` object is supplied, only accepted detections are
+            included.
         frame_cutoff : int or None, optional
             The number of frames to retain in your trajectory. Default is None.
 
         """
-        if isinstance(edges_over_time, VesicleVideo):
+        if isinstance(edges_over_time, VesicleEdges):
             accepted_radii = [
                 detection.radii_microns
-                for detection in edges_over_time.detections
-                if isinstance(detection, EdgeDetection)
-                and detection.accepted
+                for detection in edges_over_time.accepted_detections
             ]
-
             if not accepted_radii:
                 raise ValueError(
-                    "VesicleVideo contains no accepted edge detections."
+                    "VesicleEdges contains no accepted edge detections."
                 )
-
             lengths = {
                 radii.shape[0]
                 for radii in accepted_radii
             }
             if len(lengths) > 1:
                 raise ValueError(
-                    "Accepted VesicleVideo detections have inconsistent "
+                    "Accepted VesicleEdges detections have inconsistent "
                     "numbers of angular samples."
                 )
-
             input_data = np.stack(accepted_radii)
         elif isinstance(edges_over_time, (Path, str)):
             if isinstance(edges_over_time, str):
@@ -79,15 +75,15 @@ class Spectrum:
                 raise ValueError("edges_over_time must end in .npy")
             input_data = np.load(edges_over_time)
         else:
-            raise TypeError("edges_over_time must be a str, pathlib Path, or VesicleVideo.")
+            raise TypeError(
+                "edges_over_time must be a str, pathlib Path, or VesicleEdges."
+            )
 
-        # make sure frame_cutoff is either None or a positive int
         if not isinstance(frame_cutoff, (int, NoneType)):
             raise TypeError("frame_cutoff must either be None or an int.")
-        if (isinstance(frame_cutoff, int)) and (frame_cutoff <= 0):
+        if isinstance(frame_cutoff, int) and frame_cutoff <= 0:
             raise ValueError("frame_cutoff must be a positive int.")
 
-        # prune the trajectory if frame_cutoff specified
         if frame_cutoff is not None and frame_cutoff < input_data.shape[0]:
             input_data = input_data[:frame_cutoff, :]
 
@@ -108,46 +104,21 @@ class Spectrum:
             a vesicle video.
 
         """
-        # Calculate normalizing factor
         n_samples = r_vals_over_time.shape[1]
         norm = 1. / (self.r0 * n_samples)
-
-        # Fourier transform and normalize
         amps = np.fft.fft(r_vals_over_time, axis=1, norm='backward') * norm
-
-        # Multiply by complex conjugate
         amps2 = amps * amps.conj()
-
-        # Take average over time
         avg_amps2 = np.mean(amps2.real, axis=0)
         return avg_amps2
 
     def _calc_integer_modes(self) -> np.ndarray[int]:
-        """
-        Calculate the integer Fourier modes q for your spectrum.
-
-        numpy's fftfreq will return normalized floats. Multiply by # of modes
-        (positive and negative) to get ints.
-
-        Returns
-        -------
-        np.ndarray[int]
-
-        """
+        """Calculate integer Fourier modes q for the spectrum."""
         freqs = np.fft.fftfreq(self.avg_amps2.shape[0])
         modes = np.round(freqs * self.avg_amps2.shape[0]).astype(int)
         return modes
 
     def isolate_mode_range(self, lower_bound: int, upper_bound: int) -> MiniSpectrum:
-        """
-        Return all modes greater than or equal to lower_bound and less than \
-        upper_bound, and their associated avg squared amplitudes.
-
-        Returns
-        -------
-        MiniSpectrum : namedtuple
-
-        """
+        """Return modes >= lower_bound and < upper_bound with amplitudes."""
         if self.modes is None:
             raise AttributeError("There are no modes; Cannot return mode range.")
         mask1 = self.modes >= lower_bound
@@ -163,51 +134,20 @@ class Spectrum:
         free_sigma: bool = True,
         temperature: float = 295
     ) -> tuple[float, float]:
-        """
-        Fit specific range of self.avg_amps2 to theoretical prediction.
-
-        Parameters
-        ----------
-        lower_bound, upper_bound : ints
-            Fit modes greater than or equal to lower_bound and less than upper_bound.
-        lmax : int
-            Maximum iteration index in theoretical summation. Default is 500.
-        free_sigma : bool
-            If True, allow surface tension (sigma) to vary. If False, set sigma
-            to zero and do not let it vary during fitting.
-        temperature : float
-            The temperature in Kelvin. Default is 295 K.
-
-        Returns
-        -------
-        tuple[float, float]
-            The best fitting kC and sigma values within the fitting range.
-
-        Side Effects
-        ------------
-        Saves kC to self.kC and sigma to self.surface_tension.
-
-        """
+        """Fit a selected mode range to the theoretical prediction."""
         fitting_range = self.isolate_mode_range(lower_bound, upper_bound)
         fit = fit_spectrum_to_theory_lmfit(fitting_range, lmax, free_sigma)
         self.kC, reduced_sigma = fit
-        self.surface_tension = calc_tension_from_reduced_tension(self.r0, reduced_sigma, self.kC, temperature)
+        self.surface_tension = calc_tension_from_reduced_tension(
+            self.r0,
+            reduced_sigma,
+            self.kC,
+            temperature,
+        )
         return self.kC, self.surface_tension
 
     def _to_dict(self, include_arrays=True) -> dict:
-        """
-        Convert class attributes to a dict.
-
-        Parameters
-        ----------
-        include_arrays : bool, optional
-            If True, include modes and avg_amps2 values. Default is True.
-
-        Returns
-        -------
-        dict
-
-        """
+        """Convert class attributes to a dict."""
         data = {
             "r0": float(self.r0) if getattr(self, "r0", None) is not None else None,
             "kC": float(self.kC) if getattr(self, "kC", None) is not None else None,
@@ -230,19 +170,7 @@ class Spectrum:
         include_arrays: bool = True,
         indent: int = 2,
     ) -> None:
-        """
-        Save class attributes to json.
-
-        Parameters
-        ----------
-        include_arrays : bool, optional
-            If True, include modes and avg_amps2 values. Default is True.
-
-        Side Effects
-        ------------
-        Saves json to file system.
-
-        """
+        """Save class attributes to JSON."""
         outfile = Path(outfile).with_suffix('.json')
         with outfile.open("w", encoding="utf-8") as f:
             json.dump(self._to_dict(include_arrays=include_arrays), f, indent=indent)
