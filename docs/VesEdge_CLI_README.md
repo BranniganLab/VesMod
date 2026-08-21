@@ -11,6 +11,7 @@ VesEdge is a command-line tool for extracting vesicle contours from ND2 microsco
 - Optional angular downsampling
 - Frame-level curvature quality control
 - Trajectory-level center/radius population quality control
+- Rerunnable quality control through the Python API without repeating edge extraction
 - GIF output for visual inspection
 - NumPy output for downstream analysis
 
@@ -215,6 +216,28 @@ vesedge sample.nd2 --no-population-qc
 ```
 
 Population QC is enabled by default.
+
+---
+
+## Rerunning Quality Control in Python
+
+`VesicleVideo.extract_edges()` stores successful and failed extraction results and then runs the configured QC checks. QC can subsequently be rerun on the existing detections without repeating edge extraction.
+
+```python
+from vesmod.VesEdge import EdgeQCConfig
+
+new_qc_config = EdgeQCConfig(
+    curvature_threshold=8.0,
+    population_bic_threshold=10.0,
+    max_minor_population_fraction=0.25,
+)
+
+video.run_qc(new_qc_config)
+```
+
+When `run_qc()` is called, previously stored QC flags, curvature scores, population labels, population probabilities, and trajectory-level population results are cleared before the enabled checks are rerun. Passing a new `EdgeQCConfig` also replaces `video.qc_config`. If no config is supplied, the current `video.qc_config` is reused.
+
+This capability is currently part of the Python API. The VesEdge CLI still performs extraction and QC together for each ND2 input.
 
 ---
 
