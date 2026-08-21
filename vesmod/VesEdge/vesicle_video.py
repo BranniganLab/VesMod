@@ -17,6 +17,7 @@ from .vesicle_video_utils import downsample_to_new_indices
 from .models import (
     EdgeDetection,
     EdgeDetectionFailure,
+    EdgeQC,
     EdgeResult,
     ImageContour,
 )
@@ -146,7 +147,7 @@ class VesicleVideo:
         ],
     ) -> None:
         """
-        Extract edges from every frame and save as `EdgeDetection`.
+        Extract edges from every frame and run quality control.
 
         Frames that produce errors are saved as `EdgeDetectionFailure`.
 
@@ -169,17 +170,63 @@ class VesicleVideo:
             try:
                 r_vals, vesicle_center = extractor_func(frame)
                 self._validate_extractor_results(r_vals)
-                detected_edge = self._compile_edge_detection_results(r_vals, vesicle_center)
+                detected_edge = self._compile_edge_detection_results(
+                    r_vals,
+                    vesicle_center,
+                )
             except Exception as error:
                 traceback.print_exc()
-                self.detections.append(EdgeDetectionFailure(str(error)))
+                self.detections.append(
+                    EdgeDetectionFailure(str(error))
+                )
                 continue
 
-            self._run_frame_qc(frame, detected_edge)
             self.detections.append(detected_edge)
+
+        self.run_qc()
+
+    def run_qc(
+        self,
+        qc_config: EdgeQCConfig | None = None,
+    ) -> None:
+        """
+        Run enabled quality-control checks on existing edge detections.
+
+        Existing QC results are cleared before checks are rerun.
+
+        Parameters
+        ----------
+        qc_config : EdgeQCConfig | None, optional
+            New QC configuration to use. If None, use the video's current
+            configuration.
+
+        Raises
+        ------
+        ValueError
+            If there are no successful detections, if successful detections
+            have inconsistent angular sample counts, or if no detection passes
+            quality control.
+        """
+        if qc_config is not None:
+            self.qc_config = qc_config
+
         self._validate_detection_lengths()
+        self._reset_qc()
+
+        for detection in self.detections:
+            if isinstance(detection, EdgeDetection):
+                self._run_frame_qc(detection)
+
         self._run_trajectory_qc()
         self._validate_usable_detections()
+
+    def _reset_qc(self) -> None:
+        """Clear all stored quality-control results."""
+        self.population_result = None
+
+        for detection in self.detections:
+            if isinstance(detection, EdgeDetection):
+                detection.qc = EdgeQC()
 
     def _compile_edge_detection_results(
         self,
@@ -205,12 +252,21 @@ class VesicleVideo:
         center = (vesicle_center[1], vesicle_center[0])
         full_contour = ImageContour(center, r_vals)
         if self.extraction_config.n_angular_samples is not None:
-            downsampled_r_vals = self._downsample_r_vals(r_vals, self.extraction_config.n_angular_samples)
+            downsampled_r_vals = self._downsample_r_vals(
+                r_vals,
+                self.extraction_config.n_angular_samples,
+            )
             analysis_contour = ImageContour(center, downsampled_r_vals)
-            rescaled_r = downsampled_r_vals / self.extraction_config.pixels_per_micron
+            rescaled_r = (
+                downsampled_r_vals
+                / self.extraction_config.pixels_per_micron
+            )
         else:
             analysis_contour = full_contour
-            rescaled_r = r_vals / self.extraction_config.pixels_per_micron
+            rescaled_r = (
+                r_vals
+                / self.extraction_config.pixels_per_micron
+            )
 
         edge = EdgeDetection(full_contour, analysis_contour, rescaled_r)
         return edge
@@ -295,18 +351,15 @@ class VesicleVideo:
                 "quality control."
             )
 
-    def _run_frame_qc(self, frame: np.ndarray, edge: EdgeDetection) -> None:
+    def _run_frame_qc(self, edge: EdgeDetection) -> None:
         """
         Run quality-control checks that operate on a single detected edge.
 
-        Applies all QC checks that require only the current video frame and its
-        corresponding edge detection. Results are recorded in the detection's
-        QC information.
+        Applies all QC checks that require only one edge detection. Results are
+        recorded in the detection's QC information.
 
         Parameters
         ----------
-        frame : numpy.ndarray
-            Image frame from which the edge was extracted.
         edge : EdgeDetection
             Edge detection to evaluate.
 
