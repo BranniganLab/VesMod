@@ -178,7 +178,7 @@ def test_run_frame_qc_calls_all_frame_level_checks(monkeypatch, video):
 
     monkeypatch.setattr("vesmod.VesEdge.vesicle_video.check_curvature", fake_curvature)
     edge = video._compile_edge_detection_results(np.full(200, 20.0), (60.0, 50.0))
-    video._run_frame_qc(video.frames[0], edge)
+    video._run_frame_qc(edge)
     assert calls == [("curvature", video.qc_config.curvature_threshold)]
 
 
@@ -189,7 +189,7 @@ def test_extract_edges_records_successful_detections(monkeypatch, extraction_con
     def extractor(frame):
         return np.full(200, 20.0), (60.0, 50.0)
 
-    monkeypatch.setattr(video, "_run_frame_qc", lambda frame, edge: None)
+    monkeypatch.setattr(video, "_run_frame_qc", lambda edge: None)
     monkeypatch.setattr(video, "_run_trajectory_qc", lambda: None)
     video.extract_edges(extractor)
     assert len(video.detections) == 2
@@ -224,7 +224,7 @@ def test_run_frame_qc_skips_curvature_when_disabled(monkeypatch, extraction_conf
         lambda edge, threshold: calls.append(threshold),
     )
     edge = video._compile_edge_detection_results(np.full(200, 20.0), (60.0, 50.0))
-    video._run_frame_qc(video.frames[0], edge)
+    video._run_frame_qc(edge)
     assert calls == []
 
 
@@ -239,7 +239,7 @@ def test_extract_edges_preserves_frame_order_after_failure(monkeypatch, extracti
             raise RuntimeError("failure")
         return np.full(200, 20.0), (60.0, 50.0)
 
-    monkeypatch.setattr(video, "_run_frame_qc", lambda frame, edge: None)
+    monkeypatch.setattr(video, "_run_frame_qc", lambda edge: None)
     monkeypatch.setattr(video, "_run_trajectory_qc", lambda: None)
     video.extract_edges(extractor)
     assert isinstance(video.detections[0], EdgeDetection)
@@ -262,7 +262,7 @@ def test_extract_edges_rejects_inconsistent_detection_lengths(monkeypatch, qc_co
             return np.full(180, 20.0), (60.0, 50.0)
         return np.full(200, 20.0), (60.0, 50.0)
 
-    monkeypatch.setattr(video, "_run_frame_qc", lambda frame, edge: None)
+    monkeypatch.setattr(video, "_run_frame_qc", lambda edge: None)
     with pytest.raises(ValueError, match="inconsistent numbers of angular samples"):
         video.extract_edges(extractor)
 
@@ -274,13 +274,96 @@ def test_extract_edges_raises_when_no_frames_pass_qc(monkeypatch, extraction_con
     def extractor(frame):
         return np.full(200, 20.0), (60.0, 50.0)
 
-    def reject_edge(frame, edge):
+    def reject_edge(edge):
         edge.qc.flags.add(QCFlag.CURVATURE)
 
     monkeypatch.setattr(video, "_run_frame_qc", reject_edge)
     monkeypatch.setattr(video, "_run_trajectory_qc", lambda: None)
     with pytest.raises(ValueError, match="no frames passed quality control"):
         video.extract_edges(extractor)
+
+
+def test_run_qc_can_recover_previous_curvature_rejection(extraction_config):
+    """Test rerunning QC can accept an edge rejected by earlier settings."""
+    strict_qc = EdgeQCConfig(
+        curvature_threshold=1.0,
+        population_bic_threshold=10.0,
+        max_minor_population_fraction=0.25,
+        enable_population_qc=False,
+    )
+    permissive_qc = EdgeQCConfig(
+        curvature_threshold=100.0,
+        population_bic_threshold=10.0,
+        max_minor_population_fraction=0.25,
+        enable_population_qc=False,
+    )
+    video = VesicleVideo(
+        np.zeros((1, 200, 200)),
+        extraction_config,
+        strict_qc,
+    )
+    radii = np.full(200, 20.0)
+    radii[60] = 40.0
+
+    def extractor(frame):
+        return radii.copy(), (60.0, 50.0)
+
+    with pytest.raises(ValueError, match="no frames passed quality control"):
+        video.extract_edges(extractor)
+
+    assert QCFlag.CURVATURE in video.detections[0].qc.flags
+
+    video.run_qc(permissive_qc)
+
+    assert QCFlag.CURVATURE not in video.detections[0].qc.flags
+    assert video.detections[0].accepted
+
+
+def test_run_qc_updates_qc_config(monkeypatch, video):
+    """Test rerunning QC can replace the video's QC configuration."""
+    edge = video._compile_edge_detection_results(
+        np.full(200, 20.0),
+        (60.0, 50.0),
+    )
+    video.detections = [edge]
+    new_config = EdgeQCConfig(
+        curvature_threshold=20.0,
+        population_bic_threshold=5.0,
+        max_minor_population_fraction=0.2,
+        enable_population_qc=False,
+    )
+    monkeypatch.setattr(video, "_run_frame_qc", lambda detection: None)
+
+    video.run_qc(new_config)
+
+    assert video.qc_config is new_config
+
+
+def test_run_qc_clears_previous_population_results(monkeypatch, video):
+    """Test rerunning QC clears stale trajectory-level QC state."""
+    edge = video._compile_edge_detection_results(
+        np.full(200, 20.0),
+        (60.0, 50.0),
+    )
+    edge.qc.flags.add(QCFlag.POPULATION_OUTLIER)
+    edge.qc.population_label = 1
+    edge.qc.population_probability = 0.9
+    video.detections = [edge]
+    video.population_result = object()
+    new_config = EdgeQCConfig(
+        curvature_threshold=100.0,
+        population_bic_threshold=10.0,
+        max_minor_population_fraction=0.25,
+        enable_population_qc=False,
+    )
+    monkeypatch.setattr(video, "_run_frame_qc", lambda detection: None)
+
+    video.run_qc(new_config)
+
+    assert video.population_result is None
+    assert edge.qc.population_label is None
+    assert edge.qc.population_probability is None
+    assert QCFlag.POPULATION_OUTLIER not in edge.qc.flags
 
 
 def test_save_edge_to_npy_only_saves_accepted_detections(tmp_path, video):
@@ -303,7 +386,7 @@ def test_extract_edges_replaces_previous_detections(monkeypatch, extraction_conf
     def extractor(frame):
         return np.full(200, 20.0), (60.0, 50.0)
 
-    monkeypatch.setattr(video, "_run_frame_qc", lambda frame, edge: None)
+    monkeypatch.setattr(video, "_run_frame_qc", lambda edge: None)
     monkeypatch.setattr(video, "_run_trajectory_qc", lambda: None)
     video.extract_edges(extractor)
     first_detections = list(video.detections)
