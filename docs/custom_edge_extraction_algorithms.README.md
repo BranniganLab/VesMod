@@ -232,5 +232,11 @@ extractor did not successfully detect an edge in any frame. It also
 raises an error if successful detections have inconsistent angular sample
 counts when they have not been standardized by downsampling.
 
+If edge extraction succeeds for one or more frames but no detections pass
+the enabled quality-control checks, `extract_edges()` raises a separate
+error indicating that no frames passed quality control. This means the
+extractor produced usable contour data, but every successful detection was
+rejected by the configured QC checks.
+
 ---
 
