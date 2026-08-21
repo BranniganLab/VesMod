@@ -84,10 +84,17 @@ def test_run_qc_requires_configuration(edges):
         edges.run_qc()
 
 
-def test_run_qc_updates_configuration(edges, qc_config):
-    """Test that QC records the configuration used for completed results."""
+def test_run_qc_records_aggregate_results(edges, qc_config):
+    """Test that a completed QC run records config and enabled QC results."""
     edges.run_qc(qc_config)
+
+    assert edges.qc_result is not None
+    assert edges.qc_result.config is qc_config
     assert edges.qc_config is qc_config
+    assert edges.qc_result.curvature is not None
+    assert len(edges.qc_result.curvature.scores) == 2
+    assert edges.qc_result.curvature.rejected_count == 0
+    assert edges.qc_result.population is None
 
 
 def test_run_qc_can_recover_previous_curvature_rejection(extraction_config):
@@ -117,25 +124,31 @@ def test_run_qc_can_recover_previous_curvature_rejection(extraction_config):
     with pytest.raises(ValueError, match="no frames passed quality control"):
         edge_results.run_qc(strict)
     assert edge_results.qc_config is strict
+    assert edge_results.qc_result is not None
+    assert edge_results.qc_result.curvature is not None
+    assert edge_results.qc_result.curvature.rejected_count == 1
     assert QCFlag.CURVATURE in detection.qc.flags
 
     edge_results.run_qc(permissive)
 
+    assert edge_results.qc_result is not None
+    assert edge_results.qc_result.curvature is not None
+    assert edge_results.qc_result.curvature.rejected_count == 0
     assert QCFlag.CURVATURE not in detection.qc.flags
     assert detection.qc.passed
 
 
-def test_run_qc_clears_stale_population_state(edges, qc_config):
-    """Test that a new QC run discards prior derived trajectory state."""
+def test_run_qc_clears_stale_qc_state(edges, qc_config):
+    """Test that a new QC run discards prior per-detection QC state."""
     first = edges.successful_detections[0]
     first.qc.flags.add(QCFlag.POPULATION_OUTLIER)
     first.qc.population_label = 1
     first.qc.population_probability = 0.9
-    edges.population_result = object()
 
     edges.run_qc(qc_config)
 
-    assert edges.population_result is None
+    assert edges.qc_result is not None
+    assert edges.qc_result.population is None
     assert first.qc.population_label is None
     assert first.qc.population_probability is None
     assert QCFlag.POPULATION_OUTLIER not in first.qc.flags
@@ -198,8 +211,8 @@ def test_checkpoint_round_trip_preserves_extraction_not_qc(
 
     loaded = VesicleEdges.from_checkpoint(tmp_path / "sample.npz")
 
+    assert loaded.qc_result is None
     assert loaded.qc_config is None
-    assert loaded.population_result is None
     assert loaded.extraction_config == extraction_config
     assert isinstance(loaded.detections[0], EdgeDetection)
     assert isinstance(loaded.detections[1], EdgeDetectionFailure)
@@ -256,5 +269,6 @@ def test_from_checkpoint_can_be_re_qced_with_new_settings(
     )
     loaded.run_qc(new_config)
 
-    assert loaded.qc_config is new_config
+    assert loaded.qc_result is not None
+    assert loaded.qc_result.config is new_config
     assert len(loaded.accepted_detections) == 1
