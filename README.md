@@ -148,7 +148,9 @@ edges.run_qc(qc_config)
 edges.save_edge_to_npy("sample.npy")
 ```
 
-The same `VesicleEdges` object can be re-QCed with different settings. Checkpoints store extraction state only; QC decisions are derived and reset on each `run_qc()` call.
+After a completed QC run, `edges.qc_result` contains the configuration and the results from each enabled QC stage. `edges.qc_result.curvature` summarizes curvature scores and rejections, while `edges.qc_result.population` contains the center/radius population-analysis result. Per-detection QC annotations remain available on each `EdgeDetection.qc`.
+
+The same `VesicleEdges` object can be re-QCed with different settings. Checkpoints store extraction state only; QC decisions and `qc_result` are derived and reset on each `run_qc()` call.
 
 ---
 
