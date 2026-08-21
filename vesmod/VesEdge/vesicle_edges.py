@@ -105,14 +105,16 @@ class VesicleEdges:
 
         Existing QC state is cleared before every run. Supplying ``qc_config``
         replaces the most recently completed configuration; omitting it reuses
-        that configuration.
+        that configuration. If a completed run rejects every detection, this
+        method raises ``ValueError`` but retains the newly applied configuration,
+        aggregate QC result, and per-detection QC flags for inspection.
 
         Raises
         ------
         ValueError
             If no QC configuration is available or no detection passes QC.
         """
-        config = qc_config or self.qc_config
+        config = self.qc_config if qc_config is None else qc_config
         if config is None:
             raise ValueError(
                 "A quality-control configuration is required before QC can run."
