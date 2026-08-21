@@ -14,10 +14,13 @@ from .checkpoint_io import load_checkpoint, save_checkpoint
 from .config import EdgeExtractionConfig, EdgeQCConfig
 from .edge_filtering import check_curvature, check_edge_populations
 from .models import (
+    CurvatureQCResult,
     EdgeDetection,
     EdgePopulationResult,
     EdgeQC,
     EdgeResult,
+    QCFlag,
+    VesicleQCResult,
 )
 
 
@@ -35,12 +38,7 @@ class VesicleEdges:
 
     extraction_config: EdgeExtractionConfig
     detections: list[EdgeResult]
-    _qc_config: EdgeQCConfig | None = field(
-        default=None,
-        init=False,
-        repr=False,
-    )
-    population_result: EdgePopulationResult | None = field(
+    qc_result: VesicleQCResult | None = field(
         default=None,
         init=False,
     )
@@ -52,7 +50,9 @@ class VesicleEdges:
     @property
     def qc_config(self) -> EdgeQCConfig | None:
         """Return the configuration used for the most recent completed QC run."""
-        return self._qc_config
+        if self.qc_result is None:
+            return None
+        return self.qc_result.config
 
     @property
     def successful_detections(self) -> list[EdgeDetection]:
@@ -72,7 +72,7 @@ class VesicleEdges:
         ValueError
             If quality control has not yet completed on this object.
         """
-        if self._qc_config is None:
+        if self.qc_result is None:
             raise ValueError(
                 "Quality control has not been run on these extracted edges."
             )
@@ -112,7 +112,7 @@ class VesicleEdges:
         ValueError
             If no QC configuration is available or no detection passes QC.
         """
-        config = qc_config or self._qc_config
+        config = qc_config or self.qc_config
         if config is None:
             raise ValueError(
                 "A quality-control configuration is required before QC can run."
@@ -120,18 +120,22 @@ class VesicleEdges:
 
         self._validate_detection_lengths()
         self._reset_qc()
-        self._qc_config = None
 
         for detection in self.successful_detections:
             self._apply_frame_qc(detection, config)
 
-        self._apply_trajectory_qc(config)
-        self._qc_config = config
+        curvature_result = self._curvature_qc_result(config)
+        population_result = self._apply_trajectory_qc(config)
+        self.qc_result = VesicleQCResult(
+            config=config,
+            curvature=curvature_result,
+            population=population_result,
+        )
         self._validate_usable_detections()
 
     def _reset_qc(self) -> None:
         """Clear all previously derived quality-control state."""
-        self.population_result = None
+        self.qc_result = None
         for detection in self.successful_detections:
             detection.qc = EdgeQC()
 
@@ -147,18 +151,41 @@ class VesicleEdges:
                 threshold=config.curvature_threshold,
             )
 
+    def _curvature_qc_result(
+        self,
+        config: EdgeQCConfig,
+    ) -> CurvatureQCResult | None:
+        """Summarize frame-level curvature QC for the completed run."""
+        if not config.enable_curvature_qc:
+            return None
+
+        detections = self.successful_detections
+        scores = tuple(
+            float(detection.qc.curvature_score)
+            for detection in detections
+            if detection.qc.curvature_score is not None
+        )
+        rejected_count = sum(
+            QCFlag.CURVATURE in detection.qc.flags
+            for detection in detections
+        )
+        return CurvatureQCResult(
+            scores=scores,
+            rejected_count=rejected_count,
+        )
+
     def _apply_trajectory_qc(
         self,
         config: EdgeQCConfig,
-    ) -> None:
+    ) -> EdgePopulationResult | None:
         """Apply enabled QC checks that operate across the trajectory."""
-        self.population_result = None
-        if config.enable_population_qc:
-            self.population_result = check_edge_populations(
-                self.detections,
-                bic_threshold=config.population_bic_threshold,
-                max_minor_fraction=config.max_minor_population_fraction,
-            )
+        if not config.enable_population_qc:
+            return None
+        return check_edge_populations(
+            self.detections,
+            bic_threshold=config.population_bic_threshold,
+            max_minor_fraction=config.max_minor_population_fraction,
+        )
 
     def _validate_detection_lengths(self) -> None:
         """Verify successful detections have consistent analysis lengths."""
