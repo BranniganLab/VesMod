@@ -51,7 +51,7 @@ def test_init_accepts_string_path_to_npy_file(tmp_path):
 def test_init_from_vesicle_edges_uses_only_accepted_detections():
     """Test that VesicleEdges input contributes only accepted radii."""
     extraction_config = EdgeExtractionConfig(
-        pixels_per_micron=1.0,
+        pixels_per_micron=2.0,
         n_angular_samples=4,
     )
     qc_config = EdgeQCConfig(
@@ -64,21 +64,19 @@ def test_init_from_vesicle_edges_uses_only_accepted_detections():
 
     accepted_contour = ImageContour(
         (0.0, 0.0),
-        np.full(4, 2.0),
+        np.full(4, 4.0),
     )
     accepted = EdgeDetection(
         accepted_contour,
         accepted_contour,
-        np.full(4, 2.0),
     )
     rejected_contour = ImageContour(
         (0.0, 0.0),
-        np.full(4, 9.0),
+        np.full(4, 18.0),
     )
     rejected = EdgeDetection(
         rejected_contour,
         rejected_contour,
-        np.full(4, 9.0),
     )
     edges = VesicleEdges(
         extraction_config,
@@ -101,7 +99,7 @@ def test_init_from_vesicle_edges_requires_qc():
     contour = ImageContour((0.0, 0.0), np.full(4, 2.0))
     edges = VesicleEdges(
         EdgeExtractionConfig(1.0, 4),
-        [EdgeDetection(contour, contour, np.full(4, 2.0))],
+        [EdgeDetection(contour, contour)],
     )
 
     with pytest.raises(
