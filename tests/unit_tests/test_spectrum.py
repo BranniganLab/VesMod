@@ -8,6 +8,15 @@ import pytest
 
 from vesmod.EdgeMod import Spectrum
 from vesmod.EdgeMod.spectrum_utils import MiniSpectrum
+from vesmod.VesEdge import (
+    EdgeDetection,
+    EdgeDetectionFailure,
+    EdgeExtractionConfig,
+    EdgeQCConfig,
+    QCFlag,
+    VesicleVideo,
+)
+from vesmod.VesEdge.models import ImageContour
 
 
 def test_init_from_npy_calculates_r0_avg_amps2_and_integer_modes(tmp_path):
@@ -33,6 +42,86 @@ def test_init_accepts_string_path_to_npy_file(tmp_path):
     spectrum = Spectrum(str(infile))
 
     assert spectrum.r0 == pytest.approx(3.0)
+
+
+def test_init_from_vesicle_video_uses_only_accepted_detections():
+    """Test that VesicleVideo input contributes only accepted detection radii."""
+    extraction_config = EdgeExtractionConfig(
+        pixels_per_micron=1.0,
+        n_angular_samples=4,
+    )
+    qc_config = EdgeQCConfig(
+        curvature_threshold=10.0,
+        population_bic_threshold=10.0,
+        max_minor_population_fraction=0.25,
+    )
+    video = VesicleVideo(
+        np.zeros((3, 10, 10)),
+        extraction_config,
+        qc_config,
+    )
+
+    accepted_contour = ImageContour(
+        (0.0, 0.0),
+        np.full(4, 2.0),
+    )
+    accepted = EdgeDetection(
+        accepted_contour,
+        accepted_contour,
+        np.full(4, 2.0),
+    )
+
+    rejected_contour = ImageContour(
+        (0.0, 0.0),
+        np.full(4, 9.0),
+    )
+    rejected = EdgeDetection(
+        rejected_contour,
+        rejected_contour,
+        np.full(4, 9.0),
+    )
+    rejected.qc.flags.add(QCFlag.CURVATURE)
+
+    video.detections = [
+        accepted,
+        rejected,
+        EdgeDetectionFailure("failure"),
+    ]
+
+    spectrum = Spectrum(video)
+
+    assert spectrum.r0 == pytest.approx(2.0)
+    np.testing.assert_allclose(
+        spectrum.avg_amps2,
+        np.array([1.0, 0.0, 0.0, 0.0]),
+    )
+
+
+def test_init_from_vesicle_video_requires_accepted_detections():
+    """Test that VesicleVideo input fails clearly when no detection is accepted."""
+    extraction_config = EdgeExtractionConfig(
+        pixels_per_micron=1.0,
+        n_angular_samples=4,
+    )
+    qc_config = EdgeQCConfig(
+        curvature_threshold=10.0,
+        population_bic_threshold=10.0,
+        max_minor_population_fraction=0.25,
+    )
+    video = VesicleVideo(
+        np.zeros((1, 10, 10)),
+        extraction_config,
+        qc_config,
+    )
+    video.detections = [
+        EdgeDetectionFailure("failure"),
+    ]
+
+    with pytest.raises(
+        ValueError,
+        match="no accepted edge detections",
+    ):
+        Spectrum(video)
 
 
 def test_init_applies_frame_cutoff_before_calculating_r0(tmp_path):

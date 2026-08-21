@@ -9,7 +9,11 @@ from pathlib import Path
 
 import nd2
 
-from vesmod.VesEdge import VesicleVideo
+from vesmod.VesEdge import (
+    EdgeExtractionConfig,
+    EdgeQCConfig,
+    VesicleVideo,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -31,16 +35,42 @@ def parse_args() -> argparse.Namespace:
         help="Search subdirectories when input_path is a directory.",
     )
     parser.add_argument(
-        "--micron-to-pixel-ratio",
+        "--pixels-per-micron",
         type=float,
         default=1.0,
-        help="Microns per pixel in the microscope image.",
+        help="Pixels per micron in the microscope image. Default: 1.",
     )
     parser.add_argument(
         "--curvature-threshold",
         type=float,
         default=5,
-        help="Curvature threshold passed to extract_edges. Default: 5.",
+        help=(
+            "Maximum wrapped finite second difference allowed by curvature QC. "
+            "Default: 5."
+        ),
+    )
+    parser.add_argument(
+        "--population-bic-threshold",
+        type=float,
+        default=10.0,
+        help=(
+            "Minimum BIC improvement required to prefer two center/radius "
+            "populations. Default: 10."
+        ),
+    )
+    parser.add_argument(
+        "--max-minor-population-fraction",
+        type=float,
+        default=0.25,
+        help=(
+            "Maximum fraction of detections that may belong to a minor "
+            "population for it to be rejected. Default: 0.25."
+        ),
+    )
+    parser.add_argument(
+        "--no-population-qc",
+        action="store_true",
+        help="Disable trajectory-level center/radius population QC.",
     )
     parser.add_argument(
         "--no-gif",
@@ -50,21 +80,28 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--downsample",
         action="store_true",
-        help="If used, downsamples edge extraction outputs to --n-samples evenly-spaced values.",
+        help=(
+            "If used, downsample edge extraction outputs to --n-samples "
+            "evenly spaced values."
+        ),
     )
     parser.add_argument(
         "--n-samples",
         default=120,
         type=int,
-        help="If --downsample is used, downsamples edge extraction outputs to --n-samples evenly-spaced values. Default is 120.",
+        help=(
+            "If --downsample is used, downsample edge extraction outputs to "
+            "--n-samples evenly spaced values. Default: 120."
+        ),
     )
     parser.add_argument(
         "--extractor",
         default="vesmod.VesEdge:extract_edge_from_frame",
         help=(
             "Edge extractor function as 'module:function'. "
-            "The function must accept one 2D frame and return (r_vals, vesicle_center). "
-            "Default: vesmod.VesEdge:extract_edge_from_frame."
+            "The function must accept one 2D frame and return "
+            "(r_vals, vesicle_center). Default: "
+            "vesmod.VesEdge:extract_edge_from_frame."
         ),
     )
     parser.add_argument(
@@ -120,7 +157,10 @@ def load_extractor_from_file(file_path: Path, function_name: str):
     if not file_path.exists():
         raise FileNotFoundError(f"Extractor file does not exist: {file_path}")
 
-    spec = importlib.util.spec_from_file_location("custom_vesedge_extractor", file_path)
+    spec = importlib.util.spec_from_file_location(
+        "custom_vesedge_extractor",
+        file_path,
+    )
     if spec is None or spec.loader is None:
         raise ImportError(f"Could not import extractor file: {file_path}")
 
@@ -141,11 +181,21 @@ def process_file(path: Path, args: argparse.Namespace) -> None:
     if not args.no_gif:
         output_paths.append(path.with_suffix(".gif"))
 
-    existing_paths = [output_path for output_path in output_paths if output_path.exists()]
+    existing_paths = [
+        output_path
+        for output_path in output_paths
+        if output_path.exists()
+    ]
 
     if existing_paths and not args.overwrite:
-        existing_names = ", ".join(output_path.name for output_path in existing_paths)
-        print(f"Skipping {path.name}: output file(s) already exist: {existing_names}")
+        existing_names = ", ".join(
+            output_path.name
+            for output_path in existing_paths
+        )
+        print(
+            f"Skipping {path.name}: output file(s) already exist: "
+            f"{existing_names}"
+        )
         return
 
     if args.extractor_file is not None:
@@ -158,15 +208,38 @@ def process_file(path: Path, args: argparse.Namespace) -> None:
 
     print(f"Working on file {path.stem}")
     intensities = nd2.imread(path)
-    if args.downsample:
-        video = VesicleVideo(intensities, args.micron_to_pixel_ratio, args.n_samples)
-    else:
-        video = VesicleVideo(intensities, args.micron_to_pixel_ratio, None)
 
-    video.extract_edges(
-        extractor_func,
-        curvature_threshold=args.curvature_threshold,
+    n_angular_samples = (
+        args.n_samples
+        if args.downsample
+        else None
     )
+
+    extraction_config = EdgeExtractionConfig(
+        pixels_per_micron=args.pixels_per_micron,
+        n_angular_samples=n_angular_samples,
+    )
+    qc_config = EdgeQCConfig(
+        curvature_threshold=args.curvature_threshold,
+        population_bic_threshold=args.population_bic_threshold,
+        max_minor_population_fraction=args.max_minor_population_fraction,
+        enable_curvature_qc=True,
+        enable_population_qc=not args.no_population_qc,
+    )
+
+    video = VesicleVideo(
+        intensities,
+        extraction_config,
+        qc_config,
+    )
+    try:
+        video.extract_edges(extractor_func)
+    except ValueError as error:
+        print(
+            f"Failed to extract edges from {path.name}: {error}"
+        )
+        return
+
     if not args.no_gif:
         video.make_vesicle_gif(path)
     video.save_edge_to_npy(path)

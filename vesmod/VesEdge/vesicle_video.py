@@ -7,11 +7,85 @@ Created on Wed Nov  5 10:42:28 2025.
 """
 from dataclasses import dataclass, field
 from pathlib import Path
+from collections.abc import Callable
 import traceback
 import numpy as np
+from numpy.typing import NDArray
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
-from .vesicle_video_utils import convert_to_cartesian, measure_wrapped_finite_second_difference, downsample_to_new_indices
+from .vesicle_video_utils import downsample_to_new_indices
+from .models import (
+    EdgeDetection,
+    EdgeDetectionFailure,
+    EdgeResult,
+    ImageContour,
+)
+from .edge_filtering import (
+    EdgePopulationResult,
+    EdgeQCConfig,
+    check_curvature,
+    check_edge_populations,
+)
+
+
+@dataclass(frozen=True)
+class EdgeExtractionConfig:
+    """
+    Configuration parameters for the edge extractor.
+
+    Attributes
+    ----------
+    pixels_per_micron : float
+        How many pixels in the image represent one micron in real space.
+    n_angular_samples : int | None
+        How many angular samples to downsample to. If None, do not downsample.
+    """
+
+    pixels_per_micron: float = 1
+    n_angular_samples: int | None = 120
+
+    def __post_init__(self) -> None:
+        """Validate and normalize edge-extraction configuration."""
+        if not np.isfinite(self.pixels_per_micron):
+            raise ValueError("pixels_per_micron must be finite.")
+        if self.pixels_per_micron <= 0:
+            raise ValueError("pixels_per_micron must be positive.")
+
+        if self.n_angular_samples is None:
+            return
+
+        if not isinstance(
+            self.n_angular_samples,
+            (int, float),
+        ):
+            raise TypeError(
+                "n_angular_samples must be an integer-valued number or None."
+            )
+
+        if not np.isfinite(self.n_angular_samples):
+            raise ValueError(
+                "n_angular_samples must be finite."
+            )
+
+        if not float(self.n_angular_samples).is_integer():
+            raise ValueError(
+                "n_angular_samples must be integer-valued."
+            )
+
+        n_angular_samples = int(
+            self.n_angular_samples
+        )
+
+        if n_angular_samples <= 0:
+            raise ValueError(
+                "n_angular_samples must be positive."
+            )
+
+        object.__setattr__(
+            self,
+            "n_angular_samples",
+            n_angular_samples,
+        )
 
 
 @dataclass
@@ -25,34 +99,28 @@ class VesicleVideo:
     ----------
         frames : numpy ndarray
             The 3D array of raw images. 0th dimension is frame number.
-        micron_to_pixel_ratio : float
-            The number of microns to pixels in your microscope image.
-        vesicle_centers : list of tuples
-            List of len(frames.shape[0]) containing Cartesian coordinates of the
-            approximate vesicle center for each frame. Needed for wrapping images
-            to/from polar coordinates.
-        r_vals : numpy ndarray
-            The distance from vesicle_center on frame i to the edge of the vesicle
-            on frame i. Evenly spaced in theta, ranging from 0 to 2pi.
-        x_vals, y_vals : numpy ndarrays
-            The Cartesian coordinates of the vesicle edge.
-        status : list[int]
-            List of ints containing status code for each frame. 1 = useable frame,
-            2 = error on edge extraction, 3 = unreliable edge extraction.
+        extraction_config : EdgeExtractionConfig
+            The configuration parameters for the edge extractor.
+        qc_config : EdgeQCConfig
+            The configuration parameters for the quality control checks.
+        detections : list[EdgeResult]
+            The edge detections for each frame.
+        population_result : EdgePopulationResult | None
+            The relevant details from trajectory QC.
     """
 
     frames: np.ndarray
-    micron_to_pixel_ratio: float
-    n_angular_samples: int | None = 120
-    vesicle_centers: list = field(init=False)
-    r_vals: np.ndarray = field(init=False)
-    x_vals: np.ndarray = field(init=False)
-    y_vals: np.ndarray = field(init=False)
-    status: list = field(init=False)
+    extraction_config: EdgeExtractionConfig
+    qc_config: EdgeQCConfig
+    detections: list[EdgeResult] = field(default_factory=list)
+    population_result: EdgePopulationResult | None = field(
+        default=None,
+        init=False,
+    )
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """
-        Do argument validation on frames. Initialize all else to None, nan, or 0.
+        Do argument validation.
 
         Raises
         ------
@@ -60,108 +128,98 @@ class VesicleVideo:
             If frames is not an ndarray.
         IndexError
             If frames is not a 3D ndarray.
-
-        Returns
-        -------
-        None.
-
+            If n_angular_samples is greater than the number of samples.
         """
         if not isinstance(self.frames, np.ndarray):
             raise TypeError("frames must be a numpy ndarray.")
         if len(self.frames.shape) != 3:
             raise IndexError("frames must be a 3D array.")
-        if self.micron_to_pixel_ratio <= 0:
-            raise ValueError("pixel_to_micron_ratio must be positive.")
-        if isinstance(self.n_angular_samples, int):
-            if self.n_angular_samples <= 0:
-                raise ValueError("n_angular_samples must be positive")
-            if self.n_angular_samples > self.frames.shape[1]:
-                raise IndexError(f"Cannot downsample r_vals with len {self.frames.shape[1]} to {self.n_angular_samples}.")
-        elif not isinstance(self.n_angular_samples, type(None)):
-            raise ValueError("n_angular_samples must be an int or None.")
+        downsample_to = self.extraction_config.n_angular_samples
+        if downsample_to is not None and downsample_to > self.frames.shape[1]:
+            raise IndexError(f"Cannot downsample r_vals with len {self.frames.shape[1]} to {downsample_to}.")
 
-        self.vesicle_centers = [None] * self.frames.shape[0]
-        if self.n_angular_samples is not None:
-            self.r_vals = np.full((self.frames.shape[0], self.n_angular_samples), np.nan)
-        else:
-            self.r_vals = np.full((self.frames.shape[0], self.frames.shape[1]), np.nan)
-        self.x_vals = np.full((self.frames.shape[0], self.frames.shape[1] + 1), np.nan)
-        self.y_vals = np.full((self.frames.shape[0], self.frames.shape[1] + 1), np.nan)
-        self.status = np.zeros(self.frames.shape[0]).astype(int)
-
-    def extract_edges(self, extractor_func, curvature_threshold=5):
+    def extract_edges(
+        self,
+        extractor_func: Callable[
+            [NDArray[np.float64]],
+            tuple[NDArray[np.float64], tuple[float, float]],
+        ],
+    ) -> None:
         """
-        Extract edges from every frame.
+        Extract edges from every frame and save as `EdgeDetection`.
 
-        Frames that fail edge extraction are marked with status 2. If every frame
-        fails, raise a RuntimeError because this likely indicates a systemic problem
-        with the extractor, input video, or extraction configuration.
+        Frames that produce errors are saved as `EdgeDetectionFailure`.
+
+        Parameters
+        ----------
+        extractor_func : Callable
+            The extractor function you wish to use to extract edges. Must take
+            a 2D numpy array as an input (one frame). Must output a 1D NDArray
+            of radii and a tuple containing the vesicle center in (y,x) format.
+
+        Raises
+        ------
+        ValueError
+            If no frame produced a successful detection.
+            If successful detections have inconsistent angular sample counts.
+            If no detection passed quality control.
         """
-        failed_frames = []
-
-        for frame_num, _ in enumerate(self.frames):
+        self.detections = []
+        for frame in self.frames:
             try:
-                r_vals, vesicle_center = extractor_func(self.frames[frame_num, :, :])
-                if r_vals.ndim != 1:
-                    raise ValueError("Extractor must return a 1D array of r-values.")
-                self._add_edge_to_video_frame(
-                    frame_num,
-                    r_vals,
-                    vesicle_center,
-                    curvature_threshold,
-                )
+                r_vals, vesicle_center = extractor_func(frame)
+                self._validate_extractor_results(r_vals)
+                detected_edge = self._compile_edge_detection_results(r_vals, vesicle_center)
             except Exception as error:
-                print(f"Error on frame {frame_num}")
                 traceback.print_exc()
-                self.status[frame_num] = 2
-                failed_frames.append(frame_num)
+                self.detections.append(EdgeDetectionFailure(str(error)))
+                continue
 
-        if len(failed_frames) == self.frames.shape[0]:
-            raise RuntimeError(
-                "Edge extraction failed on every frame. This likely indicates a "
-                "systemic issue with the extractor function, input video, or "
-                "extraction settings."
-            )
+            self._run_frame_qc(frame, detected_edge)
+            self.detections.append(detected_edge)
+        self._validate_detection_lengths()
+        self._run_trajectory_qc()
+        self._validate_usable_detections()
 
-    def _add_edge_to_video_frame(self, frame_num, r_vals, vesicle_center, curvature_threshold):
+    def _compile_edge_detection_results(
+        self,
+        r_vals: NDArray[np.float64],
+        vesicle_center: tuple[float, float],
+    ) -> EdgeDetection:
         """
         Save detected edge information for a given frame.
 
         Parameters
         ----------
-        frame_num : int
-            The frame number.
-        r_vals : list or numpy ndarray
+        r_vals : numpy ndarray
             The list or 1D array of radial distances from the vesicle_center,
             spaced evenly from 0 to 2pi.
         vesicle_center : tuple
-            The origin (in x, y) of the polar coordinate system.
-        curvature_threshold : float
-            The level of curvature allowed between two contiguous r_vals before
-            edge extraction would be deemed unreliable.
+            The origin (in y, x) of the polar coordinate system.
 
         Returns
         -------
-        None.
+        EdgeDetection
 
         """
-        self.vesicle_centers[frame_num] = vesicle_center
-        self.x_vals[frame_num], self.y_vals[frame_num] = convert_to_cartesian((vesicle_center[1], vesicle_center[0],), r_vals)
-
-        if self.n_angular_samples is not None:
-            r_vals = self._downsample_r_vals(r_vals, self.n_angular_samples)
-
-        finite_second_difference = measure_wrapped_finite_second_difference(r_vals)
-        if (np.fabs(finite_second_difference) >= curvature_threshold).any():
-            self.status[frame_num] = 3
-        elif np.isnan(finite_second_difference).any():
-            self.status[frame_num] = 2
+        center = (vesicle_center[1], vesicle_center[0])
+        full_contour = ImageContour(center, r_vals)
+        if self.extraction_config.n_angular_samples is not None:
+            downsampled_r_vals = self._downsample_r_vals(r_vals, self.extraction_config.n_angular_samples)
+            analysis_contour = ImageContour(center, downsampled_r_vals)
+            rescaled_r = downsampled_r_vals / self.extraction_config.pixels_per_micron
         else:
-            self.status[frame_num] = 1
+            analysis_contour = full_contour
+            rescaled_r = r_vals / self.extraction_config.pixels_per_micron
 
-        self.r_vals[frame_num] = r_vals * self.micron_to_pixel_ratio
+        edge = EdgeDetection(full_contour, analysis_contour, rescaled_r)
+        return edge
 
-    def _downsample_r_vals(self, r_vals: np.ndarray, n_samples: int = 120) -> np.ndarray:
+    def _downsample_r_vals(
+        self,
+        r_vals: NDArray[np.float64],
+        n_samples: int = 120
+    ) -> NDArray[np.float64]:
         """
         Downsample a vesicle edge profile to a fixed number of angular samples.
 
@@ -201,7 +259,90 @@ class VesicleVideo:
         downsampled_r_vals = downsample_to_new_indices(r_vals, new_evenly_spaced_indices)
         return downsampled_r_vals
 
-    def make_vesicle_gif(self, path, show_trace=True):
+    def _validate_extractor_results(self, r_vals: NDArray[np.float64]) -> None:
+        """Check to make sure extractor returns a 1D ndarray."""
+        if not isinstance(r_vals, np.ndarray):
+            raise TypeError(f"Extractor must return an NDArray, not {type(r_vals)}.")
+        if r_vals.ndim != 1:
+            raise ValueError("Extractor must return a 1D array of r-values.")
+
+    def _validate_detection_lengths(self) -> None:
+        """Verify successful detections have consistent analysis-contour lengths."""
+        unique_lengths = {
+            detection.radii_microns.shape[0]
+            for detection in self.detections
+            if isinstance(detection, EdgeDetection)
+        }
+        if not unique_lengths:
+            raise ValueError(
+                "Edge extraction produced no successful detections. "
+                "Check the edge extractor implementation or input images."
+            )
+        if len(unique_lengths) > 1:
+            raise ValueError(
+                "Extracted edges have inconsistent numbers of angular samples."
+            )
+
+    def _validate_usable_detections(self) -> None:
+        """Verify that at least one detected edge passes quality control."""
+        if not any(
+            isinstance(detection, EdgeDetection)
+            and detection.accepted
+            for detection in self.detections
+        ):
+            raise ValueError(
+                "Edge extraction produced detections, but no frames passed "
+                "quality control."
+            )
+
+    def _run_frame_qc(self, frame: np.ndarray, edge: EdgeDetection) -> None:
+        """
+        Run quality-control checks that operate on a single detected edge.
+
+        Applies all QC checks that require only the current video frame and its
+        corresponding edge detection. Results are recorded in the detection's
+        QC information.
+
+        Parameters
+        ----------
+        frame : numpy.ndarray
+            Image frame from which the edge was extracted.
+        edge : EdgeDetection
+            Edge detection to evaluate.
+
+        Returns
+        -------
+        None
+        """
+        if self.qc_config.enable_curvature_qc:
+            check_curvature(
+                edge,
+                threshold=self.qc_config.curvature_threshold,
+            )
+
+    def _run_trajectory_qc(self) -> None:
+        """
+        Run quality-control checks that require detections across video frames.
+
+        Applies QC checks that use information from multiple edge detections in
+        the video, such as identifying anomalous populations based on vesicle
+        center and radius. Results are recorded in the QC information associated
+        with the affected detections.
+
+        Returns
+        -------
+        None
+        """
+        self.population_result = None
+
+        if self.qc_config.enable_population_qc:
+            self.population_result = check_edge_populations(
+                self.detections,
+                bic_threshold=self.qc_config.population_bic_threshold,
+                max_minor_fraction=self.qc_config.max_minor_population_fraction,
+            )
+
+    def make_vesicle_gif(self, path: Path, show_trace: bool = True) -> None:
         """
         Make a .gif of the vesicle, with or without the detected edges shown.
 
@@ -215,7 +356,8 @@ class VesicleVideo:
         Raises
         ------
         ValueError
-            If show_trace is True, but there are no edges saved.
+            If ``show_trace`` is True and there is not exactly one detection
+            result for every video frame.
 
         Returns
         -------
@@ -224,31 +366,49 @@ class VesicleVideo:
         """
         if not isinstance(path, Path):
             path = Path(path).resolve()
-        if (show_trace and np.isnan(self.x_vals[0]).any()):
-            raise ValueError("trace was set to True, but there are no edges detected for this vesicle.")
         output_path = path.with_suffix('.gif')
+
+        if show_trace:
+            if len(self.detections) != self.frames.shape[0]:
+                raise ValueError(f"There are {len(self.detections)} detections and {self.frames.shape[0]} frames.")
+
         fig, ax = plt.subplots()
 
         def animate(i):
             ax.clear()
             ax.set_title(f"frame {i} / {self.frames.shape[0]}")
             ax.imshow(self.frames[i], cmap='gray', animated='True')
-            if show_trace:
-                if self.status[i] == 1:
-                    ax.plot(self.x_vals[i], self.y_vals[i], color='tab:green')
-                elif self.status[i] == 3:
-                    ax.plot(self.x_vals[i], self.y_vals[i], color='tab:red')
+            if show_trace and isinstance(self.detections[i], EdgeDetection):
+                contour = self.detections[i].full_contour
+                if self.detections[i].accepted:
+                    ax.plot(contour.x, contour.y, color='tab:green')
+                else:
+                    ax.plot(contour.x, contour.y, color='tab:red')
 
         ani = FuncAnimation(fig, animate, frames=self.frames.shape[0], interval=150, blit=False, repeat_delay=1000)
         ani.save(output_path)
         plt.close()
 
-    def save_edge_to_npy(self, path):
-        """Save r_vals to a .npy file, removing frames with bad edge extraction."""
-        if np.isnan(self.r_vals).all():
-            raise AttributeError("Edge detection has not occurred, or went wrong.")
+    def save_edge_to_npy(self, path: Path) -> None:
+        """
+        Save accepted radii to a .npy file.
+
+        Frames with failed edge extraction and frames rejected by quality
+        control are excluded.
+
+        Raises
+        ------
+        ValueError
+            If no accepted edge detection is available.
+        """
         output_values = []
-        for frame_num, status in enumerate(self.status):
-            if status == 1:
-                output_values.append(self.r_vals[frame_num, :])
+        if not isinstance(path, Path):
+            path = Path(path).resolve()
+        for edge in self.detections:
+            if isinstance(edge, EdgeDetection) and edge.accepted:
+                output_values.append(edge.radii_microns)
+        if not output_values:
+            raise ValueError(
+                "Cannot save edges: no accepted edge detections are available."
+            )
         np.save(path.with_suffix('.npy'), np.array(output_values))
