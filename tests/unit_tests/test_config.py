@@ -15,6 +15,34 @@ def test_edge_extraction_config_requires_positive_pixels_per_micron():
         )
 
 
+def test_edge_extraction_config_accepts_numpy_real_scalars():
+    """Test NumPy real scalars are accepted and normalized."""
+    config = EdgeExtractionConfig(
+        pixels_per_micron=np.float64(2.5),
+        n_angular_samples=np.int64(120),
+    )
+
+    assert config.pixels_per_micron == 2.5
+    assert isinstance(config.pixels_per_micron, float)
+    assert config.n_angular_samples == 120
+    assert isinstance(config.n_angular_samples, int)
+
+
+def test_edge_extraction_config_rejects_bool_numeric_inputs():
+    """Test booleans are not accepted as numeric extraction settings."""
+    with pytest.raises(TypeError, match="pixels_per_micron must be a real number"):
+        EdgeExtractionConfig(
+            pixels_per_micron=True,
+            n_angular_samples=120,
+        )
+
+    with pytest.raises(TypeError, match="n_angular_samples must be"):
+        EdgeExtractionConfig(
+            pixels_per_micron=1.0,
+            n_angular_samples=True,
+        )
+
+
 def test_edge_extraction_config_converts_integer_valued_sample_count():
     """Test that integer-valued sample counts are normalized to int."""
     config = EdgeExtractionConfig(
