@@ -35,6 +35,14 @@ def save_checkpoint(
         raise ValueError(
             "Cannot save a checkpoint with no successful detections."
         )
+    if any(
+        edge.full_contour.origin != edge.analysis_contour.origin
+        for edge in successful
+    ):
+        raise ValueError(
+            "Cannot save a checkpoint when full and analysis contour origins "
+            "differ."
+        )
 
     result_types = np.asarray(
         [
