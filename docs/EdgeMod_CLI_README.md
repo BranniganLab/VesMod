@@ -1,14 +1,47 @@
 # EdgeMod CLI
 
-EdgeMod fits membrane mechanical parameters from QC-filtered vesicle contour trajectories. It reads one or more NumPy `.npy` files, computes fluctuation spectra, fits membrane bending rigidity and optionally surface tension, and writes one JSON result per input file.
+EdgeMod is a command-line tool for fitting membrane bending moduli from vesicle contour data. It reads one or more NumPy `.npy` edge files, computes fluctuation spectra, fits membrane mechanical parameters, and writes the results to JSON files for downstream analysis.
+
+## Features
+
+* Process a single `.npy` file or every `.npy` file in a directory
+* Optional recursive directory traversal
+* Automatic fluctuation spectrum calculation
+* Fitting of membrane bending modulus ($k_C$)
+* Optional fitting of membrane surface tension ($\sigma$)
+* Configurable Fourier fitting range
+* Configurable spherical harmonic summation limit
+* JSON output for downstream analysis
+
+---
+
+## Installation
+
+Install EdgeMod into your Python environment.
+
+```bash
+git clone <repository-url>
+cd VesMod
+pip install .
+```
+
+Verify that the CLI is available:
+
+```bash
+edgemod --help
+```
+
+---
 
 ## Quick Start
+
+Fit membrane mechanical parameters from a single contour file:
 
 ```bash
 edgemod sample.npy
 ```
 
-This writes:
+This performs a fit using the default fitting parameters and writes:
 
 ```text
 sample.json
@@ -18,97 +51,202 @@ sample.json
 
 ## Input Requirements
 
-Each `.npy` file must contain a two-dimensional array with shape:
+EdgeMod operates on vesicle contour arrays stored in NumPy `.npy` files.
+
+The recommended input is a contour file produced by VesEdge:
 
 ```text
+sample.npy
+```
+
+Each row represents one accepted video frame and each column represents one angular sample along the vesicle contour.
+
+The expected array shape is:
+
+```python
 (n_frames, n_theta)
 ```
 
-where each row is one accepted vesicle contour and each column is one angular sample. Radii must be stored in microns.
+where:
 
-The recommended input is produced from a `VesicleEdges` object **after QC has been run**:
+* `n_frames` is the number of accepted contour measurements
+* `n_theta` is the number of angular samples per contour
+
+For example:
 
 ```python
-edges.run_qc(qc_config)
-edges.save_edge_to_npy("sample.npy")
+import numpy as np
+
+edges = np.load("sample.npy")
+print(edges.shape)
+
+# (250, 120)
 ```
 
-A VesEdge `.npz` checkpoint is **not** an EdgeMod input. The checkpoint contains reusable, QC-independent extraction results. Apply a QC configuration first to produce the filtered `.npy` trajectory used by EdgeMod.
+In this example, the file contains 250 accepted contours, each sampled at 120 angular positions.
 
-This separation makes it natural to compare several QC configurations:
+Distances should be stored in microns.
 
-```text
-sample.npz
-   ├── QC A -> qc_a/sample.npy -> EdgeMod
-   ├── QC B -> qc_b/sample.npy -> EdgeMod
-   └── QC C -> qc_c/sample.npy -> EdgeMod
-```
+VesEdge `.npy` output contains only contours that passed its enabled
+quality-control checks and is directly suitable as EdgeMod CLI input.
 
 ---
 
-## File Selection
+## Command Line Interface Arguments
 
-Single file:
+### File Selection Options
+
+#### Single file
 
 ```bash
 edgemod sample.npy
 ```
 
-All `.npy` files in a directory:
+#### Directory
 
 ```bash
-edgemod ./qc_standard
+edgemod ./edges
 ```
 
-Recursive directory search:
+When `INPUT_PATH` is a directory, EdgeMod processes files matching:
+
+```text
+*.npy
+```
+
+in that directory.
+
+#### Recursive directory search
 
 ```bash
-edgemod ./results --recursive
+edgemod ./edges --recursive
+```
+
+With `--recursive`, EdgeMod processes files matching:
+
+```text
+**/*.npy
 ```
 
 ---
 
-## Fitting Options
+### Fourier Mode Fitting Range
 
-### Fourier mode range
+#### `--lower-fitting-bound`
 
 ```bash
-edgemod sample.npy \
-    --lower-fitting-bound 3 \
-    --upper-fitting-bound 8
+edgemod sample.npy --lower-fitting-bound 3
 ```
 
-The lower bound is included and the upper bound is excluded. The defaults therefore fit modes `q = 3, 4, 5, 6, 7`.
+Lowest Fourier mode included in the fit.
 
-### Spherical harmonic summation
+Default:
+
+```text
+3
+```
+
+#### `--upper-fitting-bound`
+
+```bash
+edgemod sample.npy --upper-fitting-bound 8
+```
+
+First Fourier mode excluded from the fit.
+
+For example:
+
+```text
+lower = 3
+upper = 8
+```
+
+fits modes:
+
+```text
+q = 3, 4, 5, 6, 7
+```
+
+Default:
+
+```text
+8
+```
+
+---
+
+### Spherical Harmonic Summation
+
+#### `--lmax`
 
 ```bash
 edgemod sample.npy --lmax 500
 ```
 
-Default: `500`.
+Maximum spherical harmonic index used when evaluating the theoretical fluctuation spectrum.
 
-### Surface tension
+Larger values increase computational cost but may improve convergence in some situations.
 
-By default both bending rigidity and surface tension are fitted. To hold surface tension fixed:
+Default:
+
+```text
+500
+```
+
+---
+
+### Surface Tension Treatment
+
+#### Free surface tension fit (default)
+
+By default, EdgeMod fits both:
+
+```text
+kC
+sigma
+```
+
+as free parameters.
+
+#### `--fixed-sigma`
 
 ```bash
 edgemod sample.npy --fixed-sigma
 ```
 
+Use a fixed-surface-tension model in which only the bending modulus is optimized.
+
+Default:
+
+```text
+False
+```
+
+---
+
 ### Temperature
+
+#### `--temperature`
 
 ```bash
 edgemod sample.npy --temperature 295
 ```
 
-Temperature is specified in Kelvin. Default: `295`.
+Experimental temperature in Kelvin.
+
+The value is used when converting between thermal energy and membrane mechanical parameters.
+
+Default:
+
+```text
+295
+```
 
 ---
 
-## Output
+## Output Files
 
-For:
+For an input file:
 
 ```text
 sample.npy
@@ -120,7 +258,68 @@ EdgeMod writes:
 sample.json
 ```
 
-The JSON contains the fitted mechanical parameters and spectrum metadata.
+---
+
+### JSON Output
+
+```text
+sample.json
+```
+
+The JSON file contains the spectrum metadata and fitted membrane mechanical parameters.
+
+Load the output with:
+
+```python
+import json
+
+with open("sample.json") as f:
+    results = json.load(f)
+```
+
+The exact fields may vary depending on the fitting options used and the version of EdgeMod.
+
+---
+
+## Example Workflows
+
+### Analyze a single vesicle
+
+```bash
+edgemod sample.npy
+```
+
+### Analyze every vesicle in a directory
+
+```bash
+edgemod ./edges
+```
+
+### Analyze an entire directory tree
+
+```bash
+edgemod ./edges --recursive
+```
+
+### Use a different fitting range
+
+```bash
+edgemod sample.npy \
+    --lower-fitting-bound 4 \
+    --upper-fitting-bound 10
+```
+
+### Use a different temperature
+
+```bash
+edgemod sample.npy --temperature 310
+```
+
+### Fit only the bending modulus
+
+```bash
+edgemod sample.npy --fixed-sigma
+```
 
 ---
 
@@ -128,11 +327,36 @@ The JSON contains the fitted mechanical parameters and spectrum metadata.
 
 ### `No .npy files found`
 
-Confirm that the selected path contains QC-filtered VesEdge `.npy` outputs rather than `.npz` extraction checkpoints.
+Check that:
+
+* the input path exists
+* the files have the `.npy` extension
+* `--recursive` is used if the files are located in subdirectories
+
+---
+
+### `Expected a .npy file`
+
+This occurs when `INPUT_PATH` is a file, but its suffix is not `.npy`.
+
+---
 
 ### Fits produce unexpected values
 
-Possible causes include poor contour quality, too few accepted frames, an inappropriate Fourier fitting range, or incorrect experimental temperature. Compare the QC acceptance behavior and inspect the contour data before interpreting differences in fitted parameters.
+Potential causes include:
+
+* poor contour quality in the input `.npy` file
+* an inappropriate Fourier fitting range
+* too few accepted contour measurements
+* temperature values inconsistent with the experiment
+
+Inspect the contour data and consider adjusting:
+
+```text
+--lower-fitting-bound
+--upper-fitting-bound
+--lmax
+```
 
 ---
 
