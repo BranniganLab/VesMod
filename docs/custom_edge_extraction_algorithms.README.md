@@ -9,16 +9,13 @@ Custom extractors are useful for:
 - adapting VesEdge to new imaging conditions
 - benchmarking against the default VesEdge extractor
 
-Custom extractors can be provided in two ways:
-
-1. as an importable Python module and function
-2. as a standalone Python file containing a function
+Custom extractors can be provided either as an importable Python function or as a standalone Python file.
 
 ---
 
 ## Required Custom Extractor Interface
 
-A custom edge extractor must be a Python function with this interface:
+A custom edge extractor must have this interface:
 
 ```python
 def my_edge_extractor(frame):
@@ -26,38 +23,20 @@ def my_edge_extractor(frame):
     return r_vals, vesicle_center
 ```
 
-The function receives one image frame at a time.
+The function receives one two-dimensional NumPy image frame at a time.
 
-### Input: `frame`
+### `r_vals`
 
-`frame` is a two-dimensional NumPy array containing pixel intensities from one microscopy image.
-
-Example:
-
-```python
-def my_edge_extractor(frame):
-    print(frame.shape)
-```
-
-A typical frame shape might be:
-
-```text
-(512, 512)
-```
-
-### Output: `r_vals`
-
-`r_vals` must be a one-dimensional NumPy `ndarray` of radial distances
-from the vesicle center to the vesicle edge.
+`r_vals` must be a one-dimensional NumPy `ndarray` of radial distances from the vesicle center to the detected edge.
 
 Requirements:
 
-- a NumPy `ndarray`
-- one-dimensional
-- numeric
-- evenly spaced in angle
-- ordered from `0` to `2π` (exclusive)
-- measured in pixels, not microns
+- NumPy `ndarray`;
+- one-dimensional;
+- numeric;
+- evenly spaced in angle;
+- ordered from `0` to `2π` exclusive;
+- measured in pixels.
 
 Example:
 
@@ -67,17 +46,15 @@ import numpy as np
 r_vals = np.full(360, 100.0)
 ```
 
-### Output: `vesicle_center`
+### `vesicle_center`
 
-`vesicle_center` is the center used to define the polar contour.
-
-Use NumPy image-coordinate order:
+Return the center in NumPy image-coordinate order:
 
 ```python
 vesicle_center = (row_coordinate, column_coordinate)
 ```
 
-equivalently:
+or equivalently:
 
 ```python
 vesicle_center = (y_center, x_center)
@@ -89,7 +66,7 @@ Example:
 vesicle_center = (245.3, 261.8)
 ```
 
-The extractor must return exactly:
+The function must return exactly:
 
 ```python
 return r_vals, vesicle_center
@@ -97,30 +74,27 @@ return r_vals, vesicle_center
 
 ---
 
-## Minimal Custom Extractor Example
+## Minimal Example
 
-This example returns a constant-radius circle. It is useful for testing that the CLI can load a custom extractor, but it is not a real edge detection algorithm.
-
-Create a file named `constant_radius_extractor.py`:
+Create `constant_radius_extractor.py`:
 
 ```python
 import numpy as np
 
 
 def constant_radius_extractor(frame):
-    """Return a constant-radius circular contour for CLI testing."""
+    """Return a constant-radius contour for CLI testing."""
     center_y = frame.shape[0] / 2
     center_x = frame.shape[1] / 2
     vesicle_center = (center_y, center_x)
 
-    n_theta = 360
     radius_pixels = min(frame.shape) / 4
-    r_vals = np.full(n_theta, radius_pixels)
+    r_vals = np.full(360, radius_pixels)
 
     return r_vals, vesicle_center
 ```
 
-Run:
+Run it with:
 
 ```bash
 vesedge sample.nd2 \
@@ -128,79 +102,17 @@ vesedge sample.nd2 \
     --extractor-name constant_radius_extractor
 ```
 
----
-
-## Using an Extractor From a Python File
-
-Use `--extractor-file` when your extractor is in a standalone Python file.
-
-```bash
-vesedge sample.nd2 \
-    --extractor-file ./my_extractor.py \
-    --extractor-name my_edge_extractor
-```
-
-The file must contain the function named by `--extractor-name`.
-
-Example `my_extractor.py`:
-
-```python
-import numpy as np
-
-
-def my_edge_extractor(frame):
-    """Extract an edge from one frame."""
-    center_y = frame.shape[0] / 2
-    center_x = frame.shape[1] / 2
-    vesicle_center = (center_y, center_x)
-
-    r_vals = np.full(360, min(frame.shape) / 4)
-
-    return r_vals, vesicle_center
-```
-
-If `--extractor-file` is provided, VesEdge uses the function from that file. In the current CLI behavior, this takes precedence over `--extractor`.
+The extraction CLI writes a reusable `.npz` checkpoint rather than a QC-filtered `.npy` file.
 
 ---
 
-## Using an Extractor From an Importable Module
+## Importable Module
 
-Use `--extractor` when your extractor is in an importable Python module.
-
-The syntax is:
-
-```text
-module:function
-```
-
-Example:
+Use `--extractor` with `module:function` syntax:
 
 ```bash
 vesedge sample.nd2 \
     --extractor my_package.my_module:my_edge_extractor
-```
-
-If you have a file named `my_extractors.py` on your Python path:
-
-```python
-import numpy as np
-
-
-def my_edge_extractor(frame):
-    center_y = frame.shape[0] / 2
-    center_x = frame.shape[1] / 2
-    vesicle_center = (center_y, center_x)
-
-    r_vals = np.full(360, min(frame.shape) / 4)
-
-    return r_vals, vesicle_center
-```
-
-you can run:
-
-```bash
-vesedge sample.nd2 \
-    --extractor my_extractors:my_edge_extractor
 ```
 
 Default:
@@ -209,47 +121,69 @@ Default:
 vesmod.VesEdge:extract_edge_from_frame
 ```
 
+If `--extractor-file` is supplied, the function from that file takes precedence over `--extractor`.
+
 ---
 
-## Practical Extractor Recommendations
+## Extraction Failure Behavior
 
-A good custom extractor should:
+A good extractor should:
 
-- return a contour for every frame where the vesicle edge can be detected
-- raise an exception when extraction genuinely fails
-- return `r_vals` in pixels
-- return `vesicle_center` in `(row, column)` order
-- use a consistent number of angular samples across successful frames
-  when downsampling is disabled
-- avoid returning NaNs unless the frame should be treated as failed or unreliable
+- return a contour whenever the vesicle edge can be detected;
+- raise an exception when extraction genuinely fails;
+- return radii in pixels;
+- return the center in `(row, column)` order;
+- use consistent angular sampling across successful frames when downsampling is disabled.
 
-VesEdge catches exceptions raised by the extractor on individual frames,
-records those frames as extraction failures, and continues processing
-subsequent frames. After all frames have been processed, `extract_edges()`
-runs the configured quality-control checks over the stored successful
-detections.
+VesEdge catches exceptions raised on individual frames, records those frames as `EdgeDetectionFailure`, and continues processing later frames.
 
-After all frames have been processed, VesEdge raises an error if the
-extractor did not successfully detect an edge in any frame. It also
-raises an error if successful detections have inconsistent angular sample
-counts when they have not been standardized by downsampling.
+After all frames are processed, extraction fails if:
 
-If edge extraction succeeds for one or more frames but no detections pass
-the enabled quality-control checks, `extract_edges()` raises a separate
-error indicating that no frames passed quality control. This means the
-extractor produced usable contour data, but every successful detection was
-rejected by the configured QC checks.
+- no frame produced a successful detection; or
+- successful analysis contours have inconsistent angular sample counts.
 
-When using the Python API, the stored detections can later be evaluated again
-without rerunning the extractor:
+Quality-control outcomes are **not** extraction failures. `VesicleVideo.extract_edges()` does not run QC and returns a `VesicleEdges` object containing the reusable extraction results.
+
+---
+
+## Python API
 
 ```python
-video.run_qc(new_qc_config)
+from vesmod.VesEdge import (
+    EdgeExtractionConfig,
+    VesicleVideo,
+)
+
+video = VesicleVideo(frames)
+edges = video.extract_edges(
+    my_edge_extractor,
+    EdgeExtractionConfig(
+        pixels_per_micron=13.44,
+        n_angular_samples=120,
+    ),
+)
 ```
 
-`run_qc()` clears existing QC results before applying the new settings. This
-changes only quality-control state; it does not call the extractor again or
-replace the stored extraction results.
+Save the extraction state independently of QC:
 
----
+```python
+edges.save_checkpoint("sample.npz")
+```
 
+Later, reload it and run any QC configuration without invoking the extractor again:
+
+```python
+from vesmod.VesEdge import EdgeQCConfig, VesicleEdges
+
+edges = VesicleEdges.from_checkpoint("sample.npz")
+edges.run_qc(
+    EdgeQCConfig(
+        curvature_threshold=10.0,
+        population_bic_threshold=10.0,
+        max_minor_population_fraction=0.25,
+    )
+)
+edges.save_edge_to_npy("sample.npy")
+```
+
+This separation allows extractor development and QC tuning to be evaluated independently.
