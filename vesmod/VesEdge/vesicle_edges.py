@@ -162,8 +162,9 @@ class VesicleEdges:
         detections = self.successful_detections
         scores = tuple(
             float(detection.qc.curvature_score)
-            for detection in detections
             if detection.qc.curvature_score is not None
+            else float("nan")
+            for detection in detections
         )
         rejected_count = sum(
             QCFlag.CURVATURE in detection.qc.flags
