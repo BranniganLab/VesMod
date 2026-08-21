@@ -111,7 +111,7 @@ def test_check_curvature_accepts_score_equal_to_threshold():
 
     check_curvature(
         edge,
-        threshold=np.inf,
+        threshold=np.finfo(float).max,
     )
     threshold = edge.qc.curvature_score
 
