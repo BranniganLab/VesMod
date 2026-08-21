@@ -55,22 +55,41 @@ class VesicleVideo:
         ValueError
             If no frame produces a successful detection or successful analysis
             contours have inconsistent lengths.
+        IndexError
+            If the configured analysis sample count exceeds the number of
+            samples returned by the extractor for a frame.
         """
         detections: list[EdgeResult] = []
         for frame in self.frames:
             try:
                 r_vals, vesicle_center = extractor_func(frame)
                 self._validate_extractor_results(r_vals)
+            # Extractors are user-provided callables; any per-frame failure
+            # should be recorded without aborting the remaining trajectory.
+            # pylint: disable-next=broad-exception-caught
+            except Exception as error:  # noqa: BLE001
+                detections.append(EdgeDetectionFailure(str(error)))
+                continue
+
+            try:
                 detected_edge = self._compile_edge_detection_results(
                     r_vals,
                     vesicle_center,
                     extraction_config,
                 )
-            # Extractors are user-provided callables; any per-frame failure
-            # should be recorded without aborting the remaining trajectory.
-            except Exception as error:  # pylint: disable=broad-exception-caught
+            except IndexError as error:
+                n_samples = extraction_config.n_angular_samples
+                if n_samples is not None and n_samples > r_vals.shape[0]:
+                    raise
                 detections.append(EdgeDetectionFailure(str(error)))
                 continue
+            # Compilation can still fail on malformed extractor output; retain
+            # the established per-frame failure behavior for those cases.
+            # pylint: disable-next=broad-exception-caught
+            except Exception as error:  # noqa: BLE001
+                detections.append(EdgeDetectionFailure(str(error)))
+                continue
+
             detections.append(detected_edge)
 
         successful_count = sum(
