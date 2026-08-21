@@ -79,6 +79,40 @@ def test_extract_edges_preserves_frame_order_after_failure(
     assert isinstance(edges.detections[2], EdgeDetection)
 
 
+def test_extract_edges_records_extractor_index_error(
+    extraction_config,
+):
+    """Test an IndexError raised by an extractor remains a frame failure."""
+    frames = np.zeros((2, 200, 200))
+    frames[0] = 1.0
+    video = VesicleVideo(frames)
+
+    def extractor(frame):
+        if np.all(frame == 1.0):
+            raise IndexError("extractor index failure")
+        return np.full(200, 20.0), (60.0, 50.0)
+
+    edges = video.extract_edges(extractor, extraction_config)
+
+    assert isinstance(edges.detections[0], EdgeDetectionFailure)
+    assert edges.detections[0].error == "extractor index failure"
+    assert isinstance(edges.detections[1], EdgeDetection)
+
+
+def test_extract_edges_propagates_invalid_downsampling_configuration(video):
+    """Test an impossible analysis sample count is a configuration failure."""
+    config = EdgeExtractionConfig(
+        pixels_per_micron=1.0,
+        n_angular_samples=240,
+    )
+
+    def extractor(frame):
+        return np.full(200, 20.0), (60.0, 50.0)
+
+    with pytest.raises(IndexError, match="Cannot downsample"):
+        video.extract_edges(extractor, config)
+
+
 def test_extract_edges_raises_when_all_extractions_fail(
     video,
     extraction_config,
