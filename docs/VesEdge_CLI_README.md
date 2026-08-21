@@ -12,6 +12,7 @@ VesEdge is a command-line tool for extracting vesicle contours from ND2 microsco
 - Frame-level curvature quality control
 - Trajectory-level center/radius population quality control
 - Rerunnable quality control through the Python API without repeating edge extraction
+- Versioned `.npz` checkpoints for later QC reanalysis
 - GIF output for visual inspection
 - NumPy output for downstream analysis
 
@@ -237,7 +238,56 @@ video.run_qc(new_qc_config)
 
 When `run_qc()` is called, previously stored QC flags, curvature scores, population labels, population probabilities, and trajectory-level population results are cleared before the enabled checks are rerun. Passing a new `EdgeQCConfig` also replaces `video.qc_config`. If no config is supplied, the current `video.qc_config` is reused.
 
-This capability is currently part of the Python API. The VesEdge CLI still performs extraction and QC together for each ND2 input.
+### Saving a checkpoint for later reanalysis
+
+The regular `.npy` output contains only detections that passed the currently enabled QC checks. It is therefore a filtered analysis product and cannot restore detections that were previously rejected.
+
+If you may want to change QC settings later, save a checkpoint while the `VesicleVideo` is still available:
+
+```python
+video.save_checkpoint("sample_checkpoint.npz")
+```
+
+The versioned `.npz` checkpoint preserves:
+
+- successful detections, including detections rejected by the current QC settings
+- extraction failures and their original frame ordering
+- detected vesicle centers
+- native extracted contours
+- analysis contours
+- physical radii in microns
+- extraction and QC configuration values
+
+Raw image frames and existing QC results are not stored. QC results are recomputed when the checkpoint is loaded.
+
+Reload the checkpoint with the stored QC settings:
+
+```python
+video = VesicleVideo.from_checkpoint(
+    "sample_checkpoint.npz"
+)
+```
+
+or supply new QC settings immediately:
+
+```python
+video = VesicleVideo.from_checkpoint(
+    "sample_checkpoint.npz",
+    qc_config=new_qc_config,
+)
+```
+
+A checkpoint-loaded `VesicleVideo` has `frames=None`. It can rerun QC and save new accepted `.npy` outputs, but it cannot rerun edge extraction or generate an image GIF because the source image frames are not present.
+
+For example:
+
+```python
+video.save_edge_to_npy(
+    "sample_reanalyzed.npy"
+)
+```
+
+Checkpoint save/load is currently part of the Python API. The VesEdge CLI still performs extraction and QC together for each ND2 input and does not yet create or consume checkpoint files.
 
 ---
 
