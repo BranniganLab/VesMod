@@ -225,7 +225,9 @@ A good custom extractor should:
 
 VesEdge catches exceptions raised by the extractor on individual frames,
 records those frames as extraction failures, and continues processing
-subsequent frames.
+subsequent frames. After all frames have been processed, `extract_edges()`
+runs the configured quality-control checks over the stored successful
+detections.
 
 After all frames have been processed, VesEdge raises an error if the
 extractor did not successfully detect an edge in any frame. It also
@@ -237,6 +239,17 @@ the enabled quality-control checks, `extract_edges()` raises a separate
 error indicating that no frames passed quality control. This means the
 extractor produced usable contour data, but every successful detection was
 rejected by the configured QC checks.
+
+When using the Python API, the stored detections can later be evaluated again
+without rerunning the extractor:
+
+```python
+video.run_qc(new_qc_config)
+```
+
+`run_qc()` clears existing QC results before applying the new settings. This
+changes only quality-control state; it does not call the extractor again or
+replace the stored extraction results.
 
 ---
 
