@@ -13,6 +13,8 @@ from enum import Enum, auto
 import numpy as np
 from numpy.typing import NDArray
 
+from .config import EdgeQCConfig
+
 
 @dataclass(frozen=True)
 class ImageContour:
@@ -145,6 +147,23 @@ EdgeResult = EdgeDetection | EdgeDetectionFailure
 
 
 @dataclass(frozen=True)
+class CurvatureQCResult:
+    """Trajectory-level summary of frame curvature QC.
+
+    Attributes
+    ----------
+    scores : tuple[float, ...]
+        Curvature score for each successfully extracted detection, in detection
+        order. Non-finite contours are represented by ``nan``.
+    rejected_count : int
+        Number of detections rejected by curvature QC.
+    """
+
+    scores: tuple[float, ...]
+    rejected_count: int
+
+
+@dataclass(frozen=True)
 class EdgePopulationResult:
     """Results from trajectory-level center/radius population analysis.
 
@@ -185,3 +204,24 @@ class EdgePopulationResult:
             return None
 
         return self.bic_one_population - self.bic_two_populations
+
+
+@dataclass(frozen=True)
+class VesicleQCResult:
+    """Aggregate results from one completed VesEdge QC run.
+
+    Attributes
+    ----------
+    config : EdgeQCConfig
+        Configuration used for the QC run.
+    curvature : CurvatureQCResult | None
+        Summary of frame-level curvature QC. None when curvature QC was
+        disabled.
+    population : EdgePopulationResult | None
+        Summary of trajectory-level population QC. None when population QC was
+        disabled.
+    """
+
+    config: EdgeQCConfig
+    curvature: CurvatureQCResult | None
+    population: EdgePopulationResult | None
