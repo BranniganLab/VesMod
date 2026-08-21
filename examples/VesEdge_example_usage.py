@@ -44,14 +44,27 @@ for file in glob.glob(fpath + "*.nd2", recursive=True):
     )
     video.extract_edges(extract_edge_from_frame)
 
-    # Edge extraction automatically runs QC. To reevaluate the same detections
-    # later with different settings, create a new config and call run_qc().
-    # new_qc_config = EdgeQCConfig(
-    #     curvature_threshold=8,
-    #     population_bic_threshold=10,
-    #     max_minor_population_fraction=0.25,
-    # )
-    # video.run_qc(new_qc_config)
+    # Save all extraction results, including detections rejected by the current
+    # QC settings, if you may want to rerun QC later without re-extracting.
+    video.save_checkpoint(
+        path.with_name(f"{path.stem}_checkpoint.npz")
+    )
 
     video.make_vesicle_gif(path, show_trace=True)
     video.save_edge_to_npy(path)
+
+
+# A checkpoint can later be loaded without the original image frames and
+# reevaluated using different QC settings:
+# new_qc_config = EdgeQCConfig(
+#     curvature_threshold=8,
+#     population_bic_threshold=10,
+#     max_minor_population_fraction=0.25,
+# )
+# reloaded_video = VesicleVideo.from_checkpoint(
+#     "YOUR/PATH/HERE/sample_checkpoint.npz",
+#     qc_config=new_qc_config,
+# )
+# reloaded_video.save_edge_to_npy(
+#     "YOUR/PATH/HERE/sample_reanalyzed.npy"
+# )
