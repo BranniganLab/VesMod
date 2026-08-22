@@ -94,15 +94,15 @@ def constant_radius_extractor(frame):
     return r_vals, vesicle_center
 ```
 
-Run it with:
+Run it during the extraction stage:
 
 ```bash
-vesedge sample.nd2 \
+vesedge extract sample.nd2 \
     --extractor-file ./constant_radius_extractor.py \
     --extractor-name constant_radius_extractor
 ```
 
-The current CLI extracts edges, applies its configured QC checks, and writes the accepted contours to `.npy` as usual.
+This writes a QC-independent `.npz` checkpoint. Apply QC later with `vesedge qc`.
 
 ---
 
@@ -111,7 +111,7 @@ The current CLI extracts edges, applies its configured QC checks, and writes the
 Use `--extractor` with `module:function` syntax:
 
 ```bash
-vesedge sample.nd2 \
+vesedge extract sample.nd2 \
     --extractor my_package.my_module:my_edge_extractor
 ```
 
@@ -144,7 +144,22 @@ After all frames are processed, extraction fails if:
 
 When every frame fails, the raised error includes the recorded extractor error messages so a custom-extractor failure can be diagnosed without relying on printed tracebacks.
 
-Quality-control outcomes are **not** extraction failures. `VesicleVideo.extract_edges()` itself does not run QC and returns a `VesicleEdges` object containing reusable extraction results. The current CLI then runs QC as a separate step internally.
+Quality-control outcomes are **not** extraction failures. `VesicleVideo.extract_edges()` and `vesedge extract` do not run QC. They produce reusable extraction results that can later be evaluated under different QC configurations.
+
+For example:
+
+```bash
+vesedge extract sample.nd2 \
+    --extractor-file ./my_extractor.py \
+    --extractor-name my_edge_extractor \
+    --output-dir ./checkpoints
+
+vesedge qc ./checkpoints \
+    --curvature-threshold 10 \
+    --output-dir ./results/qc_standard
+```
+
+This separation is useful when developing an extractor because changes to the extraction algorithm can be distinguished from changes to QC policy.
 
 ---
 

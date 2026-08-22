@@ -1,4 +1,16 @@
-"""Example extraction, checkpoint, and re-QC workflow for VesEdge."""
+"""Example extraction, checkpoint, and re-QC workflow for VesEdge.
+
+Equivalent CLI workflow::
+
+    vesedge extract ./videos --pixels-per-micron 13.44 \
+        --downsample --n-samples 120 --output-dir ./checkpoints
+
+    vesedge qc ./checkpoints --curvature-threshold 10 \
+        --output-dir ./results/qc_standard
+
+    vesedge qc ./checkpoints --curvature-threshold 15 \
+        --output-dir ./results/qc_permissive
+"""
 
 import glob
 from pathlib import Path
@@ -34,15 +46,13 @@ for file in glob.glob(fpath + "*.nd2", recursive=True):
 
     # The checkpoint is the reusable output of extraction. It stores all
     # successful detections and extraction failures, but no QC decisions.
-    # Contours remain in image-space pixels; pixels_per_micron is stored with
-    # the checkpoint so physical radii can be derived later.
     edges.save_checkpoint(path)
 
-    # A GIF can be generated while the original image frames are available.
+    # A GIF can be generated only while the original image frames are present.
     video.make_vesicle_gif(path, edges)
 
 
-# Later, load a checkpoint and evaluate it under any QC configuration.
+# Later, load the same checkpoint and evaluate it under any QC configuration.
 qc_config = EdgeQCConfig(
     curvature_threshold=10,
     population_bic_threshold=10,
@@ -53,13 +63,13 @@ qc_config = EdgeQCConfig(
 # edges.run_qc(qc_config)
 # print(edges.qc_result.curvature)
 # print(edges.qc_result.population)
-# edges.save_edge_to_npy("YOUR/PATH/HERE/qc_standard/sample.npy")
+# edges.save_edge_to_npy("YOUR/PATH/HERE/results/qc_standard/sample.npy")
 
-# The same checkpoint can be evaluated again without rerunning extraction.
+# Evaluate the same checkpoint again without rerunning extraction.
 # permissive_qc = EdgeQCConfig(
 #     curvature_threshold=15,
 #     population_bic_threshold=10,
 #     max_minor_population_fraction=0.25,
 # )
 # edges.run_qc(permissive_qc)
-# edges.save_edge_to_npy("YOUR/PATH/HERE/qc_permissive/sample.npy")
+# edges.save_edge_to_npy("YOUR/PATH/HERE/results/qc_permissive/sample.npy")
