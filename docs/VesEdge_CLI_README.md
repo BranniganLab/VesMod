@@ -75,6 +75,8 @@ Search recursively:
 vesedge extract ./videos --recursive
 ```
 
+Directory discovery treats file suffixes case-insensitively, so `.nd2` and `.ND2` inputs are handled consistently.
+
 ## Output Location
 
 By default, `.npz` and GIF outputs are written beside each ND2 input.
@@ -92,6 +94,8 @@ sample.npz
 sample.gif
 ```
 
+When recursive input discovery is used with `--output-dir`, VesEdge preserves each input file's path relative to the selected input directory. For example, `videos/a/sample.nd2` and `videos/b/sample.nd2` produce `checkpoints/a/sample.npz` and `checkpoints/b/sample.npz` rather than colliding.
+
 The `.npz` file is the reusable extraction product. It contains successful detections, extraction failures, frame ordering, pixel-space native and analysis contours, and the extraction configuration. It contains no QC decisions.
 
 The GIF overlays the extracted full contour on the original image frames for visual inspection.
@@ -102,7 +106,7 @@ Disable GIF creation with:
 vesedge extract sample.nd2 --no-gif
 ```
 
-Existing outputs are not overwritten unless:
+Existing checkpoints are not overwritten unless:
 
 ```bash
 vesedge extract sample.nd2 --overwrite
@@ -167,7 +171,7 @@ The command requires an output directory:
 vesedge qc ./checkpoints --output-dir ./results/qc_standard
 ```
 
-Use a **different output directory for each QC configuration**. This keeps the `.npy` data, exact QC settings, and QC summary together as one reproducible analysis condition.
+Use a **different output directory for each QC configuration**. This keeps the `.npy` data, exact QC settings, resolved checkpoint selection, and QC summary together as one reproducible analysis condition.
 
 ## Input Selection
 
@@ -188,6 +192,8 @@ Search recursively with:
 ```bash
 vesedge qc ./checkpoints --recursive --output-dir ./results/qc_standard
 ```
+
+Directory discovery treats `.npz` suffixes case-insensitively. For recursive directory inputs, output `.npy` files preserve the checkpoint paths relative to the selected checkpoint directory, preventing equal filenames in different subdirectories from colliding.
 
 ## Curvature QC
 
@@ -250,24 +256,28 @@ results/qc_standard/
 
 Each `.npy` contains only contours accepted under the current QC configuration, with radial distances converted to microns. These files are directly consumable by EdgeMod.
 
-If a checkpoint completes QC but no frames are accepted, no `.npy` is written for that checkpoint. The failure is still represented in `qc_summary.csv`.
+If a checkpoint completes QC but no frames are accepted, no `.npy` is written for that checkpoint. The outcome is still represented in `qc_summary.csv`.
 
 ### `vesedge_qc.json`
 
 This file records:
 
-- the checkpoint input path;
+- the resolved checkpoint input path;
+- whether recursive discovery was enabled;
+- the resolved manifest of checkpoints selected for the batch;
 - `curvature_threshold`;
 - `population_bic_threshold`;
 - `max_minor_population_fraction`;
 - whether curvature QC was enabled;
 - whether population QC was enabled.
 
-If an output directory already contains a different QC configuration or input path, VesEdge refuses to mix the results unless `--overwrite` is explicitly supplied.
+Consequently, recursive and non-recursive runs, or runs resolving to different checkpoint sets, have different provenance even if their QC thresholds are identical.
+
+If an output directory already contains incompatible provenance, VesEdge refuses to mix the results unless `--overwrite` is explicitly supplied. An incompatible overwrite first removes VesEdge-managed `.npy` outputs and QC metadata from the previous batch so orphaned filtered results cannot remain under the new provenance.
 
 ### `qc_summary.csv`
 
-The summary contains one row per successfully loaded checkpoint with:
+The summary contains one row per selected checkpoint with:
 
 - total source frames;
 - successful edge detections;
@@ -276,8 +286,10 @@ The summary contains one row per successfully loaded checkpoint with:
 - population rejections;
 - accepted frames;
 - accepted fraction;
-- QC status;
-- any QC error message.
+- processing status;
+- any load or QC error message.
+
+A checkpoint that cannot be loaded receives a `load_error` row with zero counts and the loading error. Therefore `qc_summary.csv` is still written when every selected checkpoint fails to load.
 
 This file is intended to make it easy to compare how aggressive different QC configurations are before comparing the downstream EdgeMod results.
 
@@ -367,9 +379,9 @@ If downsampling is disabled, successful detections must have consistent analysis
 
 This is distinct from extraction failure. The checkpoint remains valid, but the selected QC configuration accepted no frames. The event is recorded in `qc_summary.csv` and no `.npy` is written for that checkpoint.
 
-### QC output directory already contains another configuration
+### QC output directory already contains another configuration or input selection
 
-Choose another `--output-dir`. Reusing one directory for multiple QC configurations makes provenance ambiguous and is intentionally blocked unless `--overwrite` is used.
+Choose another `--output-dir`. Reusing one directory for incompatible QC provenance is intentionally blocked unless `--overwrite` is used.
 
 ---
 
