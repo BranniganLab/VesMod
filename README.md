@@ -2,7 +2,7 @@
 
 VesMod is a Python package for extracting membrane contours from microscopy videos of giant unilamellar vesicles (GUVs) and estimating membrane bending rigidity from thermal shape fluctuations.
 
-The Python API separates image-dependent edge extraction from quality control and downstream fluctuation analysis so extracted contours can be reused under multiple QC configurations.
+VesEdge separates image-dependent edge extraction from quality control so the same extracted contours can be evaluated under multiple QC configurations without rerunning image processing.
 
 ---
 
@@ -17,10 +17,11 @@ Features include:
 * Automated vesicle edge detection
 * Processing of ND2 microscopy videos
 * User-supplied edge extraction algorithms
+* Reusable `.npz` extraction checkpoints
 * Frame-level curvature quality control
 * Trajectory-level center/radius population quality control
-* Reusable `.npz` extraction checkpoints through the Python API
 * Rerunnable QC without repeating edge extraction
+* QC provenance and batch-summary outputs
 * Optional angular downsampling
 * NumPy export of accepted contours
 * Annotated GIF generation for visual inspection
@@ -68,45 +69,99 @@ edgemod --help
 
 ---
 
-## Typical CLI Workflow
+## Recommended CLI Workflow
 
-### 1. Extract, QC, and save accepted contours
+VesEdge uses two explicit stages:
+
+```text
+ND2 videos
+   │
+   │ vesedge extract
+   ▼
+QC-independent .npz checkpoints
+   │
+   ├── vesedge qc, configuration A ──▶ accepted .npy files
+   ├── vesedge qc, configuration B ──▶ accepted .npy files
+   └── vesedge qc, configuration C ──▶ accepted .npy files
+                                            │
+                                            ▼
+                                         EdgeMod
+```
+
+Extract each microscopy video once and keep the resulting checkpoint. QC can then be rerun repeatedly without invoking the edge extractor again.
+
+### 1. Extract videos to checkpoints
 
 ```bash
-vesedge sample.nd2 \
+vesedge extract ./videos \
     --pixels-per-micron 13.44 \
     --downsample \
-    --n-samples 120
+    --n-samples 120 \
+    --output-dir ./checkpoints
 ```
 
-This generates:
+This creates one `.npz` checkpoint per input video and, unless `--no-gif` is used, a GIF showing the extracted contours.
 
 ```text
-sample.npy
-sample.gif
+checkpoints/
+├── sample01.npz
+├── sample01.gif
+├── sample02.npz
+└── sample02.gif
 ```
 
-The `.npy` file contains only contours accepted by the configured VesEdge QC checks and is ready for EdgeMod.
+The checkpoint contains extraction state only. It does not store QC decisions.
 
-### 2. Estimate membrane mechanical properties
+### 2. Apply a QC configuration
+
+Use a separate output directory for each QC configuration:
 
 ```bash
-edgemod sample.npy
+vesedge qc ./checkpoints \
+    --curvature-threshold 5 \
+    --population-bic-threshold 10 \
+    --max-minor-population-fraction 0.25 \
+    --output-dir ./results/qc_standard
 ```
 
-This generates:
+This creates:
 
 ```text
-sample.json
+results/qc_standard/
+├── sample01.npy
+├── sample02.npy
+├── vesedge_qc.json
+└── qc_summary.csv
 ```
 
-containing fitted membrane mechanical parameters.
+`vesedge_qc.json` records the exact QC configuration and input path. `qc_summary.csv` reports extraction failures, curvature rejections, population rejections, accepted-frame counts, and accepted fractions for each checkpoint.
+
+### 3. Compare alternate QC configurations
+
+For example:
+
+```bash
+vesedge qc ./checkpoints \
+    --curvature-threshold 10 \
+    --output-dir ./results/qc_permissive
+```
+
+Keeping each QC configuration in its own directory makes the analysis provenance explicit and allows the outputs to be compared directly.
+
+### 4. Analyze each QC result with EdgeMod
+
+```bash
+edgemod ./results/qc_standard
+edgemod ./results/qc_permissive
+```
+
+The resulting EdgeMod outputs can then be compared together with each directory's `vesedge_qc.json` and `qc_summary.csv` when reporting how sensitive the result is to QC choices.
 
 ---
 
-## Reusing Extraction Results in Python
+## Equivalent Python Workflow
 
-The refactored API separates raw video data from extracted-edge state:
+The Python API exposes the same separation:
 
 ```python
 from vesmod.VesEdge import (
@@ -125,15 +180,11 @@ edges = video.extract_edges(
         n_angular_samples=120,
     ),
 )
-```
 
-Save QC-independent extraction state:
-
-```python
 edges.save_checkpoint("sample.npz")
 ```
 
-Reload it later and apply a QC configuration without rerunning extraction:
+Reload the checkpoint and apply QC later:
 
 ```python
 edges = VesicleEdges.from_checkpoint("sample.npz")
@@ -148,9 +199,7 @@ edges.run_qc(qc_config)
 edges.save_edge_to_npy("sample.npy")
 ```
 
-After a completed QC run, `edges.qc_result` contains the configuration and the results from each enabled QC stage. `edges.qc_result.curvature` summarizes curvature scores and rejections, while `edges.qc_result.population` contains the center/radius population-analysis result. Per-detection QC annotations remain available on each `EdgeDetection.qc`.
-
-The same `VesicleEdges` object can be re-QCed with different settings. Checkpoints store extraction state only; QC decisions and `qc_result` are derived and reset on each `run_qc()` call.
+After a completed QC run, `edges.qc_result` contains the configuration and results from the enabled QC stages. Per-detection QC annotations remain available on each `EdgeDetection.qc`.
 
 ---
 
@@ -158,9 +207,11 @@ The same `VesicleEdges` object can be re-QCed with different settings. Checkpoin
 
 | File | Meaning |
 | --- | --- |
-| `.npz` | Reusable, QC-independent VesEdge extraction checkpoint created through the Python API |
-| `.npy` | Accepted contour radii for one QC configuration |
-| `.gif` | Visual inspection of image frames and extracted contours |
+| `.npz` | Reusable, QC-independent VesEdge extraction checkpoint |
+| `.gif` | Visual inspection of raw image frames with extracted contours |
+| `.npy` | Accepted contour radii for one QC configuration, ready for EdgeMod |
+| `vesedge_qc.json` | QC configuration and source path for one QC batch |
+| `qc_summary.csv` | Per-video QC counts and accepted fractions for one QC batch |
 | `.json` | EdgeMod spectrum/fitting output |
 
 ---
