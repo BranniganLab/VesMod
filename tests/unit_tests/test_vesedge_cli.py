@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -37,6 +38,50 @@ def _qc_args(tmp_path) -> argparse.Namespace:
         no_curvature_qc=False,
         no_population_qc=False,
     )
+
+
+def test_parse_args_selects_extract_subcommand(monkeypatch):
+    """Test extraction arguments are scoped to the extract subcommand."""
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "vesedge",
+            "extract",
+            "sample.nd2",
+            "--pixels-per-micron",
+            "13.44",
+        ],
+    )
+
+    args = vesedge_cli.parse_args()
+
+    assert args.command == "extract"
+    assert args.input_path == Path("sample.nd2")
+    assert args.pixels_per_micron == pytest.approx(13.44)
+
+
+def test_parse_args_selects_qc_subcommand(monkeypatch, tmp_path):
+    """Test QC arguments are scoped to the qc subcommand."""
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "vesedge",
+            "qc",
+            "checkpoints",
+            "--output-dir",
+            str(tmp_path),
+            "--no-population-qc",
+        ],
+    )
+
+    args = vesedge_cli.parse_args()
+
+    assert args.command == "qc"
+    assert args.input_path == Path("checkpoints")
+    assert args.output_dir == tmp_path
+    assert args.no_population_qc
 
 
 def test_process_extract_file_reports_failure_and_returns(monkeypatch, capsys):
@@ -195,7 +240,10 @@ def test_write_qc_provenance_rejects_different_configuration(tmp_path):
     )
 
     different = EdgeQCConfig(8.0, 10.0, 0.25)
-    with pytest.raises(ValueError, match="different input path or QC configuration"):
+    with pytest.raises(
+        ValueError,
+        match="different input path or QC configuration",
+    ):
         vesedge_cli._write_qc_provenance(
             tmp_path,
             different,
