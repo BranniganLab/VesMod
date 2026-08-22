@@ -196,8 +196,12 @@ def iter_input_files(
     if not input_path.is_dir():
         raise FileNotFoundError(f"Input path does not exist: {input_path}")
 
-    pattern = f"**/*{suffix}" if recursive else f"*{suffix}"
-    return sorted(input_path.glob(pattern))
+    pattern = "**/*" if recursive else "*"
+    return sorted(
+        candidate
+        for candidate in input_path.glob(pattern)
+        if candidate.is_file() and candidate.suffix.lower() == suffix
+    )
 
 
 def load_extractor_from_module(import_string: str):
@@ -231,27 +235,36 @@ def load_extractor_from_file(file_path: Path, function_name: str):
     return extractor
 
 
-def _output_base(path: Path, output_dir: Path | None) -> Path:
-    """Return output path without a suffix for one input file."""
+def _relative_input_path(path: Path, input_path: Path) -> Path:
+    """Return one selected file relative to the user-selected input root."""
+    resolved_path = path.expanduser().resolve()
+    resolved_input = input_path.expanduser().resolve()
+    if resolved_path == resolved_input:
+        return Path(resolved_path.name)
+    return resolved_path.relative_to(resolved_input)
+
+
+def _output_base(
+    path: Path,
+    input_path: Path,
+    output_dir: Path | None,
+) -> Path:
+    """Return an output path stem while preserving relative input directories."""
     if output_dir is None:
         return path.with_suffix("")
-    output_dir.mkdir(parents=True, exist_ok=True)
-    return output_dir / path.stem
+    output_base = output_dir / _relative_input_path(path, input_path).with_suffix("")
+    output_base.parent.mkdir(parents=True, exist_ok=True)
+    return output_base
 
 
 def process_extract_file(path: Path, args: argparse.Namespace) -> None:
     """Extract one ND2 video and save a reusable checkpoint."""
-    output_base = _output_base(path, args.output_dir)
+    output_base = _output_base(path, args.input_path, args.output_dir)
     checkpoint_path = output_base.with_suffix(".npz")
     gif_path = output_base.with_suffix(".gif")
-    output_paths = [checkpoint_path]
-    if not args.no_gif:
-        output_paths.append(gif_path)
 
-    existing = [output for output in output_paths if output.exists()]
-    if existing and not args.overwrite:
-        names = ", ".join(output.name for output in existing)
-        print(f"Skipping {path.name}: output file(s) already exist: {names}")
+    if checkpoint_path.exists() and not args.overwrite:
+        print(f"Skipping {path.name}: checkpoint already exists: {checkpoint_path.name}")
         return
 
     if args.extractor_file is not None:
@@ -277,7 +290,7 @@ def process_extract_file(path: Path, args: argparse.Namespace) -> None:
         print(f"Failed to extract {path.name}: {error}")
         return
 
-    if not args.no_gif:
+    if not args.no_gif and (args.overwrite or not gif_path.exists()):
         video.make_vesicle_gif(gif_path, edges)
 
 
@@ -295,34 +308,52 @@ def _qc_config_from_args(args: argparse.Namespace) -> EdgeQCConfig:
 def _qc_provenance(
     qc_config: EdgeQCConfig,
     input_path: Path,
+    recursive: bool,
+    paths: list[Path],
 ) -> dict:
-    """Return serializable provenance for one QC batch."""
+    """Return serializable provenance for one resolved QC batch."""
     return {
         "input_path": str(input_path.expanduser().resolve()),
+        "recursive": recursive,
+        "checkpoint_manifest": [str(path.resolve()) for path in paths],
         "qc_config": asdict(qc_config),
     }
+
+
+def _remove_managed_qc_artifacts(output_dir: Path) -> None:
+    """Remove filtered arrays and metadata managed by a previous QC batch."""
+    for output_path in output_dir.rglob("*.npy"):
+        output_path.unlink()
+    for filename in ("qc_summary.csv", "vesedge_qc.json"):
+        output_path = output_dir / filename
+        if output_path.exists():
+            output_path.unlink()
 
 
 def _write_qc_provenance(
     output_dir: Path,
     qc_config: EdgeQCConfig,
     input_path: Path,
+    recursive: bool,
+    paths: list[Path],
     overwrite: bool,
 ) -> None:
     """Write QC provenance and reject incompatible existing provenance."""
     output_dir.mkdir(parents=True, exist_ok=True)
     provenance_path = output_dir / "vesedge_qc.json"
-    provenance = _qc_provenance(qc_config, input_path)
+    provenance = _qc_provenance(qc_config, input_path, recursive, paths)
 
-    if provenance_path.exists() and not overwrite:
+    if provenance_path.exists():
         existing = json.loads(provenance_path.read_text(encoding="utf-8"))
-        if existing != provenance:
+        if existing == provenance:
+            return
+        if not overwrite:
             raise ValueError(
                 "QC output directory already contains results from a different "
-                "input path or QC configuration. Choose another --output-dir "
+                "input selection or QC configuration. Choose another --output-dir "
                 "or use --overwrite."
             )
-        return
+        _remove_managed_qc_artifacts(output_dir)
 
     provenance_path.write_text(
         json.dumps(provenance, indent=2) + "\n",
@@ -332,6 +363,7 @@ def _write_qc_provenance(
 
 def _qc_summary(
     path: Path,
+    input_path: Path,
     edges: VesicleEdges,
     status: str,
     error: str = "",
@@ -348,7 +380,7 @@ def _qc_summary(
     )
     accepted = sum(detection.qc.passed for detection in successful)
     return {
-        "file": path.name,
+        "file": str(_relative_input_path(path, input_path)),
         "frames": len(edges.detections),
         "successful_detections": len(successful),
         "extraction_failures": len(edges.detections) - len(successful),
@@ -361,13 +393,33 @@ def _qc_summary(
     }
 
 
+def _load_error_summary(path: Path, input_path: Path, error: str) -> dict:
+    """Build a canonical summary row for a checkpoint that could not load."""
+    return {
+        "file": str(_relative_input_path(path, input_path)),
+        "frames": 0,
+        "successful_detections": 0,
+        "extraction_failures": 0,
+        "curvature_rejected": 0,
+        "population_rejected": 0,
+        "accepted": 0,
+        "accepted_fraction": 0.0,
+        "status": "load_error",
+        "error": error,
+    }
+
+
 def process_qc_file(
     path: Path,
     args: argparse.Namespace,
     qc_config: EdgeQCConfig,
-) -> dict | None:
-    """Apply QC to one checkpoint and save its accepted contours."""
-    output_path = args.output_dir / path.with_suffix(".npy").name
+) -> dict:
+    """Apply QC to one checkpoint and return its batch summary row."""
+    output_path = (
+        args.output_dir
+        / _relative_input_path(path, args.input_path).with_suffix(".npy")
+    )
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     output_exists = output_path.exists()
     if output_exists and not args.overwrite:
         print(f"Keeping existing output for {path.name}: {output_path.name}")
@@ -375,8 +427,9 @@ def process_qc_file(
     try:
         edges = VesicleEdges.from_checkpoint(path)
     except (FileNotFoundError, ValueError) as error:
-        print(f"Failed to load {path.name}: {error}")
-        return None
+        message = str(error)
+        print(f"Failed to load {path.name}: {message}")
+        return _load_error_summary(path, args.input_path, message)
 
     status = "ok"
     qc_error = ""
@@ -391,7 +444,7 @@ def process_qc_file(
             status = "no_accepted_frames"
             print(f"QC produced no accepted frames for {path.name}: {error}")
 
-    row = _qc_summary(path, edges, status, qc_error)
+    row = _qc_summary(path, args.input_path, edges, status, qc_error)
     if (
         status == "ok"
         and row["accepted"] > 0
@@ -402,7 +455,7 @@ def process_qc_file(
 
 
 def _write_qc_summary(output_dir: Path, rows: list[dict]) -> None:
-    """Write one CSV row per successfully loaded checkpoint in the QC batch."""
+    """Write one CSV row per selected checkpoint in the QC batch."""
     if not rows:
         return
     summary_path = output_dir / "qc_summary.csv"
@@ -433,14 +486,12 @@ def _run_qc(args: argparse.Namespace) -> None:
         args.output_dir,
         qc_config,
         args.input_path,
+        args.recursive,
+        paths,
         args.overwrite,
     )
 
-    rows = []
-    for path in paths:
-        row = process_qc_file(path, args, qc_config)
-        if row is not None:
-            rows.append(row)
+    rows = [process_qc_file(path, args, qc_config) for path in paths]
     _write_qc_summary(args.output_dir, rows)
 
 
