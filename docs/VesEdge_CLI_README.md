@@ -1,101 +1,138 @@
 # VesEdge CLI
 
-The VesEdge CLI extracts vesicle contours from ND2 microscopy videos, applies the configured quality-control checks, and writes QC-filtered `.npy` files for EdgeMod. The underlying Python API now separates raw video data, extracted-edge state, and QC so extraction results can also be checkpointed and re-evaluated without rerunning image processing.
+The VesEdge CLI separates image-dependent edge extraction from quality control.
+
+The intended workflow is:
+
+```text
+.nd2 microscopy videos
+        │
+        │ vesedge extract
+        ▼
+QC-independent .npz checkpoints
+        │
+        ├── vesedge qc with configuration A ──▶ filtered .npy files
+        ├── vesedge qc with configuration B ──▶ filtered .npy files
+        └── vesedge qc with configuration C ──▶ filtered .npy files
+                                                     │
+                                                     ▼
+                                                  EdgeMod
+```
+
+This allows expensive image processing to be run once while QC settings are evaluated repeatedly and reproducibly.
 
 ## Quick Start
 
+Extract a directory of ND2 videos:
+
 ```bash
-vesedge sample.nd2 --pixels-per-micron 13.44 --downsample --n-samples 120
+vesedge extract ./videos \
+    --pixels-per-micron 13.44 \
+    --downsample \
+    --n-samples 120 \
+    --output-dir ./checkpoints
 ```
 
-By default this writes:
+Apply one QC configuration:
 
-```text
-sample.npy
-sample.gif
+```bash
+vesedge qc ./checkpoints \
+    --curvature-threshold 5 \
+    --population-bic-threshold 10 \
+    --max-minor-population-fraction 0.25 \
+    --output-dir ./results/qc_standard
 ```
 
-The `.npy` file contains only contours accepted by the configured QC checks, with radii in microns. The GIF overlays extracted contours on the original frames.
+Analyze the filtered results:
+
+```bash
+edgemod ./results/qc_standard
+```
 
 ---
+
+# `vesedge extract`
+
+`vesedge extract` reads ND2 microscopy videos and writes reusable VesEdge `.npz` checkpoints. It does **not** run quality control.
 
 ## Input Selection
 
-Process one ND2 file:
+Extract one video:
 
 ```bash
-vesedge sample.nd2
+vesedge extract sample.nd2
 ```
 
-Process all ND2 files in a directory:
+Extract all ND2 files in a directory:
 
 ```bash
-vesedge ./videos
+vesedge extract ./videos
 ```
 
-Search subdirectories recursively:
+Search recursively:
 
 ```bash
-vesedge ./videos --recursive
+vesedge extract ./videos --recursive
 ```
 
----
+## Output Location
+
+By default, `.npz` and GIF outputs are written beside each ND2 input.
+
+Use a dedicated checkpoint directory with:
+
+```bash
+vesedge extract ./videos --output-dir ./checkpoints
+```
+
+For a file named `sample.nd2`, extraction normally produces:
+
+```text
+sample.npz
+sample.gif
+```
+
+The `.npz` file is the reusable extraction product. It contains successful detections, extraction failures, frame ordering, pixel-space native and analysis contours, and the extraction configuration. It contains no QC decisions.
+
+The GIF overlays the extracted full contour on the original image frames for visual inspection.
+
+Disable GIF creation with:
+
+```bash
+vesedge extract sample.nd2 --no-gif
+```
+
+Existing outputs are not overwritten unless:
+
+```bash
+vesedge extract sample.nd2 --overwrite
+```
 
 ## Microscope Calibration
 
-### `--pixels-per-micron`
-
 ```bash
-vesedge sample.nd2 --pixels-per-micron 13.44
+vesedge extract sample.nd2 --pixels-per-micron 13.44
 ```
 
-Specifies the microscope calibration used when accepted analysis contours are converted from pixels to microns for `.npy` output.
+`--pixels-per-micron` stores the microscope calibration in the checkpoint. Accepted contours are converted from pixels to microns later, when QC output is exported to `.npy`.
 
 Default: `1.0`.
 
----
-
 ## Angular Sampling
 
-Use `--downsample` to resample successful contours to a fixed angular grid before QC and downstream analysis:
+Use fixed angular sampling with:
 
 ```bash
-vesedge sample.nd2 --downsample --n-samples 120
+vesedge extract sample.nd2 --downsample --n-samples 120
 ```
 
-`--n-samples` defaults to `120`. Without `--downsample`, the native angular sampling returned by the extractor is retained, and successful detections must have consistent analysis-contour lengths.
+`--n-samples` defaults to `120` and is used only when `--downsample` is provided.
 
----
-
-## Quality Control
-
-### Curvature QC
-
-```bash
-vesedge sample.nd2 --curvature-threshold 5
-```
-
-`--curvature-threshold` sets the maximum allowed wrapped finite second difference of an analysis contour. Default: `5`.
-
-### Population QC
-
-```bash
-vesedge sample.nd2 \
-    --population-bic-threshold 10 \
-    --max-minor-population-fraction 0.25
-```
-
-Population QC compares frame centers and median radii across the trajectory and can reject a sufficiently small, distinct population. Disable it with:
-
-```bash
-vesedge sample.nd2 --no-population-qc
-```
-
----
+Without `--downsample`, the extractor's native angular sampling is retained as the analysis contour. Successful detections must therefore have consistent analysis-contour lengths.
 
 ## Extraction Algorithm
 
-By default VesEdge uses:
+The default extractor is:
 
 ```text
 vesmod.VesEdge:extract_edge_from_frame
@@ -104,45 +141,185 @@ vesmod.VesEdge:extract_edge_from_frame
 Use an importable custom extractor with:
 
 ```bash
-vesedge sample.nd2 --extractor my_package.my_module:my_edge_extractor
+vesedge extract sample.nd2 \
+    --extractor my_package.my_module:my_edge_extractor
 ```
 
-or a function from a Python file with:
+or a Python source file with:
 
 ```bash
-vesedge sample.nd2 \
+vesedge extract sample.nd2 \
     --extractor-file ./my_extractor.py \
     --extractor-name my_edge_extractor
 ```
 
-See `custom_edge_extraction_algorithms.README.md` for the required interface.
+See `custom_edge_extraction_algorithms.README.md` for the required extractor interface.
 
 ---
 
-## GIF and Existing Outputs
+# `vesedge qc`
 
-Disable GIF output with:
+`vesedge qc` loads one or more VesEdge `.npz` checkpoints, applies a single QC configuration, and writes the accepted contours as `.npy` files for EdgeMod.
 
-```bash
-vesedge sample.nd2 --no-gif
-```
-
-By default an input is skipped if an expected `.npy` or GIF output already exists. Force reprocessing with:
+The command requires an output directory:
 
 ```bash
-vesedge sample.nd2 --overwrite
+vesedge qc ./checkpoints --output-dir ./results/qc_standard
 ```
+
+Use a **different output directory for each QC configuration**. This keeps the `.npy` data, exact QC settings, and QC summary together as one reproducible analysis condition.
+
+## Input Selection
+
+QC one checkpoint:
+
+```bash
+vesedge qc sample.npz --output-dir ./results/qc_standard
+```
+
+QC all checkpoints in a directory:
+
+```bash
+vesedge qc ./checkpoints --output-dir ./results/qc_standard
+```
+
+Search recursively with:
+
+```bash
+vesedge qc ./checkpoints --recursive --output-dir ./results/qc_standard
+```
+
+## Curvature QC
+
+```bash
+vesedge qc ./checkpoints \
+    --curvature-threshold 5 \
+    --output-dir ./results/qc_standard
+```
+
+The curvature threshold is the maximum allowed wrapped finite second difference of an analysis contour.
+
+Default: `5.0`.
+
+Disable curvature QC with:
+
+```bash
+vesedge qc ./checkpoints \
+    --no-curvature-qc \
+    --output-dir ./results/no_curvature
+```
+
+## Population QC
+
+```bash
+vesedge qc ./checkpoints \
+    --population-bic-threshold 10 \
+    --max-minor-population-fraction 0.25 \
+    --output-dir ./results/qc_standard
+```
+
+Population QC compares each successful detection's vesicle center and median analysis radius across the trajectory. A two-component Gaussian-mixture model is used only when enough usable detections are available.
+
+Disable population QC with:
+
+```bash
+vesedge qc ./checkpoints \
+    --no-population-qc \
+    --output-dir ./results/no_population
+```
+
+## QC Outputs
+
+For checkpoints `sample01.npz` and `sample02.npz`, the command:
+
+```bash
+vesedge qc ./checkpoints --output-dir ./results/qc_standard
+```
+
+creates:
+
+```text
+results/qc_standard/
+├── sample01.npy
+├── sample02.npy
+├── vesedge_qc.json
+└── qc_summary.csv
+```
+
+### Filtered `.npy` files
+
+Each `.npy` contains only contours accepted under the current QC configuration, with radial distances converted to microns. These files are directly consumable by EdgeMod.
+
+If a checkpoint completes QC but no frames are accepted, no `.npy` is written for that checkpoint. The failure is still represented in `qc_summary.csv`.
+
+### `vesedge_qc.json`
+
+This file records:
+
+- the checkpoint input path;
+- `curvature_threshold`;
+- `population_bic_threshold`;
+- `max_minor_population_fraction`;
+- whether curvature QC was enabled;
+- whether population QC was enabled.
+
+If an output directory already contains a different QC configuration or input path, VesEdge refuses to mix the results unless `--overwrite` is explicitly supplied.
+
+### `qc_summary.csv`
+
+The summary contains one row per successfully loaded checkpoint with:
+
+- total source frames;
+- successful edge detections;
+- extraction failures;
+- curvature rejections;
+- population rejections;
+- accepted frames;
+- accepted fraction;
+- QC status;
+- any QC error message.
+
+This file is intended to make it easy to compare how aggressive different QC configurations are before comparing the downstream EdgeMod results.
+
+## Comparing QC Configurations
+
+A typical sensitivity analysis might use:
+
+```bash
+vesedge qc ./checkpoints \
+    --curvature-threshold 5 \
+    --output-dir ./results/qc_strict
+
+vesedge qc ./checkpoints \
+    --curvature-threshold 10 \
+    --output-dir ./results/qc_standard
+
+vesedge qc ./checkpoints \
+    --curvature-threshold 15 \
+    --output-dir ./results/qc_permissive
+```
+
+Then run:
+
+```bash
+edgemod ./results/qc_strict
+edgemod ./results/qc_standard
+edgemod ./results/qc_permissive
+```
+
+The resulting EdgeMod estimates can be reported alongside each directory's `vesedge_qc.json` and `qc_summary.csv` to show whether the scientific conclusion depends strongly on QC choices.
 
 ---
 
-## Python API: Separate Extraction and QC
+## Python API
 
-The Python data model separates raw frames from reusable extraction results:
+The CLI mirrors the Python API separation:
 
 ```python
 from vesmod.VesEdge import (
     EdgeExtractionConfig,
     EdgeQCConfig,
+    VesicleEdges,
     VesicleVideo,
     extract_edge_from_frame,
 )
@@ -155,72 +332,44 @@ edges = video.extract_edges(
         n_angular_samples=120,
     ),
 )
-```
-
-`VesicleVideo.extract_edges()` performs extraction only and returns a `VesicleEdges` object. QC is explicit:
-
-```python
-qc_config = EdgeQCConfig(
-    curvature_threshold=10.0,
-    population_bic_threshold=10.0,
-    max_minor_population_fraction=0.25,
-)
-
-edges.run_qc(qc_config)
-edges.save_edge_to_npy("sample.npy")
-```
-
-A completed run is summarized by `edges.qc_result`, a `VesicleQCResult` containing the configuration and the results of each enabled QC stage. Curvature results are available through `edges.qc_result.curvature`, and population-analysis results through `edges.qc_result.population`. Individual detections retain their own detailed QC annotations in `EdgeDetection.qc`.
-
-Calling `run_qc()` again clears the prior derived QC state and aggregate result before applying the new configuration.
-
----
-
-## Checkpointing Extraction Results
-
-The Python API can save QC-independent extraction state:
-
-```python
 edges.save_checkpoint("sample.npz")
 ```
 
-and restore it later:
+Later:
 
 ```python
-from vesmod.VesEdge import VesicleEdges
-
 edges = VesicleEdges.from_checkpoint("sample.npz")
+edges.run_qc(
+    EdgeQCConfig(
+        curvature_threshold=10.0,
+        population_bic_threshold=10.0,
+        max_minor_population_fraction=0.25,
+    )
+)
+edges.save_edge_to_npy("sample.npy")
 ```
 
-A checkpoint stores the extraction configuration, successful native and analysis contours, extraction failures, and frame ordering. QC settings and QC results are intentionally not stored. Physical radii are derived from the stored pixel-space analysis contours and `pixels_per_micron` calibration.
-
-This makes it possible to evaluate several QC configurations without rerunning edge extraction:
-
-```python
-edges.run_qc(qc_config_a)
-edges.save_edge_to_npy("qc_a/sample.npy")
-
-edges.run_qc(qc_config_b)
-edges.save_edge_to_npy("qc_b/sample.npy")
-```
-
-A future CLI update will expose this checkpoint/re-QC workflow directly from the command line. In this PR, the existing CLI continues to perform extraction, QC, and `.npy` export in one invocation.
+A completed run is summarized by `edges.qc_result`; individual detections retain detailed QC annotations through `EdgeDetection.qc`.
 
 ---
 
 ## Troubleshooting
 
-### No successful detections
+### No successful detections during extraction
 
-If extraction fails on every frame, VesEdge reports the per-frame extractor errors and does not continue to QC.
+If extraction fails on every frame, VesEdge reports the extractor errors and does not produce a checkpoint.
 
 ### Inconsistent angular sample counts
 
-If downsampling is disabled, successful detections must use consistent analysis-contour lengths. Enable `--downsample` or modify the extractor to return consistent sampling.
+If downsampling is disabled, successful detections must have consistent analysis-contour lengths. Enable `--downsample` or modify the extractor to return consistent sampling.
 
 ### No frames pass QC
 
-This is distinct from extraction failure: the extractor produced usable contours, but the selected QC configuration rejected all successful detections.
+This is distinct from extraction failure. The checkpoint remains valid, but the selected QC configuration accepted no frames. The event is recorded in `qc_summary.csv` and no `.npy` is written for that checkpoint.
+
+### QC output directory already contains another configuration
+
+Choose another `--output-dir`. Reusing one directory for multiple QC configurations makes provenance ambiguous and is intentionally blocked unless `--overwrite` is used.
 
 ---
 
