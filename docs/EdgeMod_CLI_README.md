@@ -47,13 +47,22 @@ This performs a fit using the default fitting parameters and writes:
 sample.json
 ```
 
+For a VesEdge batch, the recommended input is a QC output directory:
+
+```bash
+vesedge qc ./checkpoints --output-dir ./results/qc_standard
+edgemod ./results/qc_standard
+```
+
+EdgeMod processes the `.npy` files in that directory and ignores the VesEdge provenance files `vesedge_qc.json` and `qc_summary.csv`.
+
 ---
 
 ## Input Requirements
 
 EdgeMod operates on vesicle contour arrays stored in NumPy `.npy` files.
 
-The recommended input is a contour file produced by VesEdge:
+The recommended input is a contour file produced by `vesedge qc`:
 
 ```text
 sample.npy
@@ -85,10 +94,9 @@ print(edges.shape)
 
 In this example, the file contains 250 accepted contours, each sampled at 120 angular positions.
 
-Distances should be stored in microns.
+Distances should be stored in microns. VesEdge `.npy` output contains only contours that passed the selected QC configuration and is directly suitable as EdgeMod CLI input.
 
-VesEdge `.npy` output contains only contours that passed its enabled
-quality-control checks and is directly suitable as EdgeMod CLI input.
+When comparing QC configurations, keep each set of `.npy` files in its own directory and run EdgeMod separately on each directory. The corresponding `vesedge_qc.json` and `qc_summary.csv` files document which QC settings produced each analysis input.
 
 ---
 
@@ -258,13 +266,7 @@ EdgeMod writes:
 sample.json
 ```
 
----
-
 ### JSON Output
-
-```text
-sample.json
-```
 
 The JSON file contains the spectrum metadata and fitted membrane mechanical parameters.
 
@@ -289,10 +291,25 @@ The exact fields may vary depending on the fitting options used and the version 
 edgemod sample.npy
 ```
 
-### Analyze every vesicle in a directory
+### Analyze every vesicle in one VesEdge QC result
 
 ```bash
-edgemod ./edges
+edgemod ./results/qc_standard
+```
+
+### Compare two VesEdge QC configurations
+
+```bash
+vesedge qc ./checkpoints \
+    --curvature-threshold 5 \
+    --output-dir ./results/qc_strict
+
+vesedge qc ./checkpoints \
+    --curvature-threshold 15 \
+    --output-dir ./results/qc_permissive
+
+edgemod ./results/qc_strict
+edgemod ./results/qc_permissive
 ```
 
 ### Analyze an entire directory tree
@@ -330,16 +347,13 @@ edgemod sample.npy --fixed-sigma
 Check that:
 
 * the input path exists
+* `vesedge qc` produced at least one accepted trajectory
 * the files have the `.npy` extension
 * `--recursive` is used if the files are located in subdirectories
-
----
 
 ### `Expected a .npy file`
 
 This occurs when `INPUT_PATH` is a file, but its suffix is not `.npy`.
-
----
 
 ### Fits produce unexpected values
 
@@ -349,8 +363,9 @@ Potential causes include:
 * an inappropriate Fourier fitting range
 * too few accepted contour measurements
 * temperature values inconsistent with the experiment
+* sensitivity of the result to the selected VesEdge QC configuration
 
-Inspect the contour data and consider adjusting:
+Inspect the contour data and `qc_summary.csv`, compare alternate QC configurations when appropriate, and consider adjusting:
 
 ```text
 --lower-fitting-bound
