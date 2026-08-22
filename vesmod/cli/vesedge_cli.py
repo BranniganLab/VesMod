@@ -176,7 +176,7 @@ def _add_qc_parser(subparsers) -> None:
     parser.add_argument(
         "--overwrite",
         action="store_true",
-        help="Overwrite existing filtered .npy outputs.",
+        help="Overwrite existing filtered .npy outputs and QC provenance.",
     )
 
 
@@ -292,25 +292,50 @@ def _qc_config_from_args(args: argparse.Namespace) -> EdgeQCConfig:
     )
 
 
+def _qc_provenance(
+    qc_config: EdgeQCConfig,
+    input_path: Path,
+) -> dict:
+    """Return serializable provenance for one QC batch."""
+    return {
+        "input_path": str(input_path.expanduser().resolve()),
+        "qc_config": asdict(qc_config),
+    }
+
+
 def _write_qc_provenance(
     output_dir: Path,
     qc_config: EdgeQCConfig,
     input_path: Path,
+    overwrite: bool,
 ) -> None:
-    """Write the QC configuration used for one batch."""
+    """Write QC provenance and reject incompatible existing provenance."""
     output_dir.mkdir(parents=True, exist_ok=True)
-    provenance = {
-        "input_path": str(input_path.expanduser().resolve()),
-        "qc_config": asdict(qc_config),
-    }
     provenance_path = output_dir / "vesedge_qc.json"
+    provenance = _qc_provenance(qc_config, input_path)
+
+    if provenance_path.exists() and not overwrite:
+        existing = json.loads(provenance_path.read_text(encoding="utf-8"))
+        if existing != provenance:
+            raise ValueError(
+                "QC output directory already contains results from a different "
+                "input path or QC configuration. Choose another --output-dir "
+                "or use --overwrite."
+            )
+        return
+
     provenance_path.write_text(
         json.dumps(provenance, indent=2) + "\n",
         encoding="utf-8",
     )
 
 
-def _qc_summary(path: Path, edges: VesicleEdges, status: str, error: str = "") -> dict:
+def _qc_summary(
+    path: Path,
+    edges: VesicleEdges,
+    status: str,
+    error: str = "",
+) -> dict:
     """Build a summary row for one QCed checkpoint."""
     successful = edges.successful_detections
     curvature_rejected = sum(
@@ -343,8 +368,9 @@ def process_qc_file(
 ) -> dict | None:
     """Apply QC to one checkpoint and save its accepted contours."""
     output_path = args.output_dir / path.with_suffix(".npy").name
-    if output_path.exists() and not args.overwrite:
-        print(f"Skipping output for {path.name}: {output_path.name} already exists")
+    output_exists = output_path.exists()
+    if output_exists and not args.overwrite:
+        print(f"Keeping existing output for {path.name}: {output_path.name}")
 
     try:
         edges = VesicleEdges.from_checkpoint(path)
@@ -352,23 +378,31 @@ def process_qc_file(
         print(f"Failed to load {path.name}: {error}")
         return None
 
-    qc_error = ""
     status = "ok"
+    qc_error = ""
     try:
         edges.run_qc(qc_config)
     except ValueError as error:
         qc_error = str(error)
-        status = "no_accepted_frames"
-        print(f"QC produced no accepted frames for {path.name}: {error}")
+        if edges.qc_result is None:
+            status = "qc_error"
+            print(f"QC failed for {path.name}: {error}")
+        else:
+            status = "no_accepted_frames"
+            print(f"QC produced no accepted frames for {path.name}: {error}")
 
     row = _qc_summary(path, edges, status, qc_error)
-    if row["accepted"] > 0 and (args.overwrite or not output_path.exists()):
+    if (
+        status == "ok"
+        and row["accepted"] > 0
+        and (args.overwrite or not output_exists)
+    ):
         edges.save_edge_to_npy(output_path)
     return row
 
 
 def _write_qc_summary(output_dir: Path, rows: list[dict]) -> None:
-    """Write one CSV row per checkpoint in the QC batch."""
+    """Write one CSV row per successfully loaded checkpoint in the QC batch."""
     if not rows:
         return
     summary_path = output_dir / "qc_summary.csv"
@@ -395,7 +429,12 @@ def _run_qc(args: argparse.Namespace) -> None:
 
     qc_config = _qc_config_from_args(args)
     args.output_dir = args.output_dir.expanduser().resolve()
-    _write_qc_provenance(args.output_dir, qc_config, args.input_path)
+    _write_qc_provenance(
+        args.output_dir,
+        qc_config,
+        args.input_path,
+        args.overwrite,
+    )
 
     rows = []
     for path in paths:
