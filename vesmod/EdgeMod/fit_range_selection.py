@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from numbers import Integral, Real
 from typing import Protocol
 
 import numpy as np
@@ -101,22 +102,42 @@ class QMinusThreeFitRangeSelector:
         Inclusive lowest q value eligible for selection.
     upper_bound : int
         Exclusive highest q value eligible for selection.
-    min_modes : int, default=5
+    min_modes : int
         Minimum number of consecutive integer modes in a candidate window.
-    slope_tolerance : float, default=0.25
+    slope_tolerance : float
         Maximum allowed absolute difference between fitted slope and -3.
-    max_log_rmse : float, default=0.25
+    max_log_rmse : float
         Maximum allowed RMSE to the fixed q^-3 model in natural-log space.
     """
 
     lower_bound: int
     upper_bound: int
-    min_modes: int = 5
-    slope_tolerance: float = 0.25
-    max_log_rmse: float = 0.25
+    min_modes: int
+    slope_tolerance: float
+    max_log_rmse: float
 
     def __post_init__(self) -> None:
         """Validate selector configuration."""
+        if not isinstance(self.lower_bound, Integral) or isinstance(
+            self.lower_bound,
+            bool,
+        ):
+            raise TypeError("lower_bound must be an integer q value.")
+        if not isinstance(self.upper_bound, Integral) or isinstance(
+            self.upper_bound,
+            bool,
+        ):
+            raise TypeError("upper_bound must be an integer q value.")
+        if not isinstance(self.min_modes, Integral) or isinstance(
+            self.min_modes,
+            bool,
+        ):
+            raise TypeError("min_modes must be an integer.")
+        if not isinstance(self.slope_tolerance, Real):
+            raise TypeError("slope_tolerance must be numeric.")
+        if not isinstance(self.max_log_rmse, Real):
+            raise TypeError("max_log_rmse must be numeric.")
+
         if self.lower_bound <= 0:
             raise ValueError("lower_bound must be a positive integer q value.")
         if self.upper_bound <= self.lower_bound:
