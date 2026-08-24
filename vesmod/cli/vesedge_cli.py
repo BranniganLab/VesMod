@@ -19,6 +19,7 @@ from vesmod.VesEdge import (
     VesicleEdges,
     VesicleVideo,
 )
+from vesmod.VesEdge.population_plotting import save_population_histograms
 
 
 def parse_args() -> argparse.Namespace:
@@ -322,8 +323,9 @@ def _qc_provenance(
 
 def _remove_managed_qc_artifacts(output_dir: Path) -> None:
     """Remove filtered arrays and metadata managed by a previous QC batch."""
-    for output_path in output_dir.rglob("*.npy"):
-        output_path.unlink()
+    for pattern in ("*.npy", "*.population_histograms.png"):
+        for output_path in output_dir.rglob(pattern):
+            output_path.unlink()
     for filename in ("qc_summary.csv", "vesedge_qc.json"):
         output_path = output_dir / filename
         if output_path.exists():
@@ -443,6 +445,19 @@ def process_qc_file(
         else:
             status = "no_accepted_frames"
             print(f"QC produced no accepted frames for {path.name}: {error}")
+
+    population_figure_path = output_path.with_suffix(
+        ".population_histograms.png"
+    )
+    if (
+        edges.qc_result is not None
+        and edges.qc_result.population is not None
+        and (args.overwrite or not population_figure_path.exists())
+    ):
+        save_population_histograms(
+            edges.detections,
+            population_figure_path,
+        )
 
     row = _qc_summary(path, args.input_path, edges, status, qc_error)
     if (
