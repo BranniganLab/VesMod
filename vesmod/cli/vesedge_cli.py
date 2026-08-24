@@ -282,7 +282,7 @@ def process_extract_file(path: Path, args: argparse.Namespace) -> None:
         pixels_per_micron=args.pixels_per_micron,
         n_angular_samples=(args.n_samples if args.downsample else None),
     )
-    video = VesicleVideo(intensities)
+    video = VesicleVideo(intensities, source_path=path)
 
     try:
         edges = video.extract_edges(extractor_func, extraction_config)
@@ -470,33 +470,43 @@ def process_qc_file(
 
 
 def _write_qc_summary(output_dir: Path, rows: list[dict]) -> None:
-    """Write one CSV row per selected checkpoint in the QC batch."""
-    if not rows:
-        return
+    """Write one CSV row per processed checkpoint."""
     summary_path = output_dir / "qc_summary.csv"
-    with summary_path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+    fieldnames = [
+        "file",
+        "frames",
+        "successful_detections",
+        "extraction_failures",
+        "curvature_rejected",
+        "population_rejected",
+        "accepted",
+        "accepted_fraction",
+        "status",
+        "error",
+    ]
+    with summary_path.open("w", newline="", encoding="utf-8") as summary_file:
+        writer = csv.DictWriter(summary_file, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
 
 
 def _run_extract(args: argparse.Namespace) -> None:
-    """Run the extraction subcommand."""
+    """Run extraction over the selected ND2 files."""
     paths = iter_input_files(args.input_path, ".nd2", args.recursive)
     if not paths:
         raise FileNotFoundError(f"No .nd2 files found in {args.input_path}")
+
     for path in paths:
         process_extract_file(path, args)
 
 
 def _run_qc(args: argparse.Namespace) -> None:
-    """Run the QC subcommand."""
+    """Run one QC configuration over the selected checkpoints."""
     paths = iter_input_files(args.input_path, ".npz", args.recursive)
     if not paths:
         raise FileNotFoundError(f"No .npz files found in {args.input_path}")
 
     qc_config = _qc_config_from_args(args)
-    args.output_dir = args.output_dir.expanduser().resolve()
     _write_qc_provenance(
         args.output_dir,
         qc_config,
@@ -505,13 +515,15 @@ def _run_qc(args: argparse.Namespace) -> None:
         paths,
         args.overwrite,
     )
-
-    rows = [process_qc_file(path, args, qc_config) for path in paths]
+    rows = [
+        process_qc_file(path, args, qc_config)
+        for path in paths
+    ]
     _write_qc_summary(args.output_dir, rows)
 
 
 def main() -> None:
-    """Run the VesEdge command-line interface."""
+    """Run the selected VesEdge subcommand."""
     args = parse_args()
     if args.command == "extract":
         _run_extract(args)
