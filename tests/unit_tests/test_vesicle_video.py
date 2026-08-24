@@ -54,12 +54,13 @@ def test_extract_edges_returns_vesicle_edges(
         isinstance(result, EdgeDetection)
         for result in edges.detections
     )
+    assert [result.frame_index for result in edges.detections] == [0, 1]
 
 
 def test_extract_edges_preserves_frame_order_after_failure(
     extraction_config,
 ):
-    """Test that extraction failures retain their original frame position."""
+    """Test extraction failures retain source-frame identity."""
     frames = np.zeros((3, 200, 200))
     frames[1] = 1.0
     video = VesicleVideo(frames)
@@ -77,6 +78,7 @@ def test_extract_edges_preserves_frame_order_after_failure(
     assert isinstance(edges.detections[0], EdgeDetection)
     assert isinstance(edges.detections[1], EdgeDetectionFailure)
     assert isinstance(edges.detections[2], EdgeDetection)
+    assert [result.frame_index for result in edges.detections] == [0, 1, 2]
 
 
 def test_extract_edges_records_extractor_index_error(
@@ -96,7 +98,9 @@ def test_extract_edges_records_extractor_index_error(
 
     assert isinstance(edges.detections[0], EdgeDetectionFailure)
     assert edges.detections[0].error == "extractor index failure"
+    assert edges.detections[0].frame_index == 0
     assert isinstance(edges.detections[1], EdgeDetection)
+    assert edges.detections[1].frame_index == 1
 
 
 def test_extract_edges_propagates_invalid_downsampling_configuration(video):
@@ -179,11 +183,13 @@ def test_compile_edge_detection_results_preserves_and_downsamples_contour(
         r_vals,
         (60.0, 50.0),
         extraction_config,
+        frame_index=7,
     )
 
     assert edge.full_contour.origin == (50.0, 60.0)
     assert edge.full_contour.r.shape == (200,)
     assert edge.analysis_contour.r.shape == (120,)
+    assert edge.frame_index == 7
 
 
 def test_downsample_r_vals_rejects_more_samples_than_input():
