@@ -15,8 +15,8 @@ from .models import (
     ImageContour,
 )
 
-CHECKPOINT_VERSION = 2
-_SUPPORTED_CHECKPOINT_VERSIONS = {1, CHECKPOINT_VERSION}
+CHECKPOINT_VERSION = "1.1"
+_SUPPORTED_CHECKPOINT_VERSIONS = {"1", CHECKPOINT_VERSION}
 _DETECTION_CODE = 1
 _FAILURE_CODE = 0
 
@@ -129,7 +129,7 @@ def load_checkpoint(
         raise ValueError(
             "VesEdge checkpoint is missing required field(s): checkpoint_version."
         )
-    version = int(saved_data["checkpoint_version"])
+    version = str(saved_data["checkpoint_version"].item())
     if version not in _SUPPORTED_CHECKPOINT_VERSIONS:
         raise ValueError(
             "Unsupported VesEdge checkpoint version: "
@@ -164,7 +164,7 @@ def _flatten_full_radii(
 
 def _validate_checkpoint_keys(
     checkpoint: dict[str, np.ndarray],
-    version: int,
+    version: str,
 ) -> None:
     """Verify that a checkpoint contains all required extraction fields."""
     required_keys = {
@@ -178,7 +178,7 @@ def _validate_checkpoint_keys(
         "full_radii_offsets",
         "analysis_radii_pixels",
     }
-    if version >= 2:
+    if version == CHECKPOINT_VERSION:
         required_keys.add("frame_indices")
 
     missing_keys = required_keys - checkpoint.keys()
@@ -205,13 +205,13 @@ def _extraction_config_from_checkpoint(
 
 def _detections_from_checkpoint(
     checkpoint: dict[str, np.ndarray],
-    version: int,
+    version: str,
 ) -> list[EdgeResult]:
     """Reconstruct ordered extraction results from checkpoint arrays."""
     result_types = checkpoint["result_types"]
     frame_indices = (
         checkpoint["frame_indices"]
-        if version >= 2
+        if version == CHECKPOINT_VERSION
         else np.arange(result_types.shape[0], dtype=np.int64)
     )
     success_count = int(
