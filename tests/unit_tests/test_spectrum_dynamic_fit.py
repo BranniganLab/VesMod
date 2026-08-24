@@ -3,7 +3,11 @@
 import numpy as np
 import pytest
 
-from vesmod.EdgeMod import QMinusThreeFitRangeSelector, Spectrum
+from vesmod.EdgeMod import (
+    QMinusThreeFitRangeSelector,
+    Spectrum,
+    SpectrumFitConfig,
+)
 
 
 def _spectrum_with_power_law() -> Spectrum:
@@ -19,19 +23,29 @@ def _spectrum_with_power_law() -> Spectrum:
     spectrum.kC = None
     spectrum.surface_tension = None
     spectrum.fit_range_selection = None
+    spectrum.fit_results = []
     return spectrum
+
+
+def _dynamic_config() -> SpectrumFitConfig:
+    """Return standard dynamic-selection settings for these tests."""
+    return SpectrumFitConfig(
+        lmax=400,
+        free_sigma=False,
+        range_selector=QMinusThreeFitRangeSelector(
+            lower_bound=3,
+            upper_bound=12,
+            min_modes=5,
+            slope_tolerance=0.1,
+            max_log_rmse=0.05,
+        ),
+    )
 
 
 def test_extract_kc_from_fit_uses_dynamic_selected_range(monkeypatch):
     """Test the physical fitter receives only the dynamically selected modes."""
     spectrum = _spectrum_with_power_law()
-    selector = QMinusThreeFitRangeSelector(
-        lower_bound=3,
-        upper_bound=12,
-        min_modes=5,
-        slope_tolerance=0.1,
-        max_log_rmse=0.05,
-    )
+    config = _dynamic_config()
     calls = {}
 
     def fake_fit(fitting_range, lmax, free_sigma):
@@ -49,11 +63,7 @@ def test_extract_kc_from_fit_uses_dynamic_selected_range(monkeypatch):
         lambda *args: 1.5,
     )
 
-    kc, tension = spectrum.extract_kc_from_fit(
-        lmax=400,
-        free_sigma=False,
-        range_selector=selector,
-    )
+    fit = spectrum.extract_kc_from_fit(config)
 
     np.testing.assert_array_equal(calls["modes"], np.arange(5, 12))
     assert calls["lmax"] == 400
@@ -62,8 +72,9 @@ def test_extract_kc_from_fit_uses_dynamic_selected_range(monkeypatch):
     assert spectrum.fit_range_selection.accepted
     assert spectrum.fit_range_selection.lower_bound == 5
     assert spectrum.fit_range_selection.upper_bound == 12
-    assert kc == 20.0
-    assert tension == 1.5
+    assert fit.kC == 20.0
+    assert fit.surface_tension == 1.5
+    assert fit.config is config
 
 
 def test_extract_kc_from_fit_rejects_before_physical_fit(monkeypatch):
@@ -77,13 +88,8 @@ def test_extract_kc_from_fit_rejects_before_physical_fit(monkeypatch):
     spectrum.kC = 99.0
     spectrum.surface_tension = 99.0
     spectrum.fit_range_selection = None
-    selector = QMinusThreeFitRangeSelector(
-        lower_bound=3,
-        upper_bound=12,
-        min_modes=5,
-        slope_tolerance=0.1,
-        max_log_rmse=0.05,
-    )
+    spectrum.fit_results = []
+    config = _dynamic_config()
 
     def fail_if_called(*args, **kwargs):
         pytest.fail("Physical spectrum fitter should not run after range rejection.")
@@ -94,24 +100,19 @@ def test_extract_kc_from_fit_rejects_before_physical_fit(monkeypatch):
     )
 
     with pytest.raises(ValueError, match="No trusted q range"):
-        spectrum.extract_kc_from_fit(range_selector=selector)
+        spectrum.extract_kc_from_fit(config)
 
     assert spectrum.fit_range_selection is not None
     assert not spectrum.fit_range_selection.accepted
     assert spectrum.kC is None
     assert spectrum.surface_tension is None
+    assert spectrum.fit_results == []
 
 
 def test_to_dict_serializes_dynamic_range_diagnostics():
     """Test dynamic selection diagnostics are available to later reporting."""
     spectrum = _spectrum_with_power_law()
-    selector = QMinusThreeFitRangeSelector(
-        lower_bound=3,
-        upper_bound=12,
-        min_modes=5,
-        slope_tolerance=0.1,
-        max_log_rmse=0.05,
-    )
+    selector = _dynamic_config().range_selector
     spectrum.fit_range_selection = selector.select(
         spectrum.modes,
         spectrum.avg_amps2,
