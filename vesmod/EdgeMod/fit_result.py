@@ -1,4 +1,4 @@
-"""Fit-result records for EdgeMod spectrum analysis."""
+"""Immutable fit-result records for EdgeMod spectrum analysis."""
 
 from __future__ import annotations
 
@@ -11,7 +11,12 @@ from .fit_range_selection import FitRangeSelection
 
 @dataclass(frozen=True)
 class SpectrumFit:
-    """Store one physical fit of a Spectrum.
+    """Store one physical fit of a :class:`Spectrum` without overwriting others.
+
+    A ``Spectrum`` may be fit repeatedly with different fixed or dynamic q-range
+    strategies. Each successful fit is represented by its own immutable
+    ``SpectrumFit`` so the fitted values, actual q bounds, scientific config,
+    and range-selection diagnostics remain associated with one another.
 
     Parameters
     ----------
@@ -20,13 +25,16 @@ class SpectrumFit:
     surface_tension : float
         Surface tension converted from the fitted reduced tension.
     lower_bound : int
-        Inclusive lower q bound used for the physical fit.
+        Inclusive lower q bound actually used for the physical fit.
     upper_bound : int
-        Exclusive upper q bound used for the physical fit.
+        Exclusive upper q bound actually used for the physical fit.
     config : SpectrumFitConfig
         Scientific configuration used to produce this fit.
     range_selection : FitRangeSelection | None
-        Range-selection diagnostics associated with the fit.
+        Selector result describing how the q range was chosen. Dynamic
+        selectors additionally report slope, log-space RMSE, and rejection
+        information. Successful physical fits always have an accepted
+        selection.
     """
 
     kC: float
@@ -38,16 +46,16 @@ class SpectrumFit:
 
     @property
     def method(self) -> str:
-        """Return the class name of the configured q-range selector."""
+        """Return the class name of the q-range selector that produced the fit."""
         return type(self.config.range_selector).__name__
 
     def __iter__(self) -> Iterator[float]:
-        """Preserve ``kc, tension = extract_kc_from_fit(...)`` unpacking."""
+        """Allow compatibility unpacking as ``kc, tension = fit``."""
         yield self.kC
         yield self.surface_tension
 
     def to_dict(self) -> dict:
-        """Return a JSON-serializable representation of the fit."""
+        """Return fit values, q bounds, config, and diagnostics for JSON output."""
         data = {
             "kC": float(self.kC),
             "surface_tension": float(self.surface_tension),
