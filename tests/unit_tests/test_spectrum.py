@@ -6,7 +6,11 @@ import json
 import numpy as np
 import pytest
 
-from vesmod.EdgeMod import Spectrum
+from vesmod.EdgeMod import (
+    FixedFitRangeSelector,
+    Spectrum,
+    SpectrumFitConfig,
+)
 from vesmod.EdgeMod.spectrum_utils import MiniSpectrum
 from vesmod.VesEdge import (
     EdgeDetection,
@@ -234,14 +238,16 @@ def test_isolate_mode_range_raises_when_modes_are_missing():
         spectrum.isolate_mode_range(1, 3)
 
 
-def test_extract_kc_from_fit_uses_mode_range_and_saves_fit_results(monkeypatch):
-    """Test fitting uses the requested modes and stores converted results."""
+def test_extract_kc_from_fit_uses_config_and_saves_fit_results(monkeypatch):
+    """Test fitting uses the configured modes and physical-fit settings."""
     spectrum = Spectrum.__new__(Spectrum)
     spectrum.r0 = 10.0
     spectrum.modes = np.array([0, 1, 2, 3, 4, 5])
     spectrum.avg_amps2 = np.array([0.0, 0.1, 0.2, 0.3, 0.4, 0.5])
     spectrum.kC = None
     spectrum.surface_tension = None
+    spectrum.fit_range_selection = None
+    spectrum.fit_results = []
     calls = {}
 
     def fake_fit_spectrum_to_theory_lmfit(fitting_range, lmax, free_sigma):
@@ -273,14 +279,14 @@ def test_extract_kc_from_fit_uses_mode_range_and_saves_fit_results(monkeypatch):
         "vesmod.EdgeMod.spectrum.calc_tension_from_reduced_tension",
         fake_calc_tension_from_reduced_tension,
     )
-
-    kc, surface_tension = spectrum.extract_kc_from_fit(
-        lower_bound=2,
-        upper_bound=5,
+    config = SpectrumFitConfig(
         lmax=123,
         free_sigma=True,
         temperature=310.0,
+        range_selector=FixedFitRangeSelector(2, 5),
     )
+
+    kc, surface_tension = spectrum.extract_kc_from_fit(config)
 
     np.testing.assert_array_equal(calls["modes"], np.array([2, 3, 4]))
     np.testing.assert_array_equal(
@@ -294,6 +300,42 @@ def test_extract_kc_from_fit_uses_mode_range_and_saves_fit_results(monkeypatch):
     assert surface_tension == 9.9
     assert spectrum.kC == 22.0
     assert spectrum.surface_tension == 9.9
+    assert spectrum.fit_results[0].config is config
+
+
+def test_extract_kc_from_fit_uses_default_config(monkeypatch):
+    """Test omitted config preserves the historical fixed q=3--7 fit."""
+    spectrum = Spectrum.__new__(Spectrum)
+    spectrum.r0 = 10.0
+    spectrum.modes = np.arange(0, 9)
+    spectrum.avg_amps2 = np.ones(9)
+    spectrum.kC = None
+    spectrum.surface_tension = None
+    spectrum.fit_range_selection = None
+    spectrum.fit_results = []
+    calls = {}
+
+    def fake_fit(fitting_range, lmax, free_sigma):
+        calls["modes"] = fitting_range.modes.copy()
+        calls["lmax"] = lmax
+        calls["free_sigma"] = free_sigma
+        return 20.0, 2.0
+
+    monkeypatch.setattr(
+        "vesmod.EdgeMod.spectrum.fit_spectrum_to_theory_lmfit",
+        fake_fit,
+    )
+    monkeypatch.setattr(
+        "vesmod.EdgeMod.spectrum.calc_tension_from_reduced_tension",
+        lambda *args: 1.0,
+    )
+
+    fit = spectrum.extract_kc_from_fit()
+
+    np.testing.assert_array_equal(calls["modes"], np.arange(3, 8))
+    assert calls["lmax"] == 500
+    assert calls["free_sigma"] is True
+    assert isinstance(fit.config.range_selector, FixedFitRangeSelector)
 
 
 def test_to_dict_includes_arrays_when_requested():
