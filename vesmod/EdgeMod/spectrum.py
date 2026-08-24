@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Tue Jan 21 15:04:46 2025.
+"""Compute vesicle fluctuation spectra and fit membrane mechanical parameters."""
 
-@author: js2746
-"""
 from pathlib import Path
 from types import NoneType
 import json
@@ -21,14 +18,34 @@ from .spectrum_utils import (
 
 
 class Spectrum:
-    """Calculate the fluctuation spectrum of a vesicle edge trajectory."""
+    """Represent one measured vesicle fluctuation spectrum and its fit history.
+
+    ``Spectrum`` stores the measured Fourier modes and mean-squared amplitudes.
+    Scientific fitting choices are supplied separately through
+    :class:`SpectrumFitConfig`, allowing the same measured spectrum to be fit
+    repeatedly with fixed or dynamically selected q ranges. Successful fits are
+    retained in ``fit_results`` rather than replacing one another.
+
+    ``kC`` and ``surface_tension`` remain convenience attributes containing the
+    most recent successful fit values.
+    """
 
     def __init__(
         self,
         edges_over_time: str | Path | VesicleEdges,
         frame_cutoff=None
     ) -> None:
-        """Create a Spectrum from accepted radii or a QCed VesicleEdges object."""
+        """Create a spectrum from accepted contour radii.
+
+        Parameters
+        ----------
+        edges_over_time : str | Path | VesicleEdges
+            A ``.npy`` trajectory of contour radii in microns or a QC-completed
+            ``VesicleEdges`` object. Only accepted detections from
+            ``VesicleEdges`` contribute to the spectrum.
+        frame_cutoff : int | None, optional
+            If provided, use only the first ``frame_cutoff`` contour frames.
+        """
         if isinstance(edges_over_time, VesicleEdges):
             input_data = edges_over_time.accepted_radii_microns
         elif isinstance(edges_over_time, (Path, str)):
@@ -61,7 +78,7 @@ class Spectrum:
         self.fit_results: list[SpectrumFit] = []
 
     def _calc_avg_sq_amplitudes(self, r_vals_over_time: np.ndarray) -> np.ndarray:
-        """Calculate the normalized Fourier transform, then square and average."""
+        """Return frame-averaged squared Fourier amplitudes normalized by r0."""
         n_samples = r_vals_over_time.shape[1]
         norm = 1. / (self.r0 * n_samples)
         amps = np.fft.fft(r_vals_over_time, axis=1, norm='backward') * norm
@@ -70,13 +87,13 @@ class Spectrum:
         return avg_amps2
 
     def _calc_integer_modes(self) -> np.ndarray[int]:
-        """Calculate integer Fourier modes q for the spectrum."""
+        """Return integer Fourier mode numbers in NumPy FFT ordering."""
         freqs = np.fft.fftfreq(self.avg_amps2.shape[0])
         modes = np.round(freqs * self.avg_amps2.shape[0]).astype(int)
         return modes
 
     def isolate_mode_range(self, lower_bound: int, upper_bound: int) -> MiniSpectrum:
-        """Return modes >= lower_bound and < upper_bound with amplitudes."""
+        """Return modes with ``lower_bound <= q < upper_bound`` and amplitudes."""
         if self.modes is None:
             raise AttributeError("There are no modes; Cannot return mode range.")
         mask1 = self.modes >= lower_bound
@@ -92,24 +109,30 @@ class Spectrum:
         self,
         config: SpectrumFitConfig | None = None,
     ) -> SpectrumFit:
-        """Fit a configured mode range to the theoretical prediction.
+        """Select a q range and fit that range to the theoretical spectrum.
 
         Parameters
         ----------
         config : SpectrumFitConfig | None
-            Scientific fit configuration. If omitted, use the default fixed
-            q=3--7 fit with the standard EdgeMod settings.
+            Scientific fit configuration. If omitted, use the historical
+            default fixed fit over q = 3, 4, 5, 6, 7 with ``lmax=500``, free
+            surface tension, and ``temperature=295 K``.
 
         Returns
         -------
         SpectrumFit
-            Immutable fit result containing the fitted values, q bounds, and
-            configuration used to produce them.
+            Immutable fit result containing fitted values, the actual q bounds
+            used, the full configuration, and range-selection diagnostics. The
+            result is appended to ``fit_results``.
 
         Raises
         ------
+        TypeError
+            If ``config`` is not a ``SpectrumFitConfig`` or ``None``.
         ValueError
-            If the configured range selector rejects the spectrum.
+            If the configured range selector rejects the spectrum or returns an
+            accepted selection without q bounds. Dynamic rejection occurs
+            before the physical spectrum fit is run.
         """
         if config is None:
             config = SpectrumFitConfig()
@@ -157,7 +180,7 @@ class Spectrum:
         return fit_result
 
     def _to_dict(self, include_arrays=True) -> dict:
-        """Convert class attributes to a dict."""
+        """Return spectrum state and retained fit results as serializable data."""
         data = {
             "r0": float(self.r0) if getattr(self, "r0", None) is not None else None,
             "kC": float(self.kC) if getattr(self, "kC", None) is not None else None,
@@ -196,7 +219,7 @@ class Spectrum:
         include_arrays: bool = True,
         indent: int = 2,
     ) -> None:
-        """Save class attributes and all stored fit results to JSON."""
+        """Write spectrum data and all retained fit results to a JSON file."""
         outfile = Path(outfile).with_suffix('.json')
         with outfile.open("w", encoding="utf-8") as f:
             json.dump(self._to_dict(include_arrays=include_arrays), f, indent=indent)
