@@ -282,7 +282,8 @@ def process_extract_file(path: Path, args: argparse.Namespace) -> None:
         pixels_per_micron=args.pixels_per_micron,
         n_angular_samples=(args.n_samples if args.downsample else None),
     )
-    video = VesicleVideo(intensities, source_path=path)
+    video = VesicleVideo(intensities)
+    video.source_path = Path(path)
 
     try:
         edges = video.extract_edges(extractor_func, extraction_config)
