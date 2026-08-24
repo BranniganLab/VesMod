@@ -26,16 +26,27 @@ from .vesicle_video_utils import downsample_to_new_indices
 
 @dataclass
 class VesicleVideo:
-    """Raw image frames for one vesicle trajectory."""
+    """Raw image frames for one vesicle trajectory.
+
+    Parameters
+    ----------
+    frames : np.ndarray
+        Three-dimensional array containing the source image frames.
+    source_path : str | Path | None
+        Path to the original source video, when known.
+    """
 
     frames: np.ndarray
+    source_path: str | Path | None = None
 
     def __post_init__(self) -> None:
-        """Validate raw image frames."""
+        """Validate raw image frames and source provenance."""
         if not isinstance(self.frames, np.ndarray):
             raise TypeError("frames must be a numpy ndarray.")
         if self.frames.ndim != 3:
             raise IndexError("frames must be a 3D array.")
+        if self.source_path is not None:
+            self.source_path = Path(self.source_path)
 
     def extract_edges(
         self,
@@ -127,6 +138,7 @@ class VesicleVideo:
         return VesicleEdges(
             extraction_config=extraction_config,
             detections=detections,
+            source_path=self.source_path,
         )
 
     def make_vesicle_gif(
