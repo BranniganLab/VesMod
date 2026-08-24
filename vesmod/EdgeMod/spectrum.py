@@ -79,10 +79,11 @@ class Spectrum:
         combined_mask = mask1 & mask2
         return MiniSpectrum(self.modes[combined_mask], self.avg_amps2[combined_mask], None)
 
-    def extract_kc_from_fit(
+    def extract_kc_from_fit(  # pylint: disable=too-many-arguments
         self,
         lower_bound: int = 3,
         upper_bound: int = 8,
+        *,
         lmax: int = 500,
         free_sigma: bool = True,
         temperature: float = 295,
