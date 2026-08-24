@@ -122,11 +122,16 @@ class EdgeDetection:
         as `full_contour`.
     qc : EdgeQC
         Quality-control information associated with this detection.
+    frame_index : int | None
+        Zero-based source video frame index. None only for legacy/manually
+        constructed results that have not yet been associated with a
+        :class:`VesicleEdges` trajectory.
     """
 
     full_contour: ImageContour
     analysis_contour: ImageContour
     qc: EdgeQC = field(default_factory=EdgeQC)
+    frame_index: int | None = field(default=None, kw_only=True)
 
 
 @dataclass(frozen=True)
@@ -138,9 +143,14 @@ class EdgeDetectionFailure:
     ----------
     error : str
         Error message produced while attempting edge extraction.
+    frame_index : int | None
+        Zero-based source video frame index. None only for legacy/manually
+        constructed results that have not yet been associated with a
+        :class:`VesicleEdges` trajectory.
     """
 
     error: str
+    frame_index: int | None = field(default=None, kw_only=True)
 
 
 EdgeResult = EdgeDetection | EdgeDetectionFailure
