@@ -230,9 +230,10 @@ def test_checkpoint_round_trip_preserves_extraction_not_qc(
     extraction_config,
     qc_config,
 ):
-    """Test checkpointing preserves extraction state and frame identity."""
+    """Test checkpointing preserves extraction state and source provenance."""
     first = _edge(radius=10.0)
     second = _edge(radius=12.0)
+    source_path = tmp_path / "source.nd2"
     edge_results = VesicleEdges(
         extraction_config=extraction_config,
         detections=[
@@ -240,6 +241,7 @@ def test_checkpoint_round_trip_preserves_extraction_not_qc(
             EdgeDetectionFailure("bad frame"),
             second,
         ],
+        source_path=source_path,
     )
     edge_results.run_qc(qc_config)
     edge_results.save_checkpoint(tmp_path / "sample")
@@ -249,6 +251,7 @@ def test_checkpoint_round_trip_preserves_extraction_not_qc(
     assert loaded.qc_result is None
     assert loaded.qc_config is None
     assert loaded.extraction_config == extraction_config
+    assert loaded.source_path == source_path
     assert isinstance(loaded.detections[0], EdgeDetection)
     assert isinstance(loaded.detections[1], EdgeDetectionFailure)
     assert loaded.detections[1].error == "bad frame"
@@ -264,11 +267,11 @@ def test_checkpoint_round_trip_preserves_extraction_not_qc(
     )
 
 
-def test_checkpoint_without_frame_indices_infers_from_order(
+def test_checkpoint_without_optional_provenance_infers_available_data(
     tmp_path,
     extraction_config,
 ):
-    """Test checkpoints without frame indices recover them from stored order."""
+    """Test older checkpoints infer frame indices and omit unknown source path."""
     edge_results = VesicleEdges(
         extraction_config=extraction_config,
         detections=[
@@ -276,6 +279,7 @@ def test_checkpoint_without_frame_indices_infers_from_order(
             EdgeDetectionFailure("bad frame"),
             _edge(radius=12.0),
         ],
+        source_path=tmp_path / "source.nd2",
     )
     current_path = tmp_path / "current.npz"
     edge_results.save_checkpoint(current_path)
@@ -284,14 +288,15 @@ def test_checkpoint_without_frame_indices_infers_from_order(
         legacy_data = {
             key: checkpoint[key].copy()
             for key in checkpoint.files
-            if key != "frame_indices"
+            if key not in {"frame_indices", "source_path"}
         }
-    legacy_path = tmp_path / "without_frame_indices.npz"
+    legacy_path = tmp_path / "legacy.npz"
     np.savez(legacy_path, **legacy_data)
 
     loaded = VesicleEdges.from_checkpoint(legacy_path)
 
     assert [result.frame_index for result in loaded.detections] == [0, 1, 2]
+    assert loaded.source_path is None
     assert isinstance(loaded.detections[1], EdgeDetectionFailure)
     assert loaded.detections[1].error == "bad frame"
 
