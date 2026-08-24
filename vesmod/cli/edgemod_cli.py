@@ -1,4 +1,10 @@
-"""Command line tool for fitting bending moduli from vesicle edge arrays."""
+"""CLI for fixed or dynamically selected EdgeMod spectrum fitting.
+
+The command-line layer converts user options into a ``SpectrumFitConfig`` and
+then delegates scientific analysis to ``Spectrum``. Fixed fitting remains the
+default; dynamic fitting uses q^-3 scaling criteria supplied explicitly by the
+user and writes a distinct ``.dynamic.json`` output.
+"""
 
 from __future__ import annotations
 
@@ -14,7 +20,7 @@ from vesmod.EdgeMod import (
 
 
 def parse_args() -> argparse.Namespace:
-    """Parse command line arguments."""
+    """Parse input-selection, physical-fit, and q-range-selection options."""
     parser = argparse.ArgumentParser(
         description=(
             "Fit kc/sigma from one or more .npy edge files and write one JSON "
@@ -90,7 +96,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def iter_npy_files(input_path: Path, recursive: bool) -> list[Path]:
-    """Return the .npy files selected by the user."""
+    """Return the input ``.npy`` files selected by a CLI path and recursion flag."""
     input_path = input_path.expanduser().resolve()
     if input_path.is_file():
         if input_path.suffix != ".npy":
@@ -105,7 +111,12 @@ def iter_npy_files(input_path: Path, recursive: bool) -> list[Path]:
 
 
 def build_fit_config(args: argparse.Namespace) -> SpectrumFitConfig:
-    """Build the scientific fit configuration requested on the command line."""
+    """Translate parsed CLI options into one scientific fit configuration.
+
+    Fixed mode constructs a ``FixedFitRangeSelector``. Dynamic mode constructs
+    a ``QMinusThreeFitRangeSelector`` and requires all three empirical
+    acceptance criteria to be supplied explicitly.
+    """
     if args.dynamic_range:
         missing = [
             option
@@ -142,14 +153,14 @@ def build_fit_config(args: argparse.Namespace) -> SpectrumFitConfig:
 
 
 def output_path_for(path: Path, dynamic_range: bool) -> Path:
-    """Return a non-colliding JSON path for the requested fit strategy."""
+    """Return the JSON output path, separating dynamic from fixed results."""
     if dynamic_range:
         return path.with_name(f"{path.stem}.dynamic.json")
     return path.with_suffix(".json")
 
 
 def process_file(path: Path, args: argparse.Namespace) -> None:
-    """Fit one edge file and save its spectrum metadata to JSON."""
+    """Fit one contour trajectory with the requested config and write JSON."""
     config = build_fit_config(args)
     output_path = output_path_for(path, args.dynamic_range)
 
@@ -161,7 +172,7 @@ def process_file(path: Path, args: argparse.Namespace) -> None:
 
 
 def main() -> None:
-    """Run the command line interface."""
+    """Run EdgeMod over the selected file or batch of files."""
     args = parse_args()
     paths = iter_npy_files(args.input_path, args.recursive)
     if not paths:
