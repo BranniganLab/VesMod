@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 
 from vesmod.EdgeMod import FixedFitRangeSelector, QMinusThreeFitRangeSelector
+from vesmod.cli import edgemod_cli
 from vesmod.cli.edgemod_cli import build_fit_config, output_path_for, process_file
 
 
@@ -104,3 +105,60 @@ def test_process_file_serializes_dynamic_rejection_diagnostics(tmp_path):
     assert data["fit_range_selection"]["reason"] is not None
     assert data["kC"] is None
     assert data["surface_tension"] is None
+
+
+@pytest.mark.parametrize(
+    "error", [ValueError("fit failed"), FloatingPointError("fit failed")]
+)
+def test_recursive_run_skips_failed_fit_and_continues(
+    monkeypatch, capsys, tmp_path, error
+):
+    """Test one failed spectrum does not abort a recursive batch."""
+    failed_path = tmp_path / "failed.npy"
+    successful_path = tmp_path / "successful.npy"
+    args = _args()
+    args.input_path = tmp_path
+    args.recursive = True
+    processed = []
+
+    monkeypatch.setattr(edgemod_cli, "parse_args", lambda: args)
+    monkeypatch.setattr(
+        edgemod_cli,
+        "iter_npy_files",
+        lambda input_path, recursive: [failed_path, successful_path],
+    )
+
+    def fake_process_file(path, parsed_args):
+        processed.append(path)
+        if path == failed_path:
+            raise error
+
+    monkeypatch.setattr(edgemod_cli, "process_file", fake_process_file)
+
+    edgemod_cli.main()
+
+    assert processed == [failed_path, successful_path]
+    assert f"Skipping {failed_path}: fit failed" in capsys.readouterr().err
+
+
+def test_nonrecursive_run_propagates_failed_fit(monkeypatch, tmp_path):
+    """Test a direct single-spectrum run still reports failure to the caller."""
+    failed_path = tmp_path / "failed.npy"
+    args = _args()
+    args.input_path = failed_path
+    args.recursive = False
+
+    monkeypatch.setattr(edgemod_cli, "parse_args", lambda: args)
+    monkeypatch.setattr(
+        edgemod_cli,
+        "iter_npy_files",
+        lambda input_path, recursive: [failed_path],
+    )
+    monkeypatch.setattr(
+        edgemod_cli,
+        "process_file",
+        lambda path, parsed_args: (_ for _ in ()).throw(ValueError("fit failed")),
+    )
+
+    with pytest.raises(ValueError, match="fit failed"):
+        edgemod_cli.main()

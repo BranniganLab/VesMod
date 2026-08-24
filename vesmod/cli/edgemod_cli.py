@@ -5,12 +5,14 @@ then delegates scientific analysis to ``Spectrum``. Fixed fitting remains the
 default; dynamic fitting uses q^-3 scaling criteria supplied explicitly by the
 user and writes a distinct ``.dynamic.json`` output. If fitting fails after
 range selection, the current spectrum diagnostics are serialized before the
-error is re-raised.
+error is re-raised. Recursive batches report that failure and continue with
+the remaining spectra.
 """
 
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
 from vesmod.EdgeMod import (
@@ -212,12 +214,20 @@ def process_file(path: Path, args: argparse.Namespace) -> None:
 def main() -> None:
     """Run EdgeMod over the selected file or batch of files."""
     args = parse_args()
+    # Validate shared fit settings before recursive mode begins suppressing
+    # per-spectrum failures.
+    build_fit_config(args)
     paths = iter_npy_files(args.input_path, args.recursive)
     if not paths:
         raise FileNotFoundError(f"No .npy files found in {args.input_path}")
 
     for path in paths:
-        process_file(path, args)
+        try:
+            process_file(path, args)
+        except (ValueError, FloatingPointError) as exc:
+            if not args.recursive:
+                raise
+            print(f"Skipping {path}: {exc}", file=sys.stderr)
 
 
 if __name__ == "__main__":
