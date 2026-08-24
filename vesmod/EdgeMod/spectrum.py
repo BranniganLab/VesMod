@@ -10,9 +10,14 @@ from types import NoneType
 import json
 import numpy as np
 from vesmod.VesEdge import VesicleEdges
-from .fit_range_selection import FitRangeSelection, FitRangeSelector
+from .config import SpectrumFitConfig
+from .fit_range_selection import FitRangeSelection
 from .fit_result import SpectrumFit
-from .spectrum_utils import fit_spectrum_to_theory_lmfit, calc_tension_from_reduced_tension, MiniSpectrum
+from .spectrum_utils import (
+    MiniSpectrum,
+    calc_tension_from_reduced_tension,
+    fit_spectrum_to_theory_lmfit,
+)
 
 
 class Spectrum:
@@ -77,61 +82,73 @@ class Spectrum:
         mask1 = self.modes >= lower_bound
         mask2 = self.modes < upper_bound
         combined_mask = mask1 & mask2
-        return MiniSpectrum(self.modes[combined_mask], self.avg_amps2[combined_mask], None)
+        return MiniSpectrum(
+            self.modes[combined_mask],
+            self.avg_amps2[combined_mask],
+            None,
+        )
 
-    def extract_kc_from_fit(  # pylint: disable=too-many-arguments
+    def extract_kc_from_fit(
         self,
-        lower_bound: int = 3,
-        upper_bound: int = 8,
-        *,
-        lmax: int = 500,
-        free_sigma: bool = True,
-        temperature: float = 295,
-        range_selector: FitRangeSelector | None = None,
+        config: SpectrumFitConfig | None = None,
     ) -> SpectrumFit:
-        """Fit a selected mode range to the theoretical prediction.
+        """Fit a configured mode range to the theoretical prediction.
 
-        Each successful call returns and stores an immutable :class:`SpectrumFit`
-        so multiple fitting strategies can be compared on the same Spectrum.
-        Tuple unpacking remains supported through ``SpectrumFit.__iter__``.
+        Parameters
+        ----------
+        config : SpectrumFitConfig | None
+            Scientific fit configuration. If omitted, use the default fixed
+            q=3--7 fit with the standard EdgeMod settings.
 
-        When ``range_selector`` is supplied, it selects the lower-inclusive,
-        upper-exclusive q range before the physical fit. A rejected selection
-        raises ``ValueError`` and leaves its diagnostics on
-        ``fit_range_selection``. Omitting the selector preserves the existing
-        fixed-range behavior controlled by ``lower_bound`` and ``upper_bound``.
+        Returns
+        -------
+        SpectrumFit
+            Immutable fit result containing the fitted values, q bounds, and
+            configuration used to produce them.
+
+        Raises
+        ------
+        ValueError
+            If the configured range selector rejects the spectrum.
         """
-        self.fit_range_selection = None
-        method = "fixed"
-        selection = None
-        if range_selector is not None:
-            selection = range_selector.select(self.modes, self.avg_amps2)
-            self.fit_range_selection = selection
-            method = type(range_selector).__name__
-            if not selection.accepted:
-                self.kC = None
-                self.surface_tension = None
-                raise ValueError(selection.reason or "No acceptable q range found.")
-            if selection.lower_bound is None or selection.upper_bound is None:
-                raise ValueError("Accepted fit-range selection is missing q bounds.")
-            lower_bound = selection.lower_bound
-            upper_bound = selection.upper_bound
+        if config is None:
+            config = SpectrumFitConfig()
+        if not isinstance(config, SpectrumFitConfig):
+            raise TypeError("config must be a SpectrumFitConfig or None.")
 
-        fitting_range = self.isolate_mode_range(lower_bound, upper_bound)
-        fit = fit_spectrum_to_theory_lmfit(fitting_range, lmax, free_sigma)
-        self.kC, reduced_sigma = fit
+        selection = config.range_selector.select(
+            self.modes,
+            self.avg_amps2,
+        )
+        self.fit_range_selection = selection
+        if not selection.accepted:
+            self.kC = None
+            self.surface_tension = None
+            raise ValueError(selection.reason or "No acceptable q range found.")
+        if selection.lower_bound is None or selection.upper_bound is None:
+            raise ValueError("Accepted fit-range selection is missing q bounds.")
+
+        fitting_range = self.isolate_mode_range(
+            selection.lower_bound,
+            selection.upper_bound,
+        )
+        self.kC, reduced_sigma = fit_spectrum_to_theory_lmfit(
+            fitting_range,
+            config.lmax,
+            config.free_sigma,
+        )
         self.surface_tension = calc_tension_from_reduced_tension(
             self.r0,
             reduced_sigma,
             self.kC,
-            temperature,
+            config.temperature,
         )
         fit_result = SpectrumFit(
             kC=float(self.kC),
             surface_tension=float(self.surface_tension),
-            lower_bound=lower_bound,
-            upper_bound=upper_bound,
-            method=method,
+            lower_bound=selection.lower_bound,
+            upper_bound=selection.upper_bound,
+            config=config,
             range_selection=selection,
         )
         if not hasattr(self, "fit_results"):
@@ -144,7 +161,11 @@ class Spectrum:
         data = {
             "r0": float(self.r0) if getattr(self, "r0", None) is not None else None,
             "kC": float(self.kC) if getattr(self, "kC", None) is not None else None,
-            "surface_tension": float(self.surface_tension) if getattr(self, "surface_tension", None) is not None else None,
+            "surface_tension": (
+                float(self.surface_tension)
+                if getattr(self, "surface_tension", None) is not None
+                else None
+            ),
         }
 
         selection = getattr(self, "fit_range_selection", None)
@@ -157,10 +178,14 @@ class Spectrum:
 
         if include_arrays:
             data["modes"] = (
-                self.modes.tolist() if getattr(self, "modes", None) is not None else None
+                self.modes.tolist()
+                if getattr(self, "modes", None) is not None
+                else None
             )
             data["avg_amps2"] = (
-                self.avg_amps2.tolist() if getattr(self, "avg_amps2", None) is not None else None
+                self.avg_amps2.tolist()
+                if getattr(self, "avg_amps2", None) is not None
+                else None
             )
 
         return data
