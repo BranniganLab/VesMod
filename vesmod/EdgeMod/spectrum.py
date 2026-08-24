@@ -10,6 +10,7 @@ from types import NoneType
 import json
 import numpy as np
 from vesmod.VesEdge import VesicleEdges
+from .fit_range_selection import FitRangeSelection, FitRangeSelector
 from .spectrum_utils import fit_spectrum_to_theory_lmfit, calc_tension_from_reduced_tension, MiniSpectrum
 
 
@@ -50,6 +51,7 @@ class Spectrum:
         self.modes = self._calc_integer_modes()
         self.kC = None
         self.surface_tension = None
+        self.fit_range_selection: FitRangeSelection | None = None
 
     def _calc_avg_sq_amplitudes(self, r_vals_over_time: np.ndarray) -> np.ndarray:
         """Calculate the normalized Fourier transform, then square and average."""
@@ -81,9 +83,30 @@ class Spectrum:
         upper_bound: int = 8,
         lmax: int = 500,
         free_sigma: bool = True,
-        temperature: float = 295
+        temperature: float = 295,
+        range_selector: FitRangeSelector | None = None,
     ) -> tuple[float, float]:
-        """Fit a selected mode range to the theoretical prediction."""
+        """Fit a selected mode range to the theoretical prediction.
+
+        When ``range_selector`` is supplied, it selects the lower-inclusive,
+        upper-exclusive q range before the physical fit. A rejected selection
+        raises ``ValueError`` and leaves its diagnostics on
+        ``fit_range_selection``. Omitting the selector preserves the existing
+        fixed-range behavior controlled by ``lower_bound`` and ``upper_bound``.
+        """
+        self.fit_range_selection = None
+        if range_selector is not None:
+            selection = range_selector.select(self.modes, self.avg_amps2)
+            self.fit_range_selection = selection
+            if not selection.accepted:
+                self.kC = None
+                self.surface_tension = None
+                raise ValueError(selection.reason or "No acceptable q range found.")
+            if selection.lower_bound is None or selection.upper_bound is None:
+                raise ValueError("Accepted fit-range selection is missing q bounds.")
+            lower_bound = selection.lower_bound
+            upper_bound = selection.upper_bound
+
         fitting_range = self.isolate_mode_range(lower_bound, upper_bound)
         fit = fit_spectrum_to_theory_lmfit(fitting_range, lmax, free_sigma)
         self.kC, reduced_sigma = fit
@@ -102,6 +125,10 @@ class Spectrum:
             "kC": float(self.kC) if getattr(self, "kC", None) is not None else None,
             "surface_tension": float(self.surface_tension) if getattr(self, "surface_tension", None) is not None else None,
         }
+
+        selection = getattr(self, "fit_range_selection", None)
+        if selection is not None:
+            data["fit_range_selection"] = selection.to_dict()
 
         if include_arrays:
             data["modes"] = (
