@@ -20,6 +20,7 @@ Fixed fitting remains the default CLI behavior.
 * Explicit dynamic q^-3 acceptance criteria
 * Rejection of spectra with no trustworthy q^-3 regime
 * Configurable spherical harmonic summation limit
+* Spectrum-fit diagnostic PNG for attempted physical fits, including fits rejected by validation
 * JSON output containing fit values, q bounds, configuration, and selection diagnostics
 * Separate fixed and dynamic output filenames for direct comparison
 
@@ -64,7 +65,12 @@ and writes:
 
 ```text
 sample.json
+sample.spectrum_diagnostic.png
 ```
+
+If physical-fit validation fails after an HSS97 fit is attempted, EdgeMod still writes the diagnostic PNG before raising the validation error. The figure shows the measured and attempted theoretical spectra, the selected fitting modes, the $q^4$-compensated spectrum, relative residuals, fitted parameters, and the rejection reason.
+
+A dynamic q-range selection rejection is different: no HSS97 fit is attempted, so there is no spectrum-fit diagnostic PNG. The rejection diagnostics are instead written to the dynamic JSON output.
 
 For a VesEdge batch, the recommended input is a QC output directory:
 
@@ -289,15 +295,19 @@ fixed fitting writes:
 
 ```text
 sample.json
+sample.spectrum_diagnostic.png
 ```
 
-and dynamic fitting writes:
+and successful dynamic fitting writes:
 
 ```text
 sample.dynamic.json
+sample.dynamic.spectrum_diagnostic.png
 ```
 
 This naming allows the same contour file to be analyzed with fixed and dynamic fitting without the second CLI run overwriting the first.
+
+If dynamic q-range selection rejects the spectrum before physical fitting, `sample.dynamic.json` is still written but `sample.dynamic.spectrum_diagnostic.png` is not, because no HSS97 fit was attempted.
 
 ### JSON Output
 
@@ -406,14 +416,16 @@ edgemod sample.npy \
     --max-log-rmse 0.1
 ```
 
-After both successful commands, both files are available:
+After both successful commands, the JSON and fit-diagnostic files for both strategies are available:
 
 ```text
 sample.json
+sample.spectrum_diagnostic.png
 sample.dynamic.json
+sample.dynamic.spectrum_diagnostic.png
 ```
 
-If dynamic selection rejects the spectrum, `sample.dynamic.json` is still written with the rejection diagnostics before the CLI reports the error.
+If dynamic selection rejects the spectrum, `sample.dynamic.json` is still written with the rejection diagnostics before the CLI reports the error; there is no dynamic spectrum-fit PNG because no physical fit was attempted.
 
 ### Analyze every vesicle in one VesEdge QC result
 

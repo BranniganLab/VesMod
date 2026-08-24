@@ -19,6 +19,7 @@ from vesmod.VesEdge import (
     VesicleEdges,
     VesicleVideo,
 )
+from vesmod.VesEdge.population_plotting import save_population_histograms
 
 
 def parse_args() -> argparse.Namespace:
@@ -282,6 +283,7 @@ def process_extract_file(path: Path, args: argparse.Namespace) -> None:
         n_angular_samples=(args.n_samples if args.downsample else None),
     )
     video = VesicleVideo(intensities)
+    video.source_path = Path(path)
 
     try:
         edges = video.extract_edges(extractor_func, extraction_config)
@@ -322,8 +324,9 @@ def _qc_provenance(
 
 def _remove_managed_qc_artifacts(output_dir: Path) -> None:
     """Remove filtered arrays and metadata managed by a previous QC batch."""
-    for output_path in output_dir.rglob("*.npy"):
-        output_path.unlink()
+    for pattern in ("*.npy", "*.population_histograms.png"):
+        for output_path in output_dir.rglob(pattern):
+            output_path.unlink()
     for filename in ("qc_summary.csv", "vesedge_qc.json"):
         output_path = output_dir / filename
         if output_path.exists():
@@ -444,6 +447,19 @@ def process_qc_file(
             status = "no_accepted_frames"
             print(f"QC produced no accepted frames for {path.name}: {error}")
 
+    population_figure_path = output_path.with_suffix(
+        ".population_histograms.png"
+    )
+    if (
+        edges.qc_result is not None
+        and getattr(edges.qc_result, "population", None) is not None
+        and (args.overwrite or not population_figure_path.exists())
+    ):
+        save_population_histograms(
+            edges.detections,
+            population_figure_path,
+        )
+
     row = _qc_summary(path, args.input_path, edges, status, qc_error)
     if (
         status == "ok"
@@ -455,33 +471,43 @@ def process_qc_file(
 
 
 def _write_qc_summary(output_dir: Path, rows: list[dict]) -> None:
-    """Write one CSV row per selected checkpoint in the QC batch."""
-    if not rows:
-        return
+    """Write one CSV row per processed checkpoint."""
     summary_path = output_dir / "qc_summary.csv"
-    with summary_path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+    fieldnames = [
+        "file",
+        "frames",
+        "successful_detections",
+        "extraction_failures",
+        "curvature_rejected",
+        "population_rejected",
+        "accepted",
+        "accepted_fraction",
+        "status",
+        "error",
+    ]
+    with summary_path.open("w", newline="", encoding="utf-8") as summary_file:
+        writer = csv.DictWriter(summary_file, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
 
 
 def _run_extract(args: argparse.Namespace) -> None:
-    """Run the extraction subcommand."""
+    """Run extraction over the selected ND2 files."""
     paths = iter_input_files(args.input_path, ".nd2", args.recursive)
     if not paths:
         raise FileNotFoundError(f"No .nd2 files found in {args.input_path}")
+
     for path in paths:
         process_extract_file(path, args)
 
 
 def _run_qc(args: argparse.Namespace) -> None:
-    """Run the QC subcommand."""
+    """Run one QC configuration over the selected checkpoints."""
     paths = iter_input_files(args.input_path, ".npz", args.recursive)
     if not paths:
         raise FileNotFoundError(f"No .npz files found in {args.input_path}")
 
     qc_config = _qc_config_from_args(args)
-    args.output_dir = args.output_dir.expanduser().resolve()
     _write_qc_provenance(
         args.output_dir,
         qc_config,
@@ -490,13 +516,15 @@ def _run_qc(args: argparse.Namespace) -> None:
         paths,
         args.overwrite,
     )
-
-    rows = [process_qc_file(path, args, qc_config) for path in paths]
+    rows = [
+        process_qc_file(path, args, qc_config)
+        for path in paths
+    ]
     _write_qc_summary(args.output_dir, rows)
 
 
 def main() -> None:
-    """Run the VesEdge command-line interface."""
+    """Run the selected VesEdge subcommand."""
     args = parse_args()
     if args.command == "extract":
         _run_extract(args)

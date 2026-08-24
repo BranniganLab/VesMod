@@ -134,12 +134,14 @@ This creates:
 ```text
 results/qc_standard/
 ├── sample01.npy
+├── sample01.population_histograms.png
 ├── sample02.npy
+├── sample02.population_histograms.png
 ├── vesedge_qc.json
 └── qc_summary.csv
 ```
 
-`vesedge_qc.json` records the exact QC configuration and input path. `qc_summary.csv` reports extraction failures, curvature rejections, population rejections, accepted-frame counts, and accepted fractions for each checkpoint.
+`vesedge_qc.json` records the exact QC configuration and input path. `qc_summary.csv` reports extraction failures, curvature rejections, population rejections, accepted-frame counts, and accepted fractions for each checkpoint. When population QC is enabled, each `.population_histograms.png` figure shows the fitted populations across center x, center y, and median radius.
 
 ### 3. Compare alternate QC configurations
 
@@ -260,8 +262,10 @@ Both results remain available in `spectrum.fit_results`. Each `SpectrumFit` reco
 | `.npz` | Reusable, QC-independent VesEdge extraction checkpoint |
 | `.gif` | Visual inspection of raw image frames with extracted contours |
 | `.npy` | Accepted contour radii for one QC configuration, ready for EdgeMod |
+| `.population_histograms.png` | Center and radius distributions grouped by the population-QC assignments |
 | `vesedge_qc.json` | QC configuration and source path for one QC batch |
 | `qc_summary.csv` | Per-video QC counts and accepted fractions for one QC batch |
+| `.spectrum_diagnostic.png` | Measured spectrum, attempted fit, compensated spectrum, and fit residuals |
 | `.json` | EdgeMod fixed-range spectrum/fitting output |
 | `.dynamic.json` | EdgeMod dynamically selected-range spectrum/fitting output |
 

@@ -1,5 +1,7 @@
 """Tests for preserving multiple EdgeMod fit results on one Spectrum."""
 
+from types import SimpleNamespace
+
 import numpy as np
 
 from vesmod.EdgeMod import (
@@ -45,11 +47,20 @@ def test_fixed_and_dynamic_fits_are_both_preserved(monkeypatch):
     )
 
     def fake_fit(fitting_range, lmax, free_sigma):
-        return float(fitting_range.modes[0]), 2.0
+        return SimpleNamespace(
+            best_values={
+                "kC": float(fitting_range.modes[0]),
+                "sigma": 2.0,
+            }
+        )
 
     monkeypatch.setattr(
-        "vesmod.EdgeMod.spectrum.fit_spectrum_to_theory_lmfit",
+        "vesmod.EdgeMod.spectrum.fit_spectrum_lmfit",
         fake_fit,
+    )
+    monkeypatch.setattr(
+        "vesmod.EdgeMod.spectrum.validate_lmfit_result",
+        lambda result, fitting_range, free_sigma: None,
     )
     monkeypatch.setattr(
         "vesmod.EdgeMod.spectrum.calc_tension_from_reduced_tension",
@@ -108,11 +119,17 @@ def test_to_dict_serializes_all_fit_results(monkeypatch):
     )
 
     monkeypatch.setattr(
-        "vesmod.EdgeMod.spectrum.fit_spectrum_to_theory_lmfit",
-        lambda fitting_range, lmax, free_sigma: (
-            float(fitting_range.modes[0]),
-            2.0,
+        "vesmod.EdgeMod.spectrum.fit_spectrum_lmfit",
+        lambda fitting_range, lmax, free_sigma: SimpleNamespace(
+            best_values={
+                "kC": float(fitting_range.modes[0]),
+                "sigma": 2.0,
+            }
         ),
+    )
+    monkeypatch.setattr(
+        "vesmod.EdgeMod.spectrum.validate_lmfit_result",
+        lambda result, fitting_range, free_sigma: None,
     )
     monkeypatch.setattr(
         "vesmod.EdgeMod.spectrum.calc_tension_from_reduced_tension",

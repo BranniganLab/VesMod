@@ -13,13 +13,18 @@ from types import NoneType
 import json
 import numpy as np
 from vesmod.VesEdge import VesicleEdges
+from .diagnostic_plotting import (
+    SpectrumDiagnosticData,
+    save_spectrum_fit_diagnostic,
+)
 from .config import SpectrumFitConfig
 from .fit_range_selection import FitRangeSelection
 from .fit_result import SpectrumFit
 from .spectrum_utils import (
     MiniSpectrum,
     calc_tension_from_reduced_tension,
-    fit_spectrum_to_theory_lmfit,
+    fit_spectrum_lmfit,
+    validate_lmfit_result,
 )
 
 
@@ -66,6 +71,7 @@ class Spectrum:
         self.modes = self._calc_integer_modes()
         self.kC = None
         self.surface_tension = None
+        self.fit_result = None
         self.fit_range_selection: FitRangeSelection | None = None
         self.fit_results: list[SpectrumFit] = []
 
@@ -101,64 +107,62 @@ class Spectrum:
         self,
         config: SpectrumFitConfig | None = None,
     ) -> SpectrumFit:
-        """Select a q range and fit that range to the theoretical spectrum.
-
-        Parameters
-        ----------
-        config : SpectrumFitConfig | None
-            Scientific fit configuration. If omitted, use the historical
-            default fixed fit over q = 3, 4, 5, 6, 7 with ``lmax=500``, free
-            surface tension, and ``temperature=295 K``.
-
-        Returns
-        -------
-        SpectrumFit
-            Immutable fit result containing fitted values, the actual q bounds
-            used, the full configuration, and range-selection diagnostics. The
-            result is appended to ``fit_results``.
-
-        Raises
-        ------
-        TypeError
-            If ``config`` is not a ``SpectrumFitConfig`` or ``None``.
-        ValueError
-            If the configured range selector rejects the spectrum or returns an
-            accepted selection without q bounds. A rejection updates
-            ``fit_range_selection`` but does not replace the most recent
-            successful ``kC`` or ``surface_tension`` values.
-        """
+        """Select a q range and fit that range to the theoretical spectrum."""
         if config is None:
             config = SpectrumFitConfig()
         if not isinstance(config, SpectrumFitConfig):
             raise TypeError("config must be a SpectrumFitConfig or None.")
+
+        # Prevent a failed new attempt from exposing an old lmfit result as though
+        # it belonged to the current attempt. Do not clear kC/surface_tension:
+        # those intentionally retain the most recent successful physical fit.
+        self.fit_result = None
 
         selection = config.range_selector.select(
             self.modes,
             self.avg_amps2,
         )
         self.fit_range_selection = selection
+
         if not selection.accepted:
             raise ValueError(selection.reason or "No acceptable q range found.")
+
         if selection.lower_bound is None or selection.upper_bound is None:
-            raise ValueError("Accepted fit-range selection is missing q bounds.")
+            raise ValueError(
+                "Accepted fit-range selection is missing q bounds."
+            )
 
         fitting_range = self.isolate_mode_range(
             selection.lower_bound,
             selection.upper_bound,
         )
-        fitted_kc, reduced_sigma = fit_spectrum_to_theory_lmfit(
+
+        # Keep the complete lmfit result so branch 73 can make diagnostics even
+        # when validation rejects the physical fit.
+        self.fit_result = fit_spectrum_lmfit(
             fitting_range,
             config.lmax,
             config.free_sigma,
         )
+        validate_lmfit_result(
+            self.fit_result,
+            fitting_range,
+            config.free_sigma,
+        )
+
+        fitted_kc = self.fit_result.best_values["kC"]
+        reduced_sigma = self.fit_result.best_values["sigma"]
         fitted_surface_tension = calc_tension_from_reduced_tension(
             self.r0,
             reduced_sigma,
             fitted_kc,
             config.temperature,
         )
+
+        # Only replace compatibility attributes after a successful validated fit.
         self.kC = fitted_kc
         self.surface_tension = fitted_surface_tension
+
         fit_result = SpectrumFit(
             kC=float(fitted_kc),
             surface_tension=float(fitted_surface_tension),
@@ -167,10 +171,36 @@ class Spectrum:
             config=config,
             range_selection=selection,
         )
+
         if not hasattr(self, "fit_results"):
             self.fit_results = []
         self.fit_results.append(fit_result)
+
         return fit_result
+
+    def save_fit_diagnostic(
+        self,
+        path: str | Path,
+        lower_bound: int,
+        upper_bound: int,
+        lmax: int,
+        validation_error: str | None = None,
+    ) -> None:
+        """Save measured spectrum, attempted fit, and residual diagnostics."""
+        if self.fit_result is None:
+            raise ValueError("A spectrum fit must be attempted before plotting.")
+        save_spectrum_fit_diagnostic(
+            SpectrumDiagnosticData(
+                modes=self.modes,
+                avg_amps2=self.avg_amps2,
+                fit_result=self.fit_result,
+                lower_bound=lower_bound,
+                upper_bound=upper_bound,
+                lmax=lmax,
+                validation_error=validation_error,
+            ),
+            path,
+        )
 
     def _to_dict(self, include_arrays=True) -> dict:
         """Return spectrum state and retained fit provenance as a dictionary."""

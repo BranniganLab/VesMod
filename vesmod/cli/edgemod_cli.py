@@ -162,17 +162,49 @@ def output_path_for(path: Path, dynamic_range: bool) -> Path:
 
 
 def process_file(path: Path, args: argparse.Namespace) -> None:
-    """Fit one trajectory and serialize results or failure diagnostics."""
+    """Fit one trajectory and save results and fit diagnostics."""
     config = build_fit_config(args)
     output_path = output_path_for(path, args.dynamic_range)
+    diagnostic_path = output_path.with_suffix(
+        ".spectrum_diagnostic.png"
+    )
 
     print(f"Working on file {path.stem}")
     spectrum = Spectrum(path)
+
     try:
         fit = spectrum.extract_kc_from_fit(config)
-    except ValueError:
+
+    except ValueError as error:
+        # Always preserve range-selection diagnostics.
         spectrum.to_json(output_path)
+
+        # A physical-fit diagnostic exists only if fitting was actually
+        # attempted. A q^-3 range-selection rejection has no lmfit result.
+        selection = spectrum.fit_range_selection
+        if (
+            spectrum.fit_result is not None
+            and selection is not None
+            and selection.lower_bound is not None
+            and selection.upper_bound is not None
+        ):
+            spectrum.save_fit_diagnostic(
+                diagnostic_path,
+                selection.lower_bound,
+                selection.upper_bound,
+                config.lmax,
+                validation_error=str(error),
+            )
+
         raise
+
+    spectrum.save_fit_diagnostic(
+        diagnostic_path,
+        fit.lower_bound,
+        fit.upper_bound,
+        config.lmax,
+    )
+
     print(f"kc={fit.kC}, sigma={fit.surface_tension}")
     spectrum.to_json(output_path)
 
