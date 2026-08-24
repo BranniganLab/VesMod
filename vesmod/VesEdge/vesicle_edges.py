@@ -35,10 +35,13 @@ class VesicleEdges:
         Configuration used to construct the stored analysis contours.
     detections : list[EdgeResult]
         Ordered extraction result corresponding to each source video frame.
+    source_path : str | Path | None
+        Path to the original source video, when known.
     """
 
     extraction_config: EdgeExtractionConfig
     detections: list[EdgeResult]
+    source_path: str | Path | None = None
     qc_result: VesicleQCResult | None = field(
         default=None,
         init=False,
@@ -46,6 +49,8 @@ class VesicleEdges:
 
     def __post_init__(self) -> None:
         """Validate extraction results stored on the object."""
+        if self.source_path is not None:
+            self.source_path = Path(self.source_path)
         self._infer_frame_indices()
         self._validate_detection_lengths()
 
@@ -253,13 +258,15 @@ class VesicleEdges:
             path,
             self.extraction_config,
             self.detections,
+            source_path=self.source_path,
         )
 
     @classmethod
     def from_checkpoint(cls, path: str | Path) -> "VesicleEdges":
         """Restore extraction results from a VesEdge checkpoint without QC."""
-        extraction_config, detections = load_checkpoint(path)
+        extraction_config, detections, source_path = load_checkpoint(path)
         return cls(
             extraction_config=extraction_config,
             detections=detections,
+            source_path=source_path,
         )
