@@ -456,3 +456,63 @@ def test_run_qc_writes_summary_when_every_checkpoint_fails_to_load(
     assert "first.npz" in summary
     assert "second.npz" in summary
     assert summary.count("load_error") == 2
+
+
+def test_process_qc_file_saves_population_histogram(tmp_path, monkeypatch):
+    """Test completed population QC produces a figure beside filtered edges."""
+    observed = {}
+
+    class Detection:
+        def __init__(self):
+            self.qc = argparse.Namespace(flags=set(), passed=True)
+
+    class FakeEdges:
+        def __init__(self):
+            self.detections = [Detection()]
+            self.successful_detections = self.detections
+            self.qc_result = None
+
+        def run_qc(self, config):
+            self.qc_result = argparse.Namespace(population=object())
+
+        def save_edge_to_npy(self, path):
+            pass
+
+    edges = FakeEdges()
+    path = Path("sample.npz")
+    monkeypatch.setattr(
+        vesedge_cli.VesicleEdges,
+        "from_checkpoint",
+        lambda checkpoint_path: edges,
+    )
+    monkeypatch.setattr(
+        vesedge_cli,
+        "save_population_histograms",
+        lambda detections, output_path: observed.update(
+            detections=detections,
+            output_path=output_path,
+        ),
+    )
+    args = _qc_args(tmp_path, path)
+
+    vesedge_cli.process_qc_file(
+        path,
+        args,
+        vesedge_cli._qc_config_from_args(args),
+    )
+
+    assert observed["detections"] is edges.detections
+    assert observed["output_path"] == (
+        tmp_path / "sample.population_histograms.png"
+    )
+
+
+def test_remove_managed_qc_artifacts_removes_population_histograms(tmp_path):
+    """Test incompatible overwrite removes stale diagnostic figures."""
+    histogram = tmp_path / "nested" / "sample.population_histograms.png"
+    histogram.parent.mkdir(parents=True)
+    histogram.touch()
+
+    vesedge_cli._remove_managed_qc_artifacts(tmp_path)
+
+    assert not histogram.exists()
