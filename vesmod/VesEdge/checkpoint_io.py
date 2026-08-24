@@ -15,8 +15,6 @@ from .models import (
     ImageContour,
 )
 
-CHECKPOINT_VERSION = "1.1"
-_SUPPORTED_CHECKPOINT_VERSIONS = {"1", CHECKPOINT_VERSION}
 _DETECTION_CODE = 1
 _FAILURE_CODE = 0
 
@@ -26,7 +24,7 @@ def save_checkpoint(
     extraction_config: EdgeExtractionConfig,
     detections: list[EdgeResult],
 ) -> None:
-    """Save QC-independent extraction results to a versioned ``.npz`` file."""
+    """Save QC-independent extraction results to a ``.npz`` file."""
     successful = [
         result
         for result in detections
@@ -88,7 +86,6 @@ def save_checkpoint(
 
     np.savez(
         Path(path).with_suffix(".npz"),
-        checkpoint_version=np.asarray(CHECKPOINT_VERSION),
         pixels_per_micron=np.asarray(
             extraction_config.pixels_per_micron,
             dtype=float,
@@ -125,20 +122,10 @@ def load_checkpoint(
             for key in checkpoint.files
         }
 
-    if "checkpoint_version" not in saved_data:
-        raise ValueError(
-            "VesEdge checkpoint is missing required field(s): checkpoint_version."
-        )
-    version = str(saved_data["checkpoint_version"].item())
-    if version not in _SUPPORTED_CHECKPOINT_VERSIONS:
-        raise ValueError(
-            "Unsupported VesEdge checkpoint version: "
-            f"{version}."
-        )
-    _validate_checkpoint_keys(saved_data, version)
+    _validate_checkpoint_keys(saved_data)
 
     extraction_config = _extraction_config_from_checkpoint(saved_data)
-    detections = _detections_from_checkpoint(saved_data, version)
+    detections = _detections_from_checkpoint(saved_data)
     return extraction_config, detections
 
 
@@ -164,11 +151,9 @@ def _flatten_full_radii(
 
 def _validate_checkpoint_keys(
     checkpoint: dict[str, np.ndarray],
-    version: str,
 ) -> None:
     """Verify that a checkpoint contains all required extraction fields."""
     required_keys = {
-        "checkpoint_version",
         "pixels_per_micron",
         "n_angular_samples",
         "result_types",
@@ -178,8 +163,6 @@ def _validate_checkpoint_keys(
         "full_radii_offsets",
         "analysis_radii_pixels",
     }
-    if version == CHECKPOINT_VERSION:
-        required_keys.add("frame_indices")
 
     missing_keys = required_keys - checkpoint.keys()
     if missing_keys:
@@ -205,14 +188,12 @@ def _extraction_config_from_checkpoint(
 
 def _detections_from_checkpoint(
     checkpoint: dict[str, np.ndarray],
-    version: str,
 ) -> list[EdgeResult]:
     """Reconstruct ordered extraction results from checkpoint arrays."""
     result_types = checkpoint["result_types"]
-    frame_indices = (
-        checkpoint["frame_indices"]
-        if version == CHECKPOINT_VERSION
-        else np.arange(result_types.shape[0], dtype=np.int64)
+    frame_indices = checkpoint.get(
+        "frame_indices",
+        np.arange(result_types.shape[0], dtype=np.int64),
     )
     success_count = int(
         np.count_nonzero(result_types == _DETECTION_CODE)
