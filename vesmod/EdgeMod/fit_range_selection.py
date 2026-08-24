@@ -243,7 +243,7 @@ class QMinusThreeFitRangeSelector:
         modes: np.ndarray,
         avg_amps2: np.ndarray,
     ) -> Iterator[FitRangeSelection]:
-        """Yield candidate windows using constant-cost prefix-sum statistics."""
+        """Yield windows while avoiding repeated full-window calculations."""
         run_starts = np.concatenate(
             ([0], np.flatnonzero(np.diff(modes) != 1) + 1)
         )
@@ -251,64 +251,55 @@ class QMinusThreeFitRangeSelector:
         for run_start, run_stop in zip(run_starts, run_stops, strict=True):
             if run_stop - run_start < self.min_modes:
                 continue
-            run_modes = modes[run_start:run_stop]
-            run_amps = avg_amps2[run_start:run_stop]
-            yield from self._windows_from_contiguous_run(run_modes, run_amps)
+            yield from self._windows_from_contiguous_run(
+                modes[run_start:run_stop],
+                avg_amps2[run_start:run_stop],
+            )
 
     def _windows_from_contiguous_run(
         self,
         modes: np.ndarray,
         avg_amps2: np.ndarray,
     ) -> Iterator[FitRangeSelection]:
-        """Yield all sufficiently long windows from one contiguous q run."""
+        """Yield windows using stable constant-cost incremental statistics."""
         log_q = np.log(modes.astype(float))
         log_amp = np.log(avg_amps2)
-        fixed_residual_coordinate = log_amp + 3.0 * log_q
-        prefixes = tuple(
-            np.concatenate(([0.0], np.cumsum(values)))
-            for values in (
-                log_q,
-                log_amp,
-                log_q * log_q,
-                log_q * log_amp,
-                fixed_residual_coordinate,
-                fixed_residual_coordinate * fixed_residual_coordinate,
-            )
-        )
-        for start in range(modes.size):
-            for stop in range(start + self.min_modes, modes.size + 1):
-                yield self._evaluate_window_from_prefixes(
-                    modes,
-                    start,
-                    stop,
-                    prefixes,
-                )
+        fixed_coordinate = log_amp + 3.0 * log_q
 
-    @staticmethod
-    def _evaluate_window_from_prefixes(
-        modes: np.ndarray,
-        start: int,
-        stop: int,
-        prefixes: tuple[np.ndarray, ...],
-    ) -> FitRangeSelection:
-        """Evaluate one window in constant time from prefix sums."""
-        sum_x, sum_y, sum_x2, sum_xy, sum_z, sum_z2 = (
-            prefix[stop] - prefix[start]
-            for prefix in prefixes
-        )
-        count = stop - start
-        denominator = count * sum_x2 - sum_x * sum_x
-        slope = (count * sum_xy - sum_x * sum_y) / denominator
-        mean_z = sum_z / count
-        variance_z = max(sum_z2 / count - mean_z * mean_z, 0.0)
-        log_rmse = math.sqrt(variance_z)
-        return FitRangeSelection(
-            accepted=True,
-            lower_bound=int(modes[start]),
-            upper_bound=int(modes[stop - 1]) + 1,
-            slope=float(slope),
-            log_rmse=float(log_rmse),
-        )
+        for start in range(modes.size):
+            count = 0
+            mean_x = 0.0
+            mean_y = 0.0
+            mean_z = 0.0
+            sum_xx = 0.0
+            sum_xy = 0.0
+            sum_zz = 0.0
+            for stop in range(start, modes.size):
+                count += 1
+
+                delta_x = log_q[stop] - mean_x
+                mean_x += delta_x / count
+                delta_y = log_amp[stop] - mean_y
+                mean_y += delta_y / count
+                sum_xx += delta_x * (log_q[stop] - mean_x)
+                sum_xy += delta_x * (log_amp[stop] - mean_y)
+
+                delta_z = fixed_coordinate[stop] - mean_z
+                mean_z += delta_z / count
+                sum_zz += delta_z * (fixed_coordinate[stop] - mean_z)
+
+                if count < self.min_modes:
+                    continue
+
+                slope = sum_xy / sum_xx
+                log_rmse = math.sqrt(max(sum_zz / count, 0.0))
+                yield FitRangeSelection(
+                    accepted=True,
+                    lower_bound=int(modes[start]),
+                    upper_bound=int(modes[stop]) + 1,
+                    slope=float(slope),
+                    log_rmse=float(log_rmse),
+                )
 
     def _eligible_spectrum(
         self,
