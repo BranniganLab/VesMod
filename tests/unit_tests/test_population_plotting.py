@@ -4,7 +4,7 @@ from matplotlib.axes import Axes
 import numpy as np
 import pytest
 
-from vesmod.VesEdge.models import EdgeDetection, ImageContour
+from vesmod.VesEdge.models import EdgeDetection, ImageContour, QCFlag
 from vesmod.VesEdge.population_plotting import save_population_histograms
 
 
@@ -58,3 +58,18 @@ def test_save_population_histograms_requires_population_assignments(tmp_path):
 
     with pytest.raises(ValueError, match="Population QC must assign"):
         save_population_histograms([edge], tmp_path / "histogram.png")
+
+
+def test_save_population_histograms_skips_when_preceding_qc_rejects_all(tmp_path):
+    """Test zero population-eligible detections produce no figure or error."""
+    radii = np.full(8, 10.0, dtype=float)
+    edge = EdgeDetection(
+        ImageContour((0.0, 0.0), radii),
+        ImageContour((0.0, 0.0), radii),
+    )
+    edge.qc.flags.add(QCFlag.CURVATURE)
+    output_path = tmp_path / "histogram.png"
+
+    save_population_histograms([edge], output_path)
+
+    assert not output_path.exists()
