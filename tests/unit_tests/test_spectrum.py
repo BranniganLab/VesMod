@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 # tests/test_spectrum.py
 import json
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -244,12 +245,14 @@ def test_extract_kc_from_fit_uses_mode_range_and_saves_fit_results(monkeypatch):
     spectrum.surface_tension = None
     calls = {}
 
-    def fake_fit_spectrum_to_theory_lmfit(fitting_range, lmax, free_sigma):
+    def fake_fit_spectrum_lmfit(fitting_range, lmax, free_sigma):
         calls["modes"] = fitting_range.modes.copy()
         calls["avg_amps2"] = fitting_range.avg_amps2.copy()
         calls["lmax"] = lmax
         calls["free_sigma"] = free_sigma
-        return 22.0, 3.5
+        return SimpleNamespace(
+            best_values={"kC": 22.0, "sigma": 3.5},
+        )
 
     def fake_calc_tension_from_reduced_tension(
         r0,
@@ -266,8 +269,12 @@ def test_extract_kc_from_fit_uses_mode_range_and_saves_fit_results(monkeypatch):
         return 9.9
 
     monkeypatch.setattr(
-        "vesmod.EdgeMod.spectrum.fit_spectrum_to_theory_lmfit",
-        fake_fit_spectrum_to_theory_lmfit,
+        "vesmod.EdgeMod.spectrum.fit_spectrum_lmfit",
+        fake_fit_spectrum_lmfit,
+    )
+    monkeypatch.setattr(
+        "vesmod.EdgeMod.spectrum.validate_lmfit_result",
+        lambda result, fitting_range, free_sigma: None,
     )
     monkeypatch.setattr(
         "vesmod.EdgeMod.spectrum.calc_tension_from_reduced_tension",
