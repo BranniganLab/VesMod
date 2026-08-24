@@ -140,6 +140,21 @@ def test_q_minus_three_selector_validates_configuration(overrides, message):
 @pytest.mark.parametrize(
     "overrides, message",
     [
+        ({"slope_tolerance": np.nan}, "slope_tolerance must be finite"),
+        ({"slope_tolerance": np.inf}, "slope_tolerance must be finite"),
+        ({"max_log_rmse": np.nan}, "max_log_rmse must be finite"),
+        ({"max_log_rmse": np.inf}, "max_log_rmse must be finite"),
+    ],
+)
+def test_q_minus_three_selector_rejects_nonfinite_thresholds(overrides, message):
+    """Test dynamic acceptance thresholds must be finite."""
+    with pytest.raises(ValueError, match=message):
+        _selector(**overrides)
+
+
+@pytest.mark.parametrize(
+    "overrides, message",
+    [
         ({"lower_bound": 3.5}, "lower_bound"),
         ({"upper_bound": 11.5}, "upper_bound"),
         ({"min_modes": 5.5}, "min_modes"),
