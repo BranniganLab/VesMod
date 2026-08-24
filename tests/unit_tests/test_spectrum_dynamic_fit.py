@@ -1,5 +1,7 @@
 """Integration tests for dynamic EdgeMod spectrum fit-range selection."""
 
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
 
@@ -52,11 +54,17 @@ def test_extract_kc_from_fit_uses_dynamic_selected_range(monkeypatch):
         calls["modes"] = fitting_range.modes.copy()
         calls["lmax"] = lmax
         calls["free_sigma"] = free_sigma
-        return 20.0, 2.0
+        return SimpleNamespace(
+            best_values={"kC": 20.0, "sigma": 2.0},
+        )
 
     monkeypatch.setattr(
-        "vesmod.EdgeMod.spectrum.fit_spectrum_to_theory_lmfit",
+        "vesmod.EdgeMod.spectrum.fit_spectrum_lmfit",
         fake_fit,
+    )
+    monkeypatch.setattr(
+        "vesmod.EdgeMod.spectrum.validate_lmfit_result",
+        lambda result, fitting_range, free_sigma: None,
     )
     monkeypatch.setattr(
         "vesmod.EdgeMod.spectrum.calc_tension_from_reduced_tension",
@@ -95,7 +103,7 @@ def test_extract_kc_from_fit_rejects_before_physical_fit(monkeypatch):
         pytest.fail("Physical spectrum fitter should not run after range rejection.")
 
     monkeypatch.setattr(
-        "vesmod.EdgeMod.spectrum.fit_spectrum_to_theory_lmfit",
+        "vesmod.EdgeMod.spectrum.fit_spectrum_lmfit",
         fail_if_called,
     )
 
