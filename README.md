@@ -2,7 +2,7 @@
 
 VesMod is a Python package for extracting membrane contours from microscopy videos of giant unilamellar vesicles (GUVs) and estimating membrane bending rigidity from thermal shape fluctuations.
 
-VesEdge separates image-dependent edge extraction from quality control so the same extracted contours can be evaluated under multiple QC configurations without rerunning image processing.
+VesEdge separates image-dependent edge extraction from quality control so the same extracted contours can be evaluated under multiple QC configurations without rerunning image processing. EdgeMod separates the measured fluctuation spectrum from the scientific configuration used to fit that spectrum, allowing fixed and dynamically selected Fourier-mode ranges to be compared on the same data.
 
 ---
 
@@ -41,7 +41,12 @@ Features include:
 * Fourier analysis of contour fluctuations
 * Estimation of membrane bending modulus (kC)
 * Optional estimation of membrane tension (σ)
-* JSON export of analysis results
+* Config-driven physical fitting through `SpectrumFitConfig`
+* Fixed Fourier-mode fitting with user-defined bounds
+* Optional dynamic selection of a trustworthy q range from q^-3 scaling
+* Rejection of spectra that do not contain an acceptable q^-3 regime
+* Retention of multiple fit results on the same `Spectrum`
+* JSON export of fit values, selected q bounds, fit configuration, and range-selection diagnostics
 * Batch processing of contour datasets
 
 Detailed documentation:
@@ -152,18 +157,32 @@ Keeping each QC configuration in its own directory makes the analysis provenance
 
 ### 4. Analyze each QC result with EdgeMod
 
+The default EdgeMod CLI uses the historical fixed q range, q = 3--7:
+
 ```bash
 edgemod ./results/qc_standard
 edgemod ./results/qc_permissive
 ```
 
-The resulting EdgeMod outputs can then be compared together with each directory's `vesedge_qc.json` and `qc_summary.csv` when reporting how sensitive the result is to QC choices.
+Dynamic q-range selection can be enabled explicitly. The selector only searches inside the configured candidate interval and requires explicit acceptance thresholds:
+
+```bash
+edgemod ./results/qc_standard \
+    --dynamic-range \
+    --lower-fitting-bound 3 \
+    --upper-fitting-bound 20 \
+    --min-modes 5 \
+    --slope-tolerance 0.2 \
+    --max-log-rmse 0.1
+```
+
+Fixed output is written as `<input>.json`; dynamic output is written as `<input>.dynamic.json`, so the two analyses can be run on the same contour files without overwriting one another.
 
 ---
 
 ## Equivalent Python Workflow
 
-The Python API exposes the same separation:
+The Python API exposes the same separation between extraction, QC, and spectrum fitting.
 
 ```python
 from vesmod.VesEdge import (
@@ -203,6 +222,37 @@ edges.save_edge_to_npy("sample.npy")
 
 After a completed QC run, `edges.qc_result` contains the configuration and results from the enabled QC stages. Per-detection QC annotations remain available on each `EdgeDetection.qc`.
 
+Fit the accepted contours with EdgeMod:
+
+```python
+from vesmod.EdgeMod import (
+    FixedFitRangeSelector,
+    QMinusThreeFitRangeSelector,
+    Spectrum,
+    SpectrumFitConfig,
+)
+
+spectrum = Spectrum("sample.npy")
+
+fixed_config = SpectrumFitConfig(
+    range_selector=FixedFitRangeSelector(3, 8),
+)
+fixed_fit = spectrum.extract_kc_from_fit(fixed_config)
+
+dynamic_config = SpectrumFitConfig(
+    range_selector=QMinusThreeFitRangeSelector(
+        lower_bound=3,
+        upper_bound=20,
+        min_modes=5,
+        slope_tolerance=0.2,
+        max_log_rmse=0.1,
+    ),
+)
+dynamic_fit = spectrum.extract_kc_from_fit(dynamic_config)
+```
+
+Both results remain available in `spectrum.fit_results`. Each `SpectrumFit` records the actual q bounds used and the full `SpectrumFitConfig`, so fixed and dynamic analyses can be compared without one overwriting the other.
+
 ---
 
 ## Data Products
@@ -215,8 +265,9 @@ After a completed QC run, `edges.qc_result` contains the configuration and resul
 | `.population_histograms.png` | Center and radius distributions grouped by the population-QC assignments |
 | `vesedge_qc.json` | QC configuration and source path for one QC batch |
 | `qc_summary.csv` | Per-video QC counts and accepted fractions for one QC batch |
-| `.json` | EdgeMod spectrum/fitting output |
 | `.spectrum_diagnostic.png` | Measured spectrum, attempted fit, compensated spectrum, and fit residuals |
+| `.json` | EdgeMod fixed-range spectrum/fitting output |
+| `.dynamic.json` | EdgeMod dynamically selected-range spectrum/fitting output |
 
 ---
 
