@@ -1,4 +1,4 @@
-"""Configuration records for EdgeMod spectrum fitting."""
+"""Scientific configuration records for EdgeMod spectrum fitting."""
 
 from __future__ import annotations
 
@@ -13,18 +13,28 @@ from .fit_range_selection import (
 
 @dataclass(frozen=True)
 class SpectrumFitConfig:
-    """Configure physical fitting of one vesicle fluctuation spectrum.
+    """Configure one physical fit of a vesicle fluctuation spectrum.
+
+    The config groups all scientific choices that determine the physical fit.
+    The q-range selector may either return fixed bounds or dynamically select a
+    trustworthy range from the measured spectrum. Keeping these choices in one
+    immutable record makes repeated fits reproducible and allows each
+    :class:`~vesmod.EdgeMod.fit_result.SpectrumFit` to retain the exact settings
+    that produced it.
 
     Parameters
     ----------
-    lmax : int
+    lmax : int, default=500
         Maximum summation index in the theoretical spectrum model.
-    free_sigma : bool
+    free_sigma : bool, default=True
         Whether reduced surface tension is fitted as a free parameter.
-    temperature : float
-        Experimental temperature in Kelvin.
+    temperature : float, default=295.0
+        Experimental temperature in Kelvin used when converting reduced
+        tension to surface tension.
     range_selector : FitRangeSelector
         Strategy used to select the lower-inclusive, upper-exclusive q range.
+        The default is ``FixedFitRangeSelector(3, 8)``, corresponding to
+        q = 3, 4, 5, 6, 7.
     """
 
     lmax: int = 500
@@ -38,7 +48,7 @@ class SpectrumFitConfig:
     )
 
     def __post_init__(self) -> None:
-        """Validate spectrum-fitting configuration."""
+        """Validate scientific fit parameters and selector compatibility."""
         if not isinstance(self.lmax, Integral) or isinstance(self.lmax, bool):
             raise TypeError("lmax must be an integer.")
         if self.lmax <= 0:
@@ -56,7 +66,7 @@ class SpectrumFitConfig:
             raise TypeError("range_selector must provide a select method.")
 
     def to_dict(self) -> dict:
-        """Return a JSON-serializable representation of the fit configuration."""
+        """Return the config and selector parameters in JSON-serializable form."""
         selector = self.range_selector
         selector_data = {"type": type(selector).__name__}
         selector_fields = getattr(selector, "__dataclass_fields__", None)
