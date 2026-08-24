@@ -264,11 +264,11 @@ def test_checkpoint_round_trip_preserves_extraction_not_qc(
     )
 
 
-def test_checkpoint_v1_load_infers_frame_indices(
+def test_checkpoint_without_frame_indices_infers_from_order(
     tmp_path,
     extraction_config,
 ):
-    """Test legacy v1 checkpoints recover frame identity from stored order."""
+    """Test checkpoints without frame indices recover them from stored order."""
     edge_results = VesicleEdges(
         extraction_config=extraction_config,
         detections=[
@@ -286,8 +286,7 @@ def test_checkpoint_v1_load_infers_frame_indices(
             for key in checkpoint.files
             if key != "frame_indices"
         }
-    legacy_data["checkpoint_version"] = np.asarray(1)
-    legacy_path = tmp_path / "legacy_v1.npz"
+    legacy_path = tmp_path / "without_frame_indices.npz"
     np.savez(legacy_path, **legacy_data)
 
     loaded = VesicleEdges.from_checkpoint(legacy_path)
