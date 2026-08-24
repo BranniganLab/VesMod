@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, fields
 from numbers import Integral, Real
+import math
 
 from .fit_range_selection import (
     FitRangeSelector,
@@ -29,8 +30,8 @@ class SpectrumFitConfig:
     free_sigma : bool, default=True
         Whether reduced surface tension is fitted as a free parameter.
     temperature : float, default=295.0
-        Experimental temperature in Kelvin used when converting reduced
-        tension to surface tension.
+        Finite, positive experimental temperature in Kelvin used when
+        converting reduced tension to surface tension.
     range_selector : FitRangeSelector
         Strategy used to select the lower-inclusive, upper-exclusive q range.
         The default is ``FixedFitRangeSelector(3, 8)``, corresponding to
@@ -60,6 +61,8 @@ class SpectrumFitConfig:
             bool,
         ):
             raise TypeError("temperature must be numeric.")
+        if not math.isfinite(self.temperature):
+            raise ValueError("temperature must be finite.")
         if self.temperature <= 0:
             raise ValueError("temperature must be positive.")
         if not hasattr(self.range_selector, "select"):
