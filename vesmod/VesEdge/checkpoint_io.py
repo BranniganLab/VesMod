@@ -44,10 +44,16 @@ def save_checkpoint(
             "differ."
         )
 
-    frame_indices = np.asarray(
-        [result.frame_index for result in detections],
-        dtype=np.int64,
-    )
+    raw_frame_indices = [result.frame_index for result in detections]
+    if any(
+        isinstance(frame_index, (bool, np.bool_))
+        or not isinstance(frame_index, (int, np.integer))
+        for frame_index in raw_frame_indices
+    ):
+        raise ValueError(
+            "Cannot save a checkpoint with missing or inconsistent frame indices."
+        )
+    frame_indices = np.asarray(raw_frame_indices, dtype=np.int64)
     expected_indices = np.arange(len(detections), dtype=np.int64)
     if not np.array_equal(frame_indices, expected_indices):
         raise ValueError(
