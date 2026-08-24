@@ -1,20 +1,36 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Tue Jan 21 15:04:46 2025.
+"""Calculate and fit vesicle fluctuation spectra.
 
-@author: js2746
+``Spectrum`` converts accepted vesicle contours into a fluctuation spectrum and
+fits a q range selected by a :class:`SpectrumFitConfig`. Fixed and dynamic
+range-selection strategies share the same fitting path. Each successful fit is
+retained as an immutable :class:`SpectrumFit` so multiple analyses of one
+spectrum can be compared without overwriting earlier results.
 """
 from pathlib import Path
 from types import NoneType
 import json
 import numpy as np
 from vesmod.VesEdge import VesicleEdges
-from .spectrum_utils import fit_spectrum_to_theory_lmfit, calc_tension_from_reduced_tension, MiniSpectrum
+from .config import SpectrumFitConfig
+from .fit_range_selection import FitRangeSelection
+from .fit_result import SpectrumFit
+from .spectrum_utils import (
+    MiniSpectrum,
+    calc_tension_from_reduced_tension,
+    fit_spectrum_to_theory_lmfit,
+)
 
 
 class Spectrum:
-    """Calculate the fluctuation spectrum of a vesicle edge trajectory."""
+    """Calculate and fit the fluctuation spectrum of one vesicle trajectory.
+
+    ``kC`` and ``surface_tension`` are compatibility attributes containing the
+    most recent *successful* physical fit. Range-selection failures update
+    ``fit_range_selection`` but leave those latest-successful values unchanged.
+    Durable per-fit provenance is stored in ``fit_results``.
+    """
 
     def __init__(
         self,
@@ -50,9 +66,11 @@ class Spectrum:
         self.modes = self._calc_integer_modes()
         self.kC = None
         self.surface_tension = None
+        self.fit_range_selection: FitRangeSelection | None = None
+        self.fit_results: list[SpectrumFit] = []
 
     def _calc_avg_sq_amplitudes(self, r_vals_over_time: np.ndarray) -> np.ndarray:
-        """Calculate the normalized Fourier transform, then square and average."""
+        """Return frame-averaged squared Fourier amplitudes normalized by r0."""
         n_samples = r_vals_over_time.shape[1]
         norm = 1. / (self.r0 * n_samples)
         amps = np.fft.fft(r_vals_over_time, axis=1, norm='backward') * norm
@@ -61,54 +79,129 @@ class Spectrum:
         return avg_amps2
 
     def _calc_integer_modes(self) -> np.ndarray[int]:
-        """Calculate integer Fourier modes q for the spectrum."""
+        """Return integer Fourier mode numbers in NumPy FFT ordering."""
         freqs = np.fft.fftfreq(self.avg_amps2.shape[0])
         modes = np.round(freqs * self.avg_amps2.shape[0]).astype(int)
         return modes
 
     def isolate_mode_range(self, lower_bound: int, upper_bound: int) -> MiniSpectrum:
-        """Return modes >= lower_bound and < upper_bound with amplitudes."""
+        """Return modes with ``lower_bound <= q < upper_bound`` and amplitudes."""
         if self.modes is None:
             raise AttributeError("There are no modes; Cannot return mode range.")
         mask1 = self.modes >= lower_bound
         mask2 = self.modes < upper_bound
         combined_mask = mask1 & mask2
-        return MiniSpectrum(self.modes[combined_mask], self.avg_amps2[combined_mask], None)
+        return MiniSpectrum(
+            self.modes[combined_mask],
+            self.avg_amps2[combined_mask],
+            None,
+        )
 
     def extract_kc_from_fit(
         self,
-        lower_bound: int = 3,
-        upper_bound: int = 8,
-        lmax: int = 500,
-        free_sigma: bool = True,
-        temperature: float = 295
-    ) -> tuple[float, float]:
-        """Fit a selected mode range to the theoretical prediction."""
-        fitting_range = self.isolate_mode_range(lower_bound, upper_bound)
-        fit = fit_spectrum_to_theory_lmfit(fitting_range, lmax, free_sigma)
-        self.kC, reduced_sigma = fit
-        self.surface_tension = calc_tension_from_reduced_tension(
+        config: SpectrumFitConfig | None = None,
+    ) -> SpectrumFit:
+        """Select a q range and fit that range to the theoretical spectrum.
+
+        Parameters
+        ----------
+        config : SpectrumFitConfig | None
+            Scientific fit configuration. If omitted, use the historical
+            default fixed fit over q = 3, 4, 5, 6, 7 with ``lmax=500``, free
+            surface tension, and ``temperature=295 K``.
+
+        Returns
+        -------
+        SpectrumFit
+            Immutable fit result containing fitted values, the actual q bounds
+            used, the full configuration, and range-selection diagnostics. The
+            result is appended to ``fit_results``.
+
+        Raises
+        ------
+        TypeError
+            If ``config`` is not a ``SpectrumFitConfig`` or ``None``.
+        ValueError
+            If the configured range selector rejects the spectrum or returns an
+            accepted selection without q bounds. A rejection updates
+            ``fit_range_selection`` but does not replace the most recent
+            successful ``kC`` or ``surface_tension`` values.
+        """
+        if config is None:
+            config = SpectrumFitConfig()
+        if not isinstance(config, SpectrumFitConfig):
+            raise TypeError("config must be a SpectrumFitConfig or None.")
+
+        selection = config.range_selector.select(
+            self.modes,
+            self.avg_amps2,
+        )
+        self.fit_range_selection = selection
+        if not selection.accepted:
+            raise ValueError(selection.reason or "No acceptable q range found.")
+        if selection.lower_bound is None or selection.upper_bound is None:
+            raise ValueError("Accepted fit-range selection is missing q bounds.")
+
+        fitting_range = self.isolate_mode_range(
+            selection.lower_bound,
+            selection.upper_bound,
+        )
+        fitted_kc, reduced_sigma = fit_spectrum_to_theory_lmfit(
+            fitting_range,
+            config.lmax,
+            config.free_sigma,
+        )
+        fitted_surface_tension = calc_tension_from_reduced_tension(
             self.r0,
             reduced_sigma,
-            self.kC,
-            temperature,
+            fitted_kc,
+            config.temperature,
         )
-        return self.kC, self.surface_tension
+        self.kC = fitted_kc
+        self.surface_tension = fitted_surface_tension
+        fit_result = SpectrumFit(
+            kC=float(fitted_kc),
+            surface_tension=float(fitted_surface_tension),
+            lower_bound=selection.lower_bound,
+            upper_bound=selection.upper_bound,
+            config=config,
+            range_selection=selection,
+        )
+        if not hasattr(self, "fit_results"):
+            self.fit_results = []
+        self.fit_results.append(fit_result)
+        return fit_result
 
     def _to_dict(self, include_arrays=True) -> dict:
-        """Convert class attributes to a dict."""
+        """Return spectrum state and retained fit provenance as a dictionary."""
         data = {
             "r0": float(self.r0) if getattr(self, "r0", None) is not None else None,
             "kC": float(self.kC) if getattr(self, "kC", None) is not None else None,
-            "surface_tension": float(self.surface_tension) if getattr(self, "surface_tension", None) is not None else None,
+            "surface_tension": (
+                float(self.surface_tension)
+                if getattr(self, "surface_tension", None) is not None
+                else None
+            ),
         }
+
+        selection = getattr(self, "fit_range_selection", None)
+        if selection is not None:
+            data["fit_range_selection"] = selection.to_dict()
+
+        fit_results = getattr(self, "fit_results", None)
+        if fit_results:
+            data["fit_results"] = [result.to_dict() for result in fit_results]
 
         if include_arrays:
             data["modes"] = (
-                self.modes.tolist() if getattr(self, "modes", None) is not None else None
+                self.modes.tolist()
+                if getattr(self, "modes", None) is not None
+                else None
             )
             data["avg_amps2"] = (
-                self.avg_amps2.tolist() if getattr(self, "avg_amps2", None) is not None else None
+                self.avg_amps2.tolist()
+                if getattr(self, "avg_amps2", None) is not None
+                else None
             )
 
         return data
@@ -119,7 +212,7 @@ class Spectrum:
         include_arrays: bool = True,
         indent: int = 2,
     ) -> None:
-        """Save class attributes to JSON."""
+        """Serialize spectrum state and retained fit records to JSON."""
         outfile = Path(outfile).with_suffix('.json')
         with outfile.open("w", encoding="utf-8") as f:
             json.dump(self._to_dict(include_arrays=include_arrays), f, indent=indent)
