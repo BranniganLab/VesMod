@@ -15,7 +15,6 @@ from .models import (
     ImageContour,
 )
 
-CHECKPOINT_VERSION = 1
 _DETECTION_CODE = 1
 _FAILURE_CODE = 0
 
@@ -24,8 +23,9 @@ def save_checkpoint(
     path: str | Path,
     extraction_config: EdgeExtractionConfig,
     detections: list[EdgeResult],
+    source_path: str | Path | None = None,
 ) -> None:
-    """Save QC-independent extraction results to a versioned ``.npz`` file."""
+    """Save QC-independent extraction results to a ``.npz`` file."""
     successful = [
         result
         for result in detections
@@ -42,6 +42,22 @@ def save_checkpoint(
         raise ValueError(
             "Cannot save a checkpoint when full and analysis contour origins "
             "differ."
+        )
+
+    raw_frame_indices = [result.frame_index for result in detections]
+    if any(
+        isinstance(frame_index, (bool, np.bool_))
+        or not isinstance(frame_index, (int, np.integer))
+        for frame_index in raw_frame_indices
+    ):
+        raise ValueError(
+            "Cannot save a checkpoint with missing or inconsistent frame indices."
+        )
+    frame_indices = np.asarray(raw_frame_indices, dtype=np.int64)
+    expected_indices = np.arange(len(detections), dtype=np.int64)
+    if not np.array_equal(frame_indices, expected_indices):
+        raise ValueError(
+            "Cannot save a checkpoint with missing or inconsistent frame indices."
         )
 
     result_types = np.asarray(
@@ -75,29 +91,35 @@ def save_checkpoint(
         else extraction_config.n_angular_samples
     )
 
-    np.savez(
-        Path(path).with_suffix(".npz"),
-        checkpoint_version=np.asarray(CHECKPOINT_VERSION),
-        pixels_per_micron=np.asarray(
+    checkpoint_data = {
+        "pixels_per_micron": np.asarray(
             extraction_config.pixels_per_micron,
             dtype=float,
         ),
-        n_angular_samples=np.asarray(
+        "n_angular_samples": np.asarray(
             n_angular_samples,
             dtype=np.int64,
         ),
-        result_types=result_types,
-        failure_errors=failure_errors,
-        origins=origins,
-        full_radii_values=full_radii_values,
-        full_radii_offsets=full_radii_offsets,
-        analysis_radii_pixels=analysis_radii_pixels,
+        "frame_indices": frame_indices,
+        "result_types": result_types,
+        "failure_errors": failure_errors,
+        "origins": origins,
+        "full_radii_values": full_radii_values,
+        "full_radii_offsets": full_radii_offsets,
+        "analysis_radii_pixels": analysis_radii_pixels,
+    }
+    if source_path is not None:
+        checkpoint_data["source_path"] = np.asarray(str(source_path))
+
+    np.savez(
+        Path(path).with_suffix(".npz"),
+        **checkpoint_data,
     )
 
 
 def load_checkpoint(
     path: str | Path,
-) -> tuple[EdgeExtractionConfig, list[EdgeResult]]:
+) -> tuple[EdgeExtractionConfig, list[EdgeResult], Path | None]:
     """Load QC-independent extraction results from a VesEdge checkpoint."""
     checkpoint_path = Path(path)
     if not checkpoint_path.is_file():
@@ -114,16 +136,11 @@ def load_checkpoint(
         }
 
     _validate_checkpoint_keys(saved_data)
-    version = int(saved_data["checkpoint_version"])
-    if version != CHECKPOINT_VERSION:
-        raise ValueError(
-            "Unsupported VesEdge checkpoint version: "
-            f"{version}."
-        )
 
     extraction_config = _extraction_config_from_checkpoint(saved_data)
     detections = _detections_from_checkpoint(saved_data)
-    return extraction_config, detections
+    source_path = _source_path_from_checkpoint(saved_data)
+    return extraction_config, detections, source_path
 
 
 def _flatten_full_radii(
@@ -151,7 +168,6 @@ def _validate_checkpoint_keys(
 ) -> None:
     """Verify that a checkpoint contains all required extraction fields."""
     required_keys = {
-        "checkpoint_version",
         "pixels_per_micron",
         "n_angular_samples",
         "result_types",
@@ -161,6 +177,7 @@ def _validate_checkpoint_keys(
         "full_radii_offsets",
         "analysis_radii_pixels",
     }
+
     missing_keys = required_keys - checkpoint.keys()
     if missing_keys:
         missing = ", ".join(sorted(missing_keys))
@@ -183,11 +200,24 @@ def _extraction_config_from_checkpoint(
     )
 
 
+def _source_path_from_checkpoint(
+    checkpoint: dict[str, np.ndarray],
+) -> Path | None:
+    """Return persisted source-video provenance when present."""
+    if "source_path" not in checkpoint:
+        return None
+    return Path(str(checkpoint["source_path"].item()))
+
+
 def _detections_from_checkpoint(
     checkpoint: dict[str, np.ndarray],
 ) -> list[EdgeResult]:
     """Reconstruct ordered extraction results from checkpoint arrays."""
     result_types = checkpoint["result_types"]
+    frame_indices = checkpoint.get(
+        "frame_indices",
+        np.arange(result_types.shape[0], dtype=np.int64),
+    )
     success_count = int(
         np.count_nonzero(result_types == _DETECTION_CODE)
     )
@@ -196,6 +226,7 @@ def _detections_from_checkpoint(
     )
     _validate_checkpoint_shapes(
         checkpoint,
+        frame_indices,
         success_count,
         failure_count,
     )
@@ -205,9 +236,11 @@ def _detections_from_checkpoint(
         checkpoint["analysis_radii_pixels"],
         checkpoint["full_radii_values"],
         checkpoint["full_radii_offsets"],
+        frame_indices[result_types == _DETECTION_CODE],
     )
     return _merge_checkpoint_results(
         result_types,
+        frame_indices,
         successful,
         checkpoint["failure_errors"],
     )
@@ -215,6 +248,7 @@ def _detections_from_checkpoint(
 
 def _validate_checkpoint_shapes(
     checkpoint: dict[str, np.ndarray],
+    frame_indices: np.ndarray,
     success_count: int,
     failure_count: int,
 ) -> None:
@@ -233,6 +267,14 @@ def _validate_checkpoint_shapes(
     if result_types.ndim != 1 or not np.all(valid_codes):
         raise ValueError(
             "VesEdge checkpoint contains invalid result types."
+        )
+    expected_indices = np.arange(result_types.shape[0], dtype=np.int64)
+    if (
+        frame_indices.shape != result_types.shape
+        or not np.array_equal(frame_indices, expected_indices)
+    ):
+        raise ValueError(
+            "VesEdge checkpoint frame indices are inconsistent."
         )
     if failure_errors.shape != (failure_count,):
         raise ValueError(
@@ -268,6 +310,7 @@ def _successful_detections_from_checkpoint(
     analysis_radii: np.ndarray,
     full_values: np.ndarray,
     full_offsets: np.ndarray,
+    frame_indices: np.ndarray,
 ) -> list[EdgeDetection]:
     """Reconstruct successful detections from checkpoint arrays."""
     detections = []
@@ -288,6 +331,7 @@ def _successful_detections_from_checkpoint(
                     origin,
                     analysis_radii[index].copy(),
                 ),
+                frame_index=int(frame_indices[index]),
             )
         )
     return detections
@@ -295,6 +339,7 @@ def _successful_detections_from_checkpoint(
 
 def _merge_checkpoint_results(
     result_types: np.ndarray,
+    frame_indices: np.ndarray,
     successful: list[EdgeDetection],
     failure_errors: np.ndarray,
 ) -> list[EdgeResult]:
@@ -302,14 +347,19 @@ def _merge_checkpoint_results(
     detections: list[EdgeResult] = []
     success_index = 0
     failure_index = 0
-    for result_type in result_types:
+    for result_type, frame_index in zip(
+        result_types,
+        frame_indices,
+        strict=True,
+    ):
         if int(result_type) == _DETECTION_CODE:
             detections.append(successful[success_index])
             success_index += 1
         else:
             detections.append(
                 EdgeDetectionFailure(
-                    str(failure_errors[failure_index])
+                    str(failure_errors[failure_index]),
+                    frame_index=int(frame_index),
                 )
             )
             failure_index += 1

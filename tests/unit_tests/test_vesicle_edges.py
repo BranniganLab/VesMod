@@ -72,6 +72,32 @@ def test_successful_detections_excludes_failures(extraction_config):
     assert edge_results.successful_detections == [first, second]
 
 
+def test_post_init_backfills_legacy_frame_indices(extraction_config):
+    """Test legacy/manual results gain source indices from stored order."""
+    edge_results = VesicleEdges(
+        extraction_config=extraction_config,
+        detections=[
+            _edge(),
+            EdgeDetectionFailure("failure"),
+            _edge(radius=12.0),
+        ],
+    )
+
+    assert [result.frame_index for result in edge_results.detections] == [0, 1, 2]
+
+
+def test_post_init_rejects_inconsistent_frame_index(extraction_config):
+    """Test explicit source indices must agree with trajectory position."""
+    detection = _edge()
+    detection.frame_index = 3
+
+    with pytest.raises(ValueError, match="frame_index"):
+        VesicleEdges(
+            extraction_config=extraction_config,
+            detections=[detection],
+        )
+
+
 def test_accepted_detections_requires_qc(edges):
     """Test that fresh extraction results are not implicitly accepted."""
     with pytest.raises(ValueError, match="Quality control has not been run"):
@@ -95,6 +121,15 @@ def test_run_qc_records_aggregate_results(edges, qc_config):
     assert len(edges.qc_result.curvature.scores) == 2
     assert edges.qc_result.curvature.rejected_count == 0
     assert edges.qc_result.population is None
+
+
+def test_run_qc_preserves_frame_indices(edges, qc_config):
+    """Test QC does not alter source-frame identity."""
+    original_indices = [result.frame_index for result in edges.detections]
+
+    edges.run_qc(qc_config)
+
+    assert [result.frame_index for result in edges.detections] == original_indices
 
 
 def test_run_qc_can_recover_previous_curvature_rejection(extraction_config):
@@ -195,9 +230,10 @@ def test_checkpoint_round_trip_preserves_extraction_not_qc(
     extraction_config,
     qc_config,
 ):
-    """Test checkpointing preserves raw extraction state, not QC state."""
+    """Test checkpointing preserves extraction state and source provenance."""
     first = _edge(radius=10.0)
     second = _edge(radius=12.0)
+    source_path = tmp_path / "source.nd2"
     edge_results = VesicleEdges(
         extraction_config=extraction_config,
         detections=[
@@ -205,6 +241,7 @@ def test_checkpoint_round_trip_preserves_extraction_not_qc(
             EdgeDetectionFailure("bad frame"),
             second,
         ],
+        source_path=source_path,
     )
     edge_results.run_qc(qc_config)
     edge_results.save_checkpoint(tmp_path / "sample")
@@ -214,10 +251,12 @@ def test_checkpoint_round_trip_preserves_extraction_not_qc(
     assert loaded.qc_result is None
     assert loaded.qc_config is None
     assert loaded.extraction_config == extraction_config
+    assert loaded.source_path == source_path
     assert isinstance(loaded.detections[0], EdgeDetection)
     assert isinstance(loaded.detections[1], EdgeDetectionFailure)
     assert loaded.detections[1].error == "bad frame"
     assert isinstance(loaded.detections[2], EdgeDetection)
+    assert [result.frame_index for result in loaded.detections] == [0, 1, 2]
     assert all(
         detection.qc.curvature_score is None
         for detection in loaded.successful_detections
@@ -226,6 +265,40 @@ def test_checkpoint_round_trip_preserves_extraction_not_qc(
         loaded.successful_detections[0].analysis_contour.r,
         first.analysis_contour.r,
     )
+
+
+def test_checkpoint_without_optional_provenance_infers_available_data(
+    tmp_path,
+    extraction_config,
+):
+    """Test older checkpoints infer frame indices and omit unknown source path."""
+    edge_results = VesicleEdges(
+        extraction_config=extraction_config,
+        detections=[
+            _edge(radius=10.0),
+            EdgeDetectionFailure("bad frame"),
+            _edge(radius=12.0),
+        ],
+        source_path=tmp_path / "source.nd2",
+    )
+    current_path = tmp_path / "current.npz"
+    edge_results.save_checkpoint(current_path)
+
+    with np.load(current_path, allow_pickle=False) as checkpoint:
+        legacy_data = {
+            key: checkpoint[key].copy()
+            for key in checkpoint.files
+            if key not in {"frame_indices", "source_path"}
+        }
+    legacy_path = tmp_path / "legacy.npz"
+    np.savez(legacy_path, **legacy_data)
+
+    loaded = VesicleEdges.from_checkpoint(legacy_path)
+
+    assert [result.frame_index for result in loaded.detections] == [0, 1, 2]
+    assert loaded.source_path is None
+    assert isinstance(loaded.detections[1], EdgeDetectionFailure)
+    assert loaded.detections[1].error == "bad frame"
 
 
 def test_checkpoint_preserves_variable_native_lengths(tmp_path):

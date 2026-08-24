@@ -26,16 +26,27 @@ from .vesicle_video_utils import downsample_to_new_indices
 
 @dataclass
 class VesicleVideo:
-    """Raw image frames for one vesicle trajectory."""
+    """Raw image frames for one vesicle trajectory.
+
+    Parameters
+    ----------
+    frames : np.ndarray
+        Three-dimensional array containing the source image frames.
+    source_path : str | Path | None
+        Path to the original source video, when known.
+    """
 
     frames: np.ndarray
+    source_path: str | Path | None = None
 
     def __post_init__(self) -> None:
-        """Validate raw image frames."""
+        """Validate raw image frames and source provenance."""
         if not isinstance(self.frames, np.ndarray):
             raise TypeError("frames must be a numpy ndarray.")
         if self.frames.ndim != 3:
             raise IndexError("frames must be a 3D array.")
+        if self.source_path is not None:
+            self.source_path = Path(self.source_path)
 
     def extract_edges(
         self,
@@ -60,7 +71,7 @@ class VesicleVideo:
             samples returned by the extractor for a frame.
         """
         detections: list[EdgeResult] = []
-        for frame in self.frames:
+        for frame_index, frame in enumerate(self.frames):
             try:
                 r_vals, vesicle_center = extractor_func(frame)
                 self._validate_extractor_results(r_vals)
@@ -68,7 +79,12 @@ class VesicleVideo:
             # should be recorded without aborting the remaining trajectory.
             # pylint: disable-next=broad-exception-caught
             except Exception as error:  # noqa: BLE001
-                detections.append(EdgeDetectionFailure(str(error)))
+                detections.append(
+                    EdgeDetectionFailure(
+                        str(error),
+                        frame_index=frame_index,
+                    )
+                )
                 continue
 
             try:
@@ -76,18 +92,29 @@ class VesicleVideo:
                     r_vals,
                     vesicle_center,
                     extraction_config,
+                    frame_index=frame_index,
                 )
             except IndexError as error:
                 n_samples = extraction_config.n_angular_samples
                 if n_samples is not None and n_samples > r_vals.shape[0]:
                     raise
-                detections.append(EdgeDetectionFailure(str(error)))
+                detections.append(
+                    EdgeDetectionFailure(
+                        str(error),
+                        frame_index=frame_index,
+                    )
+                )
                 continue
             # Compilation can still fail on malformed extractor output; retain
             # the established per-frame failure behavior for those cases.
             # pylint: disable-next=broad-exception-caught
             except Exception as error:  # noqa: BLE001
-                detections.append(EdgeDetectionFailure(str(error)))
+                detections.append(
+                    EdgeDetectionFailure(
+                        str(error),
+                        frame_index=frame_index,
+                    )
+                )
                 continue
 
             detections.append(detected_edge)
@@ -111,6 +138,7 @@ class VesicleVideo:
         return VesicleEdges(
             extraction_config=extraction_config,
             detections=detections,
+            source_path=self.source_path,
         )
 
     def make_vesicle_gif(
@@ -181,6 +209,8 @@ class VesicleVideo:
         r_vals: NDArray[np.float64],
         vesicle_center: tuple[float, float],
         extraction_config: EdgeExtractionConfig,
+        *,
+        frame_index: int | None = None,
     ) -> EdgeDetection:
         """Build a successful detection from raw extractor output."""
         center = (vesicle_center[1], vesicle_center[0])
@@ -197,6 +227,7 @@ class VesicleVideo:
         return EdgeDetection(
             full_contour,
             analysis_contour,
+            frame_index=frame_index,
         )
 
     @staticmethod
