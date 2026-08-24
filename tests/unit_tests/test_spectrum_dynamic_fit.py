@@ -78,7 +78,7 @@ def test_extract_kc_from_fit_uses_dynamic_selected_range(monkeypatch):
 
 
 def test_extract_kc_from_fit_rejects_before_physical_fit(monkeypatch):
-    """Test a spectrum without q^-3 scaling never reaches the HSS97 fitter."""
+    """Test rejection preserves the most recent successful fit values."""
     spectrum = Spectrum.__new__(Spectrum)
     spectrum.r0 = 10.0
     spectrum.modes = np.arange(0, 12)
@@ -86,7 +86,7 @@ def test_extract_kc_from_fit_rejects_before_physical_fit(monkeypatch):
     q = spectrum.modes[3:].astype(float)
     spectrum.avg_amps2[3:] = q ** -2
     spectrum.kC = 99.0
-    spectrum.surface_tension = 99.0
+    spectrum.surface_tension = 98.0
     spectrum.fit_range_selection = None
     spectrum.fit_results = []
     config = _dynamic_config()
@@ -104,8 +104,8 @@ def test_extract_kc_from_fit_rejects_before_physical_fit(monkeypatch):
 
     assert spectrum.fit_range_selection is not None
     assert not spectrum.fit_range_selection.accepted
-    assert spectrum.kC is None
-    assert spectrum.surface_tension is None
+    assert spectrum.kC == 99.0
+    assert spectrum.surface_tension == 98.0
     assert spectrum.fit_results == []
 
 
