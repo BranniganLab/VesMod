@@ -48,7 +48,7 @@ class FitRangeSelection:
         }
 
 
-class FitRangeSelector(Protocol):
+class FitRangeSelector(Protocol):  # pylint: disable=too-few-public-methods
     """Protocol for strategies that select q ranges from a spectrum."""
 
     def select(
@@ -69,7 +69,7 @@ class FixedFitRangeSelector:
     def select(
         self,
         modes: np.ndarray,
-        avg_amps2: np.ndarray,
+        _avg_amps2: np.ndarray,
     ) -> FitRangeSelection:
         """Return the configured range after validating that it is populated."""
         mask = (modes >= self.lower_bound) & (modes < self.upper_bound)
