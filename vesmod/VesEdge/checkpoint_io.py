@@ -23,6 +23,7 @@ def save_checkpoint(
     path: str | Path,
     extraction_config: EdgeExtractionConfig,
     detections: list[EdgeResult],
+    source_path: str | Path | None = None,
 ) -> None:
     """Save QC-independent extraction results to a ``.npz`` file."""
     successful = [
@@ -84,29 +85,35 @@ def save_checkpoint(
         else extraction_config.n_angular_samples
     )
 
-    np.savez(
-        Path(path).with_suffix(".npz"),
-        pixels_per_micron=np.asarray(
+    checkpoint_data = {
+        "pixels_per_micron": np.asarray(
             extraction_config.pixels_per_micron,
             dtype=float,
         ),
-        n_angular_samples=np.asarray(
+        "n_angular_samples": np.asarray(
             n_angular_samples,
             dtype=np.int64,
         ),
-        frame_indices=frame_indices,
-        result_types=result_types,
-        failure_errors=failure_errors,
-        origins=origins,
-        full_radii_values=full_radii_values,
-        full_radii_offsets=full_radii_offsets,
-        analysis_radii_pixels=analysis_radii_pixels,
+        "frame_indices": frame_indices,
+        "result_types": result_types,
+        "failure_errors": failure_errors,
+        "origins": origins,
+        "full_radii_values": full_radii_values,
+        "full_radii_offsets": full_radii_offsets,
+        "analysis_radii_pixels": analysis_radii_pixels,
+    }
+    if source_path is not None:
+        checkpoint_data["source_path"] = np.asarray(str(source_path))
+
+    np.savez(
+        Path(path).with_suffix(".npz"),
+        **checkpoint_data,
     )
 
 
 def load_checkpoint(
     path: str | Path,
-) -> tuple[EdgeExtractionConfig, list[EdgeResult]]:
+) -> tuple[EdgeExtractionConfig, list[EdgeResult], Path | None]:
     """Load QC-independent extraction results from a VesEdge checkpoint."""
     checkpoint_path = Path(path)
     if not checkpoint_path.is_file():
@@ -126,7 +133,8 @@ def load_checkpoint(
 
     extraction_config = _extraction_config_from_checkpoint(saved_data)
     detections = _detections_from_checkpoint(saved_data)
-    return extraction_config, detections
+    source_path = _source_path_from_checkpoint(saved_data)
+    return extraction_config, detections, source_path
 
 
 def _flatten_full_radii(
@@ -184,6 +192,15 @@ def _extraction_config_from_checkpoint(
             None if stored_samples == -1 else stored_samples
         ),
     )
+
+
+def _source_path_from_checkpoint(
+    checkpoint: dict[str, np.ndarray],
+) -> Path | None:
+    """Return persisted source-video provenance when present."""
+    if "source_path" not in checkpoint:
+        return None
+    return Path(str(checkpoint["source_path"].item()))
 
 
 def _detections_from_checkpoint(
