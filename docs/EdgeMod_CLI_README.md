@@ -12,6 +12,7 @@ EdgeMod is a command-line tool for fitting membrane bending moduli from vesicle 
 * Configurable Fourier fitting range
 * Configurable spherical harmonic summation limit
 * JSON output for downstream analysis
+* Spectrum-fit diagnostic PNG, including rejected fit attempts
 
 ---
 
@@ -45,7 +46,13 @@ This performs a fit using the default fitting parameters and writes:
 
 ```text
 sample.json
+sample.spectrum_diagnostic.png
 ```
+
+If fit validation fails, EdgeMod still writes the diagnostic PNG before
+raising the validation error. The figure shows the measured and attempted
+theoretical spectra, the selected fitting modes, the $q^4$-compensated
+spectrum, relative residuals, fitted parameters, and the rejection reason.
 
 For a VesEdge batch, the recommended input is a QC output directory:
 
@@ -264,7 +271,11 @@ EdgeMod writes:
 
 ```text
 sample.json
+sample.spectrum_diagnostic.png
 ```
+
+The JSON file is written only after a fit passes validation. The diagnostic
+PNG is written for both accepted and rejected fits.
 
 ### JSON Output
 
