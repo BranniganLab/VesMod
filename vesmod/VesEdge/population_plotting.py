@@ -56,35 +56,42 @@ def save_population_histograms(
     )
 
     figure, axes = plt.subplots(1, 3, figsize=(12, 4), constrained_layout=True)
-    population_labels = np.unique(labels)
-    colors = plt.get_cmap("tab10").colors
-
     for feature_index, (axis, feature_name) in enumerate(
         zip(axes, feature_names, strict=True)
     ):
-        values = features[:, feature_index]
-        bin_edges = np.histogram_bin_edges(values, bins="auto")
-        for population_label in population_labels:
-            population_values = values[labels == population_label]
-            axis.hist(
-                population_values,
-                bins=bin_edges,
-                alpha=0.5,
-                color=colors[int(population_label) % len(colors)],
-                label=(
-                    f"Population {population_label} "
-                    f"(n={population_values.size})"
-                ),
-            )
-        axis.set_xlabel(feature_name)
-        axis.set_ylabel("Detections")
-        axis.legend()
+        _plot_feature_histogram(
+            axis,
+            features[:, feature_index],
+            labels,
+            feature_name,
+        )
 
     figure.suptitle("Population QC feature distributions")
     output_path = Path(path).with_suffix(".png")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     figure.savefig(output_path, dpi=150)
     plt.close(figure)
+
+
+def _plot_feature_histogram(axis, values, labels, feature_name) -> None:
+    """Plot one population-QC feature grouped by fitted population."""
+    bin_edges = np.histogram_bin_edges(values, bins="auto")
+    colors = plt.get_cmap("tab10").colors
+    for population_label in np.unique(labels):
+        population_values = values[labels == population_label]
+        axis.hist(
+            population_values,
+            bins=bin_edges,
+            alpha=0.5,
+            color=colors[int(population_label) % len(colors)],
+            label=(
+                f"Population {population_label} "
+                f"(n={population_values.size})"
+            ),
+        )
+    axis.set_xlabel(feature_name)
+    axis.set_ylabel("Detections")
+    axis.legend()
 
 
 def _population_features(
