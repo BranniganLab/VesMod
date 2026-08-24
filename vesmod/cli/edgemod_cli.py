@@ -3,7 +3,9 @@
 The command-line layer converts user options into a ``SpectrumFitConfig`` and
 then delegates scientific analysis to ``Spectrum``. Fixed fitting remains the
 default; dynamic fitting uses q^-3 scaling criteria supplied explicitly by the
-user and writes a distinct ``.dynamic.json`` output.
+user and writes a distinct ``.dynamic.json`` output. If fitting fails after
+range selection, the current spectrum diagnostics are serialized before the
+error is re-raised.
 """
 
 from __future__ import annotations
@@ -160,13 +162,17 @@ def output_path_for(path: Path, dynamic_range: bool) -> Path:
 
 
 def process_file(path: Path, args: argparse.Namespace) -> None:
-    """Fit one contour trajectory with the requested config and write JSON."""
+    """Fit one trajectory and serialize results or failure diagnostics."""
     config = build_fit_config(args)
     output_path = output_path_for(path, args.dynamic_range)
 
     print(f"Working on file {path.stem}")
     spectrum = Spectrum(path)
-    fit = spectrum.extract_kc_from_fit(config)
+    try:
+        fit = spectrum.extract_kc_from_fit(config)
+    except ValueError:
+        spectrum.to_json(output_path)
+        raise
     print(f"kc={fit.kC}, sigma={fit.surface_tension}")
     spectrum.to_json(output_path)
 
