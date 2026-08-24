@@ -57,6 +57,23 @@ def test_extract_edges_returns_vesicle_edges(
     assert [result.frame_index for result in edges.detections] == [0, 1]
 
 
+def test_extract_edges_propagates_source_path(extraction_config, tmp_path):
+    """Test extracted edges retain the original video path."""
+    source_path = tmp_path / "source.nd2"
+    video = VesicleVideo(
+        np.zeros((2, 200, 200)),
+        source_path=source_path,
+    )
+
+    def extractor(frame):
+        return np.full(200, 20.0), (60.0, 50.0)
+
+    edges = video.extract_edges(extractor, extraction_config)
+
+    assert video.source_path == source_path
+    assert edges.source_path == source_path
+
+
 def test_extract_edges_preserves_frame_order_after_failure(
     extraction_config,
 ):
