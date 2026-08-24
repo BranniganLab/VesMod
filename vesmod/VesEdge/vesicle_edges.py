@@ -46,7 +46,7 @@ class VesicleEdges:
 
     def __post_init__(self) -> None:
         """Validate extraction results stored on the object."""
-        self._normalize_frame_indices()
+        self._infer_frame_indices()
         self._validate_detection_lengths()
 
     @property
@@ -192,8 +192,8 @@ class VesicleEdges:
             max_minor_fraction=config.max_minor_population_fraction,
         )
 
-    def _normalize_frame_indices(self) -> None:
-        """Fill legacy frame indices and verify stored source-frame identity."""
+    def _infer_frame_indices(self) -> None:
+        """Infer missing frame indices and verify stored source-frame identity."""
         for expected_index, result in enumerate(self.detections):
             if result.frame_index is None:
                 if isinstance(result, EdgeDetection):
