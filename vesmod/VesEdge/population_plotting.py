@@ -1,0 +1,100 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""Diagnostic plots for VesEdge population quality control."""
+
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import numpy as np
+from numpy.typing import NDArray
+
+from .models import EdgeDetection, EdgeResult
+
+
+def save_population_histograms(
+    detections: list[EdgeResult],
+    path: str | Path,
+) -> None:
+    """Save histograms of the features used for population quality control.
+
+    Only detections assigned a population label are shown. These are exactly
+    the detections included in population fitting: extraction failures and
+    detections rejected by preceding frame-level QC are omitted.
+
+    Parameters
+    ----------
+    detections : list[EdgeResult]
+        Ordered edge-extraction results after population QC has run.
+    path : str or Path
+        Destination for the PNG figure.
+
+    Raises
+    ------
+    ValueError
+        If no detections have population assignments.
+    """
+    assigned_edges = [
+        result
+        for result in detections
+        if isinstance(result, EdgeDetection)
+        and result.qc.population_label is not None
+    ]
+    if not assigned_edges:
+        raise ValueError(
+            "Population QC must assign detections before histograms can be plotted."
+        )
+
+    features = _population_features(assigned_edges)
+    labels = np.asarray(
+        [edge.qc.population_label for edge in assigned_edges],
+        dtype=int,
+    )
+    feature_names = ("Center x (pixels)", "Center y (pixels)", "Median radius (pixels)")
+
+    figure, axes = plt.subplots(1, 3, figsize=(12, 4), constrained_layout=True)
+    population_labels = np.unique(labels)
+    colors = plt.get_cmap("tab10").colors
+
+    for feature_index, (axis, feature_name) in enumerate(
+        zip(axes, feature_names, strict=True)
+    ):
+        values = features[:, feature_index]
+        bin_edges = np.histogram_bin_edges(values, bins="auto")
+        for population_label in population_labels:
+            population_values = values[labels == population_label]
+            axis.hist(
+                population_values,
+                bins=bin_edges,
+                alpha=0.5,
+                color=colors[int(population_label) % len(colors)],
+                label=(
+                    f"Population {population_label} "
+                    f"(n={population_values.size})"
+                ),
+            )
+        axis.set_xlabel(feature_name)
+        axis.set_ylabel("Detections")
+        axis.legend()
+
+    figure.suptitle("Population QC feature distributions")
+    output_path = Path(path).with_suffix(".png")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    figure.savefig(output_path, dpi=150)
+    plt.close(figure)
+
+
+def _population_features(
+    detections: list[EdgeDetection],
+) -> NDArray[np.float64]:
+    """Return the unscaled features used to fit population models."""
+    return np.asarray(
+        [
+            (
+                edge.full_contour.origin[0],
+                edge.full_contour.origin[1],
+                float(np.median(edge.analysis_contour.r)),
+            )
+            for edge in detections
+        ],
+        dtype=float,
+    )
