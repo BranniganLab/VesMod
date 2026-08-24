@@ -63,6 +63,15 @@ def test_nlq_plq0_squared_requires_nonnegative_q():
         Nlq_Plq0_squared(l=2, q=-1)
 
 
+def test_nlq_plq0_squared_does_not_change_numpy_error_policy():
+    """Test local floating-point checks do not affect later calculations."""
+    original_settings = np.geterr()
+
+    Nlq_Plq0_squared(l=2, q=0)
+
+    assert np.geterr() == original_settings
+
+
 def test_hss97_returns_one_value_per_input_mode():
     """Test that HSS97 returns one theoretical spectrum value for each requested Fourier mode."""
     q = np.array([2, 3, 4])
