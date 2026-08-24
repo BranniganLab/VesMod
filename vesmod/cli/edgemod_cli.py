@@ -75,16 +75,30 @@ def iter_npy_files(input_path: Path, recursive: bool) -> list[Path]:
 
 def process_file(path: Path, args: argparse.Namespace) -> None:
     """Fit one edge file and save its spectrum metadata to JSON."""
-    output_path = path.with_suffix(".json")
-
     print(f"Working on file {path.stem}")
     spectrum = Spectrum(path)
-    kc, sigma = spectrum.extract_kc_from_fit(
-        lower_bound=args.lower_fitting_bound,
-        upper_bound=args.upper_fitting_bound,
-        lmax=args.lmax,
-        free_sigma=not args.fixed_sigma,
-        temperature=args.temperature
+    try:
+        kc, sigma = spectrum.extract_kc_from_fit(
+            lower_bound=args.lower_fitting_bound,
+            upper_bound=args.upper_fitting_bound,
+            lmax=args.lmax,
+            free_sigma=not args.fixed_sigma,
+            temperature=args.temperature
+        )
+    except ValueError as error:
+        spectrum.save_fit_diagnostic(
+            path.with_suffix(".spectrum_diagnostic.png"),
+            args.lower_fitting_bound,
+            args.upper_fitting_bound,
+            args.lmax,
+            validation_error=str(error),
+        )
+        raise
+    spectrum.save_fit_diagnostic(
+        path.with_suffix(".spectrum_diagnostic.png"),
+        args.lower_fitting_bound,
+        args.upper_fitting_bound,
+        args.lmax,
     )
     print(f"kc={kc}, sigma={sigma}")
     spectrum.to_json(path)
