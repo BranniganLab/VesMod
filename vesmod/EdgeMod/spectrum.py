@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Compute vesicle fluctuation spectra and fit membrane mechanical parameters."""
+"""Calculate and fit vesicle fluctuation spectra.
 
+``Spectrum`` converts accepted vesicle contours into a fluctuation spectrum and
+fits a q range selected by a :class:`SpectrumFitConfig`. Fixed and dynamic
+range-selection strategies share the same fitting path. Each successful fit is
+retained as an immutable :class:`SpectrumFit` so multiple analyses of one
+spectrum can be compared without overwriting earlier results.
+"""
 from pathlib import Path
 from types import NoneType
 import json
@@ -18,16 +24,12 @@ from .spectrum_utils import (
 
 
 class Spectrum:
-    """Represent one measured vesicle fluctuation spectrum and its fit history.
+    """Calculate and fit the fluctuation spectrum of one vesicle trajectory.
 
-    ``Spectrum`` stores the measured Fourier modes and mean-squared amplitudes.
-    Scientific fitting choices are supplied separately through
-    :class:`SpectrumFitConfig`, allowing the same measured spectrum to be fit
-    repeatedly with fixed or dynamically selected q ranges. Successful fits are
-    retained in ``fit_results`` rather than replacing one another.
-
-    ``kC`` and ``surface_tension`` remain convenience attributes containing the
-    most recent successful fit values.
+    ``kC`` and ``surface_tension`` are compatibility attributes containing the
+    most recent *successful* physical fit. Range-selection failures update
+    ``fit_range_selection`` but leave those latest-successful values unchanged.
+    Durable per-fit provenance is stored in ``fit_results``.
     """
 
     def __init__(
@@ -35,17 +37,7 @@ class Spectrum:
         edges_over_time: str | Path | VesicleEdges,
         frame_cutoff=None
     ) -> None:
-        """Create a spectrum from accepted contour radii.
-
-        Parameters
-        ----------
-        edges_over_time : str | Path | VesicleEdges
-            A ``.npy`` trajectory of contour radii in microns or a QC-completed
-            ``VesicleEdges`` object. Only accepted detections from
-            ``VesicleEdges`` contribute to the spectrum.
-        frame_cutoff : int | None, optional
-            If provided, use only the first ``frame_cutoff`` contour frames.
-        """
+        """Create a Spectrum from accepted radii or a QCed VesicleEdges object."""
         if isinstance(edges_over_time, VesicleEdges):
             input_data = edges_over_time.accepted_radii_microns
         elif isinstance(edges_over_time, (Path, str)):
@@ -131,8 +123,9 @@ class Spectrum:
             If ``config`` is not a ``SpectrumFitConfig`` or ``None``.
         ValueError
             If the configured range selector rejects the spectrum or returns an
-            accepted selection without q bounds. Dynamic rejection occurs
-            before the physical spectrum fit is run.
+            accepted selection without q bounds. A rejection updates
+            ``fit_range_selection`` but does not replace the most recent
+            successful ``kC`` or ``surface_tension`` values.
         """
         if config is None:
             config = SpectrumFitConfig()
@@ -145,8 +138,6 @@ class Spectrum:
         )
         self.fit_range_selection = selection
         if not selection.accepted:
-            self.kC = None
-            self.surface_tension = None
             raise ValueError(selection.reason or "No acceptable q range found.")
         if selection.lower_bound is None or selection.upper_bound is None:
             raise ValueError("Accepted fit-range selection is missing q bounds.")
@@ -155,20 +146,22 @@ class Spectrum:
             selection.lower_bound,
             selection.upper_bound,
         )
-        self.kC, reduced_sigma = fit_spectrum_to_theory_lmfit(
+        fitted_kc, reduced_sigma = fit_spectrum_to_theory_lmfit(
             fitting_range,
             config.lmax,
             config.free_sigma,
         )
-        self.surface_tension = calc_tension_from_reduced_tension(
+        fitted_surface_tension = calc_tension_from_reduced_tension(
             self.r0,
             reduced_sigma,
-            self.kC,
+            fitted_kc,
             config.temperature,
         )
+        self.kC = fitted_kc
+        self.surface_tension = fitted_surface_tension
         fit_result = SpectrumFit(
-            kC=float(self.kC),
-            surface_tension=float(self.surface_tension),
+            kC=float(fitted_kc),
+            surface_tension=float(fitted_surface_tension),
             lower_bound=selection.lower_bound,
             upper_bound=selection.upper_bound,
             config=config,
@@ -180,7 +173,7 @@ class Spectrum:
         return fit_result
 
     def _to_dict(self, include_arrays=True) -> dict:
-        """Return spectrum state and retained fit results as serializable data."""
+        """Return spectrum state and retained fit provenance as a dictionary."""
         data = {
             "r0": float(self.r0) if getattr(self, "r0", None) is not None else None,
             "kC": float(self.kC) if getattr(self, "kC", None) is not None else None,
@@ -219,7 +212,7 @@ class Spectrum:
         include_arrays: bool = True,
         indent: int = 2,
     ) -> None:
-        """Write spectrum data and all retained fit results to a JSON file."""
+        """Serialize spectrum state and retained fit records to JSON."""
         outfile = Path(outfile).with_suffix('.json')
         with outfile.open("w", encoding="utf-8") as f:
             json.dump(self._to_dict(include_arrays=include_arrays), f, indent=indent)
