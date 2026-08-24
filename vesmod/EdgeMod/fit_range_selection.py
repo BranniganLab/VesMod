@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from numbers import Integral, Real
-from typing import Protocol
+from typing import Iterator, Protocol
+import math
 
 import numpy as np
 
@@ -105,9 +106,11 @@ class QMinusThreeFitRangeSelector:
     min_modes : int
         Minimum number of consecutive integer modes in a candidate window.
     slope_tolerance : float
-        Maximum allowed absolute difference between fitted slope and -3.
+        Finite, non-negative maximum absolute difference between fitted slope
+        and -3.
     max_log_rmse : float
-        Maximum allowed RMSE to the fixed q^-3 model in natural-log space.
+        Finite, non-negative maximum RMSE to the fixed q^-3 model in
+        natural-log space.
     """
 
     lower_bound: int
@@ -144,8 +147,12 @@ class QMinusThreeFitRangeSelector:
             raise ValueError("upper_bound must be greater than lower_bound.")
         if self.min_modes < 2:
             raise ValueError("min_modes must be at least 2.")
+        if not math.isfinite(self.slope_tolerance):
+            raise ValueError("slope_tolerance must be finite.")
         if self.slope_tolerance < 0:
             raise ValueError("slope_tolerance must be non-negative.")
+        if not math.isfinite(self.max_log_rmse):
+            raise ValueError("max_log_rmse must be finite.")
         if self.max_log_rmse < 0:
             raise ValueError("max_log_rmse must be non-negative.")
 
@@ -167,51 +174,36 @@ class QMinusThreeFitRangeSelector:
                 ),
             )
 
-        candidates = []
-        for start in range(eligible_modes.size):
-            for stop in range(start + self.min_modes, eligible_modes.size + 1):
-                window_modes = eligible_modes[start:stop]
-                if not np.all(np.diff(window_modes) == 1):
-                    continue
-                window_amps = eligible_amps[start:stop]
-                candidates.append(
-                    self._evaluate_window(window_modes, window_amps)
-                )
+        best_accepted = None
+        best_rejected = None
+        found_candidate = False
+        for candidate in self._iter_candidate_windows(
+            eligible_modes,
+            eligible_amps,
+        ):
+            found_candidate = True
+            if self._is_accepted(candidate):
+                if (
+                    best_accepted is None
+                    or self._accepted_key(candidate) > self._accepted_key(best_accepted)
+                ):
+                    best_accepted = candidate
+            elif (
+                best_rejected is None
+                or self._rejected_key(candidate) < self._rejected_key(best_rejected)
+            ):
+                best_rejected = candidate
 
-        if not candidates:
+        if not found_candidate:
             return FitRangeSelection(
                 accepted=False,
                 lower_bound=None,
                 upper_bound=None,
                 reason="Trusted q range contains no sufficiently long contiguous window.",
             )
+        if best_accepted is not None:
+            return best_accepted
 
-        accepted = [
-            candidate
-            for candidate in candidates
-            if (
-                abs(candidate.slope + 3.0) <= self.slope_tolerance
-                and candidate.log_rmse <= self.max_log_rmse
-            )
-        ]
-        if accepted:
-            return max(
-                accepted,
-                key=lambda candidate: (
-                    candidate.upper_bound - candidate.lower_bound,
-                    -candidate.log_rmse,
-                    -abs(candidate.slope + 3.0),
-                ),
-            )
-
-        best_rejected = min(
-            candidates,
-            key=lambda candidate: (
-                candidate.log_rmse,
-                abs(candidate.slope + 3.0),
-                -(candidate.upper_bound - candidate.lower_bound),
-            ),
-        )
         return FitRangeSelection(
             accepted=False,
             lower_bound=best_rejected.lower_bound,
@@ -219,6 +211,103 @@ class QMinusThreeFitRangeSelector:
             slope=best_rejected.slope,
             log_rmse=best_rejected.log_rmse,
             reason="No trusted q range satisfied the q^-3 scaling criteria.",
+        )
+
+    def _is_accepted(self, candidate: FitRangeSelection) -> bool:
+        """Return whether one evaluated window satisfies both criteria."""
+        return (
+            abs(candidate.slope + 3.0) <= self.slope_tolerance
+            and candidate.log_rmse <= self.max_log_rmse
+        )
+
+    @staticmethod
+    def _accepted_key(candidate: FitRangeSelection) -> tuple[float, ...]:
+        """Return the historical ordering key for accepted windows."""
+        return (
+            candidate.upper_bound - candidate.lower_bound,
+            -candidate.log_rmse,
+            -abs(candidate.slope + 3.0),
+        )
+
+    @staticmethod
+    def _rejected_key(candidate: FitRangeSelection) -> tuple[float, ...]:
+        """Return the historical ordering key for rejected windows."""
+        return (
+            candidate.log_rmse,
+            abs(candidate.slope + 3.0),
+            -(candidate.upper_bound - candidate.lower_bound),
+        )
+
+    def _iter_candidate_windows(
+        self,
+        modes: np.ndarray,
+        avg_amps2: np.ndarray,
+    ) -> Iterator[FitRangeSelection]:
+        """Yield candidate windows using constant-cost prefix-sum statistics."""
+        run_starts = np.concatenate(
+            ([0], np.flatnonzero(np.diff(modes) != 1) + 1)
+        )
+        run_stops = np.concatenate((run_starts[1:], [modes.size]))
+        for run_start, run_stop in zip(run_starts, run_stops, strict=True):
+            if run_stop - run_start < self.min_modes:
+                continue
+            run_modes = modes[run_start:run_stop]
+            run_amps = avg_amps2[run_start:run_stop]
+            yield from self._windows_from_contiguous_run(run_modes, run_amps)
+
+    def _windows_from_contiguous_run(
+        self,
+        modes: np.ndarray,
+        avg_amps2: np.ndarray,
+    ) -> Iterator[FitRangeSelection]:
+        """Yield all sufficiently long windows from one contiguous q run."""
+        log_q = np.log(modes.astype(float))
+        log_amp = np.log(avg_amps2)
+        fixed_residual_coordinate = log_amp + 3.0 * log_q
+        prefixes = tuple(
+            np.concatenate(([0.0], np.cumsum(values)))
+            for values in (
+                log_q,
+                log_amp,
+                log_q * log_q,
+                log_q * log_amp,
+                fixed_residual_coordinate,
+                fixed_residual_coordinate * fixed_residual_coordinate,
+            )
+        )
+        for start in range(modes.size):
+            for stop in range(start + self.min_modes, modes.size + 1):
+                yield self._evaluate_window_from_prefixes(
+                    modes,
+                    start,
+                    stop,
+                    prefixes,
+                )
+
+    @staticmethod
+    def _evaluate_window_from_prefixes(
+        modes: np.ndarray,
+        start: int,
+        stop: int,
+        prefixes: tuple[np.ndarray, ...],
+    ) -> FitRangeSelection:
+        """Evaluate one window in constant time from prefix sums."""
+        sum_x, sum_y, sum_x2, sum_xy, sum_z, sum_z2 = (
+            prefix[stop] - prefix[start]
+            for prefix in prefixes
+        )
+        count = stop - start
+        denominator = count * sum_x2 - sum_x * sum_x
+        slope = (count * sum_xy - sum_x * sum_y) / denominator
+        mean_z = sum_z / count
+        variance_z = max(sum_z2 / count - mean_z * mean_z, 0.0)
+        log_rmse = math.sqrt(variance_z)
+        return FitRangeSelection(
+            accepted=True,
+            lower_bound=int(modes[start]),
+            upper_bound=int(modes[stop - 1]) + 1,
+            slope=float(slope),
+            log_rmse=float(log_rmse),
         )
 
     def _eligible_spectrum(
@@ -242,25 +331,3 @@ class QMinusThreeFitRangeSelector:
         eligible_amps = avg_amps2[mask].astype(float, copy=False)
         order = np.argsort(eligible_modes)
         return eligible_modes[order], eligible_amps[order]
-
-    @staticmethod
-    def _evaluate_window(
-        modes: np.ndarray,
-        avg_amps2: np.ndarray,
-    ) -> FitRangeSelection:
-        """Measure power-law slope and q^-3 residual for one candidate window."""
-        log_q = np.log(modes.astype(float))
-        log_amp = np.log(avg_amps2)
-        slope, _ = np.polyfit(log_q, log_amp, 1)
-
-        log_amplitude = float(np.mean(log_amp + 3.0 * log_q))
-        fixed_model = log_amplitude - 3.0 * log_q
-        log_rmse = float(np.sqrt(np.mean((log_amp - fixed_model) ** 2)))
-
-        return FitRangeSelection(
-            accepted=True,
-            lower_bound=int(modes[0]),
-            upper_bound=int(modes[-1]) + 1,
-            slope=float(slope),
-            log_rmse=log_rmse,
-        )
