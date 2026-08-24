@@ -15,7 +15,7 @@ from lmfit import Model
 MiniSpectrum = namedtuple("MiniSpectrum", ['modes', 'avg_amps2', 'std_amps2'])
 
 
-def _validate_lmfit_result(result, fitting_group, free_sigma):
+def validate_lmfit_result(result, fitting_group, free_sigma):
     """Raise ValueError if the lmfit result is not physically or numerically reliable."""
     if not result.success:
         raise ValueError(f"Spectrum fit failed: {result.message}")
@@ -52,6 +52,18 @@ def _validate_lmfit_result(result, fitting_group, free_sigma):
         )
 
 
+def fit_spectrum_lmfit(fitting_group, lmax, free_sigma=False, weighted=False):
+    """Return the complete lmfit result for a theoretical spectrum fit."""
+    model = Model(HSS97)
+    pars = model.make_params(kC={'value': 15, 'min': 1, 'max': 500, 'vary': True}, sigma={'value': 0, 'min': -100, 'max': 1000, 'vary': free_sigma}, lmax={'value': lmax, 'vary': False})
+
+    use_weights = (weighted and np.all(np.isfinite(fitting_group.std_amps2)) and np.all(fitting_group.std_amps2 > 0))
+
+    if use_weights:
+        return model.fit(fitting_group.avg_amps2, q=fitting_group.modes, weights=(1 / fitting_group.std_amps2), params=pars, max_nfev=20000)
+    return model.fit(fitting_group.avg_amps2, q=fitting_group.modes, params=pars, max_nfev=20000)
+
+
 def fit_spectrum_to_theory_lmfit(fitting_group, lmax, free_sigma=False, weighted=False):
     """
     Fit a Mini_spectrum to the theory from Hackl, Seifert, and Sachmann 1997 \
@@ -75,17 +87,13 @@ def fit_spectrum_to_theory_lmfit(fitting_group, lmax, free_sigma=False, weighted
         The covariance matrix.
 
     """
-    model = Model(HSS97)
-    pars = model.make_params(kC={'value': 15, 'min': 1, 'max': 500, 'vary': True}, sigma={'value': 0, 'min': -100, 'max': 1000, 'vary': free_sigma}, lmax={'value': lmax, 'vary': False})
-
-    use_weights = (weighted and np.all(np.isfinite(fitting_group.std_amps2)) and np.all(fitting_group.std_amps2 > 0))
-
-    if use_weights:
-        result = model.fit(fitting_group.avg_amps2, q=fitting_group.modes, weights=(1 / fitting_group.std_amps2), params=pars, max_nfev=20000)
-    else:
-        result = model.fit(fitting_group.avg_amps2, q=fitting_group.modes, params=pars, max_nfev=20000)
-
-    _validate_lmfit_result(result, fitting_group, free_sigma)
+    result = fit_spectrum_lmfit(
+        fitting_group,
+        lmax,
+        free_sigma,
+        weighted,
+    )
+    validate_lmfit_result(result, fitting_group, free_sigma)
 
     return result.best_values['kC'], result.best_values['sigma']
 
@@ -148,9 +156,9 @@ def Nlq_Plq0_squared(l: int, q: int) -> float:
     Nlq *= (math.factorial(l - q) / math.factorial(l + q))
     sqrtNlq = np.sqrt(Nlq)
     Plq0 = lpmv(q, l, 0)
-    np.seterr(all='raise')
     try:
-        total = (sqrtNlq * Plq0)**2
+        with np.errstate(all='raise'):
+            total = (sqrtNlq * Plq0)**2
     except FloatingPointError as exc:
         raise FloatingPointError(f"FloatingPointError when l = {l}; q = {q}") from exc
     return total
