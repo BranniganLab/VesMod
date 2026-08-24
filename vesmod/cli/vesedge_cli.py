@@ -451,7 +451,7 @@ def process_qc_file(
     )
     if (
         edges.qc_result is not None
-        and edges.qc_result.population is not None
+        and getattr(edges.qc_result, "population", None) is not None
         and (args.overwrite or not population_figure_path.exists())
     ):
         save_population_histograms(
