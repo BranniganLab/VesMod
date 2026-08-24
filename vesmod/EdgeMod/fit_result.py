@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterator
 
+from .config import SpectrumFitConfig
 from .fit_range_selection import FitRangeSelection
 
 
@@ -22,21 +23,26 @@ class SpectrumFit:
         Inclusive lower q bound used for the physical fit.
     upper_bound : int
         Exclusive upper q bound used for the physical fit.
-    method : str
-        Human-readable identifier for how the fit range was chosen.
+    config : SpectrumFitConfig
+        Scientific configuration used to produce this fit.
     range_selection : FitRangeSelection | None
-        Dynamic range-selection diagnostics, when applicable.
+        Range-selection diagnostics associated with the fit.
     """
 
     kC: float
     surface_tension: float
     lower_bound: int
     upper_bound: int
-    method: str
+    config: SpectrumFitConfig
     range_selection: FitRangeSelection | None = None
 
+    @property
+    def method(self) -> str:
+        """Return the class name of the configured q-range selector."""
+        return type(self.config.range_selector).__name__
+
     def __iter__(self) -> Iterator[float]:
-        """Preserve legacy ``kc, tension = extract_kc_from_fit(...)`` unpacking."""
+        """Preserve ``kc, tension = extract_kc_from_fit(...)`` unpacking."""
         yield self.kC
         yield self.surface_tension
 
@@ -48,6 +54,7 @@ class SpectrumFit:
             "lower_bound": self.lower_bound,
             "upper_bound": self.upper_bound,
             "method": self.method,
+            "config": self.config.to_dict(),
         }
         if self.range_selection is not None:
             data["range_selection"] = self.range_selection.to_dict()
