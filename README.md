@@ -216,6 +216,7 @@ After a completed QC run, `edges.qc_result` contains the configuration and resul
 | `vesedge_qc.json` | QC configuration and source path for one QC batch |
 | `qc_summary.csv` | Per-video QC counts and accepted fractions for one QC batch |
 | `.json` | EdgeMod spectrum/fitting output |
+| `.spectrum_diagnostic.png` | Measured spectrum, attempted fit, compensated spectrum, and fit residuals |
 
 ---
 
