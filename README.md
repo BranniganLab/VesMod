@@ -129,12 +129,14 @@ This creates:
 ```text
 results/qc_standard/
 ├── sample01.npy
+├── sample01.population_histograms.png
 ├── sample02.npy
+├── sample02.population_histograms.png
 ├── vesedge_qc.json
 └── qc_summary.csv
 ```
 
-`vesedge_qc.json` records the exact QC configuration and input path. `qc_summary.csv` reports extraction failures, curvature rejections, population rejections, accepted-frame counts, and accepted fractions for each checkpoint.
+`vesedge_qc.json` records the exact QC configuration and input path. `qc_summary.csv` reports extraction failures, curvature rejections, population rejections, accepted-frame counts, and accepted fractions for each checkpoint. When population QC is enabled, each `.population_histograms.png` figure shows the fitted populations across center x, center y, and median radius.
 
 ### 3. Compare alternate QC configurations
 
@@ -210,6 +212,7 @@ After a completed QC run, `edges.qc_result` contains the configuration and resul
 | `.npz` | Reusable, QC-independent VesEdge extraction checkpoint |
 | `.gif` | Visual inspection of raw image frames with extracted contours |
 | `.npy` | Accepted contour radii for one QC configuration, ready for EdgeMod |
+| `.population_histograms.png` | Center and radius distributions grouped by the population-QC assignments |
 | `vesedge_qc.json` | QC configuration and source path for one QC batch |
 | `qc_summary.csv` | Per-video QC counts and accepted fractions for one QC batch |
 | `.json` | EdgeMod spectrum/fitting output |
