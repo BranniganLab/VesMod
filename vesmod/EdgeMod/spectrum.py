@@ -10,7 +10,16 @@ from types import NoneType
 import json
 import numpy as np
 from vesmod.VesEdge import VesicleEdges
-from .spectrum_utils import fit_spectrum_to_theory_lmfit, calc_tension_from_reduced_tension, MiniSpectrum
+from .diagnostic_plotting import (
+    SpectrumDiagnosticData,
+    save_spectrum_fit_diagnostic,
+)
+from .spectrum_utils import (
+    MiniSpectrum,
+    calc_tension_from_reduced_tension,
+    fit_spectrum_lmfit,
+    validate_lmfit_result,
+)
 
 
 class Spectrum:
@@ -50,6 +59,7 @@ class Spectrum:
         self.modes = self._calc_integer_modes()
         self.kC = None
         self.surface_tension = None
+        self.fit_result = None
 
     def _calc_avg_sq_amplitudes(self, r_vals_over_time: np.ndarray) -> np.ndarray:
         """Calculate the normalized Fourier transform, then square and average."""
@@ -85,8 +95,18 @@ class Spectrum:
     ) -> tuple[float, float]:
         """Fit a selected mode range to the theoretical prediction."""
         fitting_range = self.isolate_mode_range(lower_bound, upper_bound)
-        fit = fit_spectrum_to_theory_lmfit(fitting_range, lmax, free_sigma)
-        self.kC, reduced_sigma = fit
+        self.fit_result = fit_spectrum_lmfit(
+            fitting_range,
+            lmax,
+            free_sigma,
+        )
+        validate_lmfit_result(
+            self.fit_result,
+            fitting_range,
+            free_sigma,
+        )
+        self.kC = self.fit_result.best_values['kC']
+        reduced_sigma = self.fit_result.best_values['sigma']
         self.surface_tension = calc_tension_from_reduced_tension(
             self.r0,
             reduced_sigma,
@@ -94,6 +114,30 @@ class Spectrum:
             temperature,
         )
         return self.kC, self.surface_tension
+
+    def save_fit_diagnostic(
+        self,
+        path: str | Path,
+        lower_bound: int,
+        upper_bound: int,
+        lmax: int,
+        validation_error: str | None = None,
+    ) -> None:
+        """Save measured spectrum, attempted fit, and residual diagnostics."""
+        if self.fit_result is None:
+            raise ValueError("A spectrum fit must be attempted before plotting.")
+        save_spectrum_fit_diagnostic(
+            SpectrumDiagnosticData(
+                modes=self.modes,
+                avg_amps2=self.avg_amps2,
+                fit_result=self.fit_result,
+                lower_bound=lower_bound,
+                upper_bound=upper_bound,
+                lmax=lmax,
+                validation_error=validation_error,
+            ),
+            path,
+        )
 
     def _to_dict(self, include_arrays=True) -> dict:
         """Convert class attributes to a dict."""
