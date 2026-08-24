@@ -60,7 +60,7 @@ class VesicleVideo:
             samples returned by the extractor for a frame.
         """
         detections: list[EdgeResult] = []
-        for frame in self.frames:
+        for frame_index, frame in enumerate(self.frames):
             try:
                 r_vals, vesicle_center = extractor_func(frame)
                 self._validate_extractor_results(r_vals)
@@ -68,7 +68,12 @@ class VesicleVideo:
             # should be recorded without aborting the remaining trajectory.
             # pylint: disable-next=broad-exception-caught
             except Exception as error:  # noqa: BLE001
-                detections.append(EdgeDetectionFailure(str(error)))
+                detections.append(
+                    EdgeDetectionFailure(
+                        str(error),
+                        frame_index=frame_index,
+                    )
+                )
                 continue
 
             try:
@@ -76,18 +81,29 @@ class VesicleVideo:
                     r_vals,
                     vesicle_center,
                     extraction_config,
+                    frame_index=frame_index,
                 )
             except IndexError as error:
                 n_samples = extraction_config.n_angular_samples
                 if n_samples is not None and n_samples > r_vals.shape[0]:
                     raise
-                detections.append(EdgeDetectionFailure(str(error)))
+                detections.append(
+                    EdgeDetectionFailure(
+                        str(error),
+                        frame_index=frame_index,
+                    )
+                )
                 continue
             # Compilation can still fail on malformed extractor output; retain
             # the established per-frame failure behavior for those cases.
             # pylint: disable-next=broad-exception-caught
             except Exception as error:  # noqa: BLE001
-                detections.append(EdgeDetectionFailure(str(error)))
+                detections.append(
+                    EdgeDetectionFailure(
+                        str(error),
+                        frame_index=frame_index,
+                    )
+                )
                 continue
 
             detections.append(detected_edge)
@@ -181,6 +197,8 @@ class VesicleVideo:
         r_vals: NDArray[np.float64],
         vesicle_center: tuple[float, float],
         extraction_config: EdgeExtractionConfig,
+        *,
+        frame_index: int | None = None,
     ) -> EdgeDetection:
         """Build a successful detection from raw extractor output."""
         center = (vesicle_center[1], vesicle_center[0])
@@ -197,6 +215,7 @@ class VesicleVideo:
         return EdgeDetection(
             full_contour,
             analysis_contour,
+            frame_index=frame_index,
         )
 
     @staticmethod
