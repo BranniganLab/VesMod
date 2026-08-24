@@ -19,7 +19,8 @@ def save_population_histograms(
 
     Only detections assigned a population label are shown. These are exactly
     the detections included in population fitting: extraction failures and
-    detections rejected by preceding frame-level QC are omitted.
+    detections rejected by preceding frame-level QC are omitted. If preceding
+    QC leaves no usable detections, no figure is produced.
 
     Parameters
     ----------
@@ -31,7 +32,8 @@ def save_population_histograms(
     Raises
     ------
     ValueError
-        If no detections have population assignments.
+        If usable detections exist but none has a population assignment,
+        indicating population QC has not populated the requested diagnostics.
     """
     assigned_edges = [
         result
@@ -40,6 +42,14 @@ def save_population_histograms(
         and result.qc.population_label is not None
     ]
     if not assigned_edges:
+        usable_edges = [
+            result
+            for result in detections
+            if isinstance(result, EdgeDetection)
+            and result.qc.passed
+        ]
+        if not usable_edges:
+            return
         raise ValueError(
             "Population QC must assign detections before histograms can be plotted."
         )
