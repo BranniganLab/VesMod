@@ -1,5 +1,6 @@
 """Tests for EdgeMod SpectrumFitConfig."""
 
+import numpy as np
 import pytest
 
 from vesmod.EdgeMod import (
@@ -62,4 +63,11 @@ def test_config_rejects_nonpositive_lmax(lmax):
 def test_config_rejects_nonpositive_temperature(temperature):
     """Test temperature must be physically positive."""
     with pytest.raises(ValueError, match="temperature must be positive"):
+        SpectrumFitConfig(temperature=temperature)
+
+
+@pytest.mark.parametrize("temperature", [np.nan, np.inf, -np.inf])
+def test_config_rejects_nonfinite_temperature(temperature):
+    """Test temperature must be finite before fitting or serialization."""
+    with pytest.raises(ValueError, match="temperature must be finite"):
         SpectrumFitConfig(temperature=temperature)
