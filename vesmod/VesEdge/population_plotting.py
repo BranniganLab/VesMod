@@ -49,7 +49,11 @@ def save_population_histograms(
         [edge.qc.population_label for edge in assigned_edges],
         dtype=int,
     )
-    feature_names = ("Center x (pixels)", "Center y (pixels)", "Median radius (pixels)")
+    feature_names = (
+        "Center x (pixels)",
+        "Center y (pixels)",
+        "Median radius (pixels)",
+    )
 
     figure, axes = plt.subplots(1, 3, figsize=(12, 4), constrained_layout=True)
     population_labels = np.unique(labels)
