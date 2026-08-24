@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import numpy as np
@@ -16,6 +16,7 @@ from .edge_filtering import check_curvature, check_edge_populations
 from .models import (
     CurvatureQCResult,
     EdgeDetection,
+    EdgeDetectionFailure,
     EdgePopulationResult,
     EdgeQC,
     EdgeResult,
@@ -45,6 +46,7 @@ class VesicleEdges:
 
     def __post_init__(self) -> None:
         """Validate extraction results stored on the object."""
+        self._normalize_frame_indices()
         self._validate_detection_lengths()
 
     @property
@@ -189,6 +191,26 @@ class VesicleEdges:
             bic_threshold=config.population_bic_threshold,
             max_minor_fraction=config.max_minor_population_fraction,
         )
+
+    def _normalize_frame_indices(self) -> None:
+        """Fill legacy frame indices and verify stored source-frame identity."""
+        for expected_index, result in enumerate(self.detections):
+            if result.frame_index is None:
+                if isinstance(result, EdgeDetection):
+                    result.frame_index = expected_index
+                elif isinstance(result, EdgeDetectionFailure):
+                    self.detections[expected_index] = replace(
+                        result,
+                        frame_index=expected_index,
+                    )
+                continue
+
+            if result.frame_index != expected_index:
+                raise ValueError(
+                    "Edge result frame_index must match its source-frame "
+                    f"position: expected {expected_index}, got "
+                    f"{result.frame_index}."
+                )
 
     def _validate_detection_lengths(self) -> None:
         """Verify successful detections have consistent analysis lengths."""
