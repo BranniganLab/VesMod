@@ -9,6 +9,19 @@ from vesmod.EdgeMod import (
 )
 
 
+def _selector(**overrides):
+    """Return a selector with explicit baseline acceptance criteria."""
+    kwargs = {
+        "lower_bound": 3,
+        "upper_bound": 11,
+        "min_modes": 5,
+        "slope_tolerance": 0.1,
+        "max_log_rmse": 0.05,
+    }
+    kwargs.update(overrides)
+    return QMinusThreeFitRangeSelector(**kwargs)
+
+
 def test_fixed_selector_returns_configured_range():
     """Test fixed selection preserves lower-inclusive, upper-exclusive bounds."""
     selector = FixedFitRangeSelector(3, 8)
@@ -26,11 +39,7 @@ def test_q_minus_three_selector_prefers_longest_acceptable_range():
     """Test an exact q^-3 spectrum selects the full trusted range."""
     modes = np.arange(3, 11)
     amplitudes = 2.0 * modes.astype(float) ** -3
-    selector = QMinusThreeFitRangeSelector(
-        lower_bound=3,
-        upper_bound=11,
-        min_modes=5,
-    )
+    selector = _selector()
 
     result = selector.select(modes, amplitudes)
 
@@ -46,13 +55,7 @@ def test_q_minus_three_selector_can_exclude_bad_low_q_modes():
     modes = np.arange(3, 12)
     amplitudes = modes.astype(float) ** -3
     amplitudes[:2] *= np.array([8.0, 0.2])
-    selector = QMinusThreeFitRangeSelector(
-        lower_bound=3,
-        upper_bound=12,
-        min_modes=5,
-        slope_tolerance=0.1,
-        max_log_rmse=0.05,
-    )
+    selector = _selector(upper_bound=12)
 
     result = selector.select(modes, amplitudes)
 
@@ -65,13 +68,7 @@ def test_q_minus_three_selector_rejects_spectrum_without_scaling():
     """Test a q^-2 spectrum is rejected instead of being physically fit."""
     modes = np.arange(3, 11)
     amplitudes = modes.astype(float) ** -2
-    selector = QMinusThreeFitRangeSelector(
-        lower_bound=3,
-        upper_bound=11,
-        min_modes=5,
-        slope_tolerance=0.1,
-        max_log_rmse=0.05,
-    )
+    selector = _selector()
 
     result = selector.select(modes, amplitudes)
 
@@ -87,13 +84,7 @@ def test_q_minus_three_selector_ignores_scaling_outside_trusted_range():
     amplitudes = modes.astype(float) ** -2
     high_q = modes >= 9
     amplitudes[high_q] = modes[high_q].astype(float) ** -3
-    selector = QMinusThreeFitRangeSelector(
-        lower_bound=3,
-        upper_bound=9,
-        min_modes=5,
-        slope_tolerance=0.1,
-        max_log_rmse=0.05,
-    )
+    selector = _selector(upper_bound=9)
 
     result = selector.select(modes, amplitudes)
 
@@ -106,10 +97,7 @@ def test_q_minus_three_selector_rejects_too_short_scaling_region():
     amplitudes = modes.astype(float) ** -2
     short_range = (modes >= 5) & (modes <= 7)
     amplitudes[short_range] = 10.0 * modes[short_range].astype(float) ** -3
-    selector = QMinusThreeFitRangeSelector(
-        lower_bound=3,
-        upper_bound=11,
-        min_modes=5,
+    selector = _selector(
         slope_tolerance=0.01,
         max_log_rmse=0.01,
     )
@@ -123,11 +111,7 @@ def test_q_minus_three_selector_rejects_insufficient_usable_modes():
     """Test non-positive amplitudes do not count as log-space fit modes."""
     modes = np.arange(3, 8)
     amplitudes = np.array([1.0, 0.0, np.nan, 0.1, 0.05])
-    selector = QMinusThreeFitRangeSelector(
-        lower_bound=3,
-        upper_bound=8,
-        min_modes=4,
-    )
+    selector = _selector(upper_bound=8, min_modes=4)
 
     result = selector.select(modes, amplitudes)
 
@@ -138,22 +122,32 @@ def test_q_minus_three_selector_rejects_insufficient_usable_modes():
 
 
 @pytest.mark.parametrize(
-    "kwargs, message",
+    "overrides, message",
     [
-        ({"lower_bound": 0, "upper_bound": 8}, "lower_bound"),
-        ({"lower_bound": 8, "upper_bound": 8}, "upper_bound"),
-        ({"lower_bound": 3, "upper_bound": 8, "min_modes": 1}, "min_modes"),
-        (
-            {"lower_bound": 3, "upper_bound": 8, "slope_tolerance": -0.1},
-            "slope_tolerance",
-        ),
-        (
-            {"lower_bound": 3, "upper_bound": 8, "max_log_rmse": -0.1},
-            "max_log_rmse",
-        ),
+        ({"lower_bound": 0}, "lower_bound"),
+        ({"upper_bound": 3}, "upper_bound"),
+        ({"min_modes": 1}, "min_modes"),
+        ({"slope_tolerance": -0.1}, "slope_tolerance"),
+        ({"max_log_rmse": -0.1}, "max_log_rmse"),
     ],
 )
-def test_q_minus_three_selector_validates_configuration(kwargs, message):
-    """Test invalid dynamic-selection settings fail clearly."""
+def test_q_minus_three_selector_validates_configuration(overrides, message):
+    """Test invalid dynamic-selection values fail clearly."""
     with pytest.raises(ValueError, match=message):
-        QMinusThreeFitRangeSelector(**kwargs)
+        _selector(**overrides)
+
+
+@pytest.mark.parametrize(
+    "overrides, message",
+    [
+        ({"lower_bound": 3.5}, "lower_bound"),
+        ({"upper_bound": 11.5}, "upper_bound"),
+        ({"min_modes": 5.5}, "min_modes"),
+        ({"slope_tolerance": "0.1"}, "slope_tolerance"),
+        ({"max_log_rmse": "0.05"}, "max_log_rmse"),
+    ],
+)
+def test_q_minus_three_selector_validates_configuration_types(overrides, message):
+    """Test dynamic-selection configuration types are explicit."""
+    with pytest.raises(TypeError, match=message):
+        _selector(**overrides)
