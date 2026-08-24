@@ -11,6 +11,7 @@ import json
 import numpy as np
 from vesmod.VesEdge import VesicleEdges
 from .fit_range_selection import FitRangeSelection, FitRangeSelector
+from .fit_result import SpectrumFit
 from .spectrum_utils import fit_spectrum_to_theory_lmfit, calc_tension_from_reduced_tension, MiniSpectrum
 
 
@@ -52,6 +53,7 @@ class Spectrum:
         self.kC = None
         self.surface_tension = None
         self.fit_range_selection: FitRangeSelection | None = None
+        self.fit_results: list[SpectrumFit] = []
 
     def _calc_avg_sq_amplitudes(self, r_vals_over_time: np.ndarray) -> np.ndarray:
         """Calculate the normalized Fourier transform, then square and average."""
@@ -85,8 +87,12 @@ class Spectrum:
         free_sigma: bool = True,
         temperature: float = 295,
         range_selector: FitRangeSelector | None = None,
-    ) -> tuple[float, float]:
+    ) -> SpectrumFit:
         """Fit a selected mode range to the theoretical prediction.
+
+        Each successful call returns and stores an immutable :class:`SpectrumFit`
+        so multiple fitting strategies can be compared on the same Spectrum.
+        Tuple unpacking remains supported through ``SpectrumFit.__iter__``.
 
         When ``range_selector`` is supplied, it selects the lower-inclusive,
         upper-exclusive q range before the physical fit. A rejected selection
@@ -95,9 +101,12 @@ class Spectrum:
         fixed-range behavior controlled by ``lower_bound`` and ``upper_bound``.
         """
         self.fit_range_selection = None
+        method = "fixed"
+        selection = None
         if range_selector is not None:
             selection = range_selector.select(self.modes, self.avg_amps2)
             self.fit_range_selection = selection
+            method = type(range_selector).__name__
             if not selection.accepted:
                 self.kC = None
                 self.surface_tension = None
@@ -116,7 +125,18 @@ class Spectrum:
             self.kC,
             temperature,
         )
-        return self.kC, self.surface_tension
+        fit_result = SpectrumFit(
+            kC=float(self.kC),
+            surface_tension=float(self.surface_tension),
+            lower_bound=lower_bound,
+            upper_bound=upper_bound,
+            method=method,
+            range_selection=selection,
+        )
+        if not hasattr(self, "fit_results"):
+            self.fit_results = []
+        self.fit_results.append(fit_result)
+        return fit_result
 
     def _to_dict(self, include_arrays=True) -> dict:
         """Convert class attributes to a dict."""
@@ -129,6 +149,10 @@ class Spectrum:
         selection = getattr(self, "fit_range_selection", None)
         if selection is not None:
             data["fit_range_selection"] = selection.to_dict()
+
+        fit_results = getattr(self, "fit_results", None)
+        if fit_results:
+            data["fit_results"] = [result.to_dict() for result in fit_results]
 
         if include_arrays:
             data["modes"] = (
@@ -146,7 +170,7 @@ class Spectrum:
         include_arrays: bool = True,
         indent: int = 2,
     ) -> None:
-        """Save class attributes to JSON."""
+        """Save class attributes and all stored fit results to JSON."""
         outfile = Path(outfile).with_suffix('.json')
         with outfile.open("w", encoding="utf-8") as f:
             json.dump(self._to_dict(include_arrays=include_arrays), f, indent=indent)
