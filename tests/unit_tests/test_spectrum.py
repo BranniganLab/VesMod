@@ -326,11 +326,17 @@ def test_extract_kc_from_fit_uses_default_config(monkeypatch):
         calls["modes"] = fitting_range.modes.copy()
         calls["lmax"] = lmax
         calls["free_sigma"] = free_sigma
-        return 20.0, 2.0
+        return SimpleNamespace(
+            best_values={"kC": 20.0, "sigma": 2.0},
+        )
 
     monkeypatch.setattr(
-        "vesmod.EdgeMod.spectrum.fit_spectrum_to_theory_lmfit",
+        "vesmod.EdgeMod.spectrum.fit_spectrum_lmfit",
         fake_fit,
+    )
+    monkeypatch.setattr(
+        "vesmod.EdgeMod.spectrum.validate_lmfit_result",
+        lambda result, fitting_range, free_sigma: None,
     )
     monkeypatch.setattr(
         "vesmod.EdgeMod.spectrum.calc_tension_from_reduced_tension",
