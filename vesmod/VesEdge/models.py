@@ -213,4 +213,4 @@ class VesicleQCResult:
 
     config: EdgeQCConfig
     curvature: CurvatureQCResult | None
-    area: AreaQCResult | None
+    area: AreaQCResult | None = None
