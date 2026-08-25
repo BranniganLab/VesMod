@@ -19,6 +19,7 @@ Features include:
 * User-supplied edge extraction algorithms
 * Reusable `.npz` extraction checkpoints
 * Frame-level curvature quality control
+* Opt-in experimental median-radius screening for obvious wrong-object detections
 * Rerunnable QC without repeating edge extraction
 * QC provenance and batch-summary outputs
 * Optional angular downsampling
@@ -128,7 +129,18 @@ results/qc_standard/
 └── qc_summary.csv
 ```
 
-`vesedge_qc.json` records the exact QC configuration and input selection. `qc_summary.csv` reports extraction failures, curvature rejections, accepted-frame counts, and accepted fractions for each checkpoint. Curvature is currently VesEdge's only built-in frame-rejection rule.
+`vesedge_qc.json` records the exact QC configuration and input selection. `qc_summary.csv` reports extraction failures, curvature rejections, accepted-frame counts, and accepted fractions for each checkpoint. Curvature is VesEdge's stable built-in frame-rejection rule.
+
+An experimental, order-independent dust screen can be composed after curvature QC with an explicit relative radius cutoff:
+
+```bash
+vesedge qc ./checkpoints \
+    --curvature-threshold 5 \
+    --radius-deviation-threshold 0.2 \
+    --output-dir ./results/qc_radius_screen
+```
+
+This assumes the intended vesicle occupies more than half of the curvature-accepted frames. It is disabled unless the threshold is supplied. See the VesEdge CLI guide for its diagnostics and limitations.
 
 ### 3. Compare alternate QC configurations
 
@@ -260,6 +272,7 @@ Both successful physical fits remain available in `spectrum.fit_results`. Each `
 | `.npy` | Accepted contour radii for one QC configuration, ready for EdgeMod |
 | `vesedge_qc.json` | QC configuration and source path for one QC batch |
 | `qc_summary.csv` | Per-video QC counts and accepted fractions for one QC batch |
+| `.radius_deviation.json` | Experimental per-frame median-radius diagnostics and inclusion decisions |
 | `.spectrum_diagnostic.png` | Measured spectrum, attempted fit, compensated spectrum, and fit residuals |
 | `.json` | EdgeMod fixed-range spectrum/fitting output |
 | `.dynamic.json` | EdgeMod output produced when experimental dynamic selection is requested |

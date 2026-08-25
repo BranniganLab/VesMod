@@ -11,6 +11,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 import nd2
+import numpy as np
 
 from vesmod.VesEdge import (
     EdgeExtractionConfig,
@@ -18,6 +19,11 @@ from vesmod.VesEdge import (
     QCFlag,
     VesicleEdges,
     VesicleVideo,
+)
+from vesmod.VesEdge.experimental import (
+    RadiusDeviationConfig,
+    RadiusDeviationResult,
+    screen_radius_deviations,
 )
 
 
@@ -151,6 +157,16 @@ def _add_qc_parser(subparsers) -> None:
         help="Disable frame-level curvature QC.",
     )
     parser.add_argument(
+        "--radius-deviation-threshold",
+        type=float,
+        default=None,
+        help=(
+            "After curvature QC, reject detections whose median radius differs "
+            "from the trajectory-wide median by more than this fraction. For "
+            "example, 0.2 permits 20%% deviation. Disabled by default."
+        ),
+    )
+    parser.add_argument(
         "--overwrite",
         action="store_true",
         help="Overwrite existing filtered .npy outputs and QC provenance.",
@@ -280,19 +296,39 @@ def _qc_config_from_args(args: argparse.Namespace) -> EdgeQCConfig:
     )
 
 
+def _radius_deviation_config_from_args(
+    args: argparse.Namespace,
+) -> RadiusDeviationConfig | None:
+    """Build the optional experimental radius-screen configuration."""
+    threshold = getattr(
+        args,
+        "radius_deviation_threshold",
+        None,
+    )
+    if threshold is None:
+        return None
+    return RadiusDeviationConfig(max_relative_deviation=threshold)
+
+
 def _qc_provenance(
     qc_config: EdgeQCConfig,
     input_path: Path,
     recursive: bool,
     paths: list[Path],
+    radius_config: RadiusDeviationConfig | None = None,
 ) -> dict:
     """Return serializable provenance for one resolved QC batch."""
-    return {
+    provenance = {
         "input_path": str(input_path.expanduser().resolve()),
         "recursive": recursive,
         "checkpoint_manifest": [str(path.resolve()) for path in paths],
         "qc_config": asdict(qc_config),
     }
+    if radius_config is not None:
+        provenance["experimental"] = {
+            "radius_deviation": radius_config.to_dict(),
+        }
+    return provenance
 
 
 def _remove_managed_qc_artifacts(output_dir: Path) -> None:
@@ -303,6 +339,8 @@ def _remove_managed_qc_artifacts(output_dir: Path) -> None:
         output_path = output_dir / filename
         if output_path.exists():
             output_path.unlink()
+    for output_path in output_dir.rglob("*.radius_deviation.json"):
+        output_path.unlink()
 
 
 def _write_qc_provenance(
@@ -312,11 +350,18 @@ def _write_qc_provenance(
     recursive: bool,
     paths: list[Path],
     overwrite: bool,
+    radius_config: RadiusDeviationConfig | None = None,
 ) -> None:
     """Write QC provenance and reject incompatible existing provenance."""
     output_dir.mkdir(parents=True, exist_ok=True)
     provenance_path = output_dir / "vesedge_qc.json"
-    provenance = _qc_provenance(qc_config, input_path, recursive, paths)
+    provenance = _qc_provenance(
+        qc_config,
+        input_path,
+        recursive,
+        paths,
+        radius_config,
+    )
 
     if provenance_path.exists():
         existing = json.loads(provenance_path.read_text(encoding="utf-8"))
@@ -342,6 +387,7 @@ def _qc_summary(
     edges: VesicleEdges,
     status: str,
     error: str = "",
+    radius_result: RadiusDeviationResult | None = None,
 ) -> dict:
     """Build a summary row for one QCed checkpoint."""
     successful = edges.successful_detections
@@ -349,13 +395,19 @@ def _qc_summary(
         QCFlag.CURVATURE in detection.qc.flags
         for detection in successful
     )
-    accepted = sum(detection.qc.passed for detection in successful)
+    curvature_accepted = sum(detection.qc.passed for detection in successful)
+    radius_rejected = 0 if radius_result is None else radius_result.rejected_count
+    accepted = curvature_accepted - radius_rejected
     return {
         "file": str(_relative_input_path(path, input_path)),
         "frames": len(edges.detections),
         "successful_detections": len(successful),
         "extraction_failures": len(edges.detections) - len(successful),
         "curvature_rejected": curvature_rejected,
+        "radius_deviation_rejected": radius_rejected,
+        "radius_reference_pixels": (
+            "" if radius_result is None else radius_result.reference_radius_pixels
+        ),
         "accepted": accepted,
         "accepted_fraction": accepted / len(successful),
         "status": status,
@@ -371,6 +423,8 @@ def _load_error_summary(path: Path, input_path: Path, error: str) -> dict:
         "successful_detections": 0,
         "extraction_failures": 0,
         "curvature_rejected": 0,
+        "radius_deviation_rejected": 0,
+        "radius_reference_pixels": "",
         "accepted": 0,
         "accepted_fraction": 0.0,
         "status": "load_error",
@@ -382,6 +436,7 @@ def process_qc_file(
     path: Path,
     args: argparse.Namespace,
     qc_config: EdgeQCConfig,
+    radius_config: RadiusDeviationConfig | None = None,
 ) -> dict:
     """Apply QC to one checkpoint and return its batch summary row."""
     output_path = (
@@ -413,13 +468,52 @@ def process_qc_file(
             status = "no_accepted_frames"
             print(f"QC produced no accepted frames for {path.name}: {error}")
 
-    row = _qc_summary(path, args.input_path, edges, status, qc_error)
+    radius_result = None
+    if status == "ok" and radius_config is not None:
+        try:
+            radius_result = screen_radius_deviations(
+                edges.accepted_detections,
+                radius_config,
+            )
+            if radius_result.accepted_count == 0:
+                status = "no_accepted_frames"
+                qc_error = "Experimental radius-deviation QC accepted no frames."
+        except ValueError as error:
+            status = "experimental_qc_error"
+            qc_error = str(error)
+            print(f"Experimental QC failed for {path.name}: {error}")
+
+    if status == "no_accepted_frames" and args.overwrite and output_exists:
+        output_path.unlink()
+
+    row = _qc_summary(
+        path,
+        args.input_path,
+        edges,
+        status,
+        qc_error,
+        radius_result,
+    )
     if (
         status == "ok"
         and row["accepted"] > 0
         and (args.overwrite or not output_exists)
     ):
-        edges.save_edge_to_npy(output_path)
+        if radius_result is None:
+            edges.save_edge_to_npy(output_path)
+        else:
+            accepted_radii = edges.accepted_radii_microns[
+                list(radius_result.accepted_positions)
+            ]
+            np.save(output_path, accepted_radii)
+
+    if radius_result is not None:
+        diagnostics_path = output_path.with_suffix(".radius_deviation.json")
+        if args.overwrite or not diagnostics_path.exists():
+            diagnostics_path.write_text(
+                json.dumps(radius_result.to_dict(), indent=2) + "\n",
+                encoding="utf-8",
+            )
     return row
 
 
@@ -432,6 +526,8 @@ def _write_qc_summary(output_dir: Path, rows: list[dict]) -> None:
         "successful_detections",
         "extraction_failures",
         "curvature_rejected",
+        "radius_deviation_rejected",
+        "radius_reference_pixels",
         "accepted",
         "accepted_fraction",
         "status",
@@ -460,6 +556,7 @@ def _run_qc(args: argparse.Namespace) -> None:
         raise FileNotFoundError(f"No .npz files found in {args.input_path}")
 
     qc_config = _qc_config_from_args(args)
+    radius_config = _radius_deviation_config_from_args(args)
     _write_qc_provenance(
         args.output_dir,
         qc_config,
@@ -467,9 +564,10 @@ def _run_qc(args: argparse.Namespace) -> None:
         args.recursive,
         paths,
         args.overwrite,
+        radius_config,
     )
     rows = [
-        process_qc_file(path, args, qc_config)
+        process_qc_file(path, args, qc_config, radius_config)
         for path in paths
     ]
     _write_qc_summary(args.output_dir, rows)

@@ -19,7 +19,7 @@ QC-independent .npz checkpoints
                                                   EdgeMod
 ```
 
-This allows expensive image processing to be run once while QC settings are evaluated repeatedly and reproducibly. Curvature is currently the only built-in frame-rejection rule.
+This allows expensive image processing to be run once while QC settings are evaluated repeatedly and reproducibly. Curvature is the stable built-in frame-rejection rule. An opt-in experimental median-radius screen is also available for obvious wrong-object detections.
 
 ## Quick Start
 
@@ -215,7 +215,30 @@ vesedge qc ./checkpoints \
 
 With curvature QC disabled, every successfully extracted detection is exported. Extraction failures remain absent because they do not contain contours.
 
-VesEdge no longer performs GMM-based population QC. The removed options `--population-bic-threshold`, `--max-minor-population-fraction`, and `--no-population-qc` are invalid and produce an argument error. VesEdge does not currently attempt to identify dust-particle detections automatically; inspect extraction GIFs before downstream analysis.
+VesEdge no longer performs GMM-based population QC. The removed options `--population-bic-threshold`, `--max-minor-population-fraction`, and `--no-population-qc` are invalid and produce an argument error.
+
+## Experimental Median-Radius Dust Screen
+
+To reject detections of an object whose radius is clearly inconsistent with the intended vesicle, provide an explicit fractional cutoff:
+
+```bash
+vesedge qc ./checkpoints \
+    --curvature-threshold 5 \
+    --radius-deviation-threshold 0.2 \
+    --output-dir ./results/qc_radius_screen
+```
+
+The screen runs **after curvature QC**. For every curvature-accepted frame it calculates the contour's median radius, finds the trajectory-wide median of those frame radii, and rejects a frame when:
+
+```text
+abs(frame radius - reference radius) / reference radius > threshold
+```
+
+Thus `0.2` permits a 20% difference. No default cutoff is supplied: omitting the option disables the experiment and preserves the ordinary curvature-only workflow.
+
+This deliberately simple rule is order-independent, so dust at the beginning of a video is treated the same as dust in the middle or end. It assumes that the intended vesicle accounts for more than half of the curvature-accepted frames and that the dust radius differs materially from the vesicle radius. It is not a population model and does not attempt to distinguish two genuine vesicle states. A generous cutoff can preserve modest radius evolution, such as the approximately 6% change observed in Acquisition 8, while rejecting much larger object-switching errors.
+
+When enabled, the CLI writes `<sample>.radius_deviation.json`. It records the reference radius, each source frame's radius and relative deviation, and the final experimental inclusion decision. Inspect these diagnostics and extraction GIFs when choosing a cutoff.
 
 ## QC Outputs
 
@@ -235,6 +258,8 @@ results/qc_standard/
 └── qc_summary.csv
 ```
 
+With experimental radius screening enabled, each successful checkpoint also produces a `.radius_deviation.json` diagnostic file.
+
 ### Filtered `.npy` files
 
 Each `.npy` contains only contours accepted under the current QC configuration, with radial distances converted to microns. These files are directly consumable by EdgeMod.
@@ -251,6 +276,8 @@ This file records:
 - `curvature_threshold`;
 - whether curvature QC was enabled.
 
+When experimental screening is enabled, a separate `experimental.radius_deviation` section records its threshold. The setting is intentionally kept outside the stable `qc_config` object.
+
 Consequently, recursive and non-recursive runs, or runs resolving to different checkpoint sets, have different provenance even if their QC thresholds are identical.
 
 ### `qc_summary.csv`
@@ -261,6 +288,7 @@ The summary contains one row per selected checkpoint with:
 - successful edge detections;
 - extraction failures;
 - curvature rejections;
+- experimental radius-deviation rejections and reference radius, when enabled;
 - accepted frames;
 - accepted fraction;
 - processing status;
@@ -343,6 +371,22 @@ edges.save_edge_to_npy("sample.npy")
 ```
 
 A completed run is summarized by `edges.qc_result`; individual detections retain their curvature score and pass/fail flag through `EdgeDetection.qc`.
+
+The experimental calculation is available separately from the stable QC model:
+
+```python
+from vesmod.VesEdge.experimental import (
+    RadiusDeviationConfig,
+    screen_radius_deviations,
+)
+
+result = screen_radius_deviations(
+    edges.accepted_detections,
+    RadiusDeviationConfig(max_relative_deviation=0.2),
+)
+```
+
+`result.accepted_positions` identifies entries in `edges.accepted_detections`; `result.to_dict()` provides the complete serializable diagnostics. The experimental function does not mutate core QC flags or `edges.qc_result`.
 
 ---
 
