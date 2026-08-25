@@ -20,11 +20,11 @@ def _make_assigned_edge(origin, radius, population_label):
     return edge
 
 
-def test_save_population_histograms_creates_labeled_three_panel_figure(
+def test_save_population_histograms_creates_labeled_radius_figure(
     tmp_path,
     monkeypatch,
 ):
-    """Test each fitted population is represented in every feature panel."""
+    """Test each fitted population is represented in the radius histogram."""
     detections = [
         _make_assigned_edge((0.0, 1.0), 10.0, 0),
         _make_assigned_edge((0.5, 1.5), 11.0, 0),
@@ -44,8 +44,8 @@ def test_save_population_histograms_creates_labeled_three_panel_figure(
 
     assert output_path.is_file()
     assert output_path.stat().st_size > 0
-    assert labels.count("Population 0 (n=2)") == 3
-    assert labels.count("Population 1 (n=1)") == 3
+    assert labels.count("Population 0 (n=2)") == 1
+    assert labels.count("Population 1 (n=1)") == 1
 
 
 def test_save_population_histograms_requires_population_assignments(tmp_path):
