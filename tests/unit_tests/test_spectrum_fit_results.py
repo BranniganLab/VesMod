@@ -1,62 +1,35 @@
-"""Tests for preserving multiple EdgeMod fit results on one Spectrum."""
+"""Tests for preserving multiple core EdgeMod fit results on one Spectrum."""
 
 from types import SimpleNamespace
 
 import numpy as np
 
-from vesmod.EdgeMod import (
-    FixedFitRangeSelector,
-    QMinusThreeFitRangeSelector,
-    Spectrum,
-    SpectrumFit,
-    SpectrumFitConfig,
-)
+from vesmod.EdgeMod import Spectrum, SpectrumFit, SpectrumFitConfig
 
 
 def _spectrum() -> Spectrum:
-    """Return a minimal spectrum with q^-3 scaling from q=5 onward."""
+    """Return a minimal spectrum for repeated physical fitting."""
     spectrum = Spectrum.__new__(Spectrum)
     spectrum.r0 = 10.0
     spectrum.modes = np.arange(0, 12)
     spectrum.avg_amps2 = np.ones(12, dtype=float)
-    q = spectrum.modes[3:].astype(float)
-    spectrum.avg_amps2[3:] = q ** -3
-    spectrum.avg_amps2[3] *= 8.0
-    spectrum.avg_amps2[4] *= 0.2
     spectrum.kC = None
     spectrum.surface_tension = None
-    spectrum.fit_range_selection = None
+    spectrum.fit_result = None
     spectrum.fit_results = []
     return spectrum
 
 
-def test_fixed_and_dynamic_fits_are_both_preserved(monkeypatch):
-    """Test a later fit does not replace an earlier fit result."""
-    spectrum = _spectrum()
-    fixed_config = SpectrumFitConfig(
-        range_selector=FixedFitRangeSelector(3, 8),
-    )
-    dynamic_config = SpectrumFitConfig(
-        range_selector=QMinusThreeFitRangeSelector(
-            lower_bound=3,
-            upper_bound=12,
-            min_modes=5,
-            slope_tolerance=0.1,
-            max_log_rmse=0.05,
-        )
-    )
-
-    def fake_fit(fitting_range, lmax, free_sigma):
-        return SimpleNamespace(
+def _mock_physical_fit(monkeypatch) -> None:
+    """Replace physical fitting with a deterministic result keyed to first q."""
+    monkeypatch.setattr(
+        "vesmod.EdgeMod.spectrum.fit_spectrum_lmfit",
+        lambda fitting_range, lmax, free_sigma: SimpleNamespace(
             best_values={
                 "kC": float(fitting_range.modes[0]),
                 "sigma": 2.0,
             }
-        )
-
-    monkeypatch.setattr(
-        "vesmod.EdgeMod.spectrum.fit_spectrum_lmfit",
-        fake_fit,
+        ),
     )
     monkeypatch.setattr(
         "vesmod.EdgeMod.spectrum.validate_lmfit_result",
@@ -67,22 +40,28 @@ def test_fixed_and_dynamic_fits_are_both_preserved(monkeypatch):
         lambda r0, reduced_sigma, kc, temperature: kc / 10.0,
     )
 
-    fixed = spectrum.extract_kc_from_fit(fixed_config)
-    dynamic = spectrum.extract_kc_from_fit(dynamic_config)
 
-    assert isinstance(fixed, SpectrumFit)
-    assert isinstance(dynamic, SpectrumFit)
-    assert fixed.method == "FixedFitRangeSelector"
-    assert fixed.lower_bound == 3
-    assert fixed.upper_bound == 8
-    assert fixed.kC == 3.0
-    assert dynamic.method == "QMinusThreeFitRangeSelector"
-    assert dynamic.lower_bound == 5
-    assert dynamic.upper_bound == 12
-    assert dynamic.kC == 5.0
-    assert spectrum.fit_results == [fixed, dynamic]
-    assert spectrum.kC == dynamic.kC
-    assert spectrum.surface_tension == dynamic.surface_tension
+def test_multiple_physical_fits_are_both_preserved(monkeypatch):
+    """Test a later physical fit does not replace an earlier fit result."""
+    spectrum = _spectrum()
+    first_config = SpectrumFitConfig(lower_bound=3, upper_bound=8)
+    second_config = SpectrumFitConfig(lower_bound=5, upper_bound=12)
+    _mock_physical_fit(monkeypatch)
+
+    first = spectrum.extract_kc_from_fit(first_config)
+    second = spectrum.extract_kc_from_fit(second_config)
+
+    assert isinstance(first, SpectrumFit)
+    assert isinstance(second, SpectrumFit)
+    assert first.lower_bound == 3
+    assert first.upper_bound == 8
+    assert first.kC == 3.0
+    assert second.lower_bound == 5
+    assert second.upper_bound == 12
+    assert second.kC == 5.0
+    assert spectrum.fit_results == [first, second]
+    assert spectrum.kC == second.kC
+    assert spectrum.surface_tension == second.surface_tension
 
 
 def test_spectrum_fit_supports_tuple_unpacking():
@@ -102,53 +81,23 @@ def test_spectrum_fit_supports_tuple_unpacking():
     assert tension == 1.5
 
 
-def test_to_dict_serializes_all_fit_results(monkeypatch):
-    """Test fixed and dynamic analyses coexist in one serialized Spectrum."""
+def test_to_dict_serializes_all_physical_fit_results(monkeypatch):
+    """Test repeated core analyses coexist in one serialized Spectrum."""
     spectrum = _spectrum()
-    fixed_config = SpectrumFitConfig(
-        range_selector=FixedFitRangeSelector(3, 8),
-    )
-    dynamic_config = SpectrumFitConfig(
-        range_selector=QMinusThreeFitRangeSelector(
-            lower_bound=3,
-            upper_bound=12,
-            min_modes=5,
-            slope_tolerance=0.1,
-            max_log_rmse=0.05,
-        )
-    )
+    first_config = SpectrumFitConfig(lower_bound=3, upper_bound=8)
+    second_config = SpectrumFitConfig(lower_bound=5, upper_bound=12)
+    _mock_physical_fit(monkeypatch)
 
-    monkeypatch.setattr(
-        "vesmod.EdgeMod.spectrum.fit_spectrum_lmfit",
-        lambda fitting_range, lmax, free_sigma: SimpleNamespace(
-            best_values={
-                "kC": float(fitting_range.modes[0]),
-                "sigma": 2.0,
-            }
-        ),
-    )
-    monkeypatch.setattr(
-        "vesmod.EdgeMod.spectrum.validate_lmfit_result",
-        lambda result, fitting_range, free_sigma: None,
-    )
-    monkeypatch.setattr(
-        "vesmod.EdgeMod.spectrum.calc_tension_from_reduced_tension",
-        lambda r0, reduced_sigma, kc, temperature: kc / 10.0,
-    )
-
-    spectrum.extract_kc_from_fit(fixed_config)
-    spectrum.extract_kc_from_fit(dynamic_config)
+    spectrum.extract_kc_from_fit(first_config)
+    spectrum.extract_kc_from_fit(second_config)
 
     data = spectrum._to_dict(include_arrays=False)
 
     assert len(data["fit_results"]) == 2
-    assert data["fit_results"][0]["method"] == "FixedFitRangeSelector"
     assert data["fit_results"][0]["lower_bound"] == 3
+    assert data["fit_results"][0]["upper_bound"] == 8
     assert data["fit_results"][0]["config"]["lmax"] == 500
-    assert data["fit_results"][1]["method"] == "QMinusThreeFitRangeSelector"
     assert data["fit_results"][1]["lower_bound"] == 5
-    assert data["fit_results"][1]["range_selection"]["accepted"] is True
-    assert (
-        data["fit_results"][1]["config"]["range_selector"]["min_modes"]
-        == 5
-    )
+    assert data["fit_results"][1]["upper_bound"] == 12
+    assert "method" not in data["fit_results"][0]
+    assert "range_selection" not in data["fit_results"][1]
