@@ -1,15 +1,13 @@
-"""Integration tests for dynamic EdgeMod spectrum fit-range selection."""
+"""Integration tests for experimental EdgeMod dynamic range selection."""
 
+from dataclasses import replace
 from types import SimpleNamespace
 
 import numpy as np
 import pytest
 
-from vesmod.EdgeMod import (
-    QMinusThreeFitRangeSelector,
-    Spectrum,
-    SpectrumFitConfig,
-)
+from vesmod.EdgeMod import Spectrum, SpectrumFitConfig
+from vesmod.EdgeMod.experimental import QMinusThreeRangeSelector
 
 
 def _spectrum_with_power_law() -> Spectrum:
@@ -24,39 +22,40 @@ def _spectrum_with_power_law() -> Spectrum:
     spectrum.avg_amps2[4] *= 0.2
     spectrum.kC = None
     spectrum.surface_tension = None
-    spectrum.fit_range_selection = None
+    spectrum.fit_result = None
     spectrum.fit_results = []
     return spectrum
 
 
-def _dynamic_config() -> SpectrumFitConfig:
-    """Return standard dynamic-selection settings for these tests."""
-    return SpectrumFitConfig(
-        lmax=400,
-        free_sigma=False,
-        range_selector=QMinusThreeFitRangeSelector(
-            lower_bound=3,
-            upper_bound=12,
-            min_modes=5,
-            slope_tolerance=0.1,
-            max_log_rmse=0.05,
-        ),
+def _selector() -> QMinusThreeRangeSelector:
+    """Return standard experimental selection settings for these tests."""
+    return QMinusThreeRangeSelector(
+        lower_bound=3,
+        upper_bound=12,
+        min_modes=5,
+        slope_tolerance=0.1,
+        max_log_rmse=0.05,
     )
 
 
-def test_extract_kc_from_fit_uses_dynamic_selected_range(monkeypatch):
-    """Test the physical fitter receives only the dynamically selected modes."""
+def test_selected_bounds_can_be_passed_to_core_physical_fit(monkeypatch):
+    """Test experimental selection composes with the range-agnostic core fitter."""
     spectrum = _spectrum_with_power_law()
-    config = _dynamic_config()
+    selection = _selector().select(spectrum.modes, spectrum.avg_amps2)
+    assert selection.accepted
+
+    config = replace(
+        SpectrumFitConfig(lmax=400, free_sigma=False),
+        lower_bound=selection.lower_bound,
+        upper_bound=selection.upper_bound,
+    )
     calls = {}
 
     def fake_fit(fitting_range, lmax, free_sigma):
         calls["modes"] = fitting_range.modes.copy()
         calls["lmax"] = lmax
         calls["free_sigma"] = free_sigma
-        return SimpleNamespace(
-            best_values={"kC": 20.0, "sigma": 2.0},
-        )
+        return SimpleNamespace(best_values={"kC": 20.0, "sigma": 2.0})
 
     monkeypatch.setattr(
         "vesmod.EdgeMod.spectrum.fit_spectrum_lmfit",
@@ -76,17 +75,14 @@ def test_extract_kc_from_fit_uses_dynamic_selected_range(monkeypatch):
     np.testing.assert_array_equal(calls["modes"], np.arange(5, 12))
     assert calls["lmax"] == 400
     assert calls["free_sigma"] is False
-    assert spectrum.fit_range_selection is not None
-    assert spectrum.fit_range_selection.accepted
-    assert spectrum.fit_range_selection.lower_bound == 5
-    assert spectrum.fit_range_selection.upper_bound == 12
+    assert fit.lower_bound == 5
+    assert fit.upper_bound == 12
     assert fit.kC == 20.0
     assert fit.surface_tension == 1.5
-    assert fit.config is config
 
 
-def test_extract_kc_from_fit_rejects_before_physical_fit(monkeypatch):
-    """Test rejection preserves the most recent successful fit values."""
+def test_rejected_selection_does_not_require_core_physical_fit(monkeypatch):
+    """Test experimental rejection can stop before the core fitter is invoked."""
     spectrum = Spectrum.__new__(Spectrum)
     spectrum.r0 = 10.0
     spectrum.modes = np.arange(0, 12)
@@ -95,44 +91,27 @@ def test_extract_kc_from_fit_rejects_before_physical_fit(monkeypatch):
     spectrum.avg_amps2[3:] = q ** -2
     spectrum.kC = 99.0
     spectrum.surface_tension = 98.0
-    spectrum.fit_range_selection = None
+    spectrum.fit_result = None
     spectrum.fit_results = []
-    config = _dynamic_config()
 
-    def fail_if_called(*args, **kwargs):
-        pytest.fail("Physical spectrum fitter should not run after range rejection.")
+    selection = _selector().select(spectrum.modes, spectrum.avg_amps2)
 
-    monkeypatch.setattr(
-        "vesmod.EdgeMod.spectrum.fit_spectrum_lmfit",
-        fail_if_called,
-    )
-
-    with pytest.raises(ValueError, match="No trusted q range"):
-        spectrum.extract_kc_from_fit(config)
-
-    assert spectrum.fit_range_selection is not None
-    assert not spectrum.fit_range_selection.accepted
+    assert not selection.accepted
+    assert "No trusted q range" in selection.reason
     assert spectrum.kC == 99.0
     assert spectrum.surface_tension == 98.0
     assert spectrum.fit_results == []
 
 
-def test_to_dict_serializes_dynamic_range_diagnostics():
-    """Test dynamic selection diagnostics are available to later reporting."""
+def test_core_spectrum_serialization_has_no_dynamic_selection_state():
+    """Test experimental diagnostics do not become permanent Spectrum state."""
     spectrum = _spectrum_with_power_law()
-    selector = _dynamic_config().range_selector
-    spectrum.fit_range_selection = selector.select(
-        spectrum.modes,
-        spectrum.avg_amps2,
-    )
+    selection = _selector().select(spectrum.modes, spectrum.avg_amps2)
+    assert selection.accepted
 
     data = spectrum._to_dict(include_arrays=False)
 
-    assert data["fit_range_selection"]["accepted"] is True
-    assert data["fit_range_selection"]["lower_bound"] == 5
-    assert data["fit_range_selection"]["upper_bound"] == 12
-    assert data["fit_range_selection"]["slope"] == pytest.approx(-3.0)
-    assert data["fit_range_selection"]["log_rmse"] == pytest.approx(
-        0.0,
-        abs=1e-12,
-    )
+    assert "fit_range_selection" not in data
+    assert "dynamic_range_selection" not in data
+    assert selection.lower_bound == 5
+    assert selection.upper_bound == 12
