@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from numbers import Integral, Real
 import math
 
@@ -49,7 +49,13 @@ class TemporalRMSConfig:
 
     def to_dict(self) -> dict:
         """Return JSON-serializable configuration values."""
-        return asdict(self)
+        return {
+            "lower_bound": int(self.lower_bound),
+            "upper_bound": int(self.upper_bound),
+            "cutoff_nm": (
+                None if self.cutoff_nm is None else float(self.cutoff_nm)
+            ),
+        }
 
 
 @dataclass(frozen=True)
