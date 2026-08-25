@@ -1,26 +1,28 @@
 ## Description
-Provide a brief description of the PR's purpose here.
+Explain the problem, the behavior changed by this PR, and any important scope exclusions.
 
 ## Usage Changes
-Document any changes to the parameters
+Document CLI, configuration, Python API, output-format, and compatibility changes. Write `None` when there are no user-facing changes.
 
 ## Todos
-Notable points that this PR has either accomplished or will accomplish.
-  - [ ] TODO 1
+List the concrete implementation and validation work.
+- [ ] TODO 1
 
 ## Pre-Review checklist (PR maker)
-- [ ] New functions are documented
-- [ ] New configuration parameters are documented (Usage changes above)
-- [ ] Changes propagated to all notebooks
+- [ ] New or changed public functions are documented
+- [ ] User-facing changes are documented above
+- [ ] Relevant tests pass
+- [ ] Notebook changes are complete or marked not applicable
 
 ## Review checklist (Reviewer)
-- [ ] New functions are documented 
+- [ ] New or changed public functions are documented
 - [ ] New functions/variables are named appropriately
 - [ ] No missed "low-hanging fruit" that would substantially aid readability.
 - [ ] Any "high-hanging" or "rotten" fruit is added to the issues list.
 - [ ] I understand what the changes are doing and how
 - [ ] I understand the motivation for this PR (the PR itself is appropriately documented)
-- [ ] All notebooks still function correctly
+- [ ] Relevant tests pass
+- [ ] Notebooks still function correctly or are not affected
 
 ## Status
 - [ ] Ready for review

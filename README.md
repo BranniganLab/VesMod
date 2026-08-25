@@ -25,11 +25,7 @@ Features include:
 * NumPy export of accepted contours
 * Annotated GIF generation for visual inspection
 
-Detailed documentation:
-
-```text
-docs/VesEdge_CLI_README.md
-```
+See the [VesEdge CLI guide](docs/VesEdge_CLI_README.md).
 
 ### EdgeMod
 
@@ -46,13 +42,9 @@ Stable core features include:
 * JSON export of fit values, q bounds, and physical-fit configuration
 * Batch processing of contour datasets
 
-Experimental EdgeMod features live under `vesmod.EdgeMod.experimental`. At present this includes optional q^-3-based dynamic range selection. Experimental APIs may change as the methods are evaluated and are not part of the stable core EdgeMod interface.
+Experimental EdgeMod features live under `vesmod.EdgeMod.experimental`. These currently include optional q^-3-based dynamic range selection and temporal-RMS screening. Experimental APIs may change as the methods are evaluated and are not part of the stable core EdgeMod interface.
 
-Detailed documentation:
-
-```text
-docs/EdgeMod_CLI_README.md
-```
+See the [EdgeMod CLI guide](docs/EdgeMod_CLI_README.md).
 
 ---
 
@@ -116,9 +108,9 @@ checkpoints/
 
 The checkpoint contains extraction state only. It does not store QC decisions.
 
-### 2. Apply a QC configuration
+### 2. Apply curvature QC
 
-Use a separate output directory for each QC configuration:
+Use a dedicated output directory for each QC configuration:
 
 ```bash
 vesedge qc ./checkpoints \
@@ -136,7 +128,7 @@ results/qc_standard/
 └── qc_summary.csv
 ```
 
-`vesedge_qc.json` records the exact QC configuration and input path. `qc_summary.csv` reports extraction failures, curvature rejections, accepted-frame counts, and accepted fractions for each checkpoint.
+`vesedge_qc.json` records the exact QC configuration and input selection. `qc_summary.csv` reports extraction failures, curvature rejections, accepted-frame counts, and accepted fractions for each checkpoint. Curvature is currently VesEdge's only built-in frame-rejection rule.
 
 ### 3. Compare alternate QC configurations
 
@@ -150,9 +142,11 @@ vesedge qc ./checkpoints \
 
 Keeping each QC configuration in its own directory makes the analysis provenance explicit and allows the outputs to be compared directly.
 
+Do not store unrelated `.npy` files in a QC output directory: an incompatible rerun with `--overwrite` clears NumPy arrays beneath that directory before writing the new result.
+
 ### 4. Analyze each QC result with EdgeMod
 
-The default EdgeMod CLI uses the historical fixed q range, q = 3--7:
+The default EdgeMod CLI uses the historical fixed q range, q = 3–7:
 
 ```bash
 edgemod ./results/qc_standard
@@ -213,7 +207,7 @@ edges.run_qc(qc_config)
 edges.save_edge_to_npy("sample.npy")
 ```
 
-After a completed QC run, `edges.qc_result` contains the configuration and results from the enabled QC stages. Per-detection QC annotations remain available on each `EdgeDetection.qc`.
+After a completed QC run, `edges.qc_result` contains the curvature configuration and aggregate result. Per-detection curvature annotations remain available on each `EdgeDetection.qc`.
 
 Fit the accepted contours with the stable core EdgeMod API:
 
@@ -269,6 +263,9 @@ Both successful physical fits remain available in `spectrum.fit_results`. Each `
 | `.spectrum_diagnostic.png` | Measured spectrum, attempted fit, compensated spectrum, and fit residuals |
 | `.json` | EdgeMod fixed-range spectrum/fitting output |
 | `.dynamic.json` | EdgeMod output produced when experimental dynamic selection is requested |
+| `temporal_rms_summary.csv` | Experimental temporal-RMS measurement and inclusion decision for each trajectory |
+| `temporal_rms_histogram.png` | Experimental distribution of temporal-RMS amplitudes |
+| `temporal_rms_qc.json` | Experimental temporal-RMS configuration, input manifest, and export manifest |
 
 ---
 
@@ -276,8 +273,8 @@ Both successful physical fits remain available in `spectrum.fit_results`. Each `
 
 | Component | Documentation |
 | --- | --- |
-| VesEdge | `docs/VesEdge_CLI_README.md` |
-| EdgeMod | `docs/EdgeMod_CLI_README.md` |
+| VesEdge | [VesEdge CLI guide](docs/VesEdge_CLI_README.md) |
+| EdgeMod | [EdgeMod CLI guide](docs/EdgeMod_CLI_README.md) |
 
 ---
 
