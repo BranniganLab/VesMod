@@ -305,7 +305,7 @@ The resulting EdgeMod estimates can be reported alongside each directory's `vese
 
 # `vesedge internal-structures`
 
-`vesedge internal-structures` is an experimental measurement command independent of curvature QC. It reopens the source ND2 video recorded in each extraction checkpoint and measures bright and dark structures inside each successfully detected full contour. It does not reject edges, alter checkpoints, or assign vesicles to populations.
+`vesedge internal-structures` is an experimental measurement command separate from curvature QC. It reopens the source ND2 video recorded in each extraction checkpoint and measures bright and dark structures inside each full contour that passed the selected QC run. It does not alter checkpoints, introduce another edge-rejection rule, or assign vesicles to populations.
 
 Run one checkpoint:
 
@@ -323,6 +323,20 @@ vesedge internal-structures ./checkpoints \\
 ```
 
 The output directory must be outside the checkpoint directory. This prevents optional mask `.npz` files from being rediscovered as extraction checkpoints.
+
+## Frame Selection
+
+Normal use requires `--qc-results` pointing to a QC output directory or directly to its `vesedge_qc.json` file. VesEdge verifies that each selected checkpoint appears in that QC manifest, reapplies the recorded configuration, and analyzes only passing detections. The frame CSV retains rejected frames with status `qc_rejected`; they are not reported as structure-free frames.
+
+To evaluate the experimental detector before choosing QC, explicitly request all successful edge detections:
+
+```bash
+vesedge internal-structures ./checkpoints \\
+    --include-unqced \\
+    --output-dir ./results/internal_structures_unqced
+```
+
+Exactly one of `--qc-results` and `--include-unqced` is required. The analysis remains separate from QC: it consumes the QC frame selection but does not modify QC decisions or add internal structure to the definition of edge quality.
 
 ## Experimental Parameters
 
@@ -368,11 +382,11 @@ sample_internal_structures.gif
 
 Use `--save-masks` to additionally write `sample_masks.npz`. It contains `structure_masks`, a compressed boolean array aligned with the original image coordinates, and `frame_indices`, which identifies the corresponding source frames. Frames without successful measurements are omitted rather than represented as false, structure-free masks.
 
-`sample_frames.csv` reports usable interior area, structured area, structured-area fraction, detected-region count, noise estimate, and status for every source frame. Extraction failures and measurement failures remain explicit rows.
+`sample_frames.csv` reports usable interior area, structured area, structured-area fraction, detected-region count, noise estimate, and status for every source frame. Extraction failures, QC rejections, and measurement failures remain explicit rows.
 
 `sample_regions.csv` reports each connected region's bright/dark polarity, area, centroid, bounding box, and signed residual. Centroids and bounding boxes use original image coordinates, not cropped analysis coordinates.
 
-`internal_structure_summary.csv` contains one row per video with the median structured-area fraction, 90th-percentile structured-area fraction, and fraction of analyzed frames containing at least one retained region. These video-level measurements are intended as inputs to later population segmentation; the experimental command does not currently choose a present/absent cutoff.
+`internal_structure_summary.csv` contains one row per video with extraction-failure, QC-rejection, and measurement-failure counts, plus the median structured-area fraction, 90th-percentile structured-area fraction, and fraction of analyzed frames containing at least one retained region. These video-level measurements are intended as inputs to later population segmentation; the experimental command does not currently choose a present/absent cutoff.
 
 The diagnostic GIF overlays the detected regions and extracted contour on the original frames. Disable it with `--no-gif`.
 
