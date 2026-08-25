@@ -69,10 +69,17 @@ class EdgeQCConfig:
         analysis contour.
     enable_curvature_qc : bool
         Whether frame-level curvature QC runs. Default is True.
+    max_relative_area_deviation : float
+        Maximum allowed absolute fractional deviation from the trajectory
+        median contour area. Default is 0.25.
+    enable_area_qc : bool
+        Whether trajectory-level contour-area QC runs. Default is True.
     """
 
     curvature_threshold: float
     enable_curvature_qc: bool = True
+    max_relative_area_deviation: float = 0.25
+    enable_area_qc: bool = True
 
     def __post_init__(self) -> None:
         """Validate quality-control configuration parameters.
@@ -86,4 +93,12 @@ class EdgeQCConfig:
             raise ValueError("curvature_threshold must be finite.")
         if self.curvature_threshold < 0:
             raise ValueError("curvature_threshold must be non-negative.")
+        if not np.isfinite(self.max_relative_area_deviation):
+            raise ValueError(
+                "max_relative_area_deviation must be finite."
+            )
+        if not 0 <= self.max_relative_area_deviation < 1:
+            raise ValueError(
+                "max_relative_area_deviation must be at least 0 and less than 1."
+            )
 
