@@ -2,7 +2,7 @@
 
 VesMod is a Python package for extracting membrane contours from microscopy videos of giant unilamellar vesicles (GUVs) and estimating membrane bending rigidity from thermal shape fluctuations.
 
-VesEdge separates image-dependent edge extraction from quality control so the same extracted contours can be evaluated under multiple QC configurations without rerunning image processing. EdgeMod separates the measured fluctuation spectrum from the scientific configuration used to fit that spectrum, allowing fixed and dynamically selected Fourier-mode ranges to be compared on the same data.
+VesEdge separates image-dependent edge extraction from quality control so the same extracted contours can be evaluated under multiple QC configurations without rerunning image processing. EdgeMod separates the measured fluctuation spectrum from the physical-fit configuration used to analyze that spectrum. Experimental analysis methods are kept outside the stable core API.
 
 ---
 
@@ -36,18 +36,18 @@ docs/VesEdge_CLI_README.md
 
 EdgeMod analyzes accepted vesicle contours and estimates membrane mechanical parameters.
 
-Features include:
+Stable core features include:
 
 * Fourier analysis of contour fluctuations
 * Estimation of membrane bending modulus (kC)
 * Optional estimation of membrane tension (σ)
 * Config-driven physical fitting through `SpectrumFitConfig`
-* Fixed Fourier-mode fitting with user-defined bounds
-* Optional dynamic selection of a trustworthy q range from q^-3 scaling
-* Rejection of spectra that do not contain an acceptable q^-3 regime
-* Retention of multiple fit results on the same `Spectrum`
-* JSON export of fit values, selected q bounds, fit configuration, and range-selection diagnostics
+* Fixed Fourier-mode fitting with user-defined lower/upper q bounds
+* Retention of multiple physical-fit results on the same `Spectrum`
+* JSON export of fit values, q bounds, and physical-fit configuration
 * Batch processing of contour datasets
+
+Experimental EdgeMod features live under `vesmod.EdgeMod.experimental`. At present this includes optional q^-3-based dynamic range selection. Experimental APIs may change as the methods are evaluated and are not part of the stable core EdgeMod interface.
 
 Detailed documentation:
 
@@ -164,7 +164,7 @@ edgemod ./results/qc_standard
 edgemod ./results/qc_permissive
 ```
 
-Dynamic q-range selection can be enabled explicitly. The selector only searches inside the configured candidate interval and requires explicit acceptance thresholds:
+Experimental dynamic q-range selection can be enabled explicitly. The selector runs before the stable physical fitter, searches only inside the configured candidate interval, and requires explicit acceptance thresholds:
 
 ```bash
 edgemod ./results/qc_standard \
@@ -176,13 +176,13 @@ edgemod ./results/qc_standard \
     --max-log-rmse 0.1
 ```
 
-Fixed output is written as `<input>.json`; dynamic output is written as `<input>.dynamic.json`, so the two analyses can be run on the same contour files without overwriting one another.
+Fixed output is written as `<input>.json`; experimental dynamic output is written as `<input>.dynamic.json`, so the two analyses can be run on the same contour files without overwriting one another.
 
 ---
 
 ## Equivalent Python Workflow
 
-The Python API exposes the same separation between extraction, QC, and spectrum fitting.
+The Python API exposes the same separation between extraction, QC, stable physical fitting, and experimental analysis.
 
 ```python
 from vesmod.VesEdge import (
@@ -222,36 +222,45 @@ edges.save_edge_to_npy("sample.npy")
 
 After a completed QC run, `edges.qc_result` contains the configuration and results from the enabled QC stages. Per-detection QC annotations remain available on each `EdgeDetection.qc`.
 
-Fit the accepted contours with EdgeMod:
+Fit the accepted contours with the stable core EdgeMod API:
 
 ```python
-from vesmod.EdgeMod import (
-    FixedFitRangeSelector,
-    QMinusThreeFitRangeSelector,
-    Spectrum,
-    SpectrumFitConfig,
-)
+from vesmod.EdgeMod import Spectrum, SpectrumFitConfig
 
 spectrum = Spectrum("sample.npy")
 
 fixed_config = SpectrumFitConfig(
-    range_selector=FixedFitRangeSelector(3, 8),
+    lower_bound=3,
+    upper_bound=8,
 )
 fixed_fit = spectrum.extract_kc_from_fit(fixed_config)
-
-dynamic_config = SpectrumFitConfig(
-    range_selector=QMinusThreeFitRangeSelector(
-        lower_bound=3,
-        upper_bound=20,
-        min_modes=5,
-        slope_tolerance=0.2,
-        max_log_rmse=0.1,
-    ),
-)
-dynamic_fit = spectrum.extract_kc_from_fit(dynamic_config)
 ```
 
-Both results remain available in `spectrum.fit_results`. Each `SpectrumFit` records the actual q bounds used and the full `SpectrumFitConfig`, so fixed and dynamic analyses can be compared without one overwriting the other.
+Experimental dynamic range selection is an upstream operation that produces q bounds for the same core fitter:
+
+```python
+from dataclasses import replace
+from vesmod.EdgeMod.experimental import QMinusThreeRangeSelector
+
+selector = QMinusThreeRangeSelector(
+    lower_bound=3,
+    upper_bound=20,
+    min_modes=5,
+    slope_tolerance=0.2,
+    max_log_rmse=0.1,
+)
+selection = selector.select(spectrum.modes, spectrum.avg_amps2)
+
+if selection.accepted:
+    dynamic_config = replace(
+        fixed_config,
+        lower_bound=selection.lower_bound,
+        upper_bound=selection.upper_bound,
+    )
+    dynamic_fit = spectrum.extract_kc_from_fit(dynamic_config)
+```
+
+Both successful physical fits remain available in `spectrum.fit_results`. Each `SpectrumFit` records the actual q bounds used and the full core `SpectrumFitConfig`. Experimental selection diagnostics remain separate from the core `Spectrum`/`SpectrumFit` state.
 
 ---
 
@@ -267,7 +276,7 @@ Both results remain available in `spectrum.fit_results`. Each `SpectrumFit` reco
 | `qc_summary.csv` | Per-video QC counts and accepted fractions for one QC batch |
 | `.spectrum_diagnostic.png` | Measured spectrum, attempted fit, compensated spectrum, and fit residuals |
 | `.json` | EdgeMod fixed-range spectrum/fitting output |
-| `.dynamic.json` | EdgeMod dynamically selected-range spectrum/fitting output |
+| `.dynamic.json` | EdgeMod output produced when experimental dynamic selection is requested |
 
 ---
 

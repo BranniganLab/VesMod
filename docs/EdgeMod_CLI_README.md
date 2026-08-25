@@ -1,58 +1,43 @@
 # EdgeMod CLI
 
-EdgeMod fits membrane mechanical parameters from vesicle contour trajectories. It reads one or more NumPy `.npy` edge files, computes fluctuation spectra, selects the Fourier modes used for the physical fit, and writes JSON results for downstream analysis.
+EdgeMod fits membrane mechanical parameters from vesicle contour trajectories. It reads NumPy `.npy` edge files, computes fluctuation spectra, fits a configured Fourier-mode interval to the HSS97 physical model, and writes JSON results for downstream analysis.
 
-EdgeMod supports two q-range strategies:
+The **stable core EdgeMod API always fits explicit q bounds**. The default is the historical lower-inclusive, upper-exclusive interval `3 <= q < 8` (q = 3, 4, 5, 6, 7).
 
-* **Fixed fitting** uses an explicitly configured lower-inclusive, upper-exclusive q interval.
-* **Dynamic fitting** searches within a trusted q interval for the longest contiguous range consistent with q^-3 scaling and rejects the spectrum if no acceptable range is found.
-
-Fixed fitting remains the default CLI behavior.
+Dynamic q-range selection is an **experimental feature**. It lives under `vesmod.EdgeMod.experimental` and is composed upstream of the stable physical fitter. The experimental selector chooses q bounds; the core `Spectrum` fitter does not know how those bounds were chosen.
 
 ## Features
 
-* Process a single `.npy` file or every `.npy` file in a directory
+Stable core features:
+
+* Process a single `.npy` file or a directory of `.npy` files
 * Optional recursive directory traversal
 * Automatic fluctuation spectrum calculation
 * Fitting of membrane bending modulus ($k_C$)
 * Optional fitting of membrane surface tension ($\sigma$)
-* Fixed or dynamically selected Fourier fitting ranges
-* Explicit dynamic q^-3 acceptance criteria
-* Rejection of spectra with no trustworthy q^-3 regime
-* Configurable spherical harmonic summation limit
-* Spectrum-fit diagnostic PNG for attempted physical fits, including fits rejected by validation
-* JSON output containing fit values, q bounds, configuration, and selection diagnostics
-* Separate fixed and dynamic output filenames for direct comparison
+* Explicit lower/upper Fourier fitting bounds
+* Configurable spherical-harmonic summation limit
+* Spectrum-fit diagnostic PNG for attempted physical fits
+* JSON output containing fit values, q bounds, and physical-fit configuration
 
----
+Experimental feature:
 
-## Installation
-
-Install EdgeMod into your Python environment.
-
-```bash
-git clone <repository-url>
-cd VesMod
-pip install .
-```
-
-Verify that the CLI is available:
-
-```bash
-edgemod --help
-```
+* Optional q^-3-based dynamic range selection inside a trusted q interval
+* Explicit slope/RMSE acceptance criteria
+* Rejection when no trustworthy q^-3 regime is found
+* Separate dynamic JSON output containing experimental selection diagnostics
 
 ---
 
 ## Quick Start
 
-Fit membrane mechanical parameters from a single contour file using the default fixed q range:
+Fit one contour trajectory using the stable historical defaults:
 
 ```bash
 edgemod sample.npy
 ```
 
-The default fit uses:
+Defaults:
 
 ```text
 q = 3, 4, 5, 6, 7
@@ -61,58 +46,39 @@ free sigma = True
 temperature = 295 K
 ```
 
-and writes:
+Successful fixed fitting writes:
 
 ```text
 sample.json
 sample.spectrum_diagnostic.png
 ```
 
-If physical-fit validation fails after an HSS97 fit is attempted, EdgeMod still writes the diagnostic PNG before raising the validation error. The figure shows the measured and attempted theoretical spectra, the selected fitting modes, the $q^4$-compensated spectrum, relative residuals, fitted parameters, and the rejection reason.
+If physical-fit validation fails after HSS97 fitting is attempted, EdgeMod writes the diagnostic PNG before propagating the validation error.
 
-A dynamic q-range selection rejection is different: no HSS97 fit is attempted, so there is no spectrum-fit diagnostic PNG. The rejection diagnostics are instead written to the dynamic JSON output.
-
-For a VesEdge batch, the recommended input is a QC output directory:
+For a VesEdge batch:
 
 ```bash
 vesedge qc ./checkpoints --output-dir ./results/qc_standard
 edgemod ./results/qc_standard
 ```
 
-EdgeMod processes the `.npy` files in that directory and ignores the VesEdge provenance files `vesedge_qc.json` and `qc_summary.csv`.
-
 ---
 
 ## Input Requirements
 
-EdgeMod operates on vesicle contour arrays stored in NumPy `.npy` files.
-
-The recommended input is a contour file produced by `vesedge qc`:
-
-```text
-sample.npy
-```
-
-Each row represents one accepted video frame and each column represents one angular sample along the vesicle contour. The expected shape is:
+EdgeMod operates on contour arrays stored in `.npy` files. Each row is one accepted frame and each column is one angular sample:
 
 ```python
 (n_frames, n_theta)
 ```
 
-where:
-
-* `n_frames` is the number of accepted contour measurements
-* `n_theta` is the number of angular samples per contour
-
-Distances should be stored in microns. VesEdge `.npy` output contains only contours that passed the selected QC configuration and is directly suitable as EdgeMod CLI input.
-
-When comparing VesEdge QC configurations, keep each set of `.npy` files in its own directory and run EdgeMod separately on each directory. The corresponding `vesedge_qc.json` and `qc_summary.csv` files document which QC settings produced each analysis input.
+Distances should be in microns. `vesedge qc` output is directly suitable for EdgeMod.
 
 ---
 
-## Fixed q-Range Fitting
+## Stable Fixed q-Range Fitting
 
-Fixed fitting is the default.
+Fixed fitting is the default and is the stable EdgeMod behavior.
 
 ```bash
 edgemod sample.npy \
@@ -120,45 +86,51 @@ edgemod sample.npy \
     --upper-fitting-bound 8
 ```
 
-The lower bound is inclusive and the upper bound is exclusive, so the example above fits:
-
-```text
-q = 3, 4, 5, 6, 7
-```
+The lower bound is inclusive and the upper bound is exclusive.
 
 ### `--lower-fitting-bound`
 
-Lowest Fourier mode included in a fixed fit.
-
-Default:
-
-```text
-3
-```
+Lowest Fourier mode used by the physical fit. Default: `3`.
 
 ### `--upper-fitting-bound`
 
-First Fourier mode excluded from a fixed fit.
+First Fourier mode excluded from the physical fit. Default: `8`.
 
-Default:
+### `--lmax`
 
-```text
-8
-```
+Maximum spherical harmonic index used when evaluating the theoretical fluctuation spectrum. Default: `500`.
+
+### `--fixed-sigma`
+
+By default, EdgeMod fits reduced surface tension as a free parameter. Use `--fixed-sigma` to hold it fixed.
+
+### `--temperature`
+
+Experimental temperature in Kelvin used to convert fitted reduced tension into physical surface tension. It must be finite and positive. Default: `295`.
 
 ---
 
-## Dynamic q-Range Selection
+## Experimental Dynamic q-Range Selection
 
-Dynamic fitting is enabled with:
+Dynamic selection is explicitly experimental and is only enabled with:
 
 ```bash
 --dynamic-range
 ```
 
-The configured lower and upper fitting bounds become the **trusted search interval**. EdgeMod searches only within that interval; it does not search high-q or very-low-q regions outside the analyst-approved domain.
+The CLI then performs two separate operations:
 
-For example:
+```text
+experimental q^-3 selector
+        ↓ selected q bounds
+SpectrumFitConfig
+        ↓
+stable HSS97 physical fit
+```
+
+The selector searches only within the interval defined by `--lower-fitting-bound` and `--upper-fitting-bound`; it does not expand into untrusted lower- or higher-q regions.
+
+Example:
 
 ```bash
 edgemod sample.npy \
@@ -170,310 +142,177 @@ edgemod sample.npy \
     --max-log-rmse 0.1
 ```
 
-The selector considers contiguous integer-q windows within `3 <= q < 20`. Each candidate window is evaluated in log space using:
+Candidate contiguous integer-q windows are evaluated in log space using both:
 
-1. the fitted log-log power-law slope, which must be sufficiently close to -3; and
-2. the RMSE to a fixed q^-3 model, which must be sufficiently small.
+1. deviation of the fitted power-law slope from -3; and
+2. RMSE to the best-amplitude fixed q^-3 model.
 
-Among accepted candidates, the longest range is preferred. If no candidate satisfies the configured criteria, EdgeMod does not run the physical HSS97 fit. The CLI writes the rejection diagnostics to the dynamic JSON output and then raises `ValueError`.
+Among accepted candidates, the longest range is preferred. If none passes, the experimental selector rejects the spectrum before HSS97 fitting.
 
 ### `--min-modes`
 
-Minimum number of consecutive integer q modes required in an accepted dynamic range.
-
-There is no default when dynamic selection is enabled. This must be provided explicitly.
+Minimum number of consecutive q modes required for an accepted experimental range. No default is supplied in dynamic mode.
 
 ### `--slope-tolerance`
 
-Maximum allowed absolute deviation of the fitted log-log slope from -3.
-
-For example:
-
-```text
---slope-tolerance 0.2
-```
-
-accepts slopes between -3.2 and -2.8, provided the RMSE criterion is also satisfied.
-
-There is no default when dynamic selection is enabled.
+Maximum allowed absolute deviation of the fitted log-log slope from -3. Must be supplied explicitly and be finite/non-negative.
 
 ### `--max-log-rmse`
 
-Maximum allowed root-mean-square residual to the best-amplitude fixed q^-3 model in natural-log space.
-
-There is no default when dynamic selection is enabled.
-
-The three dynamic acceptance parameters are intentionally explicit because appropriate thresholds are analysis decisions rather than universal constants. Both tolerance values must be finite and non-negative.
-
----
-
-## Physical Fit Parameters
-
-### `--lmax`
-
-Maximum spherical harmonic index used when evaluating the theoretical fluctuation spectrum.
-
-```bash
-edgemod sample.npy --lmax 500
-```
-
-Default:
-
-```text
-500
-```
-
-### `--fixed-sigma`
-
-By default, EdgeMod fits both bending modulus and reduced surface tension. Use:
-
-```bash
-edgemod sample.npy --fixed-sigma
-```
-
-to disable free-sigma fitting.
-
-### `--temperature`
-
-Experimental temperature in Kelvin, used when converting the fitted reduced tension into surface tension. Temperature must be finite and positive.
-
-```bash
-edgemod sample.npy --temperature 310
-```
-
-Default:
-
-```text
-295
-```
-
----
-
-## File Selection Options
-
-### Single file
-
-```bash
-edgemod sample.npy
-```
-
-### Directory
-
-```bash
-edgemod ./edges
-```
-
-When `INPUT_PATH` is a directory, EdgeMod processes files matching:
-
-```text
-*.npy
-```
-
-### Recursive directory search
-
-```bash
-edgemod ./edges --recursive
-```
-
-With `--recursive`, EdgeMod processes files matching:
-
-```text
-**/*.npy
-```
+Maximum allowed natural-log-space RMSE to the fixed q^-3 model. Must be supplied explicitly and be finite/non-negative.
 
 ---
 
 ## Output Files
 
-For an input file:
-
-```text
-sample.npy
-```
-
-fixed fitting writes:
+For `sample.npy`, stable fixed fitting writes:
 
 ```text
 sample.json
 sample.spectrum_diagnostic.png
 ```
 
-and successful dynamic fitting writes:
+Successful experimental dynamic selection followed by a successful physical fit writes:
 
 ```text
 sample.dynamic.json
 sample.dynamic.spectrum_diagnostic.png
 ```
 
-This naming allows the same contour file to be analyzed with fixed and dynamic fitting without the second CLI run overwriting the first.
+The distinct filenames allow fixed and experimental analyses to be compared without overwriting one another.
 
-If dynamic q-range selection rejects the spectrum before physical fitting, `sample.dynamic.json` is still written but `sample.dynamic.spectrum_diagnostic.png` is not, because no HSS97 fit was attempted.
+If experimental dynamic selection rejects the spectrum before physical fitting, EdgeMod writes:
 
-### JSON Output
+```text
+sample.dynamic.json
+```
 
-The JSON contains the spectrum, latest successful fit values, and retained fit records. Each retained `SpectrumFit` records:
+but no dynamic spectrum-fit PNG, because no HSS97 fit was attempted.
+
+### JSON structure
+
+Core `SpectrumFit` records contain only physical-fit information:
 
 * fitted `kC`
 * fitted surface tension
-* actual lower-inclusive and upper-exclusive q bounds used for the physical fit
-* the `SpectrumFitConfig` used for that fit
-* the range-selector type and parameters
-* range-selection diagnostics
+* lower-inclusive and upper-exclusive q bounds actually fit
+* the stable `SpectrumFitConfig`
 
-If dynamic range selection rejects the spectrum, no new `SpectrumFit` is created. The CLI still writes `sample.dynamic.json` before re-raising the error. In that failure JSON, the top-level `fit_range_selection` field contains the best rejected range when one was evaluable, fitted slope, log-space RMSE, `accepted: false`, and the rejection reason. For a fresh CLI `Spectrum`, `kC` and `surface_tension` remain `null` because no physical fit succeeded.
+They do **not** contain range-selector type or dynamic-selection diagnostics.
+
+When dynamic mode is used, the CLI adds a separate experimental section:
+
+```json
+{
+  "experimental": {
+    "dynamic_range_selection": {
+      "accepted": true,
+      "lower_bound": 5,
+      "upper_bound": 12,
+      "slope": -3.01,
+      "log_rmse": 0.02,
+      "reason": null
+    }
+  }
+}
+```
+
+This keeps experimental provenance out of the stable `Spectrum` and `SpectrumFit` object model while preserving the diagnostics in CLI output.
 
 ---
 
 ## Python API
 
-Scientific fitting parameters are grouped in `SpectrumFitConfig` rather than passed individually to `Spectrum.extract_kc_from_fit()`.
-
-### Fixed fitting
+### Stable core fitting
 
 ```python
-from vesmod.EdgeMod import (
-    FixedFitRangeSelector,
-    Spectrum,
-    SpectrumFitConfig,
-)
+from vesmod.EdgeMod import Spectrum, SpectrumFitConfig
 
 spectrum = Spectrum("sample.npy")
-fixed_config = SpectrumFitConfig(
+config = SpectrumFitConfig(
+    lower_bound=3,
+    upper_bound=8,
     lmax=500,
     free_sigma=True,
     temperature=295.0,
-    range_selector=FixedFitRangeSelector(
-        lower_bound=3,
-        upper_bound=8,
-    ),
 )
 
-fixed_fit = spectrum.extract_kc_from_fit(fixed_config)
-print(fixed_fit.kC, fixed_fit.surface_tension)
+fit = spectrum.extract_kc_from_fit(config)
+print(fit.kC, fit.surface_tension)
 ```
 
-Calling `extract_kc_from_fit()` without a config is equivalent to the historical default fixed fit:
+Calling `extract_kc_from_fit()` without a config uses the historical fixed defaults.
+
+### Experimental dynamic selection
+
+The dynamic selector is deliberately imported from the experimental namespace:
 
 ```python
-fit = spectrum.extract_kc_from_fit()
-```
+from dataclasses import replace
 
-### Dynamic fitting
+from vesmod.EdgeMod import Spectrum, SpectrumFitConfig
+from vesmod.EdgeMod.experimental import QMinusThreeRangeSelector
 
-```python
-from vesmod.EdgeMod import (
-    QMinusThreeFitRangeSelector,
-    SpectrumFitConfig,
+spectrum = Spectrum("sample.npy")
+base_config = SpectrumFitConfig(
+    lower_bound=3,
+    upper_bound=20,
+)
+selector = QMinusThreeRangeSelector(
+    lower_bound=3,
+    upper_bound=20,
+    min_modes=5,
+    slope_tolerance=0.2,
+    max_log_rmse=0.1,
 )
 
-dynamic_config = SpectrumFitConfig(
-    range_selector=QMinusThreeFitRangeSelector(
-        lower_bound=3,
-        upper_bound=20,
-        min_modes=5,
-        slope_tolerance=0.2,
-        max_log_rmse=0.1,
-    ),
-)
+selection = selector.select(spectrum.modes, spectrum.avg_amps2)
+if not selection.accepted:
+    raise ValueError(selection.reason)
 
+dynamic_config = replace(
+    base_config,
+    lower_bound=selection.lower_bound,
+    upper_bound=selection.upper_bound,
+)
 dynamic_fit = spectrum.extract_kc_from_fit(dynamic_config)
 ```
 
-### Compare fixed and dynamic fits
+The dependency direction is therefore experimental selection -> fixed q bounds -> stable physical fit.
 
-The preceding snippets define `fixed_config` and `dynamic_config`, so both strategies can be run on the same `Spectrum`:
-
-```python
-fixed_fit = spectrum.extract_kc_from_fit(fixed_config)
-dynamic_fit = spectrum.extract_kc_from_fit(dynamic_config)
-
-print(fixed_fit.kC)
-print(dynamic_fit.kC)
-print(spectrum.fit_results)
-```
-
-`Spectrum.kC` and `Spectrum.surface_tension` are compatibility attributes containing the most recent successful physical fit values. A later range-selection rejection updates `Spectrum.fit_range_selection` but does not erase those successful values. The durable per-fit record is `SpectrumFit`.
+`Spectrum` does not have a `fit_range_selection` attribute, and `SpectrumFitConfig` does not have a `range_selector` attribute.
 
 ---
 
-## Example Workflows
+## File Selection and Batch Behavior
 
-### Analyze a single vesicle with fixed bounds
+Single file:
 
 ```bash
 edgemod sample.npy
 ```
 
-### Analyze the same vesicle with dynamic range selection
+Directory:
 
 ```bash
-edgemod sample.npy \
-    --dynamic-range \
-    --lower-fitting-bound 3 \
-    --upper-fitting-bound 20 \
-    --min-modes 5 \
-    --slope-tolerance 0.2 \
-    --max-log-rmse 0.1
+edgemod ./edges
 ```
 
-After both successful commands, the JSON and fit-diagnostic files for both strategies are available:
-
-```text
-sample.json
-sample.spectrum_diagnostic.png
-sample.dynamic.json
-sample.dynamic.spectrum_diagnostic.png
-```
-
-If dynamic selection rejects the spectrum, `sample.dynamic.json` is still written with the rejection diagnostics before the CLI reports the error; there is no dynamic spectrum-fit PNG because no physical fit was attempted.
-
-### Analyze every vesicle in one VesEdge QC result
-
-```bash
-edgemod ./results/qc_standard
-```
-
-### Compare two VesEdge QC configurations
-
-```bash
-vesedge qc ./checkpoints \
-    --curvature-threshold 5 \
-    --output-dir ./results/qc_strict
-
-vesedge qc ./checkpoints \
-    --curvature-threshold 15 \
-    --output-dir ./results/qc_permissive
-
-edgemod ./results/qc_strict
-edgemod ./results/qc_permissive
-```
-
-### Analyze an entire directory tree
+Recursive directory search:
 
 ```bash
 edgemod ./edges --recursive
 ```
 
+Recursive runs report expected fitting/numerical failures and continue with later spectra. Direct non-recursive runs propagate those failures to the caller.
+
 ---
 
 ## Troubleshooting
 
-### `No .npy files found`
-
-Check that:
-
-* the input path exists
-* `vesedge qc` produced at least one accepted trajectory
-* the files have the `.npy` extension
-* `--recursive` is used if the files are located in subdirectories
-
-### `Expected a .npy file`
-
-This occurs when `INPUT_PATH` is a file, but its suffix is not `.npy`.
-
 ### Dynamic range selection requires ...
 
-When `--dynamic-range` is supplied, all of the following must also be supplied:
+When `--dynamic-range` is supplied, all of these are required:
 
 ```text
 --min-modes
@@ -483,27 +322,11 @@ When `--dynamic-range` is supplied, all of the following must also be supplied:
 
 ### `No trusted q range satisfied the q^-3 scaling criteria.`
 
-The spectrum did not contain a contiguous q range inside the trusted search interval that met both dynamic acceptance criteria. The dynamic JSON output contains the selection diagnostics even though no physical fit was performed. Possible responses include:
-
-* inspect the spectrum for whether a q^-3 regime is present at all;
-* confirm that the trusted q interval is scientifically appropriate;
-* inspect whether the apparent q^-3 region is too short to satisfy `--min-modes`;
-* evaluate the chosen tolerances using representative accepted and rejected spectra.
-
-Do not automatically expand the search into untrusted high-q or very-low-q regions simply to force acceptance.
+The experimental selector found no contiguous q interval inside the trusted search bounds that met both acceptance criteria. Inspect the dynamic JSON diagnostics, the measured spectrum, the trusted interval, and the chosen tolerances. Do not expand the search into scientifically untrusted q regions merely to force acceptance.
 
 ### Fits produce unexpected values
 
-Potential causes include:
-
-* poor contour quality in the input `.npy` file
-* an inappropriate fixed fitting range
-* a dynamic selector accepting an unintended q region
-* too few accepted contour measurements
-* temperature values inconsistent with the experiment
-* sensitivity of the result to the selected VesEdge QC configuration
-
-Inspect the contour data, the spectrum, the selected q bounds, and `qc_summary.csv`. When appropriate, compare fixed and dynamic fits on the same spectrum.
+Potential causes include poor contour quality, an inappropriate fixed range, an experimental selector accepting an unintended range, too few accepted frames, temperature mismatch, or sensitivity to VesEdge QC settings. Compare fixed and dynamic results explicitly when evaluating the experimental method.
 
 ---
 

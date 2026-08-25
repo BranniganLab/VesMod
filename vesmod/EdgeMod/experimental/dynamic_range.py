@@ -1,23 +1,23 @@
-"""Select trustworthy q ranges for EdgeMod spectrum fitting."""
+"""Experimental q^-3-based selection of EdgeMod fitting ranges."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from numbers import Integral, Real
-from typing import Iterator, Protocol
+from typing import Iterator
 import math
 
 import numpy as np
 
 
 @dataclass(frozen=True)
-class FitRangeSelection:
-    """Result of evaluating a candidate q range for spectrum fitting.
+class DynamicRangeSelection:
+    """Result of experimental q^-3 range selection.
 
     Parameters
     ----------
     accepted : bool
-        Whether the selected range satisfies the selector criteria.
+        Whether the selected range satisfies the configured criteria.
     lower_bound : int | None
         Inclusive lower q bound of the selected or best rejected range.
     upper_bound : int | None
@@ -49,53 +49,14 @@ class FitRangeSelection:
         }
 
 
-class FitRangeSelector(Protocol):  # pylint: disable=too-few-public-methods
-    """Protocol for strategies that select q ranges from a spectrum."""
-
-    def select(
-        self,
-        modes: np.ndarray,
-        avg_amps2: np.ndarray,
-    ) -> FitRangeSelection:
-        """Return the q range that should be used for physical fitting."""
-
-
 @dataclass(frozen=True)
-class FixedFitRangeSelector:
-    """Select a fixed lower-inclusive, upper-exclusive q range."""
+class QMinusThreeRangeSelector:
+    """Select the longest trusted q range consistent with q^-3 scaling.
 
-    lower_bound: int
-    upper_bound: int
-
-    def select(
-        self,
-        modes: np.ndarray,
-        _avg_amps2: np.ndarray,
-    ) -> FitRangeSelection:
-        """Return the configured range after validating that it is populated."""
-        mask = (modes >= self.lower_bound) & (modes < self.upper_bound)
-        if not np.any(mask):
-            return FitRangeSelection(
-                accepted=False,
-                lower_bound=self.lower_bound,
-                upper_bound=self.upper_bound,
-                reason="Configured q range contains no spectrum modes.",
-            )
-        return FitRangeSelection(
-            accepted=True,
-            lower_bound=self.lower_bound,
-            upper_bound=self.upper_bound,
-        )
-
-
-@dataclass(frozen=True)
-class QMinusThreeFitRangeSelector:
-    """Select the longest trustworthy range consistent with q^-3 scaling.
-
-    Candidate windows are restricted to the configured q interval, evaluated
-    in log space, and required to contain consecutive integer modes. A window
-    is accepted when both its unconstrained power-law slope is sufficiently
-    close to -3 and its residual to a fixed q^-3 model is sufficiently small.
+    This selector is experimental. It searches only inside the configured q
+    interval, considers contiguous integer-q windows, and accepts a window only
+    when both its fitted log-log slope and its residual to a fixed q^-3 model
+    satisfy the supplied criteria.
 
     Parameters
     ----------
@@ -120,7 +81,7 @@ class QMinusThreeFitRangeSelector:
     max_log_rmse: float
 
     def __post_init__(self) -> None:
-        """Validate selector configuration."""
+        """Validate experimental selection parameters."""
         if not isinstance(self.lower_bound, Integral) or isinstance(
             self.lower_bound,
             bool,
@@ -160,11 +121,11 @@ class QMinusThreeFitRangeSelector:
         self,
         modes: np.ndarray,
         avg_amps2: np.ndarray,
-    ) -> FitRangeSelection:
+    ) -> DynamicRangeSelection:
         """Return the longest acceptable contiguous q^-3 scaling range."""
         eligible_modes, eligible_amps = self._eligible_spectrum(modes, avg_amps2)
         if eligible_modes.size < self.min_modes:
-            return FitRangeSelection(
+            return DynamicRangeSelection(
                 accepted=False,
                 lower_bound=None,
                 upper_bound=None,
@@ -195,7 +156,7 @@ class QMinusThreeFitRangeSelector:
                 best_rejected = candidate
 
         if not found_candidate:
-            return FitRangeSelection(
+            return DynamicRangeSelection(
                 accepted=False,
                 lower_bound=None,
                 upper_bound=None,
@@ -204,7 +165,7 @@ class QMinusThreeFitRangeSelector:
         if best_accepted is not None:
             return best_accepted
 
-        return FitRangeSelection(
+        return DynamicRangeSelection(
             accepted=False,
             lower_bound=best_rejected.lower_bound,
             upper_bound=best_rejected.upper_bound,
@@ -213,7 +174,7 @@ class QMinusThreeFitRangeSelector:
             reason="No trusted q range satisfied the q^-3 scaling criteria.",
         )
 
-    def _is_accepted(self, candidate: FitRangeSelection) -> bool:
+    def _is_accepted(self, candidate: DynamicRangeSelection) -> bool:
         """Return whether one evaluated window satisfies both criteria."""
         return (
             abs(candidate.slope + 3.0) <= self.slope_tolerance
@@ -221,8 +182,8 @@ class QMinusThreeFitRangeSelector:
         )
 
     @staticmethod
-    def _accepted_key(candidate: FitRangeSelection) -> tuple[float, ...]:
-        """Return the historical ordering key for accepted windows."""
+    def _accepted_key(candidate: DynamicRangeSelection) -> tuple[float, ...]:
+        """Return the ordering key for accepted windows."""
         return (
             candidate.upper_bound - candidate.lower_bound,
             -candidate.log_rmse,
@@ -230,8 +191,8 @@ class QMinusThreeFitRangeSelector:
         )
 
     @staticmethod
-    def _rejected_key(candidate: FitRangeSelection) -> tuple[float, ...]:
-        """Return the historical ordering key for rejected windows."""
+    def _rejected_key(candidate: DynamicRangeSelection) -> tuple[float, ...]:
+        """Return the ordering key for rejected windows."""
         return (
             candidate.log_rmse,
             abs(candidate.slope + 3.0),
@@ -242,7 +203,7 @@ class QMinusThreeFitRangeSelector:
         self,
         modes: np.ndarray,
         avg_amps2: np.ndarray,
-    ) -> Iterator[FitRangeSelection]:
+    ) -> Iterator[DynamicRangeSelection]:
         """Yield windows while avoiding repeated full-window calculations."""
         run_starts = np.concatenate(
             ([0], np.flatnonzero(np.diff(modes) != 1) + 1)
@@ -260,7 +221,7 @@ class QMinusThreeFitRangeSelector:
         self,
         modes: np.ndarray,
         avg_amps2: np.ndarray,
-    ) -> Iterator[FitRangeSelection]:
+    ) -> Iterator[DynamicRangeSelection]:
         """Yield windows using stable constant-cost incremental statistics."""
         log_q = np.log(modes.astype(float))
         log_amp = np.log(avg_amps2)
@@ -293,7 +254,7 @@ class QMinusThreeFitRangeSelector:
 
                 slope = sum_xy / sum_xx
                 log_rmse = math.sqrt(max(sum_zz / count, 0.0))
-                yield FitRangeSelection(
+                yield DynamicRangeSelection(
                     accepted=True,
                     lower_bound=int(modes[start]),
                     upper_bound=int(modes[stop]) + 1,

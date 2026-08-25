@@ -7,9 +7,15 @@ import json
 import numpy as np
 import pytest
 
-from vesmod.EdgeMod import FixedFitRangeSelector, QMinusThreeFitRangeSelector
+from vesmod.EdgeMod import SpectrumFitConfig
+from vesmod.EdgeMod.experimental import QMinusThreeRangeSelector
 from vesmod.cli import edgemod_cli
-from vesmod.cli.edgemod_cli import build_fit_config, output_path_for, process_file
+from vesmod.cli.edgemod_cli import (
+    build_dynamic_selector,
+    build_fit_config,
+    output_path_for,
+    process_file,
+)
 
 
 def _args(**overrides):
@@ -29,44 +35,48 @@ def _args(**overrides):
     return Namespace(**values)
 
 
-def test_build_fit_config_uses_fixed_selector_by_default():
-    """Test the CLI preserves the historical fixed-range behavior."""
+def test_build_fit_config_uses_fixed_bounds_by_default():
+    """Test the core CLI config preserves historical fixed-range behavior."""
     config = build_fit_config(_args())
 
-    assert isinstance(config.range_selector, FixedFitRangeSelector)
-    assert config.range_selector.lower_bound == 3
-    assert config.range_selector.upper_bound == 8
+    assert isinstance(config, SpectrumFitConfig)
+    assert config.lower_bound == 3
+    assert config.upper_bound == 8
     assert config.lmax == 500
     assert config.free_sigma is True
     assert config.temperature == 295.0
 
 
-def test_build_fit_config_constructs_dynamic_selector():
-    """Test all dynamic-selection arguments are propagated into the config."""
-    config = build_fit_config(
-        _args(
-            dynamic_range=True,
-            upper_fitting_bound=15,
-            min_modes=5,
-            slope_tolerance=0.2,
-            max_log_rmse=0.1,
-            fixed_sigma=True,
-        )
+def test_build_dynamic_selector_is_separate_from_core_config():
+    """Test experimental selector construction is an explicit CLI step."""
+    args = _args(
+        dynamic_range=True,
+        upper_fitting_bound=15,
+        min_modes=5,
+        slope_tolerance=0.2,
+        max_log_rmse=0.1,
+        fixed_sigma=True,
     )
 
-    assert isinstance(config.range_selector, QMinusThreeFitRangeSelector)
-    assert config.range_selector.lower_bound == 3
-    assert config.range_selector.upper_bound == 15
-    assert config.range_selector.min_modes == 5
-    assert config.range_selector.slope_tolerance == 0.2
-    assert config.range_selector.max_log_rmse == 0.1
+    config = build_fit_config(args)
+    selector = build_dynamic_selector(args)
+
+    assert isinstance(selector, QMinusThreeRangeSelector)
+    assert selector.lower_bound == 3
+    assert selector.upper_bound == 15
+    assert selector.min_modes == 5
+    assert selector.slope_tolerance == 0.2
+    assert selector.max_log_rmse == 0.1
+    assert config.lower_bound == 3
+    assert config.upper_bound == 15
     assert config.free_sigma is False
+    assert not hasattr(config, "range_selector")
 
 
-def test_build_fit_config_requires_explicit_dynamic_thresholds():
-    """Test dynamic fitting cannot silently use empirical acceptance defaults."""
+def test_build_dynamic_selector_requires_explicit_thresholds():
+    """Test experimental selection cannot silently use empirical defaults."""
     with pytest.raises(ValueError, match="--slope-tolerance"):
-        build_fit_config(
+        build_dynamic_selector(
             _args(
                 dynamic_range=True,
                 min_modes=5,
@@ -84,7 +94,7 @@ def test_dynamic_output_path_does_not_overwrite_fixed_output():
 
 
 def test_process_file_serializes_dynamic_rejection_diagnostics(tmp_path):
-    """Test rejected dynamic fits write diagnostics before raising."""
+    """Test rejected experimental selection writes diagnostics before raising."""
     path = tmp_path / "sample.npy"
     np.save(path, np.ones((3, 12), dtype=float))
     args = _args(
@@ -101,8 +111,9 @@ def test_process_file_serializes_dynamic_rejection_diagnostics(tmp_path):
     output_path = tmp_path / "sample.dynamic.json"
     assert output_path.is_file()
     data = json.loads(output_path.read_text(encoding="utf-8"))
-    assert data["fit_range_selection"]["accepted"] is False
-    assert data["fit_range_selection"]["reason"] is not None
+    diagnostics = data["experimental"]["dynamic_range_selection"]
+    assert diagnostics["accepted"] is False
+    assert diagnostics["reason"] is not None
     assert data["kC"] is None
     assert data["surface_tension"] is None
 

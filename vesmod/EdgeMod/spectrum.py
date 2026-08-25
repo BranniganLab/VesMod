@@ -3,10 +3,9 @@
 """Calculate and fit vesicle fluctuation spectra.
 
 ``Spectrum`` converts accepted vesicle contours into a fluctuation spectrum and
-fits a q range selected by a :class:`SpectrumFitConfig`. Fixed and dynamic
-range-selection strategies share the same fitting path. Each successful fit is
-retained as an immutable :class:`SpectrumFit` so multiple analyses of one
-spectrum can be compared without overwriting earlier results.
+fits a fixed q interval supplied through :class:`SpectrumFitConfig`. Optional or
+experimental procedures may choose those bounds before calling the core fit,
+but ``Spectrum`` itself does not depend on any range-selection strategy.
 """
 from pathlib import Path
 from types import NoneType
@@ -18,7 +17,6 @@ from .diagnostic_plotting import (
     save_spectrum_fit_diagnostic,
 )
 from .config import SpectrumFitConfig
-from .fit_range_selection import FitRangeSelection
 from .fit_result import SpectrumFit
 from .spectrum_utils import (
     MiniSpectrum,
@@ -32,9 +30,8 @@ class Spectrum:
     """Calculate and fit the fluctuation spectrum of one vesicle trajectory.
 
     ``kC`` and ``surface_tension`` are compatibility attributes containing the
-    most recent *successful* physical fit. Range-selection failures update
-    ``fit_range_selection`` but leave those latest-successful values unchanged.
-    Durable per-fit provenance is stored in ``fit_results``.
+    most recent successful physical fit. Durable per-fit provenance is stored
+    in ``fit_results``.
     """
 
     def __init__(
@@ -72,7 +69,6 @@ class Spectrum:
         self.kC = None
         self.surface_tension = None
         self.fit_result = None
-        self.fit_range_selection: FitRangeSelection | None = None
         self.fit_results: list[SpectrumFit] = []
 
     def _calc_avg_sq_amplitudes(self, r_vals_over_time: np.ndarray) -> np.ndarray:
@@ -107,38 +103,25 @@ class Spectrum:
         self,
         config: SpectrumFitConfig | None = None,
     ) -> SpectrumFit:
-        """Select a q range and fit that range to the theoretical spectrum."""
+        """Fit the configured fixed q interval to the theoretical spectrum.
+
+        Range selection is intentionally outside this core method. Callers that
+        choose q bounds dynamically should construct a ``SpectrumFitConfig``
+        containing those selected bounds before invoking the physical fit.
+        """
         if config is None:
             config = SpectrumFitConfig()
         if not isinstance(config, SpectrumFitConfig):
             raise TypeError("config must be a SpectrumFitConfig or None.")
 
-        # Prevent a failed new attempt from exposing an old lmfit result as though
-        # it belonged to the current attempt. Do not clear kC/surface_tension:
-        # those intentionally retain the most recent successful physical fit.
         self.fit_result = None
-
-        selection = config.range_selector.select(
-            self.modes,
-            self.avg_amps2,
-        )
-        self.fit_range_selection = selection
-
-        if not selection.accepted:
-            raise ValueError(selection.reason or "No acceptable q range found.")
-
-        if selection.lower_bound is None or selection.upper_bound is None:
-            raise ValueError(
-                "Accepted fit-range selection is missing q bounds."
-            )
-
         fitting_range = self.isolate_mode_range(
-            selection.lower_bound,
-            selection.upper_bound,
+            config.lower_bound,
+            config.upper_bound,
         )
+        if fitting_range.modes.size == 0:
+            raise ValueError("Configured q range contains no spectrum modes.")
 
-        # Keep the complete lmfit result so branch 73 can make diagnostics even
-        # when validation rejects the physical fit.
         self.fit_result = fit_spectrum_lmfit(
             fitting_range,
             config.lmax,
@@ -159,17 +142,15 @@ class Spectrum:
             config.temperature,
         )
 
-        # Only replace compatibility attributes after a successful validated fit.
         self.kC = fitted_kc
         self.surface_tension = fitted_surface_tension
 
         fit_result = SpectrumFit(
             kC=float(fitted_kc),
             surface_tension=float(fitted_surface_tension),
-            lower_bound=selection.lower_bound,
-            upper_bound=selection.upper_bound,
+            lower_bound=config.lower_bound,
+            upper_bound=config.upper_bound,
             config=config,
-            range_selection=selection,
         )
 
         if not hasattr(self, "fit_results"):
@@ -203,7 +184,7 @@ class Spectrum:
         )
 
     def _to_dict(self, include_arrays=True) -> dict:
-        """Return spectrum state and retained fit provenance as a dictionary."""
+        """Return spectrum state and retained physical-fit provenance."""
         data = {
             "r0": float(self.r0) if getattr(self, "r0", None) is not None else None,
             "kC": float(self.kC) if getattr(self, "kC", None) is not None else None,
@@ -213,10 +194,6 @@ class Spectrum:
                 else None
             ),
         }
-
-        selection = getattr(self, "fit_range_selection", None)
-        if selection is not None:
-            data["fit_range_selection"] = selection.to_dict()
 
         fit_results = getattr(self, "fit_results", None)
         if fit_results:
