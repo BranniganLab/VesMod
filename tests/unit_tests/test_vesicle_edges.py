@@ -196,6 +196,7 @@ def test_save_edge_to_npy_saves_only_accepted_in_microns(
     )
     config = EdgeQCConfig(
         curvature_threshold=1.0,
+        enable_area_qc=False,
     )
     edge_results.run_qc(config)
 
