@@ -1,12 +1,9 @@
-"""Unit tests for EdgeMod spectrum fit-range selection."""
+"""Unit tests for experimental EdgeMod q^-3 range selection."""
 
 import numpy as np
 import pytest
 
-from vesmod.EdgeMod import (
-    FixedFitRangeSelector,
-    QMinusThreeFitRangeSelector,
-)
+from vesmod.EdgeMod.experimental import QMinusThreeRangeSelector
 
 
 def _selector(**overrides):
@@ -19,20 +16,7 @@ def _selector(**overrides):
         "max_log_rmse": 0.05,
     }
     kwargs.update(overrides)
-    return QMinusThreeFitRangeSelector(**kwargs)
-
-
-def test_fixed_selector_returns_configured_range():
-    """Test fixed selection preserves lower-inclusive, upper-exclusive bounds."""
-    selector = FixedFitRangeSelector(3, 8)
-    modes = np.arange(0, 10)
-    amplitudes = np.ones(10)
-
-    result = selector.select(modes, amplitudes)
-
-    assert result.accepted
-    assert result.lower_bound == 3
-    assert result.upper_bound == 8
+    return QMinusThreeRangeSelector(**kwargs)
 
 
 def test_q_minus_three_selector_prefers_longest_acceptable_range():
