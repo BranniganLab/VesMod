@@ -404,12 +404,62 @@ def test_process_qc_file_records_zero_accepted_frames(tmp_path, monkeypatch):
     )
     args = _qc_args(tmp_path, path)
     config = vesedge_cli._qc_config_from_args(args)
+    stale_output = tmp_path / "sample.npy"
+    np.save(stale_output, np.ones((2, 12)))
 
     row = vesedge_cli.process_qc_file(path, args, config)
 
     assert row["accepted"] == 0
     assert row["status"] == "no_accepted_frames"
     assert "no frames passed quality control" in row["error"]
+    assert not stale_output.exists()
+
+
+def test_overwrite_removes_stale_output_when_radius_screen_accepts_no_frames(
+    tmp_path,
+    monkeypatch,
+):
+    """Test an experimental all-rejection result removes an old export."""
+    detections = []
+    for frame_index, radius in enumerate([8.0, 12.0]):
+        contour = ImageContour(
+            origin=(0.0, 0.0),
+            r=np.full(12, radius),
+        )
+        detections.append(
+            EdgeDetection(
+                full_contour=contour,
+                analysis_contour=contour,
+                frame_index=frame_index,
+            )
+        )
+    edges = VesicleEdges(
+        extraction_config=EdgeExtractionConfig(
+            pixels_per_micron=1.0,
+            n_angular_samples=12,
+        ),
+        detections=detections,
+    )
+    monkeypatch.setattr(
+        vesedge_cli.VesicleEdges,
+        "from_checkpoint",
+        lambda checkpoint_path: edges,
+    )
+    path = Path("sample.npz")
+    args = _qc_args(tmp_path, path)
+    stale_output = tmp_path / "sample.npy"
+    np.save(stale_output, np.ones((2, 12)))
+
+    row = vesedge_cli.process_qc_file(
+        path,
+        args,
+        EdgeQCConfig(5.0, enable_curvature_qc=False),
+        vesedge_cli.RadiusDeviationConfig(0.1),
+    )
+
+    assert row["status"] == "no_accepted_frames"
+    assert row["accepted"] == 0
+    assert not stale_output.exists()
 
 
 def test_process_qc_file_returns_load_error_summary(tmp_path, monkeypatch):

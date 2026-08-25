@@ -483,6 +483,9 @@ def process_qc_file(
             qc_error = str(error)
             print(f"Experimental QC failed for {path.name}: {error}")
 
+    if status == "no_accepted_frames" and args.overwrite and output_exists:
+        output_path.unlink()
+
     row = _qc_summary(
         path,
         args.input_path,
