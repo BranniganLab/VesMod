@@ -10,6 +10,7 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import nd2
 
 from vesmod.VesEdge import (
@@ -151,6 +152,20 @@ def _add_qc_parser(subparsers) -> None:
         help="Disable frame-level curvature QC.",
     )
     parser.add_argument(
+        "--max-relative-area-deviation",
+        type=float,
+        default=0.25,
+        help=(
+            "Maximum absolute fractional deviation from the trajectory median "
+            "contour area. Default: 0.25."
+        ),
+    )
+    parser.add_argument(
+        "--no-area-qc",
+        action="store_true",
+        help="Disable trajectory-level contour-area deviation QC.",
+    )
+    parser.add_argument(
         "--overwrite",
         action="store_true",
         help="Overwrite existing filtered .npy outputs and QC provenance.",
@@ -277,6 +292,8 @@ def _qc_config_from_args(args: argparse.Namespace) -> EdgeQCConfig:
     return EdgeQCConfig(
         curvature_threshold=args.curvature_threshold,
         enable_curvature_qc=not args.no_curvature_qc,
+        max_relative_area_deviation=args.max_relative_area_deviation,
+        enable_area_qc=not args.no_area_qc,
     )
 
 
@@ -298,6 +315,8 @@ def _qc_provenance(
 def _remove_managed_qc_artifacts(output_dir: Path) -> None:
     """Remove filtered arrays and metadata managed by a previous QC batch."""
     for output_path in output_dir.rglob("*.npy"):
+        output_path.unlink()
+    for output_path in output_dir.rglob("*.area_qc.png"):
         output_path.unlink()
     for filename in ("qc_summary.csv", "vesedge_qc.json"):
         output_path = output_dir / filename
@@ -349,6 +368,10 @@ def _qc_summary(
         QCFlag.CURVATURE in detection.qc.flags
         for detection in successful
     )
+    area_rejected = sum(
+        QCFlag.AREA_DEVIATION in detection.qc.flags
+        for detection in successful
+    )
     accepted = sum(detection.qc.passed for detection in successful)
     return {
         "file": str(_relative_input_path(path, input_path)),
@@ -356,6 +379,7 @@ def _qc_summary(
         "successful_detections": len(successful),
         "extraction_failures": len(edges.detections) - len(successful),
         "curvature_rejected": curvature_rejected,
+        "area_rejected": area_rejected,
         "accepted": accepted,
         "accepted_fraction": accepted / len(successful),
         "status": status,
@@ -371,6 +395,7 @@ def _load_error_summary(path: Path, input_path: Path, error: str) -> dict:
         "successful_detections": 0,
         "extraction_failures": 0,
         "curvature_rejected": 0,
+        "area_rejected": 0,
         "accepted": 0,
         "accepted_fraction": 0.0,
         "status": "load_error",
@@ -414,6 +439,13 @@ def process_qc_file(
             print(f"QC produced no accepted frames for {path.name}: {error}")
 
     row = _qc_summary(path, args.input_path, edges, status, qc_error)
+    area_plot_path = output_path.with_suffix(".area_qc.png")
+    if (
+        edges.qc_result is not None
+        and getattr(edges.qc_result, "area", None) is not None
+        and (args.overwrite or not area_plot_path.exists())
+    ):
+        _save_area_qc_plot(area_plot_path, edges)
     if (
         status == "ok"
         and row["accepted"] > 0
@@ -421,6 +453,35 @@ def process_qc_file(
     ):
         edges.save_edge_to_npy(output_path)
     return row
+
+
+def _save_area_qc_plot(path: Path, edges: VesicleEdges) -> None:
+    """Plot contour area by source frame with configured acceptance bounds."""
+    area_result = edges.qc_result.area
+    config = edges.qc_result.config
+    detections = edges.successful_detections
+    frame_indices = [edge.frame_index for edge in detections]
+    areas = area_result.areas_pixels2
+    reference = area_result.reference_area_pixels2
+    deviation = config.max_relative_area_deviation
+    lower_bound = reference * (1 - deviation)
+    upper_bound = reference * (1 + deviation)
+
+    figure, axis = plt.subplots()
+    axis.plot(frame_indices, areas, ".", color="tab:blue", label="contour area")
+    axis.axhline(reference, color="black", label="trajectory median")
+    axis.axhline(
+        lower_bound,
+        color="tab:red",
+        linestyle="--",
+        label="acceptance bounds",
+    )
+    axis.axhline(upper_bound, color="tab:red", linestyle="--")
+    axis.set_xlabel("Source frame")
+    axis.set_ylabel("Contour area (pixels squared)")
+    axis.legend()
+    figure.savefig(path, dpi=200, bbox_inches="tight")
+    plt.close(figure)
 
 
 def _write_qc_summary(output_dir: Path, rows: list[dict]) -> None:
@@ -432,6 +493,7 @@ def _write_qc_summary(output_dir: Path, rows: list[dict]) -> None:
         "successful_detections",
         "extraction_failures",
         "curvature_rejected",
+        "area_rejected",
         "accepted",
         "accepted_fraction",
         "status",
