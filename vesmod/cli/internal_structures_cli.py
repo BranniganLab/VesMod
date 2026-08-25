@@ -15,6 +15,7 @@ import numpy as np
 
 from vesmod.VesEdge import (
     EdgeDetection,
+    EdgeQCConfig,
     InternalStructureConfig,
     InternalStructureFrameResult,
     VesicleEdges,
@@ -52,6 +53,23 @@ def add_parser(subparsers) -> None:
         help=(
             "Optional directory containing source videos that have moved since "
             "edge extraction. Videos are matched by checkpoint source filename."
+        ),
+    )
+    frame_selection = parser.add_mutually_exclusive_group(required=True)
+    frame_selection.add_argument(
+        "--qc-results",
+        type=Path,
+        help=(
+            "QC output directory, or its vesedge_qc.json file. Reapply that "
+            "recorded configuration and analyze only passing frames."
+        ),
+    )
+    frame_selection.add_argument(
+        "--include-unqced",
+        action="store_true",
+        help=(
+            "Analyze every successful edge detection without QC filtering. "
+            "Intended for experimental method development."
         ),
     )
     parser.add_argument(
@@ -113,8 +131,18 @@ def run(args: argparse.Namespace) -> None:
         raise FileNotFoundError(f"No .npz files found in {args.input_path}")
 
     config = config_from_args(args)
-    _write_provenance(args, paths, config)
-    summary_rows = [process_checkpoint(path, args, config) for path in paths]
+    qc_config, qc_provenance_path = _load_qc_selection(args, paths)
+    _write_provenance(
+        args,
+        paths,
+        config,
+        qc_config,
+        qc_provenance_path,
+    )
+    summary_rows = [
+        process_checkpoint(path, args, config, qc_config)
+        for path in paths
+    ]
     _write_csv(
         args.output_dir / "internal_structure_summary.csv",
         summary_rows,
@@ -126,6 +154,7 @@ def process_checkpoint(
     checkpoint_path: Path,
     args: argparse.Namespace,
     config: InternalStructureConfig,
+    qc_config: EdgeQCConfig | None,
 ) -> dict:
     """Measure one checkpoint and write its frame- and region-level outputs."""
     relative_path = _relative_input_path(checkpoint_path, args.input_path)
@@ -147,6 +176,8 @@ def process_checkpoint(
                 "Source video frame count does not match the checkpoint: "
                 f"{frames.shape[0]} != {len(edges.detections)}."
             )
+        if qc_config is not None:
+            _apply_qc(edges, qc_config)
     except (FileNotFoundError, IndexError, TypeError, ValueError) as error:
         message = str(error)
         print(f"Failed to analyze {checkpoint_path.name}: {message}")
@@ -161,6 +192,11 @@ def process_checkpoint(
         if not isinstance(edge_result, EdgeDetection):
             frame_rows.append(
                 _frame_error_row(frame_index, "extraction_failure", edge_result.error)
+            )
+            continue
+        if qc_config is not None and not edge_result.qc.passed:
+            frame_rows.append(
+                _frame_error_row(frame_index, "qc_rejected", "")
             )
             continue
         try:
@@ -194,7 +230,65 @@ def process_checkpoint(
     if not args.no_gif:
         _save_overlay_gif(output_base, frames, edges, results)
 
-    return _summary_row(relative_path, video_path, len(edges.detections), results)
+    return _summary_row(
+        relative_path,
+        video_path,
+        len(edges.detections),
+        results,
+        frame_rows,
+    )
+
+
+
+def _load_qc_selection(
+    args: argparse.Namespace,
+    checkpoint_paths: list[Path],
+) -> tuple[EdgeQCConfig | None, Path | None]:
+    """Load and validate the QC configuration selecting eligible frames."""
+    if args.include_unqced:
+        return None, None
+
+    provenance_path = args.qc_results.expanduser().resolve()
+    if provenance_path.is_dir():
+        provenance_path = provenance_path / "vesedge_qc.json"
+    if not provenance_path.is_file():
+        raise FileNotFoundError(
+            f"QC provenance does not exist: {provenance_path}"
+        )
+
+    provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+    try:
+        qc_config = EdgeQCConfig(**provenance["qc_config"])
+        manifest = {
+            str(Path(path).expanduser().resolve())
+            for path in provenance["checkpoint_manifest"]
+        }
+    except (KeyError, TypeError, ValueError) as error:
+        raise ValueError(
+            f"Invalid VesEdge QC provenance: {provenance_path}"
+        ) from error
+
+    unselected = [
+        path
+        for path in checkpoint_paths
+        if str(path.resolve()) not in manifest
+    ]
+    if unselected:
+        names = ", ".join(str(path) for path in unselected)
+        raise ValueError(
+            "Selected checkpoint(s) are not present in the QC manifest: "
+            f"{names}"
+        )
+    return qc_config, provenance_path
+
+
+def _apply_qc(edges: VesicleEdges, qc_config: EdgeQCConfig) -> None:
+    """Apply frame eligibility while allowing a result with zero passing frames."""
+    try:
+        edges.run_qc(qc_config)
+    except ValueError:
+        if edges.qc_result is None:
+            raise
 
 
 def _resolve_video_path(
@@ -321,14 +415,18 @@ def _summary_row(
     video_path: Path,
     frame_count: int,
     results: dict[int, InternalStructureFrameResult],
+    frame_rows: list[dict],
 ) -> dict:
     """Return population-segmentation inputs for one analyzed video."""
+    statuses = [row["status"] for row in frame_rows]
     base = {
         "file": str(relative_path),
         "source_video": str(video_path),
         "frames": frame_count,
         "analyzed_frames": len(results),
-        "measurement_failures": frame_count - len(results),
+        "extraction_failures": statuses.count("extraction_failure"),
+        "qc_rejected": statuses.count("qc_rejected"),
+        "measurement_failures": statuses.count("measurement_error"),
         "status": "ok" if results else "no_analyzable_frames",
         "error": "",
     }
@@ -355,6 +453,8 @@ def _error_summary(relative_path: Path, error: str) -> dict:
         "source_video": "",
         "frames": 0,
         "analyzed_frames": 0,
+        "extraction_failures": 0,
+        "qc_rejected": 0,
         "measurement_failures": 0,
         "median_area_fraction": "",
         "upper_area_fraction": "",
@@ -432,6 +532,8 @@ def _write_provenance(
     args: argparse.Namespace,
     paths: list[Path],
     config: InternalStructureConfig,
+    qc_config: EdgeQCConfig | None,
+    qc_provenance_path: Path | None,
 ) -> None:
     """Write batch provenance and reject accidental configuration mixing."""
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -442,6 +544,15 @@ def _write_provenance(
         "recursive": args.recursive,
         "checkpoint_manifest": [str(path.resolve()) for path in paths],
         "config": asdict(config),
+        "frame_selection": (
+            {"mode": "include_unqced"}
+            if qc_config is None
+            else {
+                "mode": "qc",
+                "qc_provenance": str(qc_provenance_path),
+                "qc_config": asdict(qc_config),
+            }
+        ),
     }
     if provenance_path.exists():
         existing = json.loads(provenance_path.read_text(encoding="utf-8"))
@@ -560,6 +671,8 @@ _SUMMARY_FIELDS = [
     "source_video",
     "frames",
     "analyzed_frames",
+    "extraction_failures",
+    "qc_rejected",
     "measurement_failures",
     "median_area_fraction",
     "upper_area_fraction",
