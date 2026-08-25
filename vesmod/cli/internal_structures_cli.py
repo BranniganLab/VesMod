@@ -134,7 +134,11 @@ def process_checkpoint(
 
     try:
         edges = VesicleEdges.from_checkpoint(checkpoint_path)
-        video_path = _resolve_video_path(edges.source_path, args.video_root)
+        video_path = _resolve_video_path(
+            edges.source_path,
+            args.video_root,
+            checkpoint_path,
+        )
         frames = nd2.imread(video_path)
         if frames.ndim != 3:
             raise ValueError("Source video must contain a 3D frame array.")
@@ -196,20 +200,62 @@ def process_checkpoint(
 def _resolve_video_path(
     stored_path: str | Path | None,
     video_root: Path | None,
+    checkpoint_path: Path,
 ) -> Path:
-    """Resolve the source video recorded by an extraction checkpoint."""
-    if stored_path is None:
-        raise ValueError("Checkpoint does not record a source video path.")
-    stored = Path(stored_path).expanduser()
-    if stored.is_file():
-        return stored.resolve()
+    """Resolve a source video from provenance or an unambiguous filename."""
+    if stored_path is not None:
+        stored = Path(stored_path).expanduser()
+        if stored.is_file():
+            return stored.resolve()
+        video_name = stored.name
+    else:
+        video_name = checkpoint_path.with_suffix(".nd2").name
+
+    search_roots = [checkpoint_path.expanduser().resolve().parent]
     if video_root is not None:
-        replacement = video_root.expanduser().resolve() / stored.name
-        if replacement.is_file():
-            return replacement
+        resolved_root = video_root.expanduser().resolve()
+        if not resolved_root.is_dir():
+            raise FileNotFoundError(
+                f"Video root does not exist or is not a directory: {resolved_root}"
+            )
+        if resolved_root not in search_roots:
+            search_roots.append(resolved_root)
+
+    matches = _find_video_matches(video_name, search_roots)
+    if len(matches) == 1:
+        return matches[0]
+    if len(matches) > 1:
+        match_list = ", ".join(str(path) for path in matches)
+        raise ValueError(
+            f"Multiple source videos match {video_name}: {match_list}"
+        )
+
+    if stored_path is None:
+        raise FileNotFoundError(
+            "Checkpoint does not record a source video path and no matching "
+            f"{video_name} was found beside it or under --video-root."
+        )
     raise FileNotFoundError(
-        f"Source video does not exist: {stored}. Use --video-root if it moved."
+        f"Source video does not exist: {stored_path}. No matching {video_name} "
+        "was found beside the checkpoint or under --video-root."
     )
+
+
+def _find_video_matches(
+    video_name: str,
+    search_roots: list[Path],
+) -> list[Path]:
+    """Find unique case-insensitive filename matches below selected roots."""
+    matches: set[Path] = set()
+    lowercase_name = video_name.lower()
+    for root in search_roots:
+        for candidate in root.rglob("*"):
+            if (
+                candidate.is_file()
+                and candidate.name.lower() == lowercase_name
+            ):
+                matches.add(candidate.resolve())
+    return sorted(matches)
 
 
 def _frame_row(
