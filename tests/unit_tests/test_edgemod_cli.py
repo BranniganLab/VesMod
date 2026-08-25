@@ -270,3 +270,42 @@ def test_run_temporal_rms_writes_vesedge_style_batch_outputs(tmp_path):
     assert (output_dir / "temporal_rms_qc.json").is_file()
     assert (output_dir / "temporal_rms_summary.csv").is_file()
     assert (output_dir / "temporal_rms_histogram.png").is_file()
+
+
+def test_temporal_rms_rejects_equal_input_and_output_without_deleting_source(
+    tmp_path,
+):
+    """Test an in-place batch is rejected before source arrays are touched."""
+    source_path = tmp_path / "source.npy"
+    np.save(source_path, np.ones((10, 120), dtype=float))
+    args = Namespace(
+        input_path=tmp_path,
+        output_dir=tmp_path,
+        recursive=False,
+        lower_bound=3,
+        upper_bound=8,
+        cutoff_nm=50.0,
+        overwrite=True,
+    )
+
+    with pytest.raises(ValueError, match="must not overlap"):
+        edgemod_cli._run_temporal_rms(args)
+
+    assert source_path.is_file()
+
+
+def test_remove_temporal_rms_artifacts_uses_validated_export_manifest(tmp_path):
+    """Test cleanup removes recorded exports while preserving unrelated arrays."""
+    exported_path = tmp_path / "accepted.npy"
+    unrelated_path = tmp_path / "unrelated.npy"
+    np.save(exported_path, np.ones((2, 2), dtype=float))
+    np.save(unrelated_path, np.ones((2, 2), dtype=float))
+    provenance = {
+        "experimental_method": "temporal_rms",
+        "exported_files": ["accepted.npy"],
+    }
+
+    edgemod_cli._remove_temporal_rms_artifacts(tmp_path, provenance)
+
+    assert not exported_path.exists()
+    assert unrelated_path.is_file()
