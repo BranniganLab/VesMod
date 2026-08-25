@@ -3,11 +3,12 @@
 import argparse
 import csv
 from pathlib import Path
+import sys
 
 import numpy as np
 
 from vesmod.VesEdge import EdgeDetection, ImageContour, InternalStructureRegion
-from vesmod.cli import internal_structures_cli
+from vesmod.cli import internal_structures_cli, vesedge_cli
 
 
 def _args(tmp_path, checkpoint):
@@ -25,6 +26,29 @@ def _args(tmp_path, checkpoint):
         no_gif=True,
         overwrite=False,
     )
+
+
+def test_parse_args_selects_internal_structures_subcommand(monkeypatch, tmp_path):
+    """Test measurement arguments are scoped to their independent command."""
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "vesedge",
+            "internal-structures",
+            "checkpoints",
+            "--output-dir",
+            str(tmp_path),
+            "--save-masks",
+        ],
+    )
+
+    args = vesedge_cli.parse_args()
+
+    assert args.command == "internal-structures"
+    assert args.input_path == Path("checkpoints")
+    assert args.output_dir == tmp_path
+    assert args.save_masks
 
 
 def test_process_checkpoint_writes_measurements_in_original_coordinates(
