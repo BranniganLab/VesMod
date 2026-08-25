@@ -17,6 +17,17 @@ def test_default_config_preserves_historical_fit_settings():
     assert config.temperature == 295.0
 
 
+def test_config_preserves_historical_positional_parameters():
+    """Test existing positional lmax/free_sigma/temperature calls still work."""
+    config = SpectrumFitConfig(400, False, 310.0)
+
+    assert config.lmax == 400
+    assert config.free_sigma is False
+    assert config.temperature == 310.0
+    assert config.lower_bound == 3
+    assert config.upper_bound == 8
+
+
 def test_config_serializes_physical_fit_parameters():
     """Test core scientific fit settings are retained for reproducibility."""
     config = SpectrumFitConfig(
@@ -28,11 +39,11 @@ def test_config_serializes_physical_fit_parameters():
     )
 
     assert config.to_dict() == {
-        "lower_bound": 5,
-        "upper_bound": 12,
         "lmax": 400,
         "free_sigma": False,
         "temperature": 310.0,
+        "lower_bound": 5,
+        "upper_bound": 12,
     }
 
 
