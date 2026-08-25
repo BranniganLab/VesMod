@@ -72,6 +72,8 @@ The function must return exactly:
 return r_vals, vesicle_center
 ```
 
+VesEdge converts this returned `(row, column)` pair to the internal Cartesian `(x, y)` contour origin. Custom extractors should not perform that swap themselves.
+
 ---
 
 ## Minimal Example
@@ -159,7 +161,7 @@ vesedge qc ./checkpoints \
     --output-dir ./results/qc_standard
 ```
 
-This separation is useful when developing an extractor because changes to the extraction algorithm can be distinguished from changes to QC policy.
+This separation is useful when developing an extractor because changes to the extraction algorithm can be distinguished from changes to the curvature-QC policy.
 
 ---
 
@@ -187,7 +189,7 @@ Save the extraction state independently of QC:
 edges.save_checkpoint("sample.npz")
 ```
 
-Later, reload it and run any QC configuration without invoking the extractor again:
+Later, reload it and run curvature QC without invoking the extractor again:
 
 ```python
 from vesmod.VesEdge import EdgeQCConfig, VesicleEdges
@@ -196,8 +198,6 @@ edges = VesicleEdges.from_checkpoint("sample.npz")
 edges.run_qc(
     EdgeQCConfig(
         curvature_threshold=10.0,
-        population_bic_threshold=10.0,
-        max_minor_population_fraction=0.25,
     )
 )
 edges.save_edge_to_npy("sample.npy")

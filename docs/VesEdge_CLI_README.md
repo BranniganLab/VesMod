@@ -19,7 +19,7 @@ QC-independent .npz checkpoints
                                                   EdgeMod
 ```
 
-This allows expensive image processing to be run once while QC settings are evaluated repeatedly and reproducibly.
+This allows expensive image processing to be run once while QC settings are evaluated repeatedly and reproducibly. Curvature is currently the only built-in frame-rejection rule.
 
 ## Quick Start
 
@@ -38,8 +38,6 @@ Apply one QC configuration:
 ```bash
 vesedge qc ./checkpoints \
     --curvature-threshold 5 \
-    --population-bic-threshold 10 \
-    --max-minor-population-fraction 0.25 \
     --output-dir ./results/qc_standard
 ```
 
@@ -157,7 +155,7 @@ vesedge extract sample.nd2 \
     --extractor-name my_edge_extractor
 ```
 
-See `custom_edge_extraction_algorithms.README.md` for the required extractor interface.
+See the [custom extractor guide](custom_edge_extraction_algorithms.README.md) for the required interface.
 
 ---
 
@@ -171,7 +169,7 @@ The command requires an output directory:
 vesedge qc ./checkpoints --output-dir ./results/qc_standard
 ```
 
-Use a **different output directory for each QC configuration**. This keeps the `.npy` data, exact QC settings, resolved checkpoint selection, QC summary, and population diagnostics together as one reproducible analysis condition.
+Use a **different output directory for each QC configuration**. This keeps the `.npy` data, exact QC settings, resolved checkpoint selection, and QC summary together as one reproducible analysis condition.
 
 ## Input Selection
 
@@ -203,7 +201,7 @@ vesedge qc ./checkpoints \
     --output-dir ./results/qc_standard
 ```
 
-The curvature threshold is the maximum allowed wrapped finite second difference of an analysis contour.
+The curvature threshold is the maximum allowed absolute wrapped finite second difference of an analysis contour. A successful detection is rejected when its score is greater than the threshold.
 
 Default: `5.0`.
 
@@ -215,26 +213,9 @@ vesedge qc ./checkpoints \
     --output-dir ./results/no_curvature
 ```
 
-## Population QC
+With curvature QC disabled, every successfully extracted detection is exported. Extraction failures remain absent because they do not contain contours.
 
-```bash
-vesedge qc ./checkpoints \
-    --population-bic-threshold 10 \
-    --max-minor-population-fraction 0.25 \
-    --output-dir ./results/qc_standard
-```
-
-Population QC compares each successful detection's vesicle center and median analysis radius across the trajectory. A two-component Gaussian-mixture model is used only when enough usable detections are available.
-
-When population QC assigns detections to a fitted population, VesEdge also saves a three-panel histogram figure showing the unscaled features used for population fitting: center x, center y, and median analysis radius. Histogram groups use the fitted population labels and include each population size in the legend. The figure is generated from all detections that participated in population fitting, including any minor population later flagged as an outlier.
-
-Disable population QC with:
-
-```bash
-vesedge qc ./checkpoints \
-    --no-population-qc \
-    --output-dir ./results/no_population
-```
+VesEdge no longer performs GMM-based population QC. The removed options `--population-bic-threshold`, `--max-minor-population-fraction`, and `--no-population-qc` are invalid and produce an argument error. VesEdge does not currently attempt to identify dust-particle detections automatically; inspect extraction GIFs before downstream analysis.
 
 ## QC Outputs
 
@@ -249,30 +230,16 @@ normally creates:
 ```text
 results/qc_standard/
 ├── sample01.npy
-├── sample01.population_histograms.png
 ├── sample02.npy
-├── sample02.population_histograms.png
 ├── vesedge_qc.json
 └── qc_summary.csv
 ```
-
-Population histogram files are present only when population QC produced population assignments for that checkpoint.
 
 ### Filtered `.npy` files
 
 Each `.npy` contains only contours accepted under the current QC configuration, with radial distances converted to microns. These files are directly consumable by EdgeMod.
 
 If a checkpoint completes QC but no frames are accepted, no `.npy` is written for that checkpoint. The outcome is still represented in `qc_summary.csv`.
-
-### Population histogram PNGs
-
-A file named `<sample>.population_histograms.png` shows the three features used by population QC:
-
-- center x-coordinate in pixels;
-- center y-coordinate in pixels;
-- median analysis-contour radius in pixels.
-
-Each panel groups detections by their fitted population label and reports the population size in the legend. These figures are diagnostic outputs for understanding why a trajectory was treated as one or two populations and for tuning population-QC thresholds.
 
 ### `vesedge_qc.json`
 
@@ -282,14 +249,9 @@ This file records:
 - whether recursive discovery was enabled;
 - the resolved manifest of checkpoints selected for the batch;
 - `curvature_threshold`;
-- `population_bic_threshold`;
-- `max_minor_population_fraction`;
-- whether curvature QC was enabled;
-- whether population QC was enabled.
+- whether curvature QC was enabled.
 
 Consequently, recursive and non-recursive runs, or runs resolving to different checkpoint sets, have different provenance even if their QC thresholds are identical.
-
-If an output directory already contains incompatible provenance, VesEdge refuses to mix the results unless `--overwrite` is explicitly supplied. An incompatible overwrite first removes VesEdge-managed `.npy` outputs, population histogram PNGs, and QC metadata from the previous batch so orphaned results cannot remain under the new provenance.
 
 ### `qc_summary.csv`
 
@@ -299,7 +261,6 @@ The summary contains one row per selected checkpoint with:
 - successful edge detections;
 - extraction failures;
 - curvature rejections;
-- population rejections;
 - accepted frames;
 - accepted fraction;
 - processing status;
@@ -308,6 +269,12 @@ The summary contains one row per selected checkpoint with:
 A checkpoint that cannot be loaded receives a `load_error` row with zero counts and the loading error. Therefore `qc_summary.csv` is still written when every selected checkpoint fails to load.
 
 This file is intended to make it easy to compare how aggressive different QC configurations are before comparing the downstream EdgeMod results.
+
+## Existing Outputs and `--overwrite`
+
+If an output `.npy` already exists, VesEdge keeps it unless `--overwrite` is supplied. Reusing an output directory with different provenance is rejected unless `--overwrite` is supplied.
+
+Use a dedicated QC output directory. For an incompatible overwrite, VesEdge recursively removes every `.npy` file under that output directory, along with its QC summary and provenance, before writing the new run. Do not store unrelated NumPy arrays there.
 
 ## Comparing QC Configurations
 
@@ -335,7 +302,7 @@ edgemod ./results/qc_standard
 edgemod ./results/qc_permissive
 ```
 
-The resulting EdgeMod estimates can be reported alongside each directory's `vesedge_qc.json`, `qc_summary.csv`, and population histogram figures to show whether the scientific conclusion depends strongly on QC choices.
+The resulting EdgeMod estimates can be reported alongside each directory's `vesedge_qc.json` and `qc_summary.csv` to show whether the scientific conclusion depends strongly on QC choices.
 
 ---
 
@@ -370,14 +337,12 @@ edges = VesicleEdges.from_checkpoint("sample.npz")
 edges.run_qc(
     EdgeQCConfig(
         curvature_threshold=10.0,
-        population_bic_threshold=10.0,
-        max_minor_population_fraction=0.25,
     )
 )
 edges.save_edge_to_npy("sample.npy")
 ```
 
-A completed run is summarized by `edges.qc_result`; individual detections retain detailed QC annotations through `EdgeDetection.qc`.
+A completed run is summarized by `edges.qc_result`; individual detections retain their curvature score and pass/fail flag through `EdgeDetection.qc`.
 
 ---
 
@@ -398,6 +363,10 @@ This is distinct from extraction failure. The checkpoint remains valid, but the 
 ### QC output directory already contains another configuration or input selection
 
 Choose another `--output-dir`. Reusing one directory for incompatible QC provenance is intentionally blocked unless `--overwrite` is used.
+
+### Population-QC arguments are unrecognized
+
+GMM-based population QC has been removed because a minority radius distribution cannot reliably distinguish bad edge detection from a real change in one vesicle. Remove the population-specific arguments from existing commands.
 
 ---
 

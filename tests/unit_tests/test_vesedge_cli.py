@@ -36,10 +36,7 @@ def _qc_args(tmp_path, input_path=Path("sample.npz")) -> argparse.Namespace:
         recursive=False,
         overwrite=True,
         curvature_threshold=5.0,
-        population_bic_threshold=10.0,
-        max_minor_population_fraction=0.25,
         no_curvature_qc=False,
-        no_population_qc=False,
     )
 
 
@@ -75,7 +72,7 @@ def test_parse_args_selects_qc_subcommand(monkeypatch, tmp_path):
             "checkpoints",
             "--output-dir",
             str(tmp_path),
-            "--no-population-qc",
+            "--no-curvature-qc",
         ],
     )
 
@@ -84,7 +81,37 @@ def test_parse_args_selects_qc_subcommand(monkeypatch, tmp_path):
     assert args.command == "qc"
     assert args.input_path == Path("checkpoints")
     assert args.output_dir == tmp_path
-    assert args.no_population_qc
+    assert args.no_curvature_qc
+
+
+@pytest.mark.parametrize(
+    "removed_option",
+    [
+        "--population-bic-threshold",
+        "--max-minor-population-fraction",
+        "--no-population-qc",
+    ],
+)
+def test_parse_args_rejects_removed_population_options(
+    monkeypatch,
+    tmp_path,
+    removed_option,
+):
+    """Test removed population-QC options are not silently ignored."""
+    argv = [
+        "vesedge",
+        "qc",
+        "checkpoints",
+        "--output-dir",
+        str(tmp_path),
+        removed_option,
+    ]
+    if removed_option != "--no-population-qc":
+        argv.append("10")
+    monkeypatch.setattr(sys, "argv", argv)
+
+    with pytest.raises(SystemExit):
+        vesedge_cli.parse_args()
 
 
 def test_iter_input_files_accepts_case_insensitive_suffixes(tmp_path):
@@ -316,7 +343,6 @@ def test_process_qc_file_returns_load_error_summary(tmp_path, monkeypatch):
         "successful_detections": 0,
         "extraction_failures": 0,
         "curvature_rejected": 0,
-        "population_rejected": 0,
         "accepted": 0,
         "accepted_fraction": 0.0,
         "status": "load_error",
@@ -327,7 +353,7 @@ def test_process_qc_file_returns_load_error_summary(tmp_path, monkeypatch):
 def test_write_qc_provenance_rejects_different_configuration(tmp_path):
     """Test a QC directory cannot silently mix configurations."""
     checkpoint = tmp_path / "sample.npz"
-    config = EdgeQCConfig(5.0, 10.0, 0.25)
+    config = EdgeQCConfig(5.0)
     vesedge_cli._write_qc_provenance(
         tmp_path,
         config,
@@ -337,7 +363,7 @@ def test_write_qc_provenance_rejects_different_configuration(tmp_path):
         overwrite=False,
     )
 
-    different = EdgeQCConfig(8.0, 10.0, 0.25)
+    different = EdgeQCConfig(8.0)
     with pytest.raises(ValueError, match="different input selection or QC configuration"):
         vesedge_cli._write_qc_provenance(
             tmp_path,
@@ -354,7 +380,7 @@ def test_write_qc_provenance_records_manifest_and_recursive_setting(tmp_path):
     input_root = tmp_path / "checkpoints"
     first = input_root / "a.npz"
     second = input_root / "nested" / "b.npz"
-    config = EdgeQCConfig(5.0, 10.0, 0.25)
+    config = EdgeQCConfig(5.0)
 
     vesedge_cli._write_qc_provenance(
         tmp_path / "qc",
@@ -375,7 +401,7 @@ def test_overwrite_incompatible_provenance_removes_stale_outputs(tmp_path):
     """Test incompatible overwrite clears prior managed QC artifacts."""
     output_dir = tmp_path / "qc"
     checkpoint = tmp_path / "sample.npz"
-    config = EdgeQCConfig(5.0, 10.0, 0.25)
+    config = EdgeQCConfig(5.0)
     vesedge_cli._write_qc_provenance(
         output_dir,
         config,
@@ -389,7 +415,7 @@ def test_overwrite_incompatible_provenance_removes_stale_outputs(tmp_path):
     stale.touch()
     (output_dir / "qc_summary.csv").write_text("old")
 
-    different = EdgeQCConfig(8.0, 10.0, 0.25)
+    different = EdgeQCConfig(8.0)
     vesedge_cli._write_qc_provenance(
         output_dir,
         different,
@@ -414,9 +440,8 @@ def test_write_qc_summary_writes_batch_csv(tmp_path):
             "successful_detections": 9,
             "extraction_failures": 1,
             "curvature_rejected": 2,
-            "population_rejected": 1,
-            "accepted": 6,
-            "accepted_fraction": 2 / 3,
+            "accepted": 7,
+            "accepted_fraction": 7 / 9,
             "status": "ok",
             "error": "",
         }
@@ -427,7 +452,7 @@ def test_write_qc_summary_writes_batch_csv(tmp_path):
     summary = (tmp_path / "qc_summary.csv").read_text()
     assert "sample.npz" in summary
     assert "curvature_rejected" in summary
-    assert ",6," in summary
+    assert ",7," in summary
 
 
 def test_run_qc_writes_summary_when_every_checkpoint_fails_to_load(
@@ -457,62 +482,3 @@ def test_run_qc_writes_summary_when_every_checkpoint_fails_to_load(
     assert "second.npz" in summary
     assert summary.count("load_error") == 2
 
-
-def test_process_qc_file_saves_population_histogram(tmp_path, monkeypatch):
-    """Test completed population QC produces a figure beside filtered edges."""
-    observed = {}
-
-    class Detection:
-        def __init__(self):
-            self.qc = argparse.Namespace(flags=set(), passed=True)
-
-    class FakeEdges:
-        def __init__(self):
-            self.detections = [Detection()]
-            self.successful_detections = self.detections
-            self.qc_result = None
-
-        def run_qc(self, config):
-            self.qc_result = argparse.Namespace(population=object())
-
-        def save_edge_to_npy(self, path):
-            pass
-
-    edges = FakeEdges()
-    path = Path("sample.npz")
-    monkeypatch.setattr(
-        vesedge_cli.VesicleEdges,
-        "from_checkpoint",
-        lambda checkpoint_path: edges,
-    )
-    monkeypatch.setattr(
-        vesedge_cli,
-        "save_population_histograms",
-        lambda detections, output_path: observed.update(
-            detections=detections,
-            output_path=output_path,
-        ),
-    )
-    args = _qc_args(tmp_path, path)
-
-    vesedge_cli.process_qc_file(
-        path,
-        args,
-        vesedge_cli._qc_config_from_args(args),
-    )
-
-    assert observed["detections"] is edges.detections
-    assert observed["output_path"] == (
-        tmp_path / "sample.population_histograms.png"
-    )
-
-
-def test_remove_managed_qc_artifacts_removes_population_histograms(tmp_path):
-    """Test incompatible overwrite removes stale diagnostic figures."""
-    histogram = tmp_path / "nested" / "sample.population_histograms.png"
-    histogram.parent.mkdir(parents=True)
-    histogram.touch()
-
-    vesedge_cli._remove_managed_qc_artifacts(tmp_path)
-
-    assert not histogram.exists()

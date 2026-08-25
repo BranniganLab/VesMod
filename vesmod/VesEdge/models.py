@@ -71,7 +71,6 @@ class QCFlag(Enum):
     """Reasons a successfully extracted edge may fail quality control."""
 
     CURVATURE = auto()
-    POPULATION_OUTLIER = auto()
 
 
 @dataclass
@@ -86,20 +85,12 @@ class EdgeQC:
     curvature_score : float | None
         Maximum absolute wrapped finite second difference of the analysis
         contour. None if curvature QC has not been run.
-    population_label : int | None
-        Population assigned during trajectory-level population clustering.
-        None if population QC has not been run.
-    population_probability : float | None
-        Posterior probability that the detection belongs to its assigned
-        population. None if population QC has not been run.
     passed : bool
         Whether the edge has passed all QC checks that have been run.
     """
 
     flags: set[QCFlag] = field(default_factory=set)
     curvature_score: float | None = None
-    population_label: int | None = None
-    population_probability: float | None = None
 
     @property
     def passed(self) -> bool:
@@ -174,49 +165,6 @@ class CurvatureQCResult:
 
 
 @dataclass(frozen=True)
-class EdgePopulationResult:
-    """Results from trajectory-level center/radius population analysis.
-
-    Attributes
-    ----------
-    bic_one_population : float | None
-        BIC from the one-component Gaussian mixture model. None if there were
-        too few detections to perform population analysis.
-    bic_two_populations : float | None
-        BIC from the two-component Gaussian mixture model. None if there were
-        too few detections to perform population analysis.
-    two_populations_detected : bool
-        Whether the two-component model was sufficiently favored over the
-        one-component model.
-    population_sizes : tuple[int, ...]
-        Number of detections assigned to each detected population.
-    rejected_population : int | None
-        Label of the population rejected as a minor outlier population.
-        None if no population was rejected.
-    delta_bic : float | None
-        Improvement in BIC obtained by fitting two populations rather than
-        one. Positive values favor two populations.
-    """
-
-    bic_one_population: float | None
-    bic_two_populations: float | None
-    two_populations_detected: bool
-    population_sizes: tuple[int, ...]
-    rejected_population: int | None
-
-    @property
-    def delta_bic(self) -> float | None:
-        """Return the BIC improvement from fitting two populations."""
-        if (
-            self.bic_one_population is None
-            or self.bic_two_populations is None
-        ):
-            return None
-
-        return self.bic_one_population - self.bic_two_populations
-
-
-@dataclass(frozen=True)
 class VesicleQCResult:
     """Aggregate results from one completed VesEdge QC run.
 
@@ -227,11 +175,7 @@ class VesicleQCResult:
     curvature : CurvatureQCResult | None
         Summary of frame-level curvature QC. None when curvature QC was
         disabled.
-    population : EdgePopulationResult | None
-        Summary of trajectory-level population QC. None when population QC was
-        disabled.
     """
 
     config: EdgeQCConfig
     curvature: CurvatureQCResult | None
-    population: EdgePopulationResult | None

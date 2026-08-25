@@ -12,12 +12,11 @@ from numpy.typing import NDArray
 
 from .checkpoint_io import load_checkpoint, save_checkpoint
 from .config import EdgeExtractionConfig, EdgeQCConfig
-from .edge_filtering import check_curvature, check_edge_populations
+from .edge_filtering import check_curvature
 from .models import (
     CurvatureQCResult,
     EdgeDetection,
     EdgeDetectionFailure,
-    EdgePopulationResult,
     EdgeQC,
     EdgeResult,
     QCFlag,
@@ -134,11 +133,9 @@ class VesicleEdges:
             self._apply_frame_qc(detection, config)
 
         curvature_result = self._curvature_qc_result(config)
-        population_result = self._apply_trajectory_qc(config)
         self.qc_result = VesicleQCResult(
             config=config,
             curvature=curvature_result,
-            population=population_result,
         )
         self._validate_usable_detections()
 
@@ -182,19 +179,6 @@ class VesicleEdges:
         return CurvatureQCResult(
             scores=scores,
             rejected_count=rejected_count,
-        )
-
-    def _apply_trajectory_qc(
-        self,
-        config: EdgeQCConfig,
-    ) -> EdgePopulationResult | None:
-        """Apply enabled QC checks that operate across the trajectory."""
-        if not config.enable_population_qc:
-            return None
-        return check_edge_populations(
-            self.detections,
-            bic_threshold=config.population_bic_threshold,
-            max_minor_fraction=config.max_minor_population_fraction,
         )
 
     def _infer_frame_indices(self) -> None:

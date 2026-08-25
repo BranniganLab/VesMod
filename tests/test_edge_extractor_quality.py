@@ -3,9 +3,8 @@
 """
 Acceptance tests for VesEdge extraction quality.
 
-These tests intentionally run only the legacy curvature QC check so that
-reference acceptance rates remain comparable with values generated before
-trajectory-population QC was added.
+These tests run curvature QC so reference acceptance rates remain comparable
+with the established quality checks.
 """
 
 import json
@@ -82,10 +81,7 @@ def sample_edges(filename, processed_sample_edges):
     )
     qc_config = EdgeQCConfig(
         curvature_threshold=10.0,
-        population_bic_threshold=10.0,
-        max_minor_population_fraction=0.25,
         enable_curvature_qc=True,
-        enable_population_qc=False,
     )
 
     video = VesicleVideo(np.load(path))
@@ -123,8 +119,6 @@ def test_only_curvature_qc_was_run(filename, sample_edges):
         if isinstance(result, EdgeDetectionFailure):
             continue
         assert result.qc.curvature_score is not None
-        assert result.qc.population_label is None
-        assert result.qc.population_probability is None
         assert result.qc.flags <= {QCFlag.CURVATURE}
 
 

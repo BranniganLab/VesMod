@@ -19,18 +19,13 @@ Features include:
 * User-supplied edge extraction algorithms
 * Reusable `.npz` extraction checkpoints
 * Frame-level curvature quality control
-* Trajectory-level center/radius population quality control
 * Rerunnable QC without repeating edge extraction
 * QC provenance and batch-summary outputs
 * Optional angular downsampling
 * NumPy export of accepted contours
 * Annotated GIF generation for visual inspection
 
-Detailed documentation:
-
-```text
-docs/VesEdge_CLI_README.md
-```
+See the [VesEdge CLI guide](docs/VesEdge_CLI_README.md).
 
 ### EdgeMod
 
@@ -47,13 +42,9 @@ Stable core features include:
 * JSON export of fit values, q bounds, and physical-fit configuration
 * Batch processing of contour datasets
 
-Experimental EdgeMod features live under `vesmod.EdgeMod.experimental`. At present this includes optional q^-3-based dynamic range selection. Experimental APIs may change as the methods are evaluated and are not part of the stable core EdgeMod interface.
+Experimental EdgeMod features live under `vesmod.EdgeMod.experimental`. These currently include optional q^-3-based dynamic range selection and temporal-RMS screening. Experimental APIs may change as the methods are evaluated and are not part of the stable core EdgeMod interface.
 
-Detailed documentation:
-
-```text
-docs/EdgeMod_CLI_README.md
-```
+See the [EdgeMod CLI guide](docs/EdgeMod_CLI_README.md).
 
 ---
 
@@ -117,15 +108,13 @@ checkpoints/
 
 The checkpoint contains extraction state only. It does not store QC decisions.
 
-### 2. Apply a QC configuration
+### 2. Apply curvature QC
 
-Use a separate output directory for each QC configuration:
+Use a dedicated output directory for each QC configuration:
 
 ```bash
 vesedge qc ./checkpoints \
     --curvature-threshold 5 \
-    --population-bic-threshold 10 \
-    --max-minor-population-fraction 0.25 \
     --output-dir ./results/qc_standard
 ```
 
@@ -134,14 +123,12 @@ This creates:
 ```text
 results/qc_standard/
 ├── sample01.npy
-├── sample01.population_histograms.png
 ├── sample02.npy
-├── sample02.population_histograms.png
 ├── vesedge_qc.json
 └── qc_summary.csv
 ```
 
-`vesedge_qc.json` records the exact QC configuration and input path. `qc_summary.csv` reports extraction failures, curvature rejections, population rejections, accepted-frame counts, and accepted fractions for each checkpoint. When population QC is enabled, each `.population_histograms.png` figure shows the fitted populations across center x, center y, and median radius.
+`vesedge_qc.json` records the exact QC configuration and input selection. `qc_summary.csv` reports extraction failures, curvature rejections, accepted-frame counts, and accepted fractions for each checkpoint. Curvature is currently VesEdge's only built-in frame-rejection rule.
 
 ### 3. Compare alternate QC configurations
 
@@ -155,9 +142,11 @@ vesedge qc ./checkpoints \
 
 Keeping each QC configuration in its own directory makes the analysis provenance explicit and allows the outputs to be compared directly.
 
+Do not store unrelated `.npy` files in a QC output directory: an incompatible rerun with `--overwrite` clears NumPy arrays beneath that directory before writing the new result.
+
 ### 4. Analyze each QC result with EdgeMod
 
-The default EdgeMod CLI uses the historical fixed q range, q = 3--7:
+The default EdgeMod CLI uses the historical fixed q range, q = 3–7:
 
 ```bash
 edgemod ./results/qc_standard
@@ -212,15 +201,13 @@ edges = VesicleEdges.from_checkpoint("sample.npz")
 
 qc_config = EdgeQCConfig(
     curvature_threshold=10.0,
-    population_bic_threshold=10.0,
-    max_minor_population_fraction=0.25,
 )
 
 edges.run_qc(qc_config)
 edges.save_edge_to_npy("sample.npy")
 ```
 
-After a completed QC run, `edges.qc_result` contains the configuration and results from the enabled QC stages. Per-detection QC annotations remain available on each `EdgeDetection.qc`.
+After a completed QC run, `edges.qc_result` contains the curvature configuration and aggregate result. Per-detection curvature annotations remain available on each `EdgeDetection.qc`.
 
 Fit the accepted contours with the stable core EdgeMod API:
 
@@ -271,12 +258,14 @@ Both successful physical fits remain available in `spectrum.fit_results`. Each `
 | `.npz` | Reusable, QC-independent VesEdge extraction checkpoint |
 | `.gif` | Visual inspection of raw image frames with extracted contours |
 | `.npy` | Accepted contour radii for one QC configuration, ready for EdgeMod |
-| `.population_histograms.png` | Center and radius distributions grouped by the population-QC assignments |
 | `vesedge_qc.json` | QC configuration and source path for one QC batch |
 | `qc_summary.csv` | Per-video QC counts and accepted fractions for one QC batch |
 | `.spectrum_diagnostic.png` | Measured spectrum, attempted fit, compensated spectrum, and fit residuals |
 | `.json` | EdgeMod fixed-range spectrum/fitting output |
 | `.dynamic.json` | EdgeMod output produced when experimental dynamic selection is requested |
+| `temporal_rms_summary.csv` | Experimental temporal-RMS measurement and inclusion decision for each trajectory |
+| `temporal_rms_histogram.png` | Experimental distribution of temporal-RMS amplitudes |
+| `temporal_rms_qc.json` | Experimental temporal-RMS configuration, input manifest, and export manifest |
 
 ---
 
@@ -284,8 +273,8 @@ Both successful physical fits remain available in `spectrum.fit_results`. Each `
 
 | Component | Documentation |
 | --- | --- |
-| VesEdge | `docs/VesEdge_CLI_README.md` |
-| EdgeMod | `docs/EdgeMod_CLI_README.md` |
+| VesEdge | [VesEdge CLI guide](docs/VesEdge_CLI_README.md) |
+| EdgeMod | [EdgeMod CLI guide](docs/EdgeMod_CLI_README.md) |
 
 ---
 

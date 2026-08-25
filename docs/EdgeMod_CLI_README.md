@@ -169,6 +169,12 @@ Maximum allowed natural-log-space RMSE to the fixed q^-3 model. Must be supplied
 Temporal RMS is a separate optional stage, analogous to `vesedge qc`. It does
 not modify `Spectrum` or the core physical fit.
 
+List the experimental commands with:
+
+```bash
+edgemod experimental --help
+```
+
 Measure every selected trajectory without excluding any input:
 
 ```bash
@@ -192,18 +198,28 @@ in microns; reported amplitudes and `--cutoff-nm` are in nanometers. The default
 mode interval is lower-inclusive and upper-exclusive, `3 <= q < 8`, and can be
 changed with `--lower-bound` and `--upper-bound`.
 
-The output directory contains:
+Relevant options:
+
+* `--recursive`: search input subdirectories recursively
+* `--lower-bound`: first included Fourier mode; default `3`
+* `--upper-bound`: first excluded Fourier mode; default `8`
+* `--cutoff-nm`: optional minimum included amplitude in nanometers
+* `--overwrite`: replace outputs from an incompatible prior screening run
+
+Without `--cutoff-nm`, every successfully measured trajectory is exported. With a cutoff, below-threshold trajectories remain in the CSV and histogram but are not copied into the accepted output set.
+
+For an input directory containing `sample.npy`, the output directory contains:
 
 ```text
 temporal_rms_qc.json
 temporal_rms_summary.csv
 temporal_rms_histogram.png
-accepted .npy trajectories, preserving relative input paths
+sample.npy  # only when included
 ```
 
-As with `vesedge qc`, incompatible existing provenance requires another output
-directory or `--overwrite`. Temporal RMS is experimental and should not be
-treated as a universal physical criterion without empirical calibration.
+Relative input paths are preserved during recursive processing. The input and output paths must not overlap, which prevents screening exports from being mistaken for new inputs or overwriting source arrays.
+
+As with `vesedge qc`, incompatible existing provenance requires another output directory or `--overwrite`. Temporal RMS is experimental and should not be treated as a universal physical criterion without empirical calibration.
 
 ---
 
@@ -371,6 +387,10 @@ The experimental selector found no contiguous q interval inside the trusted sear
 ### Fits produce unexpected values
 
 Potential causes include poor contour quality, an inappropriate fixed range, an experimental selector accepting an unintended range, too few accepted frames, temperature mismatch, or sensitivity to VesEdge QC settings. Compare fixed and dynamic results explicitly when evaluating the experimental method.
+
+### Temporal-RMS input and output paths overlap
+
+Choose an `--output-dir` outside the selected input file or directory. In-place screening is intentionally rejected to protect source arrays and prevent recursive rediscovery of exports.
 
 ---
 

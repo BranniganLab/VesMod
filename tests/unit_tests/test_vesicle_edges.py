@@ -41,9 +41,6 @@ def qc_config():
     """Return permissive frame-level QC settings."""
     return EdgeQCConfig(
         curvature_threshold=100.0,
-        population_bic_threshold=10.0,
-        max_minor_population_fraction=0.25,
-        enable_population_qc=False,
     )
 
 
@@ -120,7 +117,6 @@ def test_run_qc_records_aggregate_results(edges, qc_config):
     assert edges.qc_result.curvature is not None
     assert len(edges.qc_result.curvature.scores) == 2
     assert edges.qc_result.curvature.rejected_count == 0
-    assert edges.qc_result.population is None
 
 
 def test_run_qc_preserves_frame_indices(edges, qc_config):
@@ -145,15 +141,9 @@ def test_run_qc_can_recover_previous_curvature_rejection(extraction_config):
     )
     strict = EdgeQCConfig(
         curvature_threshold=1.0,
-        population_bic_threshold=10.0,
-        max_minor_population_fraction=0.25,
-        enable_population_qc=False,
     )
     permissive = EdgeQCConfig(
         curvature_threshold=100.0,
-        population_bic_threshold=10.0,
-        max_minor_population_fraction=0.25,
-        enable_population_qc=False,
     )
 
     with pytest.raises(ValueError, match="no frames passed quality control"):
@@ -176,17 +166,14 @@ def test_run_qc_can_recover_previous_curvature_rejection(extraction_config):
 def test_run_qc_clears_stale_qc_state(edges, qc_config):
     """Test that a new QC run discards prior per-detection QC state."""
     first = edges.successful_detections[0]
-    first.qc.flags.add(QCFlag.POPULATION_OUTLIER)
-    first.qc.population_label = 1
-    first.qc.population_probability = 0.9
+    first.qc.flags.add(QCFlag.CURVATURE)
+    first.qc.curvature_score = 999.0
 
     edges.run_qc(qc_config)
 
     assert edges.qc_result is not None
-    assert edges.qc_result.population is None
-    assert first.qc.population_label is None
-    assert first.qc.population_probability is None
-    assert QCFlag.POPULATION_OUTLIER not in first.qc.flags
+    assert first.qc.curvature_score == pytest.approx(0.0)
+    assert QCFlag.CURVATURE not in first.qc.flags
 
 
 def test_save_edge_to_npy_requires_qc(tmp_path, edges):
@@ -209,9 +196,6 @@ def test_save_edge_to_npy_saves_only_accepted_in_microns(
     )
     config = EdgeQCConfig(
         curvature_threshold=1.0,
-        population_bic_threshold=10.0,
-        max_minor_population_fraction=0.25,
-        enable_population_qc=False,
     )
     edge_results.run_qc(config)
 
@@ -360,9 +344,6 @@ def test_from_checkpoint_can_be_re_qced_with_new_settings(
     loaded = VesicleEdges.from_checkpoint(tmp_path / "sample.npz")
     new_config = EdgeQCConfig(
         curvature_threshold=100.0,
-        population_bic_threshold=10.0,
-        max_minor_population_fraction=0.25,
-        enable_population_qc=False,
     )
     loaded.run_qc(new_config)
 
