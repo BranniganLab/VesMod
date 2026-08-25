@@ -144,12 +144,13 @@ def test_check_edge_populations_uses_only_edges_that_pass_preceding_qc():
 
 def test_check_edge_populations_ignores_absolute_translation():
     """Test camera panning cannot create populations at constant radius."""
+    radii = np.random.default_rng(0).normal(10.0, 0.1, 20)
     edges = [
         _make_edge(
             origin=(100.0 * index, -50.0 * index),
-            radius=10.0,
+            radius=radius,
         )
-        for index in range(20)
+        for index, radius in enumerate(radii)
     ]
 
     result = check_edge_populations(
