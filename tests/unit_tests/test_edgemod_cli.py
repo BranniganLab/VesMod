@@ -3,12 +3,14 @@
 from argparse import Namespace
 from pathlib import Path
 import json
+import sys
 
 import numpy as np
 import pytest
 
 from vesmod.EdgeMod import SpectrumFitConfig
 from vesmod.EdgeMod.experimental import QMinusThreeRangeSelector
+from vesmod.EdgeMod.experimental import TemporalRMSConfig
 from vesmod.cli import edgemod_cli
 from vesmod.cli.edgemod_cli import (
     build_dynamic_selector,
@@ -21,6 +23,7 @@ from vesmod.cli.edgemod_cli import (
 def _args(**overrides):
     """Return standard parsed CLI arguments with optional overrides."""
     values = {
+        "command": "fit",
         "dynamic_range": False,
         "lower_fitting_bound": 3,
         "upper_fitting_bound": 8,
@@ -33,6 +36,45 @@ def _args(**overrides):
     }
     values.update(overrides)
     return Namespace(**values)
+
+
+def test_parse_args_preserves_direct_fit_command(monkeypatch):
+    """Test the established command directly invokes core physical fitting."""
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["edgemod", "edges", "--fixed-sigma"],
+    )
+
+    args = edgemod_cli.parse_args()
+
+    assert args.command == "fit"
+    assert args.input_path == Path("edges")
+    assert args.fixed_sigma
+
+
+def test_parse_args_selects_temporal_rms_subcommand(monkeypatch, tmp_path):
+    """Test experimental screening options are scoped to their own stage."""
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "edgemod",
+            "experimental",
+            "temporal-rms",
+            "edges",
+            "--output-dir",
+            str(tmp_path),
+            "--cutoff-nm",
+            "50",
+        ],
+    )
+
+    args = edgemod_cli.parse_args()
+
+    assert args.command == "temporal-rms"
+    assert args.output_dir == tmp_path
+    assert args.cutoff_nm == pytest.approx(50.0)
 
 
 def test_build_fit_config_uses_fixed_bounds_by_default():
@@ -173,3 +215,58 @@ def test_nonrecursive_run_propagates_failed_fit(monkeypatch, tmp_path):
 
     with pytest.raises(ValueError, match="fit failed"):
         edgemod_cli.main()
+
+
+def test_process_temporal_rms_file_exports_only_included_input(tmp_path):
+    """Test the experimental stage writes only trajectories passing its cutoff."""
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    input_dir.mkdir()
+    static_path = input_dir / "static.npy"
+    np.save(static_path, np.ones((10, 120), dtype=float))
+    args = Namespace(
+        input_path=input_dir,
+        output_dir=output_dir,
+        overwrite=False,
+    )
+    config = TemporalRMSConfig(cutoff_nm=50.0)
+
+    row, result = edgemod_cli.process_temporal_rms_file(
+        static_path,
+        args,
+        config,
+    )
+
+    assert result is not None
+    assert result.included is False
+    assert row["status"] == "below_cutoff"
+    assert not (output_dir / "static.npy").exists()
+
+
+def test_run_temporal_rms_writes_vesedge_style_batch_outputs(tmp_path):
+    """Test screening writes provenance, summary, histogram, and accepted arrays."""
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    input_dir.mkdir()
+    angles = 2.0 * np.pi * np.arange(120) / 120
+    phases = 2.0 * np.pi * np.arange(20) / 20
+    radii = np.array(
+        [10.0 + 0.1 * np.cos(3.0 * angles + phase) for phase in phases]
+    )
+    np.save(input_dir / "moving.npy", radii)
+    args = Namespace(
+        input_path=input_dir,
+        output_dir=output_dir,
+        recursive=False,
+        lower_bound=3,
+        upper_bound=8,
+        cutoff_nm=50.0,
+        overwrite=False,
+    )
+
+    edgemod_cli._run_temporal_rms(args)
+
+    assert (output_dir / "moving.npy").is_file()
+    assert (output_dir / "temporal_rms_qc.json").is_file()
+    assert (output_dir / "temporal_rms_summary.csv").is_file()
+    assert (output_dir / "temporal_rms_histogram.png").is_file()

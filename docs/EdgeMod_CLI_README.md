@@ -20,12 +20,13 @@ Stable core features:
 * Spectrum-fit diagnostic PNG for attempted physical fits
 * JSON output containing fit values, q bounds, and physical-fit configuration
 
-Experimental feature:
+Experimental features:
 
 * Optional q^-3-based dynamic range selection inside a trusted q interval
 * Explicit slope/RMSE acceptance criteria
 * Rejection when no trustworthy q^-3 regime is found
 * Separate dynamic JSON output containing experimental selection diagnostics
+* Separate temporal-RMS screening stage with batch provenance and diagnostics
 
 ---
 
@@ -160,6 +161,49 @@ Maximum allowed absolute deviation of the fitted log-log slope from -3. Must be 
 ### `--max-log-rmse`
 
 Maximum allowed natural-log-space RMSE to the fixed q^-3 model. Must be supplied explicitly and be finite/non-negative.
+
+---
+
+## Experimental Temporal-RMS Screening
+
+Temporal RMS is a separate optional stage, analogous to `vesedge qc`. It does
+not modify `Spectrum` or the core physical fit.
+
+Measure every selected trajectory without excluding any input:
+
+```bash
+edgemod experimental temporal-rms ./results/qc_standard \
+    --output-dir ./results/rms_report
+```
+
+Apply an explicitly chosen cutoff and export only accepted trajectories:
+
+```bash
+edgemod experimental temporal-rms ./results/qc_standard \
+    --output-dir ./results/rms_50nm \
+    --cutoff-nm 50
+
+edgemod ./results/rms_50nm
+```
+
+The stage removes each Fourier mode's temporal mean before combining its power,
+so persistent noncircularity does not count as motion. Input distances must be
+in microns; reported amplitudes and `--cutoff-nm` are in nanometers. The default
+mode interval is lower-inclusive and upper-exclusive, `3 <= q < 8`, and can be
+changed with `--lower-bound` and `--upper-bound`.
+
+The output directory contains:
+
+```text
+temporal_rms_qc.json
+temporal_rms_summary.csv
+temporal_rms_histogram.png
+accepted .npy trajectories, preserving relative input paths
+```
+
+As with `vesedge qc`, incompatible existing provenance requires another output
+directory or `--overwrite`. Temporal RMS is experimental and should not be
+treated as a universal physical criterion without empirical calibration.
 
 ---
 
