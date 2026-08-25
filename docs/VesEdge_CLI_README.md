@@ -352,7 +352,7 @@ vesedge internal-structures ./checkpoints \\
     --output-dir ./results/internal_structures
 ```
 
-The fallback matches each video by the filename stored in its checkpoint.
+The fallback searches recursively and requires exactly one matching filename. For a legacy checkpoint without stored source provenance, VesEdge infers the ND2 filename from the checkpoint stem—for example, `sample.npz` maps to `sample.nd2`. It searches beside the checkpoint and then under `--video-root`; multiple matches are reported as an ambiguity rather than selected silently.
 
 ## Outputs
 
