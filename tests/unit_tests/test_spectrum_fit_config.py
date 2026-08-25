@@ -1,54 +1,38 @@
-"""Tests for EdgeMod SpectrumFitConfig."""
+"""Tests for core EdgeMod SpectrumFitConfig."""
 
 import numpy as np
 import pytest
 
-from vesmod.EdgeMod import (
-    FixedFitRangeSelector,
-    QMinusThreeFitRangeSelector,
-    SpectrumFitConfig,
-)
+from vesmod.EdgeMod import SpectrumFitConfig
 
 
 def test_default_config_preserves_historical_fit_settings():
     """Test defaults reproduce the existing fixed q=3--7 fit."""
     config = SpectrumFitConfig()
 
+    assert config.lower_bound == 3
+    assert config.upper_bound == 8
     assert config.lmax == 500
     assert config.free_sigma is True
     assert config.temperature == 295.0
-    assert isinstance(config.range_selector, FixedFitRangeSelector)
-    assert config.range_selector.lower_bound == 3
-    assert config.range_selector.upper_bound == 8
 
 
-def test_config_serializes_dynamic_selector_parameters():
-    """Test scientific fit settings are retained for reproducibility."""
+def test_config_serializes_physical_fit_parameters():
+    """Test core scientific fit settings are retained for reproducibility."""
     config = SpectrumFitConfig(
+        lower_bound=5,
+        upper_bound=12,
         lmax=400,
         free_sigma=False,
         temperature=310.0,
-        range_selector=QMinusThreeFitRangeSelector(
-            lower_bound=3,
-            upper_bound=15,
-            min_modes=5,
-            slope_tolerance=0.2,
-            max_log_rmse=0.1,
-        ),
     )
 
-    data = config.to_dict()
-
-    assert data["lmax"] == 400
-    assert data["free_sigma"] is False
-    assert data["temperature"] == 310.0
-    assert data["range_selector"] == {
-        "type": "QMinusThreeFitRangeSelector",
-        "lower_bound": 3,
-        "upper_bound": 15,
-        "min_modes": 5,
-        "slope_tolerance": 0.2,
-        "max_log_rmse": 0.1,
+    assert config.to_dict() == {
+        "lower_bound": 5,
+        "upper_bound": 12,
+        "lmax": 400,
+        "free_sigma": False,
+        "temperature": 310.0,
     }
 
 
@@ -57,6 +41,19 @@ def test_config_rejects_nonpositive_lmax(lmax):
     """Test lmax must be positive."""
     with pytest.raises(ValueError, match="lmax must be positive"):
         SpectrumFitConfig(lmax=lmax)
+
+
+@pytest.mark.parametrize("bounds", [(0, 8), (-1, 8)])
+def test_config_rejects_nonpositive_lower_bound(bounds):
+    """Test physical-fit lower q bound must be positive."""
+    with pytest.raises(ValueError, match="lower_bound must be positive"):
+        SpectrumFitConfig(lower_bound=bounds[0], upper_bound=bounds[1])
+
+
+def test_config_rejects_nonincreasing_bounds():
+    """Test the upper q bound must exceed the lower q bound."""
+    with pytest.raises(ValueError, match="upper_bound must be greater"):
+        SpectrumFitConfig(lower_bound=8, upper_bound=8)
 
 
 @pytest.mark.parametrize("temperature", [0.0, -1.0])
