@@ -96,10 +96,16 @@ def check_area_deviation(
     ):
         edge.qc.area_pixels2 = float(area)
         edge.qc.relative_area_deviation = float(deviation)
-        if (
-            not np.isfinite(deviation)
-            or deviation > max_relative_deviation
-        ):
+        exceeds_threshold = (
+            deviation > max_relative_deviation
+            and not np.isclose(
+                deviation,
+                max_relative_deviation,
+                rtol=1e-12,
+                atol=1e-15,
+            )
+        )
+        if not np.isfinite(deviation) or exceeds_threshold:
             edge.qc.flags.add(QCFlag.AREA_DEVIATION)
         else:
             edge.qc.flags.discard(QCFlag.AREA_DEVIATION)
