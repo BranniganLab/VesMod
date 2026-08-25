@@ -7,11 +7,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from vesmod.EdgeMod import (
-    FixedFitRangeSelector,
-    Spectrum,
-    SpectrumFitConfig,
-)
+from vesmod.EdgeMod import Spectrum, SpectrumFitConfig
 from vesmod.EdgeMod.spectrum_utils import MiniSpectrum
 from vesmod.VesEdge import (
     EdgeDetection,
@@ -67,22 +63,10 @@ def test_init_from_vesicle_edges_uses_only_accepted_detections():
         enable_population_qc=False,
     )
 
-    accepted_contour = ImageContour(
-        (0.0, 0.0),
-        np.full(4, 4.0),
-    )
-    accepted = EdgeDetection(
-        accepted_contour,
-        accepted_contour,
-    )
-    rejected_contour = ImageContour(
-        (0.0, 0.0),
-        np.full(4, 18.0),
-    )
-    rejected = EdgeDetection(
-        rejected_contour,
-        rejected_contour,
-    )
+    accepted_contour = ImageContour((0.0, 0.0), np.full(4, 4.0))
+    accepted = EdgeDetection(accepted_contour, accepted_contour)
+    rejected_contour = ImageContour((0.0, 0.0), np.full(4, 18.0))
+    rejected = EdgeDetection(rejected_contour, rejected_contour)
     edges = VesicleEdges(
         extraction_config,
         [accepted, rejected, EdgeDetectionFailure("failure")],
@@ -107,22 +91,13 @@ def test_init_from_vesicle_edges_requires_qc():
         [EdgeDetection(contour, contour)],
     )
 
-    with pytest.raises(
-        ValueError,
-        match="Quality control has not been run",
-    ):
+    with pytest.raises(ValueError, match="Quality control has not been run"):
         Spectrum(edges)
 
 
 def test_init_applies_frame_cutoff_before_calculating_r0(tmp_path):
     """Test that frame_cutoff keeps only the requested first frames."""
-    r_vals = np.array(
-        [
-            [1.0, 1.0],
-            [3.0, 3.0],
-            [100.0, 100.0],
-        ]
-    )
+    r_vals = np.array([[1.0, 1.0], [3.0, 3.0], [100.0, 100.0]])
     infile = tmp_path / "edges.npy"
     np.save(infile, r_vals)
     spectrum = Spectrum(infile, frame_cutoff=2)
@@ -145,10 +120,7 @@ def test_init_rejects_non_npy_file(tmp_path):
 
 def test_init_rejects_invalid_edges_over_time_type():
     """Test that arbitrary objects are rejected as Spectrum input."""
-    with pytest.raises(
-        TypeError,
-        match="str, pathlib Path, or VesicleEdges",
-    ):
+    with pytest.raises(TypeError, match="str, pathlib Path, or VesicleEdges"):
         Spectrum(object())
 
 
@@ -167,21 +139,13 @@ def test_init_rejects_nonpositive_frame_cutoff(tmp_path):
     """Test that frame_cutoff must be positive."""
     infile = tmp_path / "edges.npy"
     np.save(infile, np.full((2, 4), 1.0))
-    with pytest.raises(
-        ValueError,
-        match="frame_cutoff must be a positive int",
-    ):
+    with pytest.raises(ValueError, match="frame_cutoff must be a positive int"):
         Spectrum(infile, frame_cutoff=0)
 
 
 def test_calc_avg_sq_amplitudes_matches_manual_fft_normalization(tmp_path):
     """Test FFT normalization and averaging against a manual calculation."""
-    r_vals = np.array(
-        [
-            [1.0, 2.0, 3.0, 4.0],
-            [2.0, 3.0, 4.0, 5.0],
-        ]
-    )
+    r_vals = np.array([[1.0, 2.0, 3.0, 4.0], [2.0, 3.0, 4.0, 5.0]])
     infile = tmp_path / "edges.npy"
     np.save(infile, r_vals)
     spectrum = Spectrum(infile)
@@ -196,10 +160,7 @@ def test_calc_avg_sq_amplitudes_matches_manual_fft_normalization(tmp_path):
         (expected_amps * expected_amps.conj()).real,
         axis=0,
     )
-    np.testing.assert_allclose(
-        spectrum.avg_amps2,
-        expected_avg_amps2,
-    )
+    np.testing.assert_allclose(spectrum.avg_amps2, expected_avg_amps2)
 
 
 def test_calc_integer_modes_returns_positive_then_negative_fft_modes(tmp_path):
@@ -223,10 +184,7 @@ def test_isolate_mode_range_includes_lower_bound_and_excludes_upper_bound():
 
     assert isinstance(isolated, MiniSpectrum)
     np.testing.assert_array_equal(isolated.modes, np.array([1, 2, 3]))
-    np.testing.assert_array_equal(
-        isolated.avg_amps2,
-        np.array([1.0, 2.0, 3.0]),
-    )
+    np.testing.assert_array_equal(isolated.avg_amps2, np.array([1.0, 2.0, 3.0]))
     assert isolated.std_amps2 is None
 
 
@@ -247,7 +205,7 @@ def test_extract_kc_from_fit_uses_config_and_saves_fit_results(monkeypatch):
     spectrum.avg_amps2 = np.array([0.0, 0.1, 0.2, 0.3, 0.4, 0.5])
     spectrum.kC = None
     spectrum.surface_tension = None
-    spectrum.fit_range_selection = None
+    spectrum.fit_result = None
     spectrum.fit_results = []
     calls = {}
 
@@ -256,9 +214,7 @@ def test_extract_kc_from_fit_uses_config_and_saves_fit_results(monkeypatch):
         calls["avg_amps2"] = fitting_range.avg_amps2.copy()
         calls["lmax"] = lmax
         calls["free_sigma"] = free_sigma
-        return SimpleNamespace(
-            best_values={"kC": 22.0, "sigma": 3.5},
-        )
+        return SimpleNamespace(best_values={"kC": 22.0, "sigma": 3.5})
 
     def fake_calc_tension_from_reduced_tension(
         r0,
@@ -266,12 +222,7 @@ def test_extract_kc_from_fit_uses_config_and_saves_fit_results(monkeypatch):
         kc,
         temperature,
     ):
-        calls["tension_args"] = (
-            r0,
-            reduced_tension,
-            kc,
-            temperature,
-        )
+        calls["tension_args"] = (r0, reduced_tension, kc, temperature)
         return 9.9
 
     monkeypatch.setattr(
@@ -287,10 +238,11 @@ def test_extract_kc_from_fit_uses_config_and_saves_fit_results(monkeypatch):
         fake_calc_tension_from_reduced_tension,
     )
     config = SpectrumFitConfig(
+        lower_bound=2,
+        upper_bound=5,
         lmax=123,
         free_sigma=True,
         temperature=310.0,
-        range_selector=FixedFitRangeSelector(2, 5),
     )
 
     kc, surface_tension = spectrum.extract_kc_from_fit(config)
@@ -318,7 +270,7 @@ def test_extract_kc_from_fit_uses_default_config(monkeypatch):
     spectrum.avg_amps2 = np.ones(9)
     spectrum.kC = None
     spectrum.surface_tension = None
-    spectrum.fit_range_selection = None
+    spectrum.fit_result = None
     spectrum.fit_results = []
     calls = {}
 
@@ -326,9 +278,7 @@ def test_extract_kc_from_fit_uses_default_config(monkeypatch):
         calls["modes"] = fitting_range.modes.copy()
         calls["lmax"] = lmax
         calls["free_sigma"] = free_sigma
-        return SimpleNamespace(
-            best_values={"kC": 20.0, "sigma": 2.0},
-        )
+        return SimpleNamespace(best_values={"kC": 20.0, "sigma": 2.0})
 
     monkeypatch.setattr(
         "vesmod.EdgeMod.spectrum.fit_spectrum_lmfit",
@@ -348,7 +298,30 @@ def test_extract_kc_from_fit_uses_default_config(monkeypatch):
     np.testing.assert_array_equal(calls["modes"], np.arange(3, 8))
     assert calls["lmax"] == 500
     assert calls["free_sigma"] is True
-    assert isinstance(fit.config.range_selector, FixedFitRangeSelector)
+    assert fit.config.lower_bound == 3
+    assert fit.config.upper_bound == 8
+
+
+def test_extract_kc_from_fit_rejects_empty_configured_range(monkeypatch):
+    """Test a fixed config containing no spectrum modes fails before fitting."""
+    spectrum = Spectrum.__new__(Spectrum)
+    spectrum.r0 = 10.0
+    spectrum.modes = np.arange(0, 6)
+    spectrum.avg_amps2 = np.ones(6)
+    spectrum.kC = None
+    spectrum.surface_tension = None
+    spectrum.fit_result = None
+    spectrum.fit_results = []
+
+    monkeypatch.setattr(
+        "vesmod.EdgeMod.spectrum.fit_spectrum_lmfit",
+        lambda *args: pytest.fail("Physical fitter should not run"),
+    )
+
+    with pytest.raises(ValueError, match="contains no spectrum modes"):
+        spectrum.extract_kc_from_fit(
+            SpectrumFitConfig(lower_bound=7, upper_bound=9)
+        )
 
 
 def test_to_dict_includes_arrays_when_requested():
