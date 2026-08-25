@@ -141,6 +141,31 @@ def test_check_edge_populations_uses_only_edges_that_pass_preceding_qc():
     assert rejected_edge.qc.population_probability is None
 
 
+
+def test_check_edge_populations_ignores_absolute_translation():
+    """Test camera panning cannot create populations at constant radius."""
+    edges = [
+        _make_edge(
+            origin=(100.0 * index, -50.0 * index),
+            radius=10.0,
+        )
+        for index in range(20)
+    ]
+
+    result = check_edge_populations(
+        edges,
+        bic_threshold=0.0,
+        max_minor_fraction=0.25,
+    )
+
+    assert not result.two_populations_detected
+    assert result.population_sizes == (20,)
+    assert all(edge.qc.population_label == 0 for edge in edges)
+    assert all(
+        QCFlag.POPULATION_OUTLIER not in edge.qc.flags
+        for edge in edges
+    )
+
 def test_check_edge_populations_keeps_one_population_when_bic_gain_is_insufficient():
     """Test that one population is retained when BIC improvement is too small."""
     edges = [
