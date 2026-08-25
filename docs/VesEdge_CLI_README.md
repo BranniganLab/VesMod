@@ -11,12 +11,9 @@ The intended workflow is:
         ▼
 QC-independent .npz checkpoints
         │
-        ├── vesedge qc with configuration A ──▶ filtered .npy files
-        ├── vesedge qc with configuration B ──▶ filtered .npy files
-        └── vesedge qc with configuration C ──▶ filtered .npy files
-                                                     │
-                                                     ▼
-                                                  EdgeMod
+        ├── vesedge qc with configuration A ──▶ filtered .npy files ──▶ EdgeMod
+        ├── vesedge qc with configuration B ──▶ filtered .npy files ──▶ EdgeMod
+        └── vesedge internal-structures ───────▶ interior measurements
 ```
 
 This allows expensive image processing to be run once while QC settings are evaluated repeatedly and reproducibly. Curvature is currently the only built-in frame-rejection rule.
@@ -303,6 +300,83 @@ edgemod ./results/qc_permissive
 ```
 
 The resulting EdgeMod estimates can be reported alongside each directory's `vesedge_qc.json` and `qc_summary.csv` to show whether the scientific conclusion depends strongly on QC choices.
+
+---
+
+# `vesedge internal-structures`
+
+`vesedge internal-structures` is an experimental measurement command independent of curvature QC. It reopens the source ND2 video recorded in each extraction checkpoint and measures bright and dark structures inside each successfully detected full contour. It does not reject edges, alter checkpoints, or assign vesicles to populations.
+
+Run one checkpoint:
+
+```bash
+vesedge internal-structures sample.npz \\
+    --output-dir ./results/internal_structures
+```
+
+Run a recursive checkpoint collection:
+
+```bash
+vesedge internal-structures ./checkpoints \\
+    --recursive \\
+    --output-dir ./results/internal_structures
+```
+
+The output directory must be outside the checkpoint directory. This prevents optional mask `.npz` files from being rediscovered as extraction checkpoints.
+
+## Experimental Parameters
+
+```bash
+vesedge internal-structures ./checkpoints \\
+    --output-dir ./results/internal_structures \\
+    --membrane-exclusion-px 5 \\
+    --background-sigma-px 8 \\
+    --threshold-sigma 4 \\
+    --min-region-area-px 9
+```
+
+- `--membrane-exclusion-px` erodes the detected interior so the membrane and its optical blur are not counted.
+- `--background-sigma-px` controls the spatial scale treated as smooth background. It should be larger than the structures of interest.
+- `--threshold-sigma` selects pixels whose absolute local residual exceeds the robust framewise noise estimate, allowing both bright and dark structures.
+- `--min-region-area-px` removes connected detections smaller than the requested pixel area.
+
+These defaults are starting values, not calibrated population boundaries. Compare diagnostic overlays across known empty and structured vesicles before interpreting absolute abundance values.
+
+## Source Videos
+
+The checkpoint records the original ND2 path. If videos have moved, place them in one directory and supply:
+
+```bash
+vesedge internal-structures ./checkpoints \\
+    --video-root /new/video/location \\
+    --output-dir ./results/internal_structures
+```
+
+The fallback matches each video by the filename stored in its checkpoint.
+
+## Outputs
+
+For `sample.npz`, the command writes:
+
+```text
+internal_structure_analysis.json
+internal_structure_summary.csv
+sample_frames.csv
+sample_regions.csv
+sample_internal_structures.gif
+```
+
+Use `--save-masks` to additionally write `sample_masks.npz`. It contains `structure_masks`, a compressed boolean array aligned with the original image coordinates, and `frame_indices`, which identifies the corresponding source frames. Frames without successful measurements are omitted rather than represented as false, structure-free masks.
+
+`sample_frames.csv` reports usable interior area, structured area, structured-area fraction, detected-region count, noise estimate, and status for every source frame. Extraction failures and measurement failures remain explicit rows.
+
+`sample_regions.csv` reports each connected region's bright/dark polarity, area, centroid, bounding box, and signed residual. Centroids and bounding boxes use original image coordinates, not cropped analysis coordinates.
+
+`internal_structure_summary.csv` contains one row per video with the median structured-area fraction, 90th-percentile structured-area fraction, and fraction of analyzed frames containing at least one retained region. These video-level measurements are intended as inputs to later population segmentation; the experimental command does not currently choose a present/absent cutoff.
+
+The diagnostic GIF overlays the detected regions and extracted contour on the original frames. Disable it with `--no-gif`.
+
+As with QC, incompatible provenance is rejected unless `--overwrite` is supplied. An incompatible overwrite removes only files managed by the previous internal-structure batch.
 
 ---
 
