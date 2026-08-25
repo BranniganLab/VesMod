@@ -117,6 +117,8 @@ def test_run_qc_records_aggregate_results(edges, qc_config):
     assert edges.qc_result.curvature is not None
     assert len(edges.qc_result.curvature.scores) == 2
     assert edges.qc_result.curvature.rejected_count == 0
+    assert edges.qc_result.area is not None
+    assert edges.qc_result.area.rejected_count == 0
 
 
 def test_run_qc_preserves_frame_indices(edges, qc_config):
