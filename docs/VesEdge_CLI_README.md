@@ -224,9 +224,9 @@ vesedge qc ./checkpoints \
     --output-dir ./results/qc_standard
 ```
 
-Population QC compares each successful detection's vesicle center and median analysis radius across the trajectory. A two-component Gaussian-mixture model is used only when enough usable detections are available.
+Population QC compares each successful detection's median analysis radius across the trajectory. Absolute center coordinates are deliberately excluded, so camera panning or vesicle diffusion cannot be interpreted as separate populations. A two-component Gaussian-mixture model is used only when enough usable detections are available.
 
-When population QC assigns detections to a fitted population, VesEdge also saves a three-panel histogram figure showing the unscaled features used for population fitting: center x, center y, and median analysis radius. Histogram groups use the fitted population labels and include each population size in the legend. The figure is generated from all detections that participated in population fitting, including any minor population later flagged as an outlier.
+When population QC assigns detections to a fitted population, VesEdge also saves a histogram of the unscaled median-radius values used for population fitting. Histogram groups use the fitted population labels and include each population size in the legend. The figure is generated from all detections that participated in population fitting, including any minor population later flagged as an outlier.
 
 Disable population QC with:
 
@@ -266,13 +266,7 @@ If a checkpoint completes QC but no frames are accepted, no `.npy` is written fo
 
 ### Population histogram PNGs
 
-A file named `<sample>.population_histograms.png` shows the three features used by population QC:
-
-- center x-coordinate in pixels;
-- center y-coordinate in pixels;
-- median analysis-contour radius in pixels.
-
-Each panel groups detections by their fitted population label and reports the population size in the legend. These figures are diagnostic outputs for understanding why a trajectory was treated as one or two populations and for tuning population-QC thresholds.
+A file named `<sample>.population_histograms.png` shows the median analysis-contour radius used by population QC. Detections are grouped by their fitted population label, and the legend reports each population size. This diagnostic explains why a trajectory was treated as one or two radius populations and supports tuning the population-QC thresholds.
 
 ### `vesedge_qc.json`
 
