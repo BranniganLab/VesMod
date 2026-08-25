@@ -59,24 +59,16 @@ def save_population_histograms(
         [edge.qc.population_label for edge in assigned_edges],
         dtype=int,
     )
-    feature_names = (
-        "Center x (pixels)",
-        "Center y (pixels)",
+
+    figure, axis = plt.subplots(figsize=(7, 5), constrained_layout=True)
+    _plot_feature_histogram(
+        axis,
+        features[:, 0],
+        labels,
         "Median radius (pixels)",
     )
 
-    figure, axes = plt.subplots(1, 3, figsize=(12, 4), constrained_layout=True)
-    for feature_index, (axis, feature_name) in enumerate(
-        zip(axes, feature_names, strict=True)
-    ):
-        _plot_feature_histogram(
-            axis,
-            features[:, feature_index],
-            labels,
-            feature_name,
-        )
-
-    figure.suptitle("Population QC feature distributions")
+    figure.suptitle("Population QC radius distribution")
     output_path = Path(path).with_suffix(".png")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     figure.savefig(output_path, dpi=150)
@@ -110,11 +102,7 @@ def _population_features(
     """Return the unscaled features used to fit population models."""
     return np.asarray(
         [
-            (
-                edge.full_contour.origin[0],
-                edge.full_contour.origin[1],
-                float(np.median(edge.analysis_contour.r)),
-            )
+            [float(np.median(edge.analysis_contour.r))]
             for edge in detections
         ],
         dtype=float,
