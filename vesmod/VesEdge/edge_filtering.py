@@ -14,8 +14,11 @@ from .models import (
 )
 from .vesicle_video_utils import measure_wrapped_finite_second_difference
 
-POPULATION_FEATURE_COUNT = 3
-MIN_POPULATION_SAMPLE_COUNT = 2 * (POPULATION_FEATURE_COUNT + 1)
+POPULATION_FEATURE_COUNT = 1
+MIN_POPULATION_SAMPLE_COUNT = max(
+    8,
+    2 * (POPULATION_FEATURE_COUNT + 1),
+)
 
 
 def check_curvature(
@@ -62,12 +65,13 @@ def check_edge_populations(
     bic_threshold: float,
     max_minor_fraction: float,
 ) -> EdgePopulationResult:
-    """Identify a small anomalous center/radius population across frames.
+    """Identify a small anomalous radius population across frames.
 
     Only successful detections that passed all preceding QC checks are
-    included. Each detection is represented by its image-space center and
-    median analysis-contour radius. Features are robustly scaled before
-    fitting one- and two-component Gaussian mixture models.
+    included. Each detection is represented by its median analysis-contour
+    radius. Absolute center coordinates are excluded so camera panning and
+    vesicle diffusion cannot create populations. Radius is robustly scaled
+    before fitting one- and two-component Gaussian mixture models.
 
     Raises
     ------
@@ -146,14 +150,10 @@ def _get_usable_edges(
 def _population_features(
     usable_edges: list[EdgeDetection],
 ) -> NDArray[np.float64]:
-    """Build and validate center/radius features for population QC."""
+    """Build and validate radius-only features for population QC."""
     features = np.asarray(
         [
-            (
-                edge.full_contour.origin[0],
-                edge.full_contour.origin[1],
-                float(np.median(edge.analysis_contour.r)),
-            )
+            [float(np.median(edge.analysis_contour.r))]
             for edge in usable_edges
         ],
         dtype=float,
@@ -161,7 +161,7 @@ def _population_features(
 
     if not np.all(np.isfinite(features)):
         raise ValueError(
-            "Center and radius values used for population QC must be finite."
+            "Radius values used for population QC must be finite."
         )
 
     return features
