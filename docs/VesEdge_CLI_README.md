@@ -19,7 +19,7 @@ QC-independent .npz checkpoints
                                                   EdgeMod
 ```
 
-This allows expensive image processing to be run once while QC settings are evaluated repeatedly and reproducibly. Curvature is currently the only built-in frame-rejection rule.
+This allows expensive image processing to be run once while QC settings are evaluated repeatedly and reproducibly. Built-in QC includes frame-level curvature and trajectory-relative contour-area checks.
 
 ## Quick Start
 
@@ -38,6 +38,7 @@ Apply one QC configuration:
 ```bash
 vesedge qc ./checkpoints \
     --curvature-threshold 5 \
+    --max-relative-area-deviation 0.25 \
     --output-dir ./results/qc_standard
 ```
 
@@ -217,6 +218,39 @@ With curvature QC disabled, every successfully extracted detection is exported. 
 
 VesEdge no longer performs GMM-based population QC. The removed options `--population-bic-threshold`, `--max-minor-population-fraction`, and `--no-population-qc` are invalid and produce an argument error. VesEdge does not currently attempt to identify dust-particle detections automatically; inspect extraction GIFs before downstream analysis.
 
+## Contour-Area Deviation QC
+
+Area QC detects frames in which the extracted contour encloses substantially more or less area than is typical for the same vesicle trajectory. For a full-resolution radial contour sampled uniformly in angle, VesEdge calculates:
+
+```text
+area = pi * mean(r**2)
+reference_area = median(area)
+relative_deviation = abs(area - reference_area) / reference_area
+```
+
+Using `mean(r**2)` retains noncircular contour variation and differs from approximating every contour as a circle using `mean(r)`. The metric uses the native extracted contour in pixel units; it is independent of analysis downsampling, microscope calibration, and internal-structure mask erosion.
+
+Set the largest accepted fractional deviation with:
+
+```bash
+vesedge qc ./checkpoints \
+    --max-relative-area-deviation 0.25 \
+    --output-dir ./results/qc_standard
+```
+
+Default: `0.25`. A deviation exactly equal to the threshold passes; a larger deviation fails.
+
+Disable this rule with:
+
+```bash
+vesedge qc ./checkpoints \
+    --no-area-qc \
+    --output-dir ./results/no_area_qc
+```
+
+The trajectory median assumes that most successful detections trace the correct object. The threshold is an absolute fractional change rather than a MAD-scaled z-score, so its meaning does not depend on how narrowly normal areas happen to vary. Compare the area diagnostic across representative acquisitions before treating the default as universal.
+
+
 ## QC Outputs
 
 For checkpoints `sample01.npz` and `sample02.npz`, the command:
@@ -231,6 +265,8 @@ normally creates:
 results/qc_standard/
 ├── sample01.npy
 ├── sample02.npy
+├── sample01.area_qc.png
+├── sample02.area_qc.png
 ├── vesedge_qc.json
 └── qc_summary.csv
 ```
@@ -249,7 +285,9 @@ This file records:
 - whether recursive discovery was enabled;
 - the resolved manifest of checkpoints selected for the batch;
 - `curvature_threshold`;
-- whether curvature QC was enabled.
+- whether curvature QC was enabled;
+- the maximum relative area deviation;
+- whether area QC was enabled.
 
 Consequently, recursive and non-recursive runs, or runs resolving to different checkpoint sets, have different provenance even if their QC thresholds are identical.
 
@@ -261,6 +299,7 @@ The summary contains one row per selected checkpoint with:
 - successful edge detections;
 - extraction failures;
 - curvature rejections;
+- area-deviation rejections;
 - accepted frames;
 - accepted fraction;
 - processing status;
@@ -268,7 +307,7 @@ The summary contains one row per selected checkpoint with:
 
 A checkpoint that cannot be loaded receives a `load_error` row with zero counts and the loading error. Therefore `qc_summary.csv` is still written when every selected checkpoint fails to load.
 
-This file is intended to make it easy to compare how aggressive different QC configurations are before comparing the downstream EdgeMod results.
+This file is intended to make it easy to compare how aggressive different QC configurations are before comparing the downstream EdgeMod results. Each `*.area_qc.png` plots native contour area by source frame together with the trajectory median and configured acceptance bounds.
 
 ## Existing Outputs and `--overwrite`
 
