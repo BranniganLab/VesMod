@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 
 import numpy as np
+import pytest
 
 from vesmod.VesEdge import EdgeDetection, ImageContour, InternalStructureRegion
 from vesmod.cli import internal_structures_cli, vesedge_cli
@@ -132,6 +133,60 @@ def test_resolve_video_path_can_relocate_recorded_source(tmp_path):
     resolved = internal_structures_cli._resolve_video_path(
         Path("/old/location/sample.nd2"),
         video_root,
+        tmp_path / "checkpoints" / "sample.npz",
     )
 
     assert resolved == replacement.resolve()
+
+
+def test_resolve_video_path_infers_legacy_checkpoint_sibling(tmp_path):
+    """Test a legacy checkpoint can infer a same-stem neighboring ND2 file."""
+    checkpoint = tmp_path / "sample.npz"
+    checkpoint.touch()
+    video = tmp_path / "sample.nd2"
+    video.touch()
+
+    resolved = internal_structures_cli._resolve_video_path(
+        None,
+        None,
+        checkpoint,
+    )
+
+    assert resolved == video.resolve()
+
+
+def test_resolve_video_path_infers_legacy_checkpoint_under_video_root(tmp_path):
+    """Test --video-root supports checkpoints without stored provenance."""
+    checkpoint = tmp_path / "checkpoints" / "sample.npz"
+    checkpoint.parent.mkdir()
+    checkpoint.touch()
+    nested_video_dir = tmp_path / "videos" / "nested"
+    nested_video_dir.mkdir(parents=True)
+    video = nested_video_dir / "sample.nd2"
+    video.touch()
+
+    resolved = internal_structures_cli._resolve_video_path(
+        None,
+        tmp_path / "videos",
+        checkpoint,
+    )
+
+    assert resolved == video.resolve()
+
+
+def test_resolve_video_path_rejects_ambiguous_legacy_matches(tmp_path):
+    """Test source inference never silently chooses between duplicate names."""
+    checkpoint = tmp_path / "checkpoints" / "sample.npz"
+    checkpoint.parent.mkdir()
+    checkpoint.touch()
+    video_root = tmp_path / "videos"
+    for directory in (video_root / "a", video_root / "b"):
+        directory.mkdir(parents=True)
+        (directory / "sample.nd2").touch()
+
+    with pytest.raises(ValueError, match="Multiple source videos match"):
+        internal_structures_cli._resolve_video_path(
+            None,
+            video_root,
+            checkpoint,
+        )
