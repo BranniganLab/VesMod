@@ -2,13 +2,20 @@
 
 import argparse
 import csv
+import json
 from pathlib import Path
 import sys
 
 import numpy as np
 import pytest
 
-from vesmod.VesEdge import EdgeDetection, ImageContour, InternalStructureRegion
+from vesmod.VesEdge import (
+    EdgeDetection,
+    EdgeQCConfig,
+    ImageContour,
+    InternalStructureRegion,
+    QCFlag,
+)
 from vesmod.cli import internal_structures_cli, vesedge_cli
 
 
@@ -19,6 +26,8 @@ def _args(tmp_path, checkpoint):
         recursive=False,
         output_dir=tmp_path / "output",
         video_root=None,
+        qc_results=None,
+        include_unqced=True,
         membrane_exclusion_px=5,
         background_sigma_px=8.0,
         threshold_sigma=4.0,
@@ -41,6 +50,7 @@ def test_parse_args_selects_internal_structures_subcommand(monkeypatch, tmp_path
             "--output-dir",
             str(tmp_path),
             "--save-masks",
+            "--include-unqced",
         ],
     )
 
@@ -109,6 +119,7 @@ def test_process_checkpoint_writes_measurements_in_original_coordinates(
         checkpoint,
         args,
         internal_structures_cli.config_from_args(args),
+        None,
     )
 
     with (args.output_dir / "sample_regions.csv").open() as region_file:
@@ -190,3 +201,93 @@ def test_resolve_video_path_rejects_ambiguous_legacy_matches(tmp_path):
             video_root,
             checkpoint,
         )
+
+
+def test_load_qc_selection_reconstructs_recorded_config(tmp_path):
+    """Test frame eligibility comes from the selected QC provenance."""
+    checkpoint = tmp_path / "checkpoints" / "sample.npz"
+    checkpoint.parent.mkdir()
+    checkpoint.touch()
+    qc_dir = tmp_path / "qc"
+    qc_dir.mkdir()
+    (qc_dir / "vesedge_qc.json").write_text(
+        json.dumps(
+            {
+                "checkpoint_manifest": [str(checkpoint.resolve())],
+                "qc_config": {
+                    "curvature_threshold": 7.0,
+                    "enable_curvature_qc": True,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    args = _args(tmp_path, checkpoint)
+    args.qc_results = qc_dir
+    args.include_unqced = False
+
+    config, provenance_path = internal_structures_cli._load_qc_selection(
+        args,
+        [checkpoint],
+    )
+
+    assert config.curvature_threshold == 7.0
+    assert provenance_path == (qc_dir / "vesedge_qc.json").resolve()
+
+
+def test_process_checkpoint_does_not_measure_qc_rejected_frame(
+    tmp_path,
+    monkeypatch,
+):
+    """Test rejected frames remain explicit and never reach the detector."""
+    checkpoint = tmp_path / "sample.npz"
+    checkpoint.touch()
+    video_path = tmp_path / "sample.nd2"
+    video_path.touch()
+    contour = ImageContour((5.0, 5.0), np.full(12, 3.0))
+    detection = EdgeDetection(contour, contour, frame_index=0)
+
+    class FakeEdges:
+        source_path = video_path
+        detections = [detection]
+        qc_result = None
+
+        def run_qc(self, config):
+            detection.qc.flags.add(next(iter(QCFlag)))
+            self.qc_result = object()
+            raise ValueError("no frames passed quality control")
+
+    monkeypatch.setattr(
+        internal_structures_cli.VesicleEdges,
+        "from_checkpoint",
+        lambda path: FakeEdges(),
+    )
+    monkeypatch.setattr(
+        internal_structures_cli.nd2,
+        "imread",
+        lambda path: np.zeros((1, 10, 10)),
+    )
+    monkeypatch.setattr(
+        internal_structures_cli,
+        "detect_internal_structures",
+        lambda frame, edge, config: pytest.fail(
+            "QC-rejected frame reached internal-structure detection"
+        ),
+    )
+    args = _args(tmp_path, checkpoint)
+    args.include_unqced = False
+    args.qc_results = tmp_path / "qc"
+
+    summary = internal_structures_cli.process_checkpoint(
+        checkpoint,
+        args,
+        internal_structures_cli.config_from_args(args),
+        EdgeQCConfig(curvature_threshold=5.0),
+    )
+
+    with (args.output_dir / "sample_frames.csv").open() as frame_file:
+        frame_row = next(csv.DictReader(frame_file))
+
+    assert frame_row["status"] == "qc_rejected"
+    assert summary["qc_rejected"] == 1
+    assert summary["analyzed_frames"] == 0
