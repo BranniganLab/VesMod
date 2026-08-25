@@ -265,7 +265,9 @@ normally creates:
 results/qc_standard/
 ├── sample01.npy
 ├── sample02.npy
+├── sample01.area_qc.csv
 ├── sample01.area_qc.png
+├── sample02.area_qc.csv
 ├── sample02.area_qc.png
 ├── vesedge_qc.json
 └── qc_summary.csv
@@ -307,7 +309,7 @@ The summary contains one row per selected checkpoint with:
 
 A checkpoint that cannot be loaded receives a `load_error` row with zero counts and the loading error. Therefore `qc_summary.csv` is still written when every selected checkpoint fails to load.
 
-This file is intended to make it easy to compare how aggressive different QC configurations are before comparing the downstream EdgeMod results. Each `*.area_qc.png` plots native contour area by source frame together with the trajectory median and configured acceptance bounds.
+This file is intended to make it easy to compare how aggressive different QC configurations are before comparing the downstream EdgeMod results. Each `*.area_qc.csv` records the exact native contour area, relative deviation, and area-QC decision by source frame. The corresponding `*.area_qc.png` plots those areas together with the trajectory median and configured acceptance bounds.
 
 ## Existing Outputs and `--overwrite`
 
