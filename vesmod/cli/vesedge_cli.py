@@ -316,8 +316,9 @@ def _remove_managed_qc_artifacts(output_dir: Path) -> None:
     """Remove filtered arrays and metadata managed by a previous QC batch."""
     for output_path in output_dir.rglob("*.npy"):
         output_path.unlink()
-    for output_path in output_dir.rglob("*.area_qc.png"):
-        output_path.unlink()
+    for pattern in ("*.area_qc.png", "*.area_qc.csv"):
+        for output_path in output_dir.rglob(pattern):
+            output_path.unlink()
     for filename in ("qc_summary.csv", "vesedge_qc.json"):
         output_path = output_dir / filename
         if output_path.exists():
@@ -440,12 +441,15 @@ def process_qc_file(
 
     row = _qc_summary(path, args.input_path, edges, status, qc_error)
     area_plot_path = output_path.with_suffix(".area_qc.png")
-    if (
+    area_csv_path = output_path.with_suffix(".area_qc.csv")
+    has_area_result = (
         edges.qc_result is not None
         and getattr(edges.qc_result, "area", None) is not None
-        and (args.overwrite or not area_plot_path.exists())
-    ):
+    )
+    if has_area_result and (args.overwrite or not area_plot_path.exists()):
         _save_area_qc_plot(area_plot_path, edges)
+    if has_area_result and (args.overwrite or not area_csv_path.exists()):
+        _write_area_qc_csv(area_csv_path, edges)
     if (
         status == "ok"
         and row["accepted"] > 0
@@ -453,6 +457,40 @@ def process_qc_file(
     ):
         edges.save_edge_to_npy(output_path)
     return row
+
+
+def _write_area_qc_csv(path: Path, edges: VesicleEdges) -> None:
+    """Write exact per-frame contour-area QC measurements."""
+    area_result = edges.qc_result.area
+    rows = []
+    for detection, area, deviation in zip(
+        edges.successful_detections,
+        area_result.areas_pixels2,
+        area_result.relative_deviations,
+        strict=True,
+    ):
+        rows.append(
+            {
+                "frame_index": detection.frame_index,
+                "area_pixels2": area,
+                "relative_area_deviation": deviation,
+                "area_rejected": (
+                    QCFlag.AREA_DEVIATION in detection.qc.flags
+                ),
+            }
+        )
+    with path.open("w", newline="", encoding="utf-8") as output_file:
+        writer = csv.DictWriter(
+            output_file,
+            fieldnames=[
+                "frame_index",
+                "area_pixels2",
+                "relative_area_deviation",
+                "area_rejected",
+            ],
+        )
+        writer.writeheader()
+        writer.writerows(rows)
 
 
 def _save_area_qc_plot(path: Path, edges: VesicleEdges) -> None:
