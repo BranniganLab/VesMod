@@ -128,7 +128,7 @@ results/qc_standard/
 └── qc_summary.csv
 ```
 
-`vesedge_qc.json` records the exact QC configuration and input selection. `qc_summary.csv` reports extraction failures, curvature rejections, accepted-frame counts, and accepted fractions for each checkpoint. Curvature is currently VesEdge's only built-in frame-rejection rule.
+`vesedge_qc.json` records the exact QC configuration and input selection. `qc_summary.csv` reports extraction failures, curvature rejections, area-deviation rejections, accepted-frame counts, and accepted fractions for each checkpoint. Each trajectory also receives an area-versus-frame diagnostic plot.
 
 ### 3. Compare alternate QC configurations
 
