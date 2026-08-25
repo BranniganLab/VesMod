@@ -1,5 +1,7 @@
 """Tests for experimental absolute temporal-RMS screening."""
 
+import json
+
 import numpy as np
 import pytest
 
@@ -45,3 +47,21 @@ def test_temporal_rms_config_rejects_invalid_cutoff(cutoff):
     """Test cutoff values must be finite and non-negative."""
     with pytest.raises(ValueError):
         TemporalRMSConfig(cutoff_nm=cutoff)
+
+
+def test_temporal_rms_config_serializes_numpy_scalars():
+    """Test NumPy scalar configuration values serialize as JSON primitives."""
+    config = TemporalRMSConfig(
+        np.int64(3),
+        np.int64(8),
+        np.float32(1),
+    )
+
+    serialized = config.to_dict()
+
+    assert serialized == {
+        "lower_bound": 3,
+        "upper_bound": 8,
+        "cutoff_nm": 1.0,
+    }
+    assert json.loads(json.dumps(serialized)) == serialized
