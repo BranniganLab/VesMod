@@ -37,6 +37,8 @@ def _qc_args(tmp_path, input_path=Path("sample.npz")) -> argparse.Namespace:
         overwrite=True,
         curvature_threshold=5.0,
         no_curvature_qc=False,
+        max_relative_area_deviation=0.25,
+        no_area_qc=False,
     )
 
 
@@ -82,6 +84,8 @@ def test_parse_args_selects_qc_subcommand(monkeypatch, tmp_path):
     assert args.input_path == Path("checkpoints")
     assert args.output_dir == tmp_path
     assert args.no_curvature_qc
+    assert args.max_relative_area_deviation == pytest.approx(0.25)
+    assert not args.no_area_qc
 
 
 @pytest.mark.parametrize(
@@ -343,6 +347,7 @@ def test_process_qc_file_returns_load_error_summary(tmp_path, monkeypatch):
         "successful_detections": 0,
         "extraction_failures": 0,
         "curvature_rejected": 0,
+        "area_rejected": 0,
         "accepted": 0,
         "accepted_fraction": 0.0,
         "status": "load_error",
@@ -440,6 +445,7 @@ def test_write_qc_summary_writes_batch_csv(tmp_path):
             "successful_detections": 9,
             "extraction_failures": 1,
             "curvature_rejected": 2,
+            "area_rejected": 1,
             "accepted": 7,
             "accepted_fraction": 7 / 9,
             "status": "ok",
@@ -452,6 +458,7 @@ def test_write_qc_summary_writes_batch_csv(tmp_path):
     summary = (tmp_path / "qc_summary.csv").read_text()
     assert "sample.npz" in summary
     assert "curvature_rejected" in summary
+    assert "area_rejected" in summary
     assert ",7," in summary
 
 
