@@ -88,7 +88,7 @@ def test_parse_args_selects_qc_subcommand(monkeypatch, tmp_path):
     assert args.input_path == Path("checkpoints")
     assert args.output_dir == tmp_path
     assert args.no_curvature_qc
-    assert args.experimental_radius_deviation_threshold is None
+    assert args.radius_deviation_threshold is None
 
 
 def test_parse_args_accepts_experimental_radius_screen(monkeypatch, tmp_path):
@@ -102,7 +102,7 @@ def test_parse_args_accepts_experimental_radius_screen(monkeypatch, tmp_path):
             "checkpoints",
             "--output-dir",
             str(tmp_path),
-            "--experimental-radius-deviation-threshold",
+            "--radius-deviation-threshold",
             "0.2",
         ],
     )

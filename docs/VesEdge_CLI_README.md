@@ -224,7 +224,7 @@ To reject detections of an object whose radius is clearly inconsistent with the 
 ```bash
 vesedge qc ./checkpoints \
     --curvature-threshold 5 \
-    --experimental-radius-deviation-threshold 0.2 \
+    --radius-deviation-threshold 0.2 \
     --output-dir ./results/qc_radius_screen
 ```
 

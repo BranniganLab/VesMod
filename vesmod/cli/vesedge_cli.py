@@ -157,7 +157,7 @@ def _add_qc_parser(subparsers) -> None:
         help="Disable frame-level curvature QC.",
     )
     parser.add_argument(
-        "--experimental-radius-deviation-threshold",
+        "--radius-deviation-threshold",
         type=float,
         default=None,
         help=(
@@ -302,7 +302,7 @@ def _radius_deviation_config_from_args(
     """Build the optional experimental radius-screen configuration."""
     threshold = getattr(
         args,
-        "experimental_radius_deviation_threshold",
+        "radius_deviation_threshold",
         None,
     )
     if threshold is None:

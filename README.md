@@ -136,7 +136,7 @@ An experimental, order-independent dust screen can be composed after curvature Q
 ```bash
 vesedge qc ./checkpoints \
     --curvature-threshold 5 \
-    --experimental-radius-deviation-threshold 0.2 \
+    --radius-deviation-threshold 0.2 \
     --output-dir ./results/qc_radius_screen
 ```
 
