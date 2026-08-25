@@ -16,13 +16,12 @@ class SpectrumFitConfig:
     q range. Experimental procedures may choose those bounds upstream, but the
     physical fitter does not depend on how they were selected.
 
+    The historical positional order of ``lmax``, ``free_sigma``, and
+    ``temperature`` is retained for compatibility. New q-bound fields follow
+    those existing parameters.
+
     Parameters
     ----------
-    lower_bound : int, default=3
-        Inclusive lowest Fourier mode used for the physical fit.
-    upper_bound : int, default=8
-        Exclusive upper Fourier-mode bound. The defaults therefore fit
-        q = 3, 4, 5, 6, 7.
     lmax : int, default=500
         Maximum summation index in the theoretical spectrum model.
     free_sigma : bool, default=True
@@ -30,13 +29,18 @@ class SpectrumFitConfig:
     temperature : float, default=295.0
         Finite, positive experimental temperature in Kelvin used when
         converting reduced tension to surface tension.
+    lower_bound : int, default=3
+        Inclusive lowest Fourier mode used for the physical fit.
+    upper_bound : int, default=8
+        Exclusive upper Fourier-mode bound. The defaults therefore fit
+        q = 3, 4, 5, 6, 7.
     """
 
-    lower_bound: int = 3
-    upper_bound: int = 8
     lmax: int = 500
     free_sigma: bool = True
     temperature: float = 295.0
+    lower_bound: int = 3
+    upper_bound: int = 8
 
     def __post_init__(self) -> None:
         """Validate physical-fit parameters."""
@@ -69,9 +73,9 @@ class SpectrumFitConfig:
     def to_dict(self) -> dict:
         """Return physical-fit settings in JSON-serializable form."""
         return {
-            "lower_bound": int(self.lower_bound),
-            "upper_bound": int(self.upper_bound),
             "lmax": int(self.lmax),
             "free_sigma": self.free_sigma,
             "temperature": float(self.temperature),
+            "lower_bound": int(self.lower_bound),
+            "upper_bound": int(self.upper_bound),
         }
