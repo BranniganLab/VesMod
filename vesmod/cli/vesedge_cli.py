@@ -1,4 +1,4 @@
-"""Command-line interface for VesEdge extraction and quality control."""
+"""Command-line interface for VesEdge extraction and independent analyses."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ from pathlib import Path
 
 import nd2
 
+from . import internal_structures_cli
 from vesmod.VesEdge import (
     EdgeExtractionConfig,
     EdgeQCConfig,
@@ -32,6 +33,7 @@ def parse_args() -> argparse.Namespace:
     subparsers = parser.add_subparsers(dest="command", required=True)
     _add_extract_parser(subparsers)
     _add_qc_parser(subparsers)
+    internal_structures_cli.add_parser(subparsers)
     return parser.parse_args()
 
 
@@ -480,8 +482,10 @@ def main() -> None:
     args = parse_args()
     if args.command == "extract":
         _run_extract(args)
-    else:
+    elif args.command == "qc":
         _run_qc(args)
+    else:
+        internal_structures_cli.run(args)
 
 
 if __name__ == "__main__":
