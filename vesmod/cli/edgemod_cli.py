@@ -376,6 +376,10 @@ def _remove_temporal_rms_artifacts(
     provenance: dict,
 ) -> None:
     """Remove only files recorded by a validated prior temporal-RMS batch."""
+    if not isinstance(provenance, dict):
+        raise ValueError(
+            "Existing temporal-RMS metadata is invalid; refusing to remove files."
+        )
     exported_files = provenance.get("exported_files")
     if (
         provenance.get("experimental_method") != "temporal_rms"
