@@ -91,7 +91,7 @@ def add_parser(subparsers) -> None:
     parser.add_argument(
         "--overwrite",
         action="store_true",
-        help="Overwrite outputs from a different measurement configuration.",
+        help="Replace outputs from a different measurement configuration.",
     )
 
 
@@ -107,6 +107,7 @@ def config_from_args(args: argparse.Namespace) -> InternalStructureConfig:
 
 def run(args: argparse.Namespace) -> None:
     """Measure internal structures for the selected checkpoints."""
+    _validate_input_output_paths(args.input_path, args.output_dir)
     paths = _iter_checkpoints(args.input_path, args.recursive)
     if not paths:
         raise FileNotFoundError(f"No .npz files found in {args.input_path}")
@@ -398,16 +399,38 @@ def _write_provenance(
     }
     if provenance_path.exists():
         existing = json.loads(provenance_path.read_text(encoding="utf-8"))
-        if existing != provenance and not args.overwrite:
-            raise ValueError(
-                "Output directory contains internal-structure results from a "
-                "different input selection or configuration. Choose another "
-                "--output-dir or use --overwrite."
-            )
+        if existing != provenance:
+            if not args.overwrite:
+                raise ValueError(
+                    "Output directory contains internal-structure results from "
+                    "a different input selection or configuration. Choose "
+                    "another --output-dir or use --overwrite."
+                )
+            _remove_managed_outputs(args.output_dir)
     provenance_path.write_text(
         json.dumps(provenance, indent=2) + "\n",
         encoding="utf-8",
     )
+
+
+def _remove_managed_outputs(output_dir: Path) -> None:
+    """Remove only files managed by an earlier measurement batch."""
+    patterns = (
+        "*_frames.csv",
+        "*_regions.csv",
+        "*_masks.npz",
+        "*_internal_structures.gif",
+    )
+    for pattern in patterns:
+        for path in output_dir.rglob(pattern):
+            path.unlink()
+    for filename in (
+        "internal_structure_summary.csv",
+        "internal_structure_analysis.json",
+    ):
+        path = output_dir / filename
+        if path.exists():
+            path.unlink()
 
 
 def _write_csv(path: Path, rows: list[dict], fieldnames: list[str]) -> None:
@@ -434,6 +457,22 @@ def _iter_checkpoints(input_path: Path, recursive: bool) -> list[Path]:
         for path in resolved.glob(pattern)
         if path.is_file() and path.suffix.lower() == ".npz"
     )
+
+
+def _validate_input_output_paths(input_path: Path, output_dir: Path) -> None:
+    """Prevent generated masks from being rediscovered as checkpoints."""
+    resolved_input = input_path.expanduser().resolve()
+    input_directory = (
+        resolved_input if resolved_input.is_dir() else resolved_input.parent
+    )
+    resolved_output = output_dir.expanduser().resolve()
+    if resolved_output == input_directory or resolved_output.is_relative_to(
+        input_directory
+    ):
+        raise ValueError(
+            "Internal-structure output directory must be outside the selected "
+            "checkpoint directory."
+        )
 
 
 def _relative_input_path(path: Path, input_path: Path) -> Path:
