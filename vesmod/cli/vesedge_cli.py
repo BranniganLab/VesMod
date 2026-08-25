@@ -19,7 +19,6 @@ from vesmod.VesEdge import (
     VesicleEdges,
     VesicleVideo,
 )
-from vesmod.VesEdge.population_plotting import save_population_histograms
 
 
 def parse_args() -> argparse.Namespace:
@@ -147,32 +146,9 @@ def _add_qc_parser(subparsers) -> None:
         ),
     )
     parser.add_argument(
-        "--population-bic-threshold",
-        type=float,
-        default=10.0,
-        help=(
-            "Minimum BIC improvement required to prefer two center/radius "
-            "populations. Default: 10."
-        ),
-    )
-    parser.add_argument(
-        "--max-minor-population-fraction",
-        type=float,
-        default=0.25,
-        help=(
-            "Maximum fraction assigned to a minor population for automatic "
-            "rejection. Default: 0.25."
-        ),
-    )
-    parser.add_argument(
         "--no-curvature-qc",
         action="store_true",
         help="Disable frame-level curvature QC.",
-    )
-    parser.add_argument(
-        "--no-population-qc",
-        action="store_true",
-        help="Disable trajectory-level center/radius population QC.",
     )
     parser.add_argument(
         "--overwrite",
@@ -300,10 +276,7 @@ def _qc_config_from_args(args: argparse.Namespace) -> EdgeQCConfig:
     """Build the QC configuration requested on the command line."""
     return EdgeQCConfig(
         curvature_threshold=args.curvature_threshold,
-        population_bic_threshold=args.population_bic_threshold,
-        max_minor_population_fraction=args.max_minor_population_fraction,
         enable_curvature_qc=not args.no_curvature_qc,
-        enable_population_qc=not args.no_population_qc,
     )
 
 
@@ -324,9 +297,8 @@ def _qc_provenance(
 
 def _remove_managed_qc_artifacts(output_dir: Path) -> None:
     """Remove filtered arrays and metadata managed by a previous QC batch."""
-    for pattern in ("*.npy", "*.population_histograms.png"):
-        for output_path in output_dir.rglob(pattern):
-            output_path.unlink()
+    for output_path in output_dir.rglob("*.npy"):
+        output_path.unlink()
     for filename in ("qc_summary.csv", "vesedge_qc.json"):
         output_path = output_dir / filename
         if output_path.exists():
@@ -377,10 +349,6 @@ def _qc_summary(
         QCFlag.CURVATURE in detection.qc.flags
         for detection in successful
     )
-    population_rejected = sum(
-        QCFlag.POPULATION_OUTLIER in detection.qc.flags
-        for detection in successful
-    )
     accepted = sum(detection.qc.passed for detection in successful)
     return {
         "file": str(_relative_input_path(path, input_path)),
@@ -388,7 +356,6 @@ def _qc_summary(
         "successful_detections": len(successful),
         "extraction_failures": len(edges.detections) - len(successful),
         "curvature_rejected": curvature_rejected,
-        "population_rejected": population_rejected,
         "accepted": accepted,
         "accepted_fraction": accepted / len(successful),
         "status": status,
@@ -404,7 +371,6 @@ def _load_error_summary(path: Path, input_path: Path, error: str) -> dict:
         "successful_detections": 0,
         "extraction_failures": 0,
         "curvature_rejected": 0,
-        "population_rejected": 0,
         "accepted": 0,
         "accepted_fraction": 0.0,
         "status": "load_error",
@@ -447,19 +413,6 @@ def process_qc_file(
             status = "no_accepted_frames"
             print(f"QC produced no accepted frames for {path.name}: {error}")
 
-    population_figure_path = output_path.with_suffix(
-        ".population_histograms.png"
-    )
-    if (
-        edges.qc_result is not None
-        and getattr(edges.qc_result, "population", None) is not None
-        and (args.overwrite or not population_figure_path.exists())
-    ):
-        save_population_histograms(
-            edges.detections,
-            population_figure_path,
-        )
-
     row = _qc_summary(path, args.input_path, edges, status, qc_error)
     if (
         status == "ok"
@@ -479,7 +432,6 @@ def _write_qc_summary(output_dir: Path, rows: list[dict]) -> None:
         "successful_detections",
         "extraction_failures",
         "curvature_rejected",
-        "population_rejected",
         "accepted",
         "accepted_fraction",
         "status",

@@ -78,22 +78,12 @@ def test_edge_extraction_config_allows_no_downsampling():
             {"curvature_threshold": -1.0},
             "curvature_threshold must be non-negative",
         ),
-        (
-            {"population_bic_threshold": np.nan},
-            "population_bic_threshold must be finite",
-        ),
-        (
-            {"max_minor_population_fraction": 0.5},
-            "max_minor_population_fraction must be greater than or equal to 0 and less than 0.5",
-        ),
     ],
 )
 def test_edge_qc_config_rejects_invalid_values(kwargs, match):
     """Test representative invalid QC configuration values."""
     config_values = {
         "curvature_threshold": 5.0,
-        "population_bic_threshold": 10.0,
-        "max_minor_population_fraction": 0.25,
     }
     config_values.update(kwargs)
 

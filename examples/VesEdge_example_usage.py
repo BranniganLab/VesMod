@@ -55,21 +55,16 @@ for file in glob.glob(fpath + "*.nd2", recursive=True):
 # Later, load the same checkpoint and evaluate it under any QC configuration.
 qc_config = EdgeQCConfig(
     curvature_threshold=10,
-    population_bic_threshold=10,
-    max_minor_population_fraction=0.25,
 )
 
 # edges = VesicleEdges.from_checkpoint("YOUR/PATH/HERE/sample.npz")
 # edges.run_qc(qc_config)
 # print(edges.qc_result.curvature)
-# print(edges.qc_result.population)
 # edges.save_edge_to_npy("YOUR/PATH/HERE/results/qc_standard/sample.npy")
 
 # Evaluate the same checkpoint again without rerunning extraction.
 # permissive_qc = EdgeQCConfig(
 #     curvature_threshold=15,
-#     population_bic_threshold=10,
-#     max_minor_population_fraction=0.25,
 # )
 # edges.run_qc(permissive_qc)
 # edges.save_edge_to_npy("YOUR/PATH/HERE/results/qc_permissive/sample.npy")

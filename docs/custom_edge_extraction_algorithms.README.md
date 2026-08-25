@@ -196,8 +196,6 @@ edges = VesicleEdges.from_checkpoint("sample.npz")
 edges.run_qc(
     EdgeQCConfig(
         curvature_threshold=10.0,
-        population_bic_threshold=10.0,
-        max_minor_population_fraction=0.25,
     )
 )
 edges.save_edge_to_npy("sample.npy")

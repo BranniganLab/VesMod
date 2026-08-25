@@ -39,7 +39,6 @@ dependencies = [
     "nd2",
     "scipy",
     "lmfit",
-    "scikit-learn",
 ]
 
 [project.urls]

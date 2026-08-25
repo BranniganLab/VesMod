@@ -67,25 +67,12 @@ class EdgeQCConfig:
     curvature_threshold : float
         Maximum allowed absolute wrapped finite second difference of an
         analysis contour.
-    population_bic_threshold : float
-        Minimum improvement in Bayesian information criterion (BIC) required
-        for a two-population Gaussian mixture model to be preferred over a
-        one-population model.
-    max_minor_population_fraction : float
-        Maximum fraction of otherwise accepted detections that may belong to
-        the smaller population for that population to be automatically
-        rejected.
     enable_curvature_qc : bool
         Whether frame-level curvature QC runs. Default is True.
-    enable_population_qc : bool
-        Whether trajectory-level population QC runs. Default is True.
     """
 
     curvature_threshold: float
-    population_bic_threshold: float
-    max_minor_population_fraction: float
     enable_curvature_qc: bool = True
-    enable_population_qc: bool = True
 
     def __post_init__(self) -> None:
         """Validate quality-control configuration parameters.
@@ -100,15 +87,3 @@ class EdgeQCConfig:
         if self.curvature_threshold < 0:
             raise ValueError("curvature_threshold must be non-negative.")
 
-        if not np.isfinite(self.population_bic_threshold):
-            raise ValueError("population_bic_threshold must be finite.")
-        if self.population_bic_threshold < 0:
-            raise ValueError("population_bic_threshold must be non-negative.")
-
-        if not np.isfinite(self.max_minor_population_fraction):
-            raise ValueError("max_minor_population_fraction must be finite.")
-        if not 0 <= self.max_minor_population_fraction < 0.5:
-            raise ValueError(
-                "max_minor_population_fraction must be greater than or "
-                "equal to 0 and less than 0.5."
-            )

@@ -19,7 +19,6 @@ Features include:
 * User-supplied edge extraction algorithms
 * Reusable `.npz` extraction checkpoints
 * Frame-level curvature quality control
-* Trajectory-level center/radius population quality control
 * Rerunnable QC without repeating edge extraction
 * QC provenance and batch-summary outputs
 * Optional angular downsampling
@@ -124,8 +123,6 @@ Use a separate output directory for each QC configuration:
 ```bash
 vesedge qc ./checkpoints \
     --curvature-threshold 5 \
-    --population-bic-threshold 10 \
-    --max-minor-population-fraction 0.25 \
     --output-dir ./results/qc_standard
 ```
 
@@ -134,14 +131,12 @@ This creates:
 ```text
 results/qc_standard/
 ├── sample01.npy
-├── sample01.population_histograms.png
 ├── sample02.npy
-├── sample02.population_histograms.png
 ├── vesedge_qc.json
 └── qc_summary.csv
 ```
 
-`vesedge_qc.json` records the exact QC configuration and input path. `qc_summary.csv` reports extraction failures, curvature rejections, population rejections, accepted-frame counts, and accepted fractions for each checkpoint. When population QC is enabled, each `.population_histograms.png` figure shows the fitted populations across center x, center y, and median radius.
+`vesedge_qc.json` records the exact QC configuration and input path. `qc_summary.csv` reports extraction failures, curvature rejections, accepted-frame counts, and accepted fractions for each checkpoint.
 
 ### 3. Compare alternate QC configurations
 
@@ -212,8 +207,6 @@ edges = VesicleEdges.from_checkpoint("sample.npz")
 
 qc_config = EdgeQCConfig(
     curvature_threshold=10.0,
-    population_bic_threshold=10.0,
-    max_minor_population_fraction=0.25,
 )
 
 edges.run_qc(qc_config)
@@ -271,7 +264,6 @@ Both successful physical fits remain available in `spectrum.fit_results`. Each `
 | `.npz` | Reusable, QC-independent VesEdge extraction checkpoint |
 | `.gif` | Visual inspection of raw image frames with extracted contours |
 | `.npy` | Accepted contour radii for one QC configuration, ready for EdgeMod |
-| `.population_histograms.png` | Center and radius distributions grouped by the population-QC assignments |
 | `vesedge_qc.json` | QC configuration and source path for one QC batch |
 | `qc_summary.csv` | Per-video QC counts and accepted fractions for one QC batch |
 | `.spectrum_diagnostic.png` | Measured spectrum, attempted fit, compensated spectrum, and fit residuals |
