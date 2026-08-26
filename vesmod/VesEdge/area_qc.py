@@ -58,13 +58,15 @@ def check_area_deviation(
     Returns
     -------
     AreaQCResult
-        Areas, trajectory reference, deviations, and rejection count.
+        Areas, trajectory reference, deviations, and rejection count. The
+        reference area and deviations are ``nan`` when no curvature-passing
+        contour has a finite, positive area; non-finite and nonpositive areas
+        are excluded from the reference candidates.
 
     Raises
     ------
     ValueError
-        If no detections are supplied, the threshold is invalid, or no finite
-        positive contour area is available as a reference.
+        If no detections are supplied or the threshold is invalid.
     """
     if not detections:
         raise ValueError("Area QC requires at least one successful detection.")
