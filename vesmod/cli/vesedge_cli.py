@@ -259,7 +259,7 @@ def process_extract_file(path: Path, args: argparse.Namespace) -> None:
     gif_path = output_base.with_suffix(".gif")
 
     if checkpoint_path.exists() and not args.overwrite:
-        print(f"Skipping {path.expanduser().resolve()}: checkpoint already exists: {checkpoint_path.expanduser().resolve()}")
+        print(f"Skipping {_display_path(path)}: checkpoint already exists: {_display_path(checkpoint_path)}")
         return
 
     if args.extractor_file is not None:
@@ -270,7 +270,7 @@ def process_extract_file(path: Path, args: argparse.Namespace) -> None:
     else:
         extractor_func = load_extractor_from_module(args.extractor)
 
-    print(f"Extracting {path.expanduser().resolve()}")
+    print(f"Extracting {_display_path(path)}")
     intensities = nd2.imread(path)
     extraction_config = EdgeExtractionConfig(
         pixels_per_micron=args.pixels_per_micron,
@@ -283,7 +283,7 @@ def process_extract_file(path: Path, args: argparse.Namespace) -> None:
         edges = video.extract_edges(extractor_func, extraction_config)
         edges.save_checkpoint(checkpoint_path)
     except (IndexError, ValueError) as error:
-        print(f"Failed to extract {path.expanduser().resolve()}: {error}")
+        print(f"Failed to extract {_display_path(path)}: {error}")
         return
 
     if not args.no_gif and (args.overwrite or not gif_path.exists()):
@@ -426,13 +426,13 @@ def process_qc_file(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_exists = output_path.exists()
     if output_exists and not args.overwrite:
-        print(f"Keeping existing output for {path.expanduser().resolve()}: {output_path.expanduser().resolve()}")
+        print(f"Keeping existing output for {_display_path(path)}: {_display_path(output_path)}")
 
     try:
         edges = VesicleEdges.from_checkpoint(path)
     except (FileNotFoundError, ValueError) as error:
         message = str(error)
-        print(f"Failed to load {path.expanduser().resolve()}: {message}")
+        print(f"Failed to load {_display_path(path)}: {message}")
         return _load_error_summary(path, args.input_path, message)
 
     status = "ok"
@@ -443,10 +443,10 @@ def process_qc_file(
         qc_error = str(error)
         if edges.qc_result is None:
             status = "qc_error"
-            print(f"QC failed for {path.expanduser().resolve()}: {error}")
+            print(f"QC failed for {_display_path(path)}: {error}")
         else:
             status = "no_accepted_frames"
-            print(f"QC produced no accepted frames for {path.expanduser().resolve()}: {error}")
+            print(f"QC produced no accepted frames for {_display_path(path)}: {error}")
 
     if status == "no_accepted_frames" and args.overwrite and output_exists:
         output_path.unlink()
