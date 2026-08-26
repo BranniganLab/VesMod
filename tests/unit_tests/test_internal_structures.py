@@ -76,7 +76,8 @@ def test_dark_closed_edge_fills_neutral_bubble_interior():
     result = detect_internal_structures(frame, _circular_contour(), _config())
 
     assert result.bubble_count == 1
-    assert result.bubble_region_mask[65, 70]
+    full_bubble_mask = result.to_full_frame_channel_mask("bubble")
+    assert full_bubble_mask[65, 70]
     assert result.bubble_area_fraction > 0.0
     assert any(region.structure_type == "bubble" for region in result.regions)
 
@@ -115,4 +116,3 @@ def test_video_summary_retains_channel_specific_population_features():
     assert summary.frame_prevalence == 0.5
     assert summary.upper_area_fraction > summary.median_area_fraction
     assert summary.median_light_area_fraction > 0.0
-

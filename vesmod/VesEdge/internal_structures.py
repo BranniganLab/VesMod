@@ -16,11 +16,7 @@ from scipy import ndimage
 from skimage.draw import polygon
 from skimage.measure import label, regionprops
 from skimage.morphology import (
-    binary_closing,
-    binary_dilation,
-    binary_erosion,
     disk,
-    remove_small_objects,
     skeletonize,
 )
 
@@ -210,11 +206,42 @@ class InternalStructureFrameResult:
 
     def to_full_frame_mask(self) -> NDArray[np.bool_]:
         """Map the cropped structure mask back to the original image."""
+        return self._to_full_frame_mask(self.structure_mask)
+
+    def to_full_frame_channel_mask(
+        self,
+        structure_type: str,
+    ) -> NDArray[np.bool_]:
+        """Map one named structure channel back to the original image.
+
+        Parameters
+        ----------
+        structure_type : str
+            One of light_region, dark_filament, or bubble.
+        """
+        channel_masks = {
+            "light_region": self.light_region_mask,
+            "dark_filament": self.dark_filament_mask,
+            "bubble": self.bubble_region_mask,
+        }
+        if structure_type not in channel_masks:
+            expected = ", ".join(channel_masks)
+            raise ValueError(
+                f"Unknown structure_type {structure_type!r}; expected {expected}."
+            )
+        mask = self._channel_mask(channel_masks[structure_type])
+        return self._to_full_frame_mask(mask)
+
+    def _to_full_frame_mask(
+        self,
+        crop_mask: NDArray[np.bool_],
+    ) -> NDArray[np.bool_]:
+        """Map one cropped mask back to the original image."""
         full_mask = np.zeros(self.original_shape, dtype=bool)
         y_start, x_start = self.crop_origin_yx
-        y_stop = y_start + self.structure_mask.shape[0]
-        x_stop = x_start + self.structure_mask.shape[1]
-        full_mask[y_start:y_stop, x_start:x_stop] = self.structure_mask
+        y_stop = y_start + crop_mask.shape[0]
+        x_stop = x_start + crop_mask.shape[1]
+        full_mask[y_start:y_stop, x_start:x_stop] = crop_mask
         return full_mask
 
 
@@ -413,9 +440,9 @@ def _exclude_membrane(
     """Erode the contour mask by the configured membrane margin."""
     if config.membrane_exclusion_px == 0:
         return interior_mask.copy()
-    return binary_erosion(
+    return ndimage.binary_erosion(
         interior_mask,
-        footprint=disk(config.membrane_exclusion_px),
+        structure=disk(config.membrane_exclusion_px),
     )
 
 
@@ -462,7 +489,7 @@ def _detect_light_regions(
         normalized_residual >= config.light_grow_sigma
     )
     grown = ndimage.binary_propagation(seeds, mask=candidates)
-    return remove_small_objects(
+    return _remove_small_components(
         grown,
         min_size=config.min_region_area_px,
     )
@@ -523,9 +550,9 @@ def _detect_dark_filaments(
     if not np.any(kept_skeleton):
         return np.zeros_like(candidates), kept_skeleton
     max_radius = int(np.ceil(max(config.filament_scales_px)))
-    filament_mask = candidates & binary_dilation(
+    filament_mask = candidates & ndimage.binary_dilation(
         kept_skeleton,
-        footprint=disk(max_radius),
+        structure=disk(max_radius),
     )
     return filament_mask, skeletonize(filament_mask)
 
@@ -540,9 +567,9 @@ def _detect_bubbles(
         normalized_residual <= -config.bubble_edge_sigma
     )
     if config.bubble_closing_px:
-        closed_edge = binary_closing(
+        closed_edge = ndimage.binary_closing(
             dark_edge,
-            footprint=disk(config.bubble_closing_px),
+            structure=disk(config.bubble_closing_px),
         )
     else:
         closed_edge = dark_edge
@@ -555,7 +582,10 @@ def _detect_bubbles(
         interior = np.zeros_like(usable_mask)
         coordinates = candidate.coords
         interior[coordinates[:, 0], coordinates[:, 1]] = True
-        boundary = binary_dilation(interior, footprint=disk(1)) & ~interior
+        boundary = ndimage.binary_dilation(
+            interior,
+            structure=disk(1),
+        ) & ~interior
         boundary &= usable_mask
         boundary_size = np.count_nonzero(boundary)
         if boundary_size == 0:
@@ -565,6 +595,20 @@ def _detect_bubbles(
             continue
         bubble_mask |= interior | (boundary & closed_edge)
     return bubble_mask
+
+
+def _remove_small_components(
+    mask: NDArray[np.bool_],
+    min_size: int,
+) -> NDArray[np.bool_]:
+    """Remove connected components containing fewer than min_size pixels."""
+    labelled = label(mask, connectivity=2)
+    kept = np.zeros_like(mask)
+    for component in regionprops(labelled):
+        if component.area >= min_size:
+            coordinates = component.coords
+            kept[coordinates[:, 0], coordinates[:, 1]] = True
+    return kept
 
 
 def _describe_regions(
