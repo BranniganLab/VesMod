@@ -23,7 +23,7 @@ This allows expensive image processing to be run once while QC settings are eval
 Extract a directory of ND2 videos:
 
 ```bash
-vesedge extract ./videos \
+vesedge extract "./videos" \
     --pixels-per-micron 13.44 \
     --downsample \
     --n-samples 120 \
@@ -33,7 +33,7 @@ vesedge extract ./videos \
 Apply one QC configuration:
 
 ```bash
-vesedge qc ./checkpoints \
+vesedge qc "./checkpoints" \
     --curvature-threshold 5 \
     --max-relative-area-deviation 0.25 \
     --output-dir ./results/qc_standard
@@ -42,7 +42,7 @@ vesedge qc ./checkpoints \
 Analyze the filtered results:
 
 ```bash
-edgemod ./results/qc_standard
+edgemod "./results/qc_standard"
 ```
 
 ---
@@ -53,23 +53,40 @@ edgemod ./results/qc_standard
 
 ## Input Selection
 
+Always double-quote each input path or pattern. Quoting ordinary paths is safe,
+handles spaces, and prevents the shell from expanding wildcard patterns before
+VesEdge receives them. This lets VesEdge apply suffix validation,
+deduplication, and `--recursive` consistently. Double quotes also allow shell
+variables such as `"$DATA_DIR/*.nd2"` to expand while preserving the wildcard
+for VesEdge.
+
 Extract one video:
 
 ```bash
-vesedge extract sample.nd2
+vesedge extract "sample.nd2"
 ```
 
 Extract all ND2 files in a directory:
 
 ```bash
-vesedge extract ./videos
+vesedge extract "./videos"
 ```
 
 Search recursively:
 
 ```bash
-vesedge extract ./videos --recursive
+vesedge extract "./videos" --recursive
 ```
+
+Select multiple files or patterns by listing each selector separately:
+
+```bash
+vesedge extract "./condition_a/*.nd2" "./condition_b/*.nd2" --recursive
+```
+
+Do not remove the quotes from wildcard examples. An unquoted wildcard may be
+expanded by the shell first, changing which selectors VesEdge sees and how
+recursive discovery behaves.
 
 Directory discovery treats file suffixes case-insensitively, so `.nd2` and `.ND2` inputs are handled consistently.
 
@@ -80,7 +97,7 @@ By default, `.npz` and GIF outputs are written beside each ND2 input.
 Use a dedicated checkpoint directory with:
 
 ```bash
-vesedge extract ./videos --output-dir ./checkpoints
+vesedge extract "./videos" --output-dir ./checkpoints
 ```
 
 For a file named `sample.nd2`, extraction normally produces:
@@ -99,19 +116,19 @@ The GIF overlays the extracted full contour on the original image frames for vis
 Disable GIF creation with:
 
 ```bash
-vesedge extract sample.nd2 --no-gif
+vesedge extract "sample.nd2" --no-gif
 ```
 
 Existing checkpoints are not overwritten unless:
 
 ```bash
-vesedge extract sample.nd2 --overwrite
+vesedge extract "sample.nd2" --overwrite
 ```
 
 ## Microscope Calibration
 
 ```bash
-vesedge extract sample.nd2 --pixels-per-micron 13.44
+vesedge extract "sample.nd2" --pixels-per-micron 13.44
 ```
 
 `--pixels-per-micron` stores the microscope calibration in the checkpoint. Accepted contours are converted from pixels to microns later, when QC output is exported to `.npy`.
@@ -123,7 +140,7 @@ Default: `1.0`.
 Use fixed angular sampling with:
 
 ```bash
-vesedge extract sample.nd2 --downsample --n-samples 120
+vesedge extract "sample.nd2" --downsample --n-samples 120
 ```
 
 `--n-samples` defaults to `120` and is used only when `--downsample` is provided.
@@ -141,14 +158,14 @@ vesmod.VesEdge:extract_edge_from_frame
 Use an importable custom extractor with:
 
 ```bash
-vesedge extract sample.nd2 \
+vesedge extract "sample.nd2" \
     --extractor my_package.my_module:my_edge_extractor
 ```
 
 or a Python source file with:
 
 ```bash
-vesedge extract sample.nd2 \
+vesedge extract "sample.nd2" \
     --extractor-file ./my_extractor.py \
     --extractor-name my_edge_extractor
 ```
@@ -164,29 +181,40 @@ See the [custom extractor guide](custom_edge_extraction_algorithms.README.md) fo
 The command requires an output directory:
 
 ```bash
-vesedge qc ./checkpoints --output-dir ./results/qc_standard
+vesedge qc "./checkpoints" --output-dir ./results/qc_standard
 ```
 
 Use a **different output directory for each QC configuration**. This keeps the `.npy` data, exact QC settings, resolved checkpoint selection, and QC summary together as one reproducible analysis condition.
 
 ## Input Selection
 
+As with extraction, always double-quote every checkpoint path or pattern so
+VesEdge—not the shell—performs wildcard expansion and recursive discovery.
+
 QC one checkpoint:
 
 ```bash
-vesedge qc sample.npz --output-dir ./results/qc_standard
+vesedge qc "sample.npz" --output-dir ./results/qc_standard
 ```
 
 QC all checkpoints in a directory:
 
 ```bash
-vesedge qc ./checkpoints --output-dir ./results/qc_standard
+vesedge qc "./checkpoints" --output-dir ./results/qc_standard
 ```
 
 Search recursively with:
 
 ```bash
-vesedge qc ./checkpoints --recursive --output-dir ./results/qc_standard
+vesedge qc "./checkpoints" --recursive --output-dir ./results/qc_standard
+```
+
+QC multiple explicit files or wildcard patterns:
+
+```bash
+vesedge qc "./condition_a/*.npz" "./condition_b/*.npz" \
+    --recursive \
+    --output-dir ./results/qc_standard
 ```
 
 Directory discovery treats `.npz` suffixes case-insensitively. For recursive directory inputs, output `.npy` files preserve the checkpoint paths relative to the selected checkpoint directory, preventing equal filenames in different subdirectories from colliding.
@@ -194,7 +222,7 @@ Directory discovery treats `.npz` suffixes case-insensitively. For recursive dir
 ## Curvature QC
 
 ```bash
-vesedge qc ./checkpoints \
+vesedge qc "./checkpoints" \
     --curvature-threshold 5 \
     --output-dir ./results/qc_standard
 ```
@@ -206,7 +234,7 @@ Default: `5.0`.
 Disable curvature QC with:
 
 ```bash
-vesedge qc ./checkpoints \
+vesedge qc "./checkpoints" \
     --no-curvature-qc \
     --output-dir ./results/no_curvature
 ```
@@ -230,7 +258,7 @@ Using `mean(r**2)` retains noncircular contour variation and differs from approx
 Set the largest accepted fractional deviation with:
 
 ```bash
-vesedge qc ./checkpoints \
+vesedge qc "./checkpoints" \
     --max-relative-area-deviation 0.25 \
     --output-dir ./results/qc_standard
 ```
@@ -240,7 +268,7 @@ Default: `0.25`. A deviation exactly equal to the threshold passes; a larger dev
 Disable this rule with:
 
 ```bash
-vesedge qc ./checkpoints \
+vesedge qc "./checkpoints" \
     --no-area-qc \
     --output-dir ./results/no_area_qc
 ```
@@ -253,7 +281,7 @@ The trajectory median assumes that most successful detections trace the correct 
 For checkpoints `sample01.npz` and `sample02.npz`, the command:
 
 ```bash
-vesedge qc ./checkpoints --output-dir ./results/qc_standard
+vesedge qc "./checkpoints" --output-dir ./results/qc_standard
 ```
 
 normally creates:
@@ -319,15 +347,15 @@ Use a dedicated QC output directory. For an incompatible overwrite, VesEdge recu
 A typical sensitivity analysis might use:
 
 ```bash
-vesedge qc ./checkpoints \
+vesedge qc "./checkpoints" \
     --curvature-threshold 5 \
     --output-dir ./results/qc_strict
 
-vesedge qc ./checkpoints \
+vesedge qc "./checkpoints" \
     --curvature-threshold 10 \
     --output-dir ./results/qc_standard
 
-vesedge qc ./checkpoints \
+vesedge qc "./checkpoints" \
     --curvature-threshold 15 \
     --output-dir ./results/qc_permissive
 ```
@@ -335,9 +363,9 @@ vesedge qc ./checkpoints \
 Then run:
 
 ```bash
-edgemod ./results/qc_strict
-edgemod ./results/qc_standard
-edgemod ./results/qc_permissive
+edgemod "./results/qc_strict"
+edgemod "./results/qc_standard"
+edgemod "./results/qc_permissive"
 ```
 
 The resulting EdgeMod estimates can be reported alongside each directory's `vesedge_qc.json` and `qc_summary.csv` to show whether the scientific conclusion depends strongly on QC choices.
@@ -351,14 +379,14 @@ The resulting EdgeMod estimates can be reported alongside each directory's `vese
 Run one checkpoint:
 
 ```bash
-vesedge internal-structures sample.npz \
+vesedge internal-structures "sample.npz" \
     --output-dir ./results/internal_structures
 ```
 
 Run a recursive checkpoint collection:
 
 ```bash
-vesedge internal-structures ./checkpoints \
+vesedge internal-structures "./checkpoints" \
     --recursive \
     --output-dir ./results/internal_structures
 ```
@@ -372,7 +400,7 @@ Normal use requires `--qc-results` pointing to a QC output directory or directly
 To evaluate the experimental detector before choosing QC, explicitly request all successful edge detections:
 
 ```bash
-vesedge internal-structures ./checkpoints \
+vesedge internal-structures "./checkpoints" \
     --include-unqced \
     --output-dir ./results/internal_structures_unqced
 ```
@@ -382,7 +410,7 @@ Exactly one of `--qc-results` and `--include-unqced` is required. The analysis r
 ## Experimental Parameters
 
 ```bash
-vesedge internal-structures ./checkpoints \
+vesedge internal-structures "./checkpoints" \
     --output-dir ./results/internal_structures \
     --membrane-exclusion-px 5 \
     --background-sigma-px 30 \
@@ -411,7 +439,7 @@ These defaults are starting values, not calibrated population boundaries. Compar
 The checkpoint records the original ND2 path. If videos have moved, place them in one directory and supply:
 
 ```bash
-vesedge internal-structures ./checkpoints \
+vesedge internal-structures "./checkpoints" \
     --video-root /new/video/location \
     --output-dir ./results/internal_structures
 ```
