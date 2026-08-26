@@ -230,6 +230,11 @@ def load_extractor_from_file(file_path: Path, function_name: str):
     return extractor
 
 
+def _display_path(path: Path) -> str:
+    """Return a stable absolute path for command-line messages."""
+    return str(path.expanduser().resolve())
+
+
 def _relative_input_path(path: Path, input_path: Path) -> Path:
     """Return one selected file relative to the user-selected input root."""
     resolved_path = path.expanduser().resolve()
@@ -259,7 +264,10 @@ def process_extract_file(path: Path, args: argparse.Namespace) -> None:
     gif_path = output_base.with_suffix(".gif")
 
     if checkpoint_path.exists() and not args.overwrite:
-        print(f"Skipping {_display_path(path)}: checkpoint already exists: {_display_path(checkpoint_path)}")
+        print(
+            f"Skipping {_display_path(path)}: checkpoint already exists: "
+            f"{_display_path(checkpoint_path)}"
+        )
         return
 
     if args.extractor_file is not None:
@@ -426,7 +434,10 @@ def process_qc_file(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_exists = output_path.exists()
     if output_exists and not args.overwrite:
-        print(f"Keeping existing output for {_display_path(path)}: {_display_path(output_path)}")
+        print(
+            f"Keeping existing output for {_display_path(path)}: "
+            f"{_display_path(output_path)}"
+        )
 
     try:
         edges = VesicleEdges.from_checkpoint(path)
@@ -446,7 +457,10 @@ def process_qc_file(
             print(f"QC failed for {_display_path(path)}: {error}")
         else:
             status = "no_accepted_frames"
-            print(f"QC produced no accepted frames for {_display_path(path)}: {error}")
+            print(
+                "QC produced no accepted frames for "
+                f"{_display_path(path)}: {error}"
+            )
 
     if status == "no_accepted_frames" and args.overwrite and output_exists:
         output_path.unlink()
