@@ -247,7 +247,7 @@ def process_checkpoint(
             _apply_qc(edges, qc_config)
     except (FileNotFoundError, IndexError, TypeError, ValueError) as error:
         message = str(error)
-        print(f"Failed to analyze {checkpoint_path.name}: {message}")
+        print(f"Failed to analyze {checkpoint_path.expanduser().resolve()}: {message}")
         return _error_summary(relative_path, message)
 
     frame_rows = []
