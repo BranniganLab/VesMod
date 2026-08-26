@@ -797,6 +797,11 @@ def _validate_input_output_paths(input_path: Path, output_dir: Path) -> None:
         )
 
 
+def _display_path(path: Path) -> str:
+    """Return a stable absolute path for command-line messages."""
+    return str(path.expanduser().resolve())
+
+
 def _relative_input_path(path: Path, input_path: Path) -> Path:
     """Return a checkpoint path relative to the selected input root."""
     resolved_path = path.expanduser().resolve()
