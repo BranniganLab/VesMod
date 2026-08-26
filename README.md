@@ -125,11 +125,15 @@ This creates:
 results/qc_standard/
 ├── sample01.npy
 ├── sample02.npy
+├── sample01.area_qc.csv
+├── sample01.area_qc.png
+├── sample02.area_qc.csv
+├── sample02.area_qc.png
 ├── vesedge_qc.json
 └── qc_summary.csv
 ```
 
-`vesedge_qc.json` records the exact QC configuration and input selection. `qc_summary.csv` reports extraction failures, curvature rejections, area-deviation rejections, accepted-frame counts, and accepted fractions for each checkpoint. Each trajectory also receives an area-versus-frame diagnostic plot.
+`vesedge_qc.json` records the exact QC configuration and input selection. `qc_summary.csv` reports extraction failures, curvature rejections, area-deviation rejections, accepted-frame counts, and accepted fractions for each checkpoint. When area QC produces `qc_result.area`, each checkpoint also receives an `*.area_qc.csv` file containing its per-frame area measurements and an `*.area_qc.png` area-versus-frame diagnostic plot. These two files are not generated when area QC is disabled with `--no-area-qc`.
 
 ### 3. Compare alternate QC configurations
 
