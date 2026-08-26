@@ -8,7 +8,11 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from vesmod.VesEdge import EdgeQCConfig
+from vesmod.VesEdge import (
+    EdgeExtractionConfig,
+    EdgeQCConfig,
+    VesicleEdges,
+)
 from vesmod.cli import vesedge_cli
 
 
@@ -37,6 +41,8 @@ def _qc_args(tmp_path, input_path=Path("sample.npz")) -> argparse.Namespace:
         overwrite=True,
         curvature_threshold=5.0,
         no_curvature_qc=False,
+        max_relative_area_deviation=0.25,
+        no_area_qc=False,
     )
 
 
@@ -82,6 +88,8 @@ def test_parse_args_selects_qc_subcommand(monkeypatch, tmp_path):
     assert args.input_path == Path("checkpoints")
     assert args.output_dir == tmp_path
     assert args.no_curvature_qc
+    assert args.max_relative_area_deviation == pytest.approx(0.25)
+    assert not args.no_area_qc
 
 
 @pytest.mark.parametrize(
@@ -316,12 +324,15 @@ def test_process_qc_file_records_zero_accepted_frames(tmp_path, monkeypatch):
     )
     args = _qc_args(tmp_path, path)
     config = vesedge_cli._qc_config_from_args(args)
+    stale_output = tmp_path / "sample.npy"
+    np.save(stale_output, np.ones((2, 12)))
 
     row = vesedge_cli.process_qc_file(path, args, config)
 
     assert row["accepted"] == 0
     assert row["status"] == "no_accepted_frames"
     assert "no frames passed quality control" in row["error"]
+    assert not stale_output.exists()
 
 
 def test_process_qc_file_returns_load_error_summary(tmp_path, monkeypatch):
@@ -343,6 +354,7 @@ def test_process_qc_file_returns_load_error_summary(tmp_path, monkeypatch):
         "successful_detections": 0,
         "extraction_failures": 0,
         "curvature_rejected": 0,
+        "area_rejected": 0,
         "accepted": 0,
         "accepted_fraction": 0.0,
         "status": "load_error",
@@ -440,6 +452,7 @@ def test_write_qc_summary_writes_batch_csv(tmp_path):
             "successful_detections": 9,
             "extraction_failures": 1,
             "curvature_rejected": 2,
+            "area_rejected": 1,
             "accepted": 7,
             "accepted_fraction": 7 / 9,
             "status": "ok",
@@ -452,6 +465,7 @@ def test_write_qc_summary_writes_batch_csv(tmp_path):
     summary = (tmp_path / "qc_summary.csv").read_text()
     assert "sample.npz" in summary
     assert "curvature_rejected" in summary
+    assert "area_rejected" in summary
     assert ",7," in summary
 
 
@@ -481,4 +495,32 @@ def test_run_qc_writes_summary_when_every_checkpoint_fails_to_load(
     assert "first.npz" in summary
     assert "second.npz" in summary
     assert summary.count("load_error") == 2
+def test_area_qc_diagnostics_preserve_frame_measurements(tmp_path):
+    """Test area QC writes exact values and a trajectory diagnostic plot."""
 
+    class Detection:
+        frame_index = 4
+        qc = argparse.Namespace(flags={vesedge_cli.QCFlag.AREA_DEVIATION})
+
+    class FakeEdges:
+        successful_detections = [Detection()]
+        qc_result = argparse.Namespace(
+            area=argparse.Namespace(
+                areas_pixels2=(25.0,),
+                reference_area_pixels2=100.0,
+                relative_deviations=(0.75,),
+            ),
+            config=EdgeQCConfig(
+                curvature_threshold=5.0,
+                max_relative_area_deviation=0.25,
+            ),
+        )
+
+    csv_path = tmp_path / "sample.area_qc.csv"
+    plot_path = tmp_path / "sample.area_qc.png"
+    vesedge_cli._write_area_qc_csv(csv_path, FakeEdges())
+    vesedge_cli._save_area_qc_plot(plot_path, FakeEdges())
+
+    csv_text = csv_path.read_text()
+    assert "4,25.0,0.75,True" in csv_text
+    assert plot_path.is_file()

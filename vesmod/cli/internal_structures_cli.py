@@ -81,20 +81,69 @@ def add_parser(subparsers) -> None:
     parser.add_argument(
         "--background-sigma-px",
         type=float,
-        default=8.0,
-        help="Gaussian sigma for the smooth interior background. Default: 8.",
+        default=30.0,
+        help="Gaussian sigma for the smooth interior background. Default: 30.",
     )
     parser.add_argument(
         "--threshold-sigma",
         type=float,
         default=4.0,
-        help="Absolute residual threshold in robust noise sigmas. Default: 4.",
+        help="Light-region seed threshold in robust noise sigmas. Default: 4.",
     )
     parser.add_argument(
         "--min-region-area-px",
         type=int,
         default=9,
         help="Minimum retained connected-region area in pixels. Default: 9.",
+    )
+    parser.add_argument(
+        "--light-grow-sigma",
+        type=float,
+        default=1.5,
+        help="Lower residual threshold used to grow seeded light regions.",
+    )
+    parser.add_argument(
+        "--filament-threshold-sigma",
+        type=float,
+        default=1.5,
+        help="Minimum multiscale dark-ridge response. Default: 1.5.",
+    )
+    parser.add_argument(
+        "--filament-scales-px",
+        type=float,
+        nargs="+",
+        default=(1.0, 2.0, 3.0),
+        help="Dark-filament ridge widths evaluated in pixels.",
+    )
+    parser.add_argument(
+        "--min-filament-length-px",
+        type=int,
+        default=8,
+        help="Minimum skeleton length retained as a filament. Default: 8.",
+    )
+    parser.add_argument(
+        "--bubble-edge-sigma",
+        type=float,
+        default=2.0,
+        help="Dark residual threshold used for bubble boundaries.",
+    )
+    parser.add_argument(
+        "--bubble-closing-px",
+        type=int,
+        default=2,
+        help="Maximum local gap closed in candidate bubble edges.",
+    )
+    parser.add_argument(
+        "--min-bubble-area-px",
+        type=int,
+        default=25,
+        help="Minimum area enclosed by a detected bubble. Default: 25.",
+    )
+    parser.add_argument(
+        "--min-bubble-boundary-fraction",
+        type=float,
+        default=0.45,
+        help="Minimum fraction of an enclosed boundary supported by dark pixels.",
     )
     parser.add_argument(
         "--save-masks",
@@ -120,6 +169,24 @@ def config_from_args(args: argparse.Namespace) -> InternalStructureConfig:
         background_sigma_px=args.background_sigma_px,
         threshold_sigma=args.threshold_sigma,
         min_region_area_px=args.min_region_area_px,
+        light_grow_sigma=getattr(args, "light_grow_sigma", 1.5),
+        filament_threshold_sigma=getattr(
+            args,
+            "filament_threshold_sigma",
+            1.5,
+        ),
+        filament_scales_px=tuple(
+            getattr(args, "filament_scales_px", (1.0, 2.0, 3.0))
+        ),
+        min_filament_length_px=getattr(args, "min_filament_length_px", 8),
+        bubble_edge_sigma=getattr(args, "bubble_edge_sigma", 2.0),
+        bubble_closing_px=getattr(args, "bubble_closing_px", 2),
+        min_bubble_area_px=getattr(args, "min_bubble_area_px", 25),
+        min_bubble_boundary_fraction=getattr(
+            args,
+            "min_bubble_boundary_fraction",
+            0.45,
+        ),
     )
 
 
@@ -362,6 +429,15 @@ def _frame_row(
         "usable_area_px": result.usable_area_px,
         "structured_area_px": result.structured_area_px,
         "structured_area_fraction": result.structured_area_fraction,
+        "light_area_fraction": getattr(result, "light_area_fraction", 0.0),
+        "filament_area_fraction": getattr(
+            result,
+            "filament_area_fraction",
+            0.0,
+        ),
+        "filament_length_px": getattr(result, "filament_length_px", 0),
+        "bubble_area_fraction": getattr(result, "bubble_area_fraction", 0.0),
+        "bubble_count": getattr(result, "bubble_count", 0),
         "region_count": len(result.regions),
         "noise_sigma": result.noise_sigma,
         "status": "ok",
@@ -376,6 +452,11 @@ def _frame_error_row(frame_index: int, status: str, error: str) -> dict:
         "usable_area_px": "",
         "structured_area_px": "",
         "structured_area_fraction": "",
+        "light_area_fraction": "",
+        "filament_area_fraction": "",
+        "filament_length_px": "",
+        "bubble_area_fraction": "",
+        "bubble_count": "",
         "region_count": "",
         "noise_sigma": "",
         "status": status,
@@ -396,6 +477,7 @@ def _region_rows(
             {
                 "frame_index": frame_index,
                 "region_label": region.label,
+                "structure_type": region.structure_type,
                 "polarity": region.polarity,
                 "area_px": region.area_px,
                 "centroid_y": centroid_y,
@@ -405,6 +487,7 @@ def _region_rows(
                 "bbox_max_y": max_y,
                 "bbox_max_x": max_x,
                 "mean_signed_residual": region.mean_signed_residual,
+                "skeleton_length_px": region.skeleton_length_px,
             }
         )
     return rows
@@ -436,6 +519,11 @@ def _summary_row(
             "median_area_fraction": "",
             "upper_area_fraction": "",
             "frame_prevalence": "",
+            "median_light_area_fraction": "",
+            "median_filament_area_fraction": "",
+            "median_filament_length_px": "",
+            "median_bubble_area_fraction": "",
+            "median_bubble_count": "",
         }
     summary = summarize_internal_structures(tuple(results.values()))
     return {
@@ -443,6 +531,11 @@ def _summary_row(
         "median_area_fraction": summary.median_area_fraction,
         "upper_area_fraction": summary.upper_area_fraction,
         "frame_prevalence": summary.frame_prevalence,
+        "median_light_area_fraction": summary.median_light_area_fraction,
+        "median_filament_area_fraction": summary.median_filament_area_fraction,
+        "median_filament_length_px": summary.median_filament_length_px,
+        "median_bubble_area_fraction": summary.median_bubble_area_fraction,
+        "median_bubble_count": summary.median_bubble_count,
     }
 
 
@@ -459,6 +552,11 @@ def _error_summary(relative_path: Path, error: str) -> dict:
         "median_area_fraction": "",
         "upper_area_fraction": "",
         "frame_prevalence": "",
+        "median_light_area_fraction": "",
+        "median_filament_area_fraction": "",
+        "median_filament_length_px": "",
+        "median_bubble_area_fraction": "",
+        "median_bubble_count": "",
         "status": "load_error",
         "error": error,
     }
@@ -475,10 +573,65 @@ def _save_masks(
         masks = np.stack(
             [results[index].to_full_frame_mask() for index in frame_indices]
         )
+        light_masks = np.stack(
+            [
+                _to_full_frame_channel_mask(
+                    results[index],
+                    getattr(results[index], "light_region_mask", None),
+                )
+                for index in frame_indices
+            ]
+        )
+        filament_masks = np.stack(
+            [
+                _to_full_frame_channel_mask(
+                    results[index],
+                    getattr(results[index], "dark_filament_mask", None),
+                )
+                for index in frame_indices
+            ]
+        )
+        bubble_masks = np.stack(
+            [
+                _to_full_frame_channel_mask(
+                    results[index],
+                    getattr(results[index], "bubble_region_mask", None),
+                )
+                for index in frame_indices
+            ]
+        )
     else:
         masks = np.empty((0, *frame_shape), dtype=bool)
+        light_masks = masks.copy()
+        filament_masks = masks.copy()
+        bubble_masks = masks.copy()
     path = output_base.with_name(output_base.name + "_masks.npz")
-    np.savez_compressed(path, frame_indices=frame_indices, structure_masks=masks)
+    np.savez_compressed(
+        path,
+        frame_indices=frame_indices,
+        structure_masks=masks,
+        light_region_masks=light_masks,
+        dark_filament_masks=filament_masks,
+        bubble_region_masks=bubble_masks,
+    )
+
+
+def _to_full_frame_channel_mask(
+    result: InternalStructureFrameResult,
+    channel_mask: np.ndarray | None,
+) -> np.ndarray:
+    """Map one cropped channel mask into original-image coordinates."""
+    original_shape = getattr(result, "original_shape", None)
+    if original_shape is None:
+        original_shape = result.to_full_frame_mask().shape
+    full_mask = np.zeros(original_shape, dtype=bool)
+    if channel_mask is None:
+        return full_mask
+    y_start, x_start = result.crop_origin_yx
+    y_stop = y_start + channel_mask.shape[0]
+    x_stop = x_start + channel_mask.shape[1]
+    full_mask[y_start:y_stop, x_start:x_stop] = channel_mask
+    return full_mask
 
 
 def _save_overlay_gif(
@@ -505,14 +658,26 @@ def _save_overlay_gif(
         if result is None:
             axis.set_title(f"frame {frame_index}: not analyzed")
             return
-        overlay = np.ma.masked_where(
-            ~result.to_full_frame_mask(),
-            result.to_full_frame_mask(),
+        channel_specs = (
+            (result.light_region_mask, "autumn"),
+            (result.dark_filament_mask, "winter"),
+            (result.bubble_region_mask, "cool"),
         )
-        axis.imshow(overlay, cmap="autumn", alpha=0.55, vmin=0, vmax=1)
+        for channel_mask, color_map in channel_specs:
+            full_mask = _to_full_frame_channel_mask(result, channel_mask)
+            overlay = np.ma.masked_where(~full_mask, full_mask)
+            axis.imshow(
+                overlay,
+                cmap=color_map,
+                alpha=0.55,
+                vmin=0,
+                vmax=1,
+            )
         axis.set_title(
             f"frame {frame_index}: "
-            f"structured fraction={result.structured_area_fraction:.4f}"
+            f"light={result.light_area_fraction:.3f}, "
+            f"filament={result.filament_length_px}px, "
+            f"bubbles={result.bubble_count}"
         )
 
     animation = FuncAnimation(
@@ -646,6 +811,11 @@ _FRAME_FIELDS = [
     "usable_area_px",
     "structured_area_px",
     "structured_area_fraction",
+    "light_area_fraction",
+    "filament_area_fraction",
+    "filament_length_px",
+    "bubble_area_fraction",
+    "bubble_count",
     "region_count",
     "noise_sigma",
     "status",
@@ -655,6 +825,7 @@ _FRAME_FIELDS = [
 _REGION_FIELDS = [
     "frame_index",
     "region_label",
+    "structure_type",
     "polarity",
     "area_px",
     "centroid_y",
@@ -664,6 +835,7 @@ _REGION_FIELDS = [
     "bbox_max_y",
     "bbox_max_x",
     "mean_signed_residual",
+    "skeleton_length_px",
 ]
 
 _SUMMARY_FIELDS = [
@@ -677,6 +849,11 @@ _SUMMARY_FIELDS = [
     "median_area_fraction",
     "upper_area_fraction",
     "frame_prevalence",
+    "median_light_area_fraction",
+    "median_filament_area_fraction",
+    "median_filament_length_px",
+    "median_bubble_area_fraction",
+    "median_bubble_count",
     "status",
     "error",
 ]

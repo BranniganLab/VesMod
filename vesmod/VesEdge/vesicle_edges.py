@@ -10,10 +10,12 @@ from pathlib import Path
 import numpy as np
 from numpy.typing import NDArray
 
+from .area_qc import check_area_deviation
 from .checkpoint_io import load_checkpoint, save_checkpoint
 from .config import EdgeExtractionConfig, EdgeQCConfig
 from .edge_filtering import check_curvature
 from .models import (
+    AreaQCResult,
     CurvatureQCResult,
     EdgeDetection,
     EdgeDetectionFailure,
@@ -133,9 +135,11 @@ class VesicleEdges:
             self._apply_frame_qc(detection, config)
 
         curvature_result = self._curvature_qc_result(config)
+        area_result = self._area_qc_result(config)
         self.qc_result = VesicleQCResult(
             config=config,
             curvature=curvature_result,
+            area=area_result,
         )
         self._validate_usable_detections()
 
@@ -179,6 +183,18 @@ class VesicleEdges:
         return CurvatureQCResult(
             scores=scores,
             rejected_count=rejected_count,
+        )
+
+    def _area_qc_result(
+        self,
+        config: EdgeQCConfig,
+    ) -> AreaQCResult | None:
+        """Run and summarize trajectory-level contour-area QC."""
+        if not config.enable_area_qc:
+            return None
+        return check_area_deviation(
+            self.successful_detections,
+            config.max_relative_area_deviation,
         )
 
     def _infer_frame_indices(self) -> None:

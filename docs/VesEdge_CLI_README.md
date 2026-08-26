@@ -16,7 +16,7 @@ QC-independent .npz checkpoints
         └── vesedge internal-structures ───────▶ interior measurements
 ```
 
-This allows expensive image processing to be run once while QC settings are evaluated repeatedly and reproducibly. Curvature is currently the only built-in frame-rejection rule.
+This allows expensive image processing to be run once while QC settings are evaluated repeatedly and reproducibly. Built-in QC includes frame-level curvature and trajectory-relative contour-area checks.
 
 ## Quick Start
 
@@ -35,6 +35,7 @@ Apply one QC configuration:
 ```bash
 vesedge qc ./checkpoints \
     --curvature-threshold 5 \
+    --max-relative-area-deviation 0.25 \
     --output-dir ./results/qc_standard
 ```
 
@@ -212,7 +213,40 @@ vesedge qc ./checkpoints \
 
 With curvature QC disabled, every successfully extracted detection is exported. Extraction failures remain absent because they do not contain contours.
 
-VesEdge no longer performs GMM-based population QC. The removed options `--population-bic-threshold`, `--max-minor-population-fraction`, and `--no-population-qc` are invalid and produce an argument error. VesEdge does not currently attempt to identify dust-particle detections automatically; inspect extraction GIFs before downstream analysis.
+VesEdge no longer performs GMM-based population QC. The removed options `--population-bic-threshold`, `--max-minor-population-fraction`, and `--no-population-qc` are invalid and produce an argument error.
+
+## Contour-Area Deviation QC
+
+Area QC detects frames in which the extracted contour encloses substantially more or less area than is typical for the same vesicle trajectory. For a full-resolution radial contour sampled uniformly in angle, VesEdge calculates:
+
+```text
+area = pi * mean(r**2)
+reference_area = median(area)
+relative_deviation = abs(area - reference_area) / reference_area
+```
+
+Using `mean(r**2)` retains noncircular contour variation and differs from approximating every contour as a circle using `mean(r)`. The metric uses the native extracted contour in pixel units; it is independent of analysis downsampling, microscope calibration, and internal-structure mask erosion.
+
+Set the largest accepted fractional deviation with:
+
+```bash
+vesedge qc ./checkpoints \
+    --max-relative-area-deviation 0.25 \
+    --output-dir ./results/qc_standard
+```
+
+Default: `0.25`. A deviation exactly equal to the threshold passes; a larger deviation fails.
+
+Disable this rule with:
+
+```bash
+vesedge qc ./checkpoints \
+    --no-area-qc \
+    --output-dir ./results/no_area_qc
+```
+
+The trajectory median assumes that most successful detections trace the correct object. The threshold is an absolute fractional change rather than a MAD-scaled z-score, so its meaning does not depend on how narrowly normal areas happen to vary. Compare the area diagnostic across representative acquisitions before treating the default as universal.
+
 
 ## QC Outputs
 
@@ -228,6 +262,10 @@ normally creates:
 results/qc_standard/
 ├── sample01.npy
 ├── sample02.npy
+├── sample01.area_qc.csv
+├── sample01.area_qc.png
+├── sample02.area_qc.csv
+├── sample02.area_qc.png
 ├── vesedge_qc.json
 └── qc_summary.csv
 ```
@@ -246,7 +284,9 @@ This file records:
 - whether recursive discovery was enabled;
 - the resolved manifest of checkpoints selected for the batch;
 - `curvature_threshold`;
-- whether curvature QC was enabled.
+- whether curvature QC was enabled;
+- the maximum relative area deviation;
+- whether area QC was enabled.
 
 Consequently, recursive and non-recursive runs, or runs resolving to different checkpoint sets, have different provenance even if their QC thresholds are identical.
 
@@ -258,6 +298,7 @@ The summary contains one row per selected checkpoint with:
 - successful edge detections;
 - extraction failures;
 - curvature rejections;
+- area-deviation rejections;
 - accepted frames;
 - accepted fraction;
 - processing status;
@@ -265,7 +306,7 @@ The summary contains one row per selected checkpoint with:
 
 A checkpoint that cannot be loaded receives a `load_error` row with zero counts and the loading error. Therefore `qc_summary.csv` is still written when every selected checkpoint fails to load.
 
-This file is intended to make it easy to compare how aggressive different QC configurations are before comparing the downstream EdgeMod results.
+This file is intended to make it easy to compare how aggressive different QC configurations are before comparing the downstream EdgeMod results. Each `*.area_qc.csv` records the exact native contour area, relative deviation, and area-QC decision by source frame. The corresponding `*.area_qc.png` plots those areas together with the trajectory median and configured acceptance bounds.
 
 ## Existing Outputs and `--overwrite`
 
@@ -305,7 +346,7 @@ The resulting EdgeMod estimates can be reported alongside each directory's `vese
 
 # `vesedge internal-structures`
 
-`vesedge internal-structures` is an experimental measurement command separate from curvature QC. It reopens the source ND2 video recorded in each extraction checkpoint and measures bright and dark structures inside each full contour that passed the selected QC run. It does not alter checkpoints, introduce another edge-rejection rule, or assign vesicles to populations.
+`vesedge internal-structures` is an experimental measurement command separate from edge QC. It measures broad light regions, thin dark filaments, and dark-edged bubbles with relatively neutral interiors inside every selected contour. The detectors share background normalization and original-image coordinate mapping but retain separate masks and measurements. The command does not alter checkpoints, introduce another edge-rejection rule, or assign vesicles to populations.
 
 Run one checkpoint:
 
@@ -344,15 +385,24 @@ Exactly one of `--qc-results` and `--include-unqced` is required. The analysis r
 vesedge internal-structures ./checkpoints \\
     --output-dir ./results/internal_structures \\
     --membrane-exclusion-px 5 \\
-    --background-sigma-px 8 \\
+    --background-sigma-px 30 \\
     --threshold-sigma 4 \\
-    --min-region-area-px 9
+    --light-grow-sigma 1.5 \\
+    --min-region-area-px 9 \\
+    --filament-threshold-sigma 1.5 \\
+    --filament-scales-px 1 2 3 \\
+    --min-filament-length-px 8 \\
+    --bubble-edge-sigma 2 \\
+    --bubble-closing-px 2 \\
+    --min-bubble-area-px 25 \\
+    --min-bubble-boundary-fraction 0.45
 ```
 
 - `--membrane-exclusion-px` erodes the detected interior so the membrane and its optical blur are not counted.
-- `--background-sigma-px` controls the spatial scale treated as smooth background. It should be larger than the structures of interest.
-- `--threshold-sigma` selects pixels whose absolute local residual exceeds the robust framewise noise estimate, allowing both bright and dark structures.
-- `--min-region-area-px` removes connected detections smaller than the requested pixel area.
+- `--background-sigma-px` controls the spatial scale treated as smooth background. The broader default prevents large light domains from being absorbed into that estimate.
+- `--threshold-sigma` supplies high-confidence positive-residual seeds; `--light-grow-sigma` expands them through connected, moderately light pixels.
+- `--filament-threshold-sigma`, `--filament-scales-px`, and `--min-filament-length-px` configure a multiscale dark-ridge detector filtered by skeleton length.
+- The bubble options identify dark boundaries, close small gaps, require boundary support, and fill qualifying neutral interiors.
 
 These defaults are starting values, not calibrated population boundaries. Compare diagnostic overlays across known empty and structured vesicles before interpreting absolute abundance values.
 
@@ -380,15 +430,15 @@ sample_regions.csv
 sample_internal_structures.gif
 ```
 
-Use `--save-masks` to additionally write `sample_masks.npz`. It contains `structure_masks`, a compressed boolean array aligned with the original image coordinates, and `frame_indices`, which identifies the corresponding source frames. Frames without successful measurements are omitted rather than represented as false, structure-free masks.
+Use `--save-masks` to additionally write `sample_masks.npz`. It contains `structure_masks` (the union), `light_region_masks`, `dark_filament_masks`, and `bubble_region_masks`, all aligned with the original image coordinates. `frame_indices` identifies the corresponding source frames.
 
-`sample_frames.csv` reports usable interior area, structured area, structured-area fraction, detected-region count, noise estimate, and status for every source frame. Extraction failures, QC rejections, and measurement failures remain explicit rows.
+`sample_frames.csv` reports the union structured-area fraction plus light area, filament area and skeleton length, bubble area and count, noise estimate, and status for every source frame.
 
-`sample_regions.csv` reports each connected region's bright/dark polarity, area, centroid, bounding box, and signed residual. Centroids and bounding boxes use original image coordinates, not cropped analysis coordinates.
+`sample_regions.csv` labels each region as `light_region`, `dark_filament`, or `bubble` and reports polarity, area, filament skeleton length, centroid, bounding box, and signed residual in original image coordinates.
 
-`internal_structure_summary.csv` contains one row per video with extraction-failure, QC-rejection, and measurement-failure counts, plus the median structured-area fraction, 90th-percentile structured-area fraction, and fraction of analyzed frames containing at least one retained region. These video-level measurements are intended as inputs to later population segmentation; the experimental command does not currently choose a present/absent cutoff.
+`internal_structure_summary.csv` contains one row per video with failure counts, union abundance summaries, and channel-specific medians for light area, filament area and length, and bubble area and count. These are intended as inputs to later population segmentation; the command does not choose a present/absent cutoff.
 
-The diagnostic GIF overlays the detected regions and extracted contour on the original frames. Disable it with `--no-gif`.
+The diagnostic GIF overlays the three structure classes in separate colors together with the extracted contour. Disable it with `--no-gif`.
 
 As with QC, incompatible provenance is rejected unless `--overwrite` is supplied. An incompatible overwrite removes only files managed by the previous internal-structure batch.
 

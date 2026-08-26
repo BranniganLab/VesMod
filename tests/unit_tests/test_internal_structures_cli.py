@@ -60,6 +60,8 @@ def test_parse_args_selects_internal_structures_subcommand(monkeypatch, tmp_path
     assert args.input_path == Path("checkpoints")
     assert args.output_dir == tmp_path
     assert args.save_masks
+    assert args.background_sigma_px == pytest.approx(30.0)
+    assert args.filament_scales_px == pytest.approx([1.0, 2.0, 3.0])
 
 
 def test_process_checkpoint_writes_measurements_in_original_coordinates(
@@ -127,10 +129,14 @@ def test_process_checkpoint_writes_measurements_in_original_coordinates(
     masks = np.load(args.output_dir / "sample_masks.npz")
 
     assert region["polarity"] == "dark"
+    assert region["structure_type"] == "unclassified"
     assert region["centroid_y"] == "6.5"
     assert region["centroid_x"] == "7.5"
     assert masks["frame_indices"].tolist() == [0]
     assert masks["structure_masks"][0, 5, 7]
+    assert not masks["light_region_masks"].any()
+    assert not masks["dark_filament_masks"].any()
+    assert not masks["bubble_region_masks"].any()
     assert summary["median_area_fraction"] == 0.16
 
 
