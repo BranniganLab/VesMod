@@ -1,4 +1,4 @@
-"""Command-line interface for VesEdge extraction and quality control."""
+"""Command-line interface for VesEdge extraction and independent analyses."""
 
 from __future__ import annotations
 
@@ -14,8 +14,8 @@ import matplotlib.pyplot as plt
 import nd2
 import numpy as np
 
-from vesmod.cli.gif_cli import add_gif_parser, run_gif
-
+from . import internal_structures_cli
+from .gif_cli import add_gif_parser, run_gif
 from vesmod.VesEdge import (
     EdgeExtractionConfig,
     EdgeQCConfig,
@@ -36,6 +36,7 @@ def parse_args() -> argparse.Namespace:
     subparsers = parser.add_subparsers(dest="command", required=True)
     _add_extract_parser(subparsers)
     _add_qc_parser(subparsers)
+    internal_structures_cli.add_parser(subparsers)
     add_gif_parser(subparsers)
     return parser.parse_args()
 
@@ -226,6 +227,11 @@ def load_extractor_from_file(file_path: Path, function_name: str):
     return extractor
 
 
+def _display_path(path: Path) -> str:
+    """Return a stable absolute path for command-line messages."""
+    return str(path.expanduser().resolve())
+
+
 def _relative_input_path(path: Path, input_path: Path) -> Path:
     """Return one selected file relative to the user-selected input root."""
     resolved_path = path.expanduser().resolve()
@@ -253,7 +259,10 @@ def process_extract_file(path: Path, args: argparse.Namespace) -> None:
     output_base = _output_base(path, args.input_path, args.output_dir)
     checkpoint_path = output_base.with_suffix(".npz")
     if checkpoint_path.exists() and not args.overwrite:
-        print(f"Skipping {path.name}: checkpoint already exists: {checkpoint_path.name}")
+        print(
+            f"Skipping {_display_path(path)}: checkpoint already exists: "
+            f"{_display_path(checkpoint_path)}"
+        )
         return
 
     if args.extractor_file is not None:
@@ -264,7 +273,7 @@ def process_extract_file(path: Path, args: argparse.Namespace) -> None:
     else:
         extractor_func = load_extractor_from_module(args.extractor)
 
-    print(f"Extracting {path.name}")
+    print(f"Extracting {_display_path(path)}")
     intensities = nd2.imread(path)
     extraction_config = EdgeExtractionConfig(
         pixels_per_micron=args.pixels_per_micron,
@@ -277,7 +286,7 @@ def process_extract_file(path: Path, args: argparse.Namespace) -> None:
         edges = video.extract_edges(extractor_func, extraction_config)
         edges.save_checkpoint(checkpoint_path)
     except (IndexError, ValueError) as error:
-        print(f"Failed to extract {path.name}: {error}")
+        print(f"Failed to extract {_display_path(path)}: {error}")
         return
 
 
@@ -417,13 +426,16 @@ def process_qc_file(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_exists = output_path.exists()
     if output_exists and not args.overwrite:
-        print(f"Keeping existing output for {path.name}: {output_path.name}")
+        print(
+            f"Keeping existing output for {_display_path(path)}: "
+            f"{_display_path(output_path)}"
+        )
 
     try:
         edges = VesicleEdges.from_checkpoint(path)
     except (FileNotFoundError, ValueError) as error:
         message = str(error)
-        print(f"Failed to load {path.name}: {message}")
+        print(f"Failed to load {_display_path(path)}: {message}")
         return _load_error_summary(path, args.input_path, message)
 
     status = "ok"
@@ -434,10 +446,13 @@ def process_qc_file(
         qc_error = str(error)
         if edges.qc_result is None:
             status = "qc_error"
-            print(f"QC failed for {path.name}: {error}")
+            print(f"QC failed for {_display_path(path)}: {error}")
         else:
             status = "no_accepted_frames"
-            print(f"QC produced no accepted frames for {path.name}: {error}")
+            print(
+                "QC produced no accepted frames for "
+                f"{_display_path(path)}: {error}"
+            )
 
     if status == "no_accepted_frames" and args.overwrite and output_exists:
         output_path.unlink()
@@ -591,9 +606,12 @@ def main() -> None:
         _run_extract(args)
     elif args.command == "qc":
         _run_qc(args)
-    else:
+    elif args.command == "gif":
         run_gif(args)
+    else:
+        internal_structures_cli.run(args)
 
 
 if __name__ == "__main__":
     main()
+
