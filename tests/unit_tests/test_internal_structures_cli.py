@@ -32,6 +32,14 @@ def _args(tmp_path, checkpoint):
         background_sigma_px=8.0,
         threshold_sigma=4.0,
         min_region_area_px=9,
+        light_grow_sigma=1.5,
+        filament_threshold_sigma=1.5,
+        filament_scales_px=(1.0, 2.0, 3.0),
+        min_filament_length_px=8,
+        bubble_edge_sigma=2.0,
+        bubble_closing_px=2,
+        min_bubble_area_px=25,
+        min_bubble_boundary_fraction=0.45,
         save_masks=True,
         no_gif=True,
         overwrite=False,
@@ -83,6 +91,11 @@ def test_process_checkpoint_writes_measurements_in_original_coordinates(
         usable_area_px = 25
         structured_area_px = 4
         structured_area_fraction = 0.16
+        light_area_fraction = 0.0
+        filament_area_fraction = 0.0
+        filament_length_px = 0
+        bubble_area_fraction = 0.0
+        bubble_count = 0
         noise_sigma = 0.5
         regions = (
             InternalStructureRegion(
@@ -99,6 +112,11 @@ def test_process_checkpoint_writes_measurements_in_original_coordinates(
             mask = np.zeros((10, 10), dtype=bool)
             mask[5:7, 7:9] = True
             return mask
+
+        @staticmethod
+        def to_full_frame_channel_mask(structure_type):
+            assert structure_type in {"light_region", "dark_filament", "bubble"}
+            return np.zeros((10, 10), dtype=bool)
 
     monkeypatch.setattr(
         internal_structures_cli.VesicleEdges,
@@ -138,6 +156,40 @@ def test_process_checkpoint_writes_measurements_in_original_coordinates(
     assert not masks["dark_filament_masks"].any()
     assert not masks["bubble_region_masks"].any()
     assert summary["median_area_fraction"] == 0.16
+
+
+def test_process_checkpoint_reports_unreadable_video(tmp_path, monkeypatch):
+    """Test unreadable source videos return a load-error summary row."""
+    checkpoint = tmp_path / "sample.npz"
+    checkpoint.touch()
+    video_path = tmp_path / "sample.nd2"
+    video_path.touch()
+
+    class FakeEdges:
+        source_path = video_path
+        detections = []
+
+    monkeypatch.setattr(
+        internal_structures_cli.VesicleEdges,
+        "from_checkpoint",
+        lambda path: FakeEdges(),
+    )
+    monkeypatch.setattr(
+        internal_structures_cli.nd2,
+        "imread",
+        lambda path: (_ for _ in ()).throw(OSError("truncated ND2")),
+    )
+
+    args = _args(tmp_path, checkpoint)
+    summary = internal_structures_cli.process_checkpoint(
+        checkpoint,
+        args,
+        internal_structures_cli.config_from_args(args),
+        None,
+    )
+
+    assert summary["status"] == "load_error"
+    assert summary["error"] == "truncated ND2"
 
 
 def test_resolve_video_path_can_relocate_recorded_source(tmp_path):

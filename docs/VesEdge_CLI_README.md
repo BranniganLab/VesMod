@@ -351,15 +351,15 @@ The resulting EdgeMod estimates can be reported alongside each directory's `vese
 Run one checkpoint:
 
 ```bash
-vesedge internal-structures sample.npz \\
+vesedge internal-structures sample.npz \
     --output-dir ./results/internal_structures
 ```
 
 Run a recursive checkpoint collection:
 
 ```bash
-vesedge internal-structures ./checkpoints \\
-    --recursive \\
+vesedge internal-structures ./checkpoints \
+    --recursive \
     --output-dir ./results/internal_structures
 ```
 
@@ -372,8 +372,8 @@ Normal use requires `--qc-results` pointing to a QC output directory or directly
 To evaluate the experimental detector before choosing QC, explicitly request all successful edge detections:
 
 ```bash
-vesedge internal-structures ./checkpoints \\
-    --include-unqced \\
+vesedge internal-structures ./checkpoints \
+    --include-unqced \
     --output-dir ./results/internal_structures_unqced
 ```
 
@@ -382,19 +382,19 @@ Exactly one of `--qc-results` and `--include-unqced` is required. The analysis r
 ## Experimental Parameters
 
 ```bash
-vesedge internal-structures ./checkpoints \\
-    --output-dir ./results/internal_structures \\
-    --membrane-exclusion-px 5 \\
-    --background-sigma-px 30 \\
-    --threshold-sigma 4 \\
-    --light-grow-sigma 1.5 \\
-    --min-region-area-px 9 \\
-    --filament-threshold-sigma 1.5 \\
-    --filament-scales-px 1 2 3 \\
-    --min-filament-length-px 8 \\
-    --bubble-edge-sigma 2 \\
-    --bubble-closing-px 2 \\
-    --min-bubble-area-px 25 \\
+vesedge internal-structures ./checkpoints \
+    --output-dir ./results/internal_structures \
+    --membrane-exclusion-px 5 \
+    --background-sigma-px 30 \
+    --threshold-sigma 4 \
+    --light-grow-sigma 1.5 \
+    --min-region-area-px 9 \
+    --filament-threshold-sigma 1.5 \
+    --filament-scales-px 1 2 3 \
+    --min-filament-length-px 8 \
+    --bubble-edge-sigma 2 \
+    --bubble-closing-px 2 \
+    --min-bubble-area-px 25 \
     --min-bubble-boundary-fraction 0.45
 ```
 
@@ -411,8 +411,8 @@ These defaults are starting values, not calibrated population boundaries. Compar
 The checkpoint records the original ND2 path. If videos have moved, place them in one directory and supply:
 
 ```bash
-vesedge internal-structures ./checkpoints \\
-    --video-root /new/video/location \\
+vesedge internal-structures ./checkpoints \
+    --video-root /new/video/location \
     --output-dir ./results/internal_structures
 ```
 

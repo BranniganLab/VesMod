@@ -23,6 +23,8 @@ from vesmod.VesEdge import (
     summarize_internal_structures,
 )
 
+from .path_utils import _display_path, _relative_input_path
+
 
 def add_parser(subparsers) -> None:
     """Add the independent internal-structure analysis subcommand."""
@@ -169,24 +171,14 @@ def config_from_args(args: argparse.Namespace) -> InternalStructureConfig:
         background_sigma_px=args.background_sigma_px,
         threshold_sigma=args.threshold_sigma,
         min_region_area_px=args.min_region_area_px,
-        light_grow_sigma=getattr(args, "light_grow_sigma", 1.5),
-        filament_threshold_sigma=getattr(
-            args,
-            "filament_threshold_sigma",
-            1.5,
-        ),
-        filament_scales_px=tuple(
-            getattr(args, "filament_scales_px", (1.0, 2.0, 3.0))
-        ),
-        min_filament_length_px=getattr(args, "min_filament_length_px", 8),
-        bubble_edge_sigma=getattr(args, "bubble_edge_sigma", 2.0),
-        bubble_closing_px=getattr(args, "bubble_closing_px", 2),
-        min_bubble_area_px=getattr(args, "min_bubble_area_px", 25),
-        min_bubble_boundary_fraction=getattr(
-            args,
-            "min_bubble_boundary_fraction",
-            0.45,
-        ),
+        light_grow_sigma=args.light_grow_sigma,
+        filament_threshold_sigma=args.filament_threshold_sigma,
+        filament_scales_px=tuple(args.filament_scales_px),
+        min_filament_length_px=args.min_filament_length_px,
+        bubble_edge_sigma=args.bubble_edge_sigma,
+        bubble_closing_px=args.bubble_closing_px,
+        min_bubble_area_px=args.min_bubble_area_px,
+        min_bubble_boundary_fraction=args.min_bubble_boundary_fraction,
     )
 
 
@@ -206,8 +198,9 @@ def run(args: argparse.Namespace) -> None:
         qc_config,
         qc_provenance_path,
     )
+    video_index = _build_video_filename_index(paths, args.video_root)
     summary_rows = [
-        process_checkpoint(path, args, config, qc_config)
+        process_checkpoint(path, args, config, qc_config, video_index)
         for path in paths
     ]
     _write_csv(
@@ -222,6 +215,7 @@ def process_checkpoint(
     args: argparse.Namespace,
     config: InternalStructureConfig,
     qc_config: EdgeQCConfig | None,
+    video_index: dict[str, tuple[Path, ...]] | None = None,
 ) -> dict:
     """Measure one checkpoint and write its frame- and region-level outputs."""
     relative_path = _relative_input_path(checkpoint_path, args.input_path)
@@ -234,6 +228,7 @@ def process_checkpoint(
             edges.source_path,
             args.video_root,
             checkpoint_path,
+            video_index,
         )
         frames = nd2.imread(video_path)
         if frames.ndim != 3:
@@ -245,7 +240,7 @@ def process_checkpoint(
             )
         if qc_config is not None:
             _apply_qc(edges, qc_config)
-    except (FileNotFoundError, IndexError, TypeError, ValueError) as error:
+    except (OSError, IndexError, TypeError, ValueError) as error:
         message = str(error)
         print(f"Failed to analyze {_display_path(checkpoint_path)}: {message}")
         return _error_summary(relative_path, message)
@@ -306,7 +301,6 @@ def process_checkpoint(
     )
 
 
-
 def _load_qc_selection(
     args: argparse.Namespace,
     checkpoint_paths: list[Path],
@@ -358,10 +352,38 @@ def _apply_qc(edges: VesicleEdges, qc_config: EdgeQCConfig) -> None:
             raise
 
 
+def _build_video_filename_index(
+    checkpoint_paths: list[Path],
+    video_root: Path | None,
+) -> dict[str, tuple[Path, ...]]:
+    """Index video filenames once for the selected checkpoint batch."""
+    search_roots = {
+        path.expanduser().resolve().parent
+        for path in checkpoint_paths
+    }
+    if video_root is not None:
+        resolved_root = video_root.expanduser().resolve()
+        if resolved_root.is_dir():
+            search_roots.add(resolved_root)
+
+    index: dict[str, set[Path]] = {}
+    for root in search_roots:
+        for candidate in root.rglob("*"):
+            if candidate.is_file():
+                index.setdefault(candidate.name.lower(), set()).add(
+                    candidate.resolve()
+                )
+    return {
+        filename: tuple(sorted(paths))
+        for filename, paths in index.items()
+    }
+
+
 def _resolve_video_path(
     stored_path: str | Path | None,
     video_root: Path | None,
     checkpoint_path: Path,
+    video_index: dict[str, tuple[Path, ...]] | None = None,
 ) -> Path:
     """Resolve a source video from provenance or an unambiguous filename."""
     if stored_path is not None:
@@ -382,7 +404,7 @@ def _resolve_video_path(
         if resolved_root not in search_roots:
             search_roots.append(resolved_root)
 
-    matches = _find_video_matches(video_name, search_roots)
+    matches = _find_video_matches(video_name, search_roots, video_index)
     if len(matches) == 1:
         return matches[0]
     if len(matches) > 1:
@@ -405,10 +427,18 @@ def _resolve_video_path(
 def _find_video_matches(
     video_name: str,
     search_roots: list[Path],
+    video_index: dict[str, tuple[Path, ...]] | None = None,
 ) -> list[Path]:
     """Find unique case-insensitive filename matches below selected roots."""
-    matches: set[Path] = set()
     lowercase_name = video_name.lower()
+    if video_index is not None:
+        return sorted(
+            candidate
+            for candidate in video_index.get(lowercase_name, ())
+            if any(candidate.is_relative_to(root) for root in search_roots)
+        )
+
+    matches: set[Path] = set()
     for root in search_roots:
         for candidate in root.rglob("*"):
             if (
@@ -429,15 +459,11 @@ def _frame_row(
         "usable_area_px": result.usable_area_px,
         "structured_area_px": result.structured_area_px,
         "structured_area_fraction": result.structured_area_fraction,
-        "light_area_fraction": getattr(result, "light_area_fraction", 0.0),
-        "filament_area_fraction": getattr(
-            result,
-            "filament_area_fraction",
-            0.0,
-        ),
-        "filament_length_px": getattr(result, "filament_length_px", 0),
-        "bubble_area_fraction": getattr(result, "bubble_area_fraction", 0.0),
-        "bubble_count": getattr(result, "bubble_count", 0),
+        "light_area_fraction": result.light_area_fraction,
+        "filament_area_fraction": result.filament_area_fraction,
+        "filament_length_px": result.filament_length_px,
+        "bubble_area_fraction": result.bubble_area_fraction,
+        "bubble_count": result.bubble_count,
         "region_count": len(result.regions),
         "noise_sigma": result.noise_sigma,
         "status": "ok",
@@ -575,28 +601,19 @@ def _save_masks(
         )
         light_masks = np.stack(
             [
-                _to_full_frame_channel_mask(
-                    results[index],
-                    getattr(results[index], "light_region_mask", None),
-                )
+                _to_full_frame_channel_mask(results[index], "light_region")
                 for index in frame_indices
             ]
         )
         filament_masks = np.stack(
             [
-                _to_full_frame_channel_mask(
-                    results[index],
-                    getattr(results[index], "dark_filament_mask", None),
-                )
+                _to_full_frame_channel_mask(results[index], "dark_filament")
                 for index in frame_indices
             ]
         )
         bubble_masks = np.stack(
             [
-                _to_full_frame_channel_mask(
-                    results[index],
-                    getattr(results[index], "bubble_region_mask", None),
-                )
+                _to_full_frame_channel_mask(results[index], "bubble")
                 for index in frame_indices
             ]
         )
@@ -618,20 +635,10 @@ def _save_masks(
 
 def _to_full_frame_channel_mask(
     result: InternalStructureFrameResult,
-    channel_mask: np.ndarray | None,
+    structure_type: str,
 ) -> np.ndarray:
-    """Map one cropped channel mask into original-image coordinates."""
-    original_shape = getattr(result, "original_shape", None)
-    if original_shape is None:
-        original_shape = result.to_full_frame_mask().shape
-    full_mask = np.zeros(original_shape, dtype=bool)
-    if channel_mask is None:
-        return full_mask
-    y_start, x_start = result.crop_origin_yx
-    y_stop = y_start + channel_mask.shape[0]
-    x_stop = x_start + channel_mask.shape[1]
-    full_mask[y_start:y_stop, x_start:x_stop] = channel_mask
-    return full_mask
+    """Map one named structure channel into original-image coordinates."""
+    return result.to_full_frame_channel_mask(structure_type)
 
 
 def _save_overlay_gif(
@@ -659,12 +666,12 @@ def _save_overlay_gif(
             axis.set_title(f"frame {frame_index}: not analyzed")
             return
         channel_specs = (
-            (result.light_region_mask, "autumn"),
-            (result.dark_filament_mask, "winter"),
-            (result.bubble_region_mask, "cool"),
+            ("light_region", "autumn"),
+            ("dark_filament", "winter"),
+            ("bubble", "cool"),
         )
-        for channel_mask, color_map in channel_specs:
-            full_mask = _to_full_frame_channel_mask(result, channel_mask)
+        for structure_type, color_map in channel_specs:
+            full_mask = _to_full_frame_channel_mask(result, structure_type)
             overlay = np.ma.masked_where(~full_mask, full_mask)
             axis.imshow(
                 overlay,
@@ -795,20 +802,6 @@ def _validate_input_output_paths(input_path: Path, output_dir: Path) -> None:
             "Internal-structure output directory must be outside the selected "
             "checkpoint directory."
         )
-
-
-def _display_path(path: Path) -> str:
-    """Return a stable absolute path for command-line messages."""
-    return str(path.expanduser().resolve())
-
-
-def _relative_input_path(path: Path, input_path: Path) -> Path:
-    """Return a checkpoint path relative to the selected input root."""
-    resolved_path = path.expanduser().resolve()
-    resolved_input = input_path.expanduser().resolve()
-    if resolved_path == resolved_input:
-        return Path(resolved_path.name)
-    return resolved_path.relative_to(resolved_input)
 
 
 _FRAME_FIELDS = [
