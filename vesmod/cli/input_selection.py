@@ -2,26 +2,39 @@
 
 from __future__ import annotations
 
+import argparse
 import glob
 import os
 from pathlib import Path
 
 
+class InputPathsAction(argparse.Action):
+    """Preserve one-input Path behavior while accepting multiple selectors."""
+
+    def __call__(self, parser, namespace, values, option_string=None) -> None:
+        """Store one Path directly, or multiple Paths as a list."""
+        del parser, option_string
+        setattr(namespace, self.dest, values[0] if len(values) == 1 else values)
+
+
+def normalize_input_paths(input_path: Path | list[Path]) -> list[Path]:
+    """Return one or more parsed selectors as a list."""
+    return input_path if isinstance(input_path, list) else [input_path]
+
+
 def select_input_files(
-    input_paths: list[Path],
+    input_path: Path | list[Path],
     suffix: str,
     recursive: bool,
 ) -> tuple[list[Path], Path]:
     """Resolve CLI selectors to unique files and a stable relative-path root.
 
-    ``input_paths`` may contain explicit files, directories, shell-expanded
-    filenames, or unexpanded glob patterns. With ``recursive=True``, a glob
-    pattern is also matched below subdirectories of its selected parent, so a
-    selector such as ``pattern*.npz`` finds matching files recursively.
+    Selectors may be explicit files, directories, shell-expanded filenames, or
+    unexpanded glob patterns. With ``recursive=True``, a glob pattern is also
+    matched below subdirectories of its selected parent, so a selector such as
+    ``pattern*.npz`` finds matching files recursively.
     """
-    if not input_paths:
-        raise ValueError("At least one input path is required.")
-
+    input_paths = normalize_input_paths(input_path)
     expected_suffix = suffix.lower()
     matches: set[Path] = set()
     roots: list[Path] = []
@@ -79,9 +92,8 @@ def _recursive_glob(pattern: str) -> str:
 def _glob_root(pattern: str) -> Path:
     """Return the non-glob prefix used as the relative-path root."""
     path = Path(pattern)
-    parts = path.parts
     prefix: list[str] = []
-    for part in parts:
+    for part in path.parts:
         if glob.has_magic(part):
             break
         prefix.append(part)
@@ -89,8 +101,6 @@ def _glob_root(pattern: str) -> Path:
     if not prefix:
         return Path.cwd().resolve()
     root = Path(*prefix)
-    if path.is_absolute() and not root.is_absolute():
-        root = Path(path.anchor) / root
     if root.suffix:
         root = root.parent
     return root.expanduser().resolve()
