@@ -9,10 +9,8 @@ import numpy as np
 import pytest
 
 from vesmod.VesEdge import (
-    EdgeDetection,
     EdgeExtractionConfig,
     EdgeQCConfig,
-    ImageContour,
     VesicleEdges,
 )
 from vesmod.cli import vesedge_cli
@@ -92,30 +90,6 @@ def test_parse_args_selects_qc_subcommand(monkeypatch, tmp_path):
     assert args.no_curvature_qc
     assert args.max_relative_area_deviation == pytest.approx(0.25)
     assert not args.no_area_qc
-    assert args.radius_deviation_threshold is None
-
-
-def test_parse_args_accepts_experimental_radius_screen(monkeypatch, tmp_path):
-    """Test experimental screening requires an explicit QC-stage option."""
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        [
-            "vesedge",
-            "qc",
-            "checkpoints",
-            "--output-dir",
-            str(tmp_path),
-            "--radius-deviation-threshold",
-            "0.2",
-        ],
-    )
-
-    args = vesedge_cli.parse_args()
-
-    config = vesedge_cli._radius_deviation_config_from_args(args)
-    assert config is not None
-    assert config.max_relative_deviation == pytest.approx(0.2)
 
 
 @pytest.mark.parametrize(
@@ -286,64 +260,6 @@ def test_process_qc_file_runs_qc_and_saves_filtered_output(tmp_path, monkeypatch
     assert row["status"] == "ok"
 
 
-def test_process_qc_file_applies_experimental_screen_after_curvature(
-    tmp_path,
-    monkeypatch,
-):
-    """Test experimental rejection changes export without mutating core QC."""
-    radii = [20.0, 21.0, 100.0, 101.0, 99.0]
-    detections = []
-    for frame_index, radius in enumerate(radii):
-        contour = ImageContour(
-            origin=(0.0, 0.0),
-            r=np.full(12, radius),
-        )
-        detections.append(
-            EdgeDetection(
-                full_contour=contour,
-                analysis_contour=contour,
-                frame_index=frame_index,
-            )
-        )
-    edges = VesicleEdges(
-        extraction_config=EdgeExtractionConfig(
-            pixels_per_micron=10.0,
-            n_angular_samples=12,
-        ),
-        detections=detections,
-    )
-    monkeypatch.setattr(
-        vesedge_cli.VesicleEdges,
-        "from_checkpoint",
-        lambda checkpoint_path: edges,
-    )
-    path = Path("sample.npz")
-    args = _qc_args(tmp_path, path)
-
-    row = vesedge_cli.process_qc_file(
-        path,
-        args,
-        EdgeQCConfig(5.0, enable_curvature_qc=False),
-        vesedge_cli.RadiusDeviationConfig(0.2),
-    )
-
-    exported = np.load(tmp_path / "sample.npy")
-    diagnostics = json.loads(
-        (tmp_path / "sample.radius_deviation.json").read_text()
-    )
-    assert exported.shape == (3, 12)
-    assert np.median(exported, axis=1) == pytest.approx([10.0, 10.1, 9.9])
-    assert row["radius_deviation_rejected"] == 2
-    assert row["accepted"] == 3
-    assert all(detection.qc.passed for detection in edges.detections)
-    assert diagnostics["rejected_count"] == 2
-    assert [
-        frame["frame_index"]
-        for frame in diagnostics["frames"]
-        if not frame["accepted"]
-    ] == [0, 1]
-
-
 def test_process_qc_file_preserves_relative_output_path(tmp_path, monkeypatch):
     """Test recursive QC outputs preserve checkpoint subdirectories."""
     observed = {}
@@ -419,53 +335,6 @@ def test_process_qc_file_records_zero_accepted_frames(tmp_path, monkeypatch):
     assert not stale_output.exists()
 
 
-def test_overwrite_removes_stale_output_when_radius_screen_accepts_no_frames(
-    tmp_path,
-    monkeypatch,
-):
-    """Test an experimental all-rejection result removes an old export."""
-    detections = []
-    for frame_index, radius in enumerate([8.0, 12.0]):
-        contour = ImageContour(
-            origin=(0.0, 0.0),
-            r=np.full(12, radius),
-        )
-        detections.append(
-            EdgeDetection(
-                full_contour=contour,
-                analysis_contour=contour,
-                frame_index=frame_index,
-            )
-        )
-    edges = VesicleEdges(
-        extraction_config=EdgeExtractionConfig(
-            pixels_per_micron=1.0,
-            n_angular_samples=12,
-        ),
-        detections=detections,
-    )
-    monkeypatch.setattr(
-        vesedge_cli.VesicleEdges,
-        "from_checkpoint",
-        lambda checkpoint_path: edges,
-    )
-    path = Path("sample.npz")
-    args = _qc_args(tmp_path, path)
-    stale_output = tmp_path / "sample.npy"
-    np.save(stale_output, np.ones((2, 12)))
-
-    row = vesedge_cli.process_qc_file(
-        path,
-        args,
-        EdgeQCConfig(5.0, enable_curvature_qc=False),
-        vesedge_cli.RadiusDeviationConfig(0.1),
-    )
-
-    assert row["status"] == "no_accepted_frames"
-    assert row["accepted"] == 0
-    assert not stale_output.exists()
-
-
 def test_process_qc_file_returns_load_error_summary(tmp_path, monkeypatch):
     """Test checkpoint load failures still produce canonical summary rows."""
     path = Path("broken.npz")
@@ -486,8 +355,6 @@ def test_process_qc_file_returns_load_error_summary(tmp_path, monkeypatch):
         "extraction_failures": 0,
         "curvature_rejected": 0,
         "area_rejected": 0,
-        "radius_deviation_rejected": 0,
-        "radius_reference_pixels": "",
         "accepted": 0,
         "accepted_fraction": 0.0,
         "status": "load_error",
@@ -540,28 +407,6 @@ def test_write_qc_provenance_records_manifest_and_recursive_setting(tmp_path):
     assert data["recursive"] is True
     assert data["checkpoint_manifest"] == [str(first.resolve()), str(second.resolve())]
     assert data["qc_config"]["curvature_threshold"] == 5.0
-
-
-def test_qc_provenance_separates_experimental_radius_configuration(tmp_path):
-    """Test the opt-in screen does not become stable EdgeQCConfig state."""
-    checkpoint = tmp_path / "sample.npz"
-    radius_config = vesedge_cli.RadiusDeviationConfig(0.2)
-
-    vesedge_cli._write_qc_provenance(
-        tmp_path / "qc",
-        EdgeQCConfig(5.0),
-        checkpoint,
-        False,
-        [checkpoint],
-        overwrite=False,
-        radius_config=radius_config,
-    )
-
-    data = json.loads((tmp_path / "qc" / "vesedge_qc.json").read_text())
-    assert "max_relative_deviation" not in data["qc_config"]
-    assert data["experimental"]["radius_deviation"] == {
-        "max_relative_deviation": 0.2,
-    }
 
 
 def test_overwrite_incompatible_provenance_removes_stale_outputs(tmp_path):
