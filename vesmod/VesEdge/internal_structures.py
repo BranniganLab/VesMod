@@ -369,32 +369,19 @@ def summarize_internal_structures(
         frame_prevalence=float(np.mean(fractions > 0.0)),
         n_frames=len(results),
         median_light_area_fraction=float(
-            np.median(
-                [getattr(result, "light_area_fraction", 0.0) for result in results]
-            )
+            np.median([result.light_area_fraction for result in results])
         ),
         median_filament_area_fraction=float(
-            np.median(
-                [
-                    getattr(result, "filament_area_fraction", 0.0)
-                    for result in results
-                ]
-            )
+            np.median([result.filament_area_fraction for result in results])
         ),
         median_filament_length_px=float(
-            np.median(
-                [getattr(result, "filament_length_px", 0) for result in results]
-            )
+            np.median([result.filament_length_px for result in results])
         ),
         median_bubble_area_fraction=float(
-            np.median(
-                [getattr(result, "bubble_area_fraction", 0.0) for result in results]
-            )
+            np.median([result.bubble_area_fraction for result in results])
         ),
         median_bubble_count=float(
-            np.median(
-                [getattr(result, "bubble_count", 0) for result in results]
-            )
+            np.median([result.bubble_count for result in results])
         ),
     )
 
