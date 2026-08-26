@@ -176,7 +176,7 @@ def test_process_extract_file_reports_failure_and_returns(monkeypatch, capsys):
     vesedge_cli.process_extract_file(path, _extract_args(input_path=path))
 
     captured = capsys.readouterr()
-    assert "Failed to extract failed.nd2: no successful detections" in captured.out
+    assert (\n        f"Failed to extract {path.resolve()}: no successful detections"\n        in captured.out\n    )
 
 
 def test_process_extract_file_saves_checkpoint_without_running_qc(
