@@ -15,6 +15,7 @@ import nd2
 import numpy as np
 
 from . import internal_structures_cli
+from .path_utils import _display_path, _relative_input_path
 from vesmod.VesEdge import (
     EdgeExtractionConfig,
     EdgeQCConfig,
@@ -228,20 +229,6 @@ def load_extractor_from_file(file_path: Path, function_name: str):
     if not callable(extractor):
         raise TypeError(f"{function_name} in {file_path} is not callable.")
     return extractor
-
-
-def _display_path(path: Path) -> str:
-    """Return a stable absolute path for command-line messages."""
-    return str(path.expanduser().resolve())
-
-
-def _relative_input_path(path: Path, input_path: Path) -> Path:
-    """Return one selected file relative to the user-selected input root."""
-    resolved_path = path.expanduser().resolve()
-    resolved_input = input_path.expanduser().resolve()
-    if resolved_path == resolved_input:
-        return Path(resolved_path.name)
-    return resolved_path.relative_to(resolved_input)
 
 
 def _output_base(
@@ -614,10 +601,11 @@ def main() -> None:
         _run_extract(args)
     elif args.command == "qc":
         _run_qc(args)
-    else:
+    elif args.command == "internal-structures":
         internal_structures_cli.run(args)
+    else:
+        raise ValueError(f"Unknown VesEdge command: {args.command}")
 
 
 if __name__ == "__main__":
     main()
-
