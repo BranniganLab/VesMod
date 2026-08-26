@@ -11,6 +11,8 @@ import numpy as np
 
 from vesmod.VesEdge import EdgeQCConfig, VesicleEdges, VesicleVideo
 
+from .input_selection import InputPathsAction, select_input_files
+
 
 def add_gif_parser(subparsers) -> None:
     """Add the standalone GIF-generation subcommand."""
@@ -21,7 +23,9 @@ def add_gif_parser(subparsers) -> None:
     parser.add_argument(
         "input_path",
         type=Path,
-        help="A VesEdge .npz checkpoint or directory containing checkpoints.",
+        nargs="+",
+        action=InputPathsAction,
+        help="One or more VesEdge .npz files, directories, or glob patterns.",
     )
     parser.add_argument(
         "--output-dir",
@@ -50,7 +54,7 @@ def add_gif_parser(subparsers) -> None:
     parser.add_argument(
         "--recursive",
         action="store_true",
-        help="Search checkpoint subdirectories and preserve their structure.",
+        help="Search checkpoint subdirectories and recursive glob matches.",
     )
     parser.add_argument(
         "--overwrite",
@@ -59,17 +63,13 @@ def add_gif_parser(subparsers) -> None:
     )
 
 
-def _checkpoint_paths(input_path: Path, recursive: bool) -> list[Path]:
-    """Return checkpoints selected by one file or directory input."""
-    resolved = input_path.expanduser().resolve()
-    if resolved.is_file():
-        if resolved.suffix.lower() != ".npz":
-            raise ValueError(f"Expected a .npz checkpoint, got: {resolved}")
-        return [resolved]
-    if not resolved.is_dir():
-        raise FileNotFoundError(f"Input path does not exist: {resolved}")
-    pattern = "**/*.npz" if recursive else "*.npz"
-    return sorted(path for path in resolved.glob(pattern) if path.is_file())
+def _checkpoint_paths(
+    input_path: Path | list[Path],
+    recursive: bool,
+) -> list[Path]:
+    """Return checkpoints selected by explicit paths, directories, or globs."""
+    checkpoints, _ = select_input_files(input_path, ".npz", recursive)
+    return checkpoints
 
 
 def _relative_checkpoint_path(checkpoint: Path, input_path: Path) -> Path:
@@ -231,11 +231,14 @@ def run_gif(args: argparse.Namespace) -> None:
     if args.style != "qc" and args.qc_dir is not None:
         raise ValueError("--qc-dir may only be used with --style qc.")
 
-    checkpoints = _checkpoint_paths(args.input_path, args.recursive)
+    checkpoints, input_root = select_input_files(
+        args.input_path,
+        ".npz",
+        args.recursive,
+    )
     if not checkpoints:
-        raise FileNotFoundError(
-            f"No .npz checkpoints found in {args.input_path.expanduser().resolve()}"
-        )
+        raise FileNotFoundError(f"No .npz checkpoints found for {args.input_path}")
+    args.input_path = input_root
 
     args.output_dir = args.output_dir.expanduser().resolve()
     qc_config = (
