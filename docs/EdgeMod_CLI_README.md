@@ -35,7 +35,7 @@ Experimental features:
 Fit one contour trajectory using the stable historical defaults:
 
 ```bash
-edgemod sample.npy
+edgemod "sample.npy"
 ```
 
 Defaults:
@@ -59,8 +59,8 @@ If physical-fit validation fails after HSS97 fitting is attempted, EdgeMod write
 For a VesEdge batch:
 
 ```bash
-vesedge qc ./checkpoints --output-dir ./results/qc_standard
-edgemod ./results/qc_standard
+vesedge qc "./checkpoints" --output-dir ./results/qc_standard
+edgemod "./results/qc_standard"
 ```
 
 ---
@@ -82,7 +82,7 @@ Distances should be in microns. `vesedge qc` output is directly suitable for Edg
 Fixed fitting is the default and is the stable EdgeMod behavior.
 
 ```bash
-edgemod sample.npy \
+edgemod "sample.npy" \
     --lower-fitting-bound 3 \
     --upper-fitting-bound 8
 ```
@@ -134,7 +134,7 @@ The selector searches only within the interval defined by `--lower-fitting-bound
 Example:
 
 ```bash
-edgemod sample.npy \
+edgemod "sample.npy" \
     --dynamic-range \
     --lower-fitting-bound 3 \
     --upper-fitting-bound 20 \
@@ -178,18 +178,18 @@ edgemod experimental --help
 Measure every selected trajectory without excluding any input:
 
 ```bash
-edgemod experimental temporal-rms ./results/qc_standard \
+edgemod experimental temporal-rms "./results/qc_standard" \
     --output-dir ./results/rms_report
 ```
 
 Apply an explicitly chosen cutoff and export only accepted trajectories:
 
 ```bash
-edgemod experimental temporal-rms ./results/qc_standard \
+edgemod experimental temporal-rms "./results/qc_standard" \
     --output-dir ./results/rms_50nm \
     --cutoff-nm 50
 
-edgemod ./results/rms_50nm
+edgemod "./results/rms_50nm"
 ```
 
 The stage removes each Fourier mode's temporal mean before combining its power,
@@ -346,23 +346,51 @@ The dependency direction is therefore experimental selection -> fixed q bounds -
 
 ## File Selection and Batch Behavior
 
+Always double-quote each input path or pattern. Quoting ordinary paths is safe,
+handles spaces, and prevents the shell from expanding wildcard patterns before
+EdgeMod receives them. This lets EdgeMod apply suffix validation, deduplication,
+and `--recursive` consistently. Double quotes also allow shell variables such as
+`"$DATA_DIR/*.npy"` to expand while preserving the wildcard for EdgeMod.
+
 Single file:
 
 ```bash
-edgemod sample.npy
+edgemod "sample.npy"
 ```
 
 Directory:
 
 ```bash
-edgemod ./edges
+edgemod "./edges"
+```
+
+Multiple selectors:
+
+```bash
+edgemod "./condition_a/sample.npy" "./condition_b/sample.npy"
+```
+
+Wildcard pattern:
+
+```bash
+edgemod "./conditions/*/sample.npy"
 ```
 
 Recursive directory search:
 
 ```bash
-edgemod ./edges --recursive
+edgemod "./edges" --recursive
 ```
+
+Recursive wildcard search:
+
+```bash
+edgemod "./conditions/*" --recursive
+```
+
+Do not remove the quotes from wildcard examples. An unquoted wildcard may be
+expanded by the shell first, changing which selectors EdgeMod sees and how
+recursive discovery behaves.
 
 Recursive runs report expected fitting/numerical failures and continue with later spectra. Direct non-recursive runs propagate those failures to the caller.
 
