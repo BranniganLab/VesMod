@@ -61,8 +61,8 @@ def _add_extract_parser(subparsers) -> None:
         type=Path,
         default=None,
         help=(
-            "Directory for checkpoints and GIFs. By default, outputs are "
-            "written beside each input file."
+            "Directory for checkpoints. By default, outputs are written "
+            "beside each input file."
         ),
     )
     parser.add_argument(
@@ -103,11 +103,6 @@ def _add_extract_parser(subparsers) -> None:
         "--extractor-name",
         default="extract_edge_from_frame",
         help="Name of the extractor function in --extractor-file.",
-    )
-    parser.add_argument(
-        "--no-gif",
-        action="store_true",
-        help="Do not save a GIF showing the extracted contours.",
     )
     parser.add_argument(
         "--overwrite",
@@ -257,8 +252,6 @@ def process_extract_file(path: Path, args: argparse.Namespace) -> None:
     """Extract one ND2 video and save a reusable checkpoint."""
     output_base = _output_base(path, args.input_path, args.output_dir)
     checkpoint_path = output_base.with_suffix(".npz")
-    gif_path = output_base.with_suffix(".gif")
-
     if checkpoint_path.exists() and not args.overwrite:
         print(f"Skipping {path.name}: checkpoint already exists: {checkpoint_path.name}")
         return
@@ -286,9 +279,6 @@ def process_extract_file(path: Path, args: argparse.Namespace) -> None:
     except (IndexError, ValueError) as error:
         print(f"Failed to extract {path.name}: {error}")
         return
-
-    if not args.no_gif and (args.overwrite or not gif_path.exists()):
-        video.make_vesicle_gif(gif_path, edges)
 
 
 def _qc_config_from_args(args: argparse.Namespace) -> EdgeQCConfig:
