@@ -127,6 +127,36 @@ def test_apply_recorded_qc_verifies_paired_array(tmp_path):
     )
 
 
+def test_apply_recorded_qc_allows_all_rejected_without_array(tmp_path):
+    """Test completed all-rejected QC can produce a red-only GIF."""
+    checkpoint_root = tmp_path / "checkpoints"
+    checkpoint = checkpoint_root / "sample.npz"
+    checkpoint_root.mkdir()
+    checkpoint.touch()
+    config = EdgeQCConfig(curvature_threshold=5.0)
+
+    class AllRejectedEdges:
+        accepted_detections = []
+        qc_result = None
+
+        def run_qc(self, supplied):
+            assert supplied is config
+            self.qc_result = object()
+            raise ValueError("no frames passed quality control")
+
+        @property
+        def accepted_radii_microns(self):
+            raise AssertionError("No filtered array should be compared")
+
+    gif_cli._apply_recorded_qc(
+        AllRejectedEdges(),
+        checkpoint,
+        checkpoint_root,
+        tmp_path / "qc-without-npy",
+        config,
+    )
+
+
 @pytest.mark.parametrize(
     ("style", "expects_overlay"),
     [("original", False), ("edges", True)],
