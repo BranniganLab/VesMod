@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 import nd2
 import numpy as np
 
-from . import internal_structures_cli
+from . import internal_structures_batch_cli as internal_structures_cli
 from .gif_cli import add_gif_parser, run_gif
 from .input_selection import InputPathsAction, select_input_files
 from .path_utils import _display_path, _relative_input_path
