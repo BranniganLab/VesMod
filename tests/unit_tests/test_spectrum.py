@@ -58,6 +58,7 @@ def test_init_from_vesicle_edges_uses_only_accepted_detections():
     qc_config = EdgeQCConfig(
         curvature_threshold=10.0,
         enable_curvature_qc=False,
+        enable_area_qc=False,
     )
 
     accepted_contour = ImageContour((0.0, 0.0), np.full(4, 4.0))
