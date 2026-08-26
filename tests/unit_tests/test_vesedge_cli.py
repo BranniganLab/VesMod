@@ -176,7 +176,10 @@ def test_process_extract_file_reports_failure_and_returns(monkeypatch, capsys):
     vesedge_cli.process_extract_file(path, _extract_args(input_path=path))
 
     captured = capsys.readouterr()
-    assert "Failed to extract failed.nd2: no successful detections" in captured.out
+    assert (
+        f"Failed to extract {path.resolve()}: no successful detections"
+        in captured.out
+    )
 
 
 def test_process_extract_file_saves_checkpoint_without_running_qc(
@@ -295,7 +298,11 @@ def test_process_qc_file_preserves_relative_output_path(tmp_path, monkeypatch):
     assert observed["npy"] == output_dir / "nested" / "sample.npy"
 
 
-def test_process_qc_file_records_zero_accepted_frames(tmp_path, monkeypatch):
+def test_process_qc_file_records_zero_accepted_frames(
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
     """Test a completed QC run with no accepted frames is summarized."""
 
     class Detection:
@@ -328,6 +335,9 @@ def test_process_qc_file_records_zero_accepted_frames(tmp_path, monkeypatch):
     np.save(stale_output, np.ones((2, 12)))
 
     row = vesedge_cli.process_qc_file(path, args, config)
+
+    captured = capsys.readouterr()
+    assert str(path.resolve()) in captured.out
 
     assert row["accepted"] == 0
     assert row["status"] == "no_accepted_frames"

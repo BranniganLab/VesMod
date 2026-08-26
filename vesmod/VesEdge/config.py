@@ -101,4 +101,3 @@ class EdgeQCConfig:
             raise ValueError(
                 "max_relative_area_deviation must be at least 0 and less than 1."
             )
-

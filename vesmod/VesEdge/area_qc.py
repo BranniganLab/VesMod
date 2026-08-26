@@ -58,13 +58,15 @@ def check_area_deviation(
     Returns
     -------
     AreaQCResult
-        Areas, trajectory reference, deviations, and rejection count.
+        Areas, trajectory reference, deviations, and rejection count. The
+        reference area and deviations are ``nan`` when no curvature-passing
+        contour has a finite, positive area; non-finite and nonpositive areas
+        are excluded from the reference candidates.
 
     Raises
     ------
     ValueError
-        If no detections are supplied, the threshold is invalid, or no finite
-        positive contour area is available as a reference.
+        If no detections are supplied or the threshold is invalid.
     """
     if not detections:
         raise ValueError("Area QC requires at least one successful detection.")
@@ -80,22 +82,32 @@ def check_area_deviation(
         [contour_area(edge.full_contour.r) for edge in detections],
         dtype=np.float64,
     )
-    reference_candidates = areas[np.isfinite(areas) & (areas > 0)]
-    if reference_candidates.size == 0:
-        raise ValueError(
-            "Area QC requires at least one finite positive contour area."
-        )
-    reference_area = float(np.median(reference_candidates))
-    deviations = np.abs(areas - reference_area) / reference_area
+    eligible = np.asarray(
+        [QCFlag.CURVATURE not in edge.qc.flags for edge in detections],
+        dtype=bool,
+    )
+    reference_candidates = areas[
+        eligible & np.isfinite(areas) & (areas > 0)
+    ]
+    if reference_candidates.size:
+        reference_area = float(np.median(reference_candidates))
+        deviations = np.abs(areas - reference_area) / reference_area
+    else:
+        reference_area = float("nan")
+        deviations = np.full(areas.shape, np.nan, dtype=np.float64)
 
-    for edge, area, deviation in zip(
+    for edge, area, deviation, is_eligible in zip(
         detections,
         areas,
         deviations,
+        eligible,
         strict=True,
     ):
         edge.qc.area_pixels2 = float(area)
         edge.qc.relative_area_deviation = float(deviation)
+        if not is_eligible:
+            edge.qc.flags.discard(QCFlag.AREA_DEVIATION)
+            continue
         exceeds_threshold = (
             deviation > max_relative_deviation
             and not np.isclose(
