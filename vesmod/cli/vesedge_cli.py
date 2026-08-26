@@ -16,6 +16,7 @@ import numpy as np
 
 from . import internal_structures_cli
 from .gif_cli import add_gif_parser, run_gif
+from .input_selection import InputPathsAction, select_input_files
 from .path_utils import _display_path, _relative_input_path
 from vesmod.VesEdge import (
     EdgeExtractionConfig,
@@ -51,12 +52,14 @@ def _add_extract_parser(subparsers) -> None:
     parser.add_argument(
         "input_path",
         type=Path,
-        help="An .nd2 file or a directory containing .nd2 files.",
+        nargs="+",
+        action=InputPathsAction,
+        help="One or more .nd2 files, directories, or glob patterns.",
     )
     parser.add_argument(
         "--recursive",
         action="store_true",
-        help="Search subdirectories when input_path is a directory.",
+        help="Search subdirectories for directory and glob inputs.",
     )
     parser.add_argument(
         "--output-dir",
@@ -122,12 +125,14 @@ def _add_qc_parser(subparsers) -> None:
     parser.add_argument(
         "input_path",
         type=Path,
-        help="A VesEdge .npz checkpoint or directory containing checkpoints.",
+        nargs="+",
+        action=InputPathsAction,
+        help="One or more VesEdge .npz files, directories, or glob patterns.",
     )
     parser.add_argument(
         "--recursive",
         action="store_true",
-        help="Search subdirectories when input_path is a directory.",
+        help="Search subdirectories for directory and glob inputs.",
     )
     parser.add_argument(
         "--output-dir",
@@ -174,27 +179,13 @@ def _add_qc_parser(subparsers) -> None:
 
 
 def iter_input_files(
-    input_path: Path,
+    input_path: Path | list[Path],
     suffix: str,
     recursive: bool,
 ) -> list[Path]:
     """Return selected input files with the requested suffix."""
-    input_path = input_path.expanduser().resolve()
-    suffix = suffix.lower()
-    if input_path.is_file():
-        if input_path.suffix.lower() != suffix:
-            raise ValueError(f"Expected a {suffix} file, got: {input_path}")
-        return [input_path]
-
-    if not input_path.is_dir():
-        raise FileNotFoundError(f"Input path does not exist: {input_path}")
-
-    pattern = "**/*" if recursive else "*"
-    return sorted(
-        candidate
-        for candidate in input_path.glob(pattern)
-        if candidate.is_file() and candidate.suffix.lower() == suffix
-    )
+    paths, _ = select_input_files(input_path, suffix, recursive)
+    return paths
 
 
 def load_extractor_from_module(import_string: str):
@@ -556,9 +547,10 @@ def _write_qc_summary(output_dir: Path, rows: list[dict]) -> None:
 
 def _run_extract(args: argparse.Namespace) -> None:
     """Run extraction over the selected ND2 files."""
-    paths = iter_input_files(args.input_path, ".nd2", args.recursive)
+    paths, input_root = select_input_files(args.input_path, ".nd2", args.recursive)
     if not paths:
-        raise FileNotFoundError(f"No .nd2 files found in {args.input_path}")
+        raise FileNotFoundError(f"No .nd2 files found for {args.input_path}")
+    args.input_path = input_root
 
     for path in paths:
         process_extract_file(path, args)
@@ -566,9 +558,10 @@ def _run_extract(args: argparse.Namespace) -> None:
 
 def _run_qc(args: argparse.Namespace) -> None:
     """Run one QC configuration over the selected checkpoints."""
-    paths = iter_input_files(args.input_path, ".npz", args.recursive)
+    paths, input_root = select_input_files(args.input_path, ".npz", args.recursive)
     if not paths:
-        raise FileNotFoundError(f"No .npz files found in {args.input_path}")
+        raise FileNotFoundError(f"No .npz files found for {args.input_path}")
+    args.input_path = input_root
 
     qc_config = _qc_config_from_args(args)
     _write_qc_provenance(
