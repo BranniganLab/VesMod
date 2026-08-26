@@ -11,12 +11,9 @@ The intended workflow is:
         ▼
 QC-independent .npz checkpoints
         │
-        ├── vesedge qc with configuration A ──▶ filtered .npy files
-        ├── vesedge qc with configuration B ──▶ filtered .npy files
-        └── vesedge qc with configuration C ──▶ filtered .npy files
-                                                     │
-                                                     ▼
-                                                  EdgeMod
+        ├── vesedge qc with configuration A ──▶ filtered .npy files ──▶ EdgeMod
+        ├── vesedge qc with configuration B ──▶ filtered .npy files ──▶ EdgeMod
+        └── vesedge internal-structures ───────▶ interior measurements
 ```
 
 This allows expensive image processing to be run once while QC settings are evaluated repeatedly and reproducibly. Built-in QC includes frame-level curvature and trajectory-relative contour-area checks.
@@ -344,6 +341,106 @@ edgemod ./results/qc_permissive
 ```
 
 The resulting EdgeMod estimates can be reported alongside each directory's `vesedge_qc.json` and `qc_summary.csv` to show whether the scientific conclusion depends strongly on QC choices.
+
+---
+
+# `vesedge internal-structures`
+
+`vesedge internal-structures` is an experimental measurement command separate from edge QC. It measures broad light regions, thin dark filaments, and dark-edged bubbles with relatively neutral interiors inside every selected contour. The detectors share background normalization and original-image coordinate mapping but retain separate masks and measurements. The command does not alter checkpoints, introduce another edge-rejection rule, or assign vesicles to populations.
+
+Run one checkpoint:
+
+```bash
+vesedge internal-structures sample.npz \\
+    --output-dir ./results/internal_structures
+```
+
+Run a recursive checkpoint collection:
+
+```bash
+vesedge internal-structures ./checkpoints \\
+    --recursive \\
+    --output-dir ./results/internal_structures
+```
+
+The output directory must be outside the checkpoint directory. This prevents optional mask `.npz` files from being rediscovered as extraction checkpoints.
+
+## Frame Selection
+
+Normal use requires `--qc-results` pointing to a QC output directory or directly to its `vesedge_qc.json` file. VesEdge verifies that each selected checkpoint appears in that QC manifest, reapplies the recorded configuration, and analyzes only passing detections. The frame CSV retains rejected frames with status `qc_rejected`; they are not reported as structure-free frames.
+
+To evaluate the experimental detector before choosing QC, explicitly request all successful edge detections:
+
+```bash
+vesedge internal-structures ./checkpoints \\
+    --include-unqced \\
+    --output-dir ./results/internal_structures_unqced
+```
+
+Exactly one of `--qc-results` and `--include-unqced` is required. The analysis remains separate from QC: it consumes the QC frame selection but does not modify QC decisions or add internal structure to the definition of edge quality.
+
+## Experimental Parameters
+
+```bash
+vesedge internal-structures ./checkpoints \\
+    --output-dir ./results/internal_structures \\
+    --membrane-exclusion-px 5 \\
+    --background-sigma-px 30 \\
+    --threshold-sigma 4 \\
+    --light-grow-sigma 1.5 \\
+    --min-region-area-px 9 \\
+    --filament-threshold-sigma 1.5 \\
+    --filament-scales-px 1 2 3 \\
+    --min-filament-length-px 8 \\
+    --bubble-edge-sigma 2 \\
+    --bubble-closing-px 2 \\
+    --min-bubble-area-px 25 \\
+    --min-bubble-boundary-fraction 0.45
+```
+
+- `--membrane-exclusion-px` erodes the detected interior so the membrane and its optical blur are not counted.
+- `--background-sigma-px` controls the spatial scale treated as smooth background. The broader default prevents large light domains from being absorbed into that estimate.
+- `--threshold-sigma` supplies high-confidence positive-residual seeds; `--light-grow-sigma` expands them through connected, moderately light pixels.
+- `--filament-threshold-sigma`, `--filament-scales-px`, and `--min-filament-length-px` configure a multiscale dark-ridge detector filtered by skeleton length.
+- The bubble options identify dark boundaries, close small gaps, require boundary support, and fill qualifying neutral interiors.
+
+These defaults are starting values, not calibrated population boundaries. Compare diagnostic overlays across known empty and structured vesicles before interpreting absolute abundance values.
+
+## Source Videos
+
+The checkpoint records the original ND2 path. If videos have moved, place them in one directory and supply:
+
+```bash
+vesedge internal-structures ./checkpoints \\
+    --video-root /new/video/location \\
+    --output-dir ./results/internal_structures
+```
+
+The fallback searches recursively and requires exactly one matching filename. For a legacy checkpoint without stored source provenance, VesEdge infers the ND2 filename from the checkpoint stem—for example, `sample.npz` maps to `sample.nd2`. It searches beside the checkpoint and then under `--video-root`; multiple matches are reported as an ambiguity rather than selected silently.
+
+## Outputs
+
+For `sample.npz`, the command writes:
+
+```text
+internal_structure_analysis.json
+internal_structure_summary.csv
+sample_frames.csv
+sample_regions.csv
+sample_internal_structures.gif
+```
+
+Use `--save-masks` to additionally write `sample_masks.npz`. It contains `structure_masks` (the union), `light_region_masks`, `dark_filament_masks`, and `bubble_region_masks`, all aligned with the original image coordinates. `frame_indices` identifies the corresponding source frames.
+
+`sample_frames.csv` reports the union structured-area fraction plus light area, filament area and skeleton length, bubble area and count, noise estimate, and status for every source frame.
+
+`sample_regions.csv` labels each region as `light_region`, `dark_filament`, or `bubble` and reports polarity, area, filament skeleton length, centroid, bounding box, and signed residual in original image coordinates.
+
+`internal_structure_summary.csv` contains one row per video with failure counts, union abundance summaries, and channel-specific medians for light area, filament area and length, and bubble area and count. These are intended as inputs to later population segmentation; the command does not choose a present/absent cutoff.
+
+The diagnostic GIF overlays the three structure classes in separate colors together with the extracted contour. Disable it with `--no-gif`.
+
+As with QC, incompatible provenance is rejected unless `--overwrite` is supplied. An incompatible overwrite removes only files managed by the previous internal-structure batch.
 
 ---
 

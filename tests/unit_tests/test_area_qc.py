@@ -84,3 +84,44 @@ def test_area_qc_preserves_existing_qc_flags():
 
     assert QCFlag.CURVATURE in detections[0].qc.flags
     assert QCFlag.AREA_DEVIATION in detections[2].qc.flags
+
+
+def test_area_qc_excludes_curvature_failures_from_reference():
+    """Test curvature-rejected contours cannot shift the area reference."""
+    detections = [
+        _edge_with_area(400.0),
+        _edge_with_area(100.0),
+        _edge_with_area(102.0),
+    ]
+    detections[0].qc.flags.add(QCFlag.CURVATURE)
+
+    result = check_area_deviation(
+        detections,
+        max_relative_deviation=0.25,
+    )
+
+    assert result.reference_area_pixels2 == pytest.approx(101.0)
+    assert QCFlag.AREA_DEVIATION not in detections[0].qc.flags
+    assert detections[0].qc.area_pixels2 == pytest.approx(400.0)
+    assert all(edge.qc.passed for edge in detections[1:])
+
+
+def test_area_qc_has_no_reference_when_curvature_rejects_every_frame():
+    """Test area QC does not fall back to curvature-rejected contours."""
+    detections = [_edge_with_area(100.0), _edge_with_area(400.0)]
+    for detection in detections:
+        detection.qc.flags.add(QCFlag.CURVATURE)
+
+    result = check_area_deviation(
+        detections,
+        max_relative_deviation=0.25,
+    )
+
+    assert np.isnan(result.reference_area_pixels2)
+    assert all(np.isnan(value) for value in result.relative_deviations)
+    assert result.rejected_count == 0
+    assert all(edge.qc.area_pixels2 is not None for edge in detections)
+    assert all(
+        QCFlag.AREA_DEVIATION not in edge.qc.flags
+        for edge in detections
+    )

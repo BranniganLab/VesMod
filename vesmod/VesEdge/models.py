@@ -182,7 +182,8 @@ class AreaQCResult:
     areas_pixels2 : tuple[float, ...]
         Enclosed area for each successful detection, in detection order.
     reference_area_pixels2 : float
-        Median finite positive contour area used as the reference.
+        Median finite positive area among curvature-passing contours. This is
+        nan when no contour passes curvature QC.
     relative_deviations : tuple[float, ...]
         Absolute fractional area deviation for each successful detection.
     rejected_count : int
