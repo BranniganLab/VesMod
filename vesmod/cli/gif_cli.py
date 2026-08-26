@@ -157,20 +157,20 @@ def _apply_recorded_qc(
     qc_config: EdgeQCConfig,
 ) -> None:
     """Reconstruct frame-level QC and verify the paired filtered output."""
+    try:
+        edges.run_qc(qc_config)
+    except ValueError:
+        if edges.qc_result is None:
+            raise
+        if not edges.accepted_detections:
+            return
+        raise
+
     qc_path = _paired_qc_path(checkpoint, input_path, qc_dir)
     if not qc_path.is_file():
         raise FileNotFoundError(
             f"No paired QC .npy exists for {checkpoint.resolve()}: {qc_path}"
         )
-
-    try:
-        edges.run_qc(qc_config)
-    except ValueError as error:
-        if edges.qc_result is None:
-            raise
-        raise ValueError(
-            f"QC produced no accepted frames for {checkpoint.resolve()}: {error}"
-        ) from error
 
     saved_radii = np.load(qc_path, allow_pickle=False)
     reconstructed = edges.accepted_radii_microns
