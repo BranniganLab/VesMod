@@ -29,6 +29,8 @@ from vesmod.EdgeMod.experimental.temporal_rms_plotting import (
     save_temporal_rms_histogram,
 )
 
+from .input_selection import InputPathsAction, select_input_files
+
 
 def parse_args() -> argparse.Namespace:
     """Parse the core CLI or an explicitly namespaced experimental command."""
@@ -69,12 +71,14 @@ def _add_input_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "input_path",
         type=Path,
-        help="A .npy file or a directory containing .npy files.",
+        nargs="+",
+        action=InputPathsAction,
+        help="One or more .npy files, directories, or glob patterns.",
     )
     parser.add_argument(
         "--recursive",
         action="store_true",
-        help="Search subdirectories when input_path is a directory.",
+        help="Search subdirectories for directory and glob inputs.",
     )
 
 
@@ -180,19 +184,10 @@ def _add_temporal_rms_parser(subparsers) -> None:
     )
 
 
-def iter_npy_files(input_path: Path, recursive: bool) -> list[Path]:
-    """Return the input ``.npy`` files selected by a CLI path and recursion flag."""
-    input_path = input_path.expanduser().resolve()
-    if input_path.is_file():
-        if input_path.suffix != ".npy":
-            raise ValueError(f"Expected a .npy file, got: {input_path}")
-        return [input_path]
-
-    if not input_path.is_dir():
-        raise FileNotFoundError(f"Input path does not exist: {input_path}")
-
-    pattern = "**/*.npy" if recursive else "*.npy"
-    return sorted(input_path.glob(pattern))
+def iter_npy_files(input_path: Path | list[Path], recursive: bool) -> list[Path]:
+    """Return the input ``.npy`` files selected by CLI selectors."""
+    paths, _ = select_input_files(input_path, ".npy", recursive)
+    return paths
 
 
 def build_fit_config(args: argparse.Namespace) -> SpectrumFitConfig:
@@ -538,9 +533,10 @@ def _run_fit(args: argparse.Namespace) -> None:
     if args.dynamic_range:
         build_dynamic_selector(args)
 
-    paths = iter_npy_files(args.input_path, args.recursive)
+    paths, input_root = select_input_files(args.input_path, ".npy", args.recursive)
     if not paths:
-        raise FileNotFoundError(f"No .npy files found in {args.input_path}")
+        raise FileNotFoundError(f"No .npy files found for {args.input_path}")
+    args.input_path = input_root
 
     for path in paths:
         try:
@@ -553,10 +549,11 @@ def _run_fit(args: argparse.Namespace) -> None:
 
 def _run_temporal_rms(args: argparse.Namespace) -> None:
     """Run one experimental temporal-RMS configuration over selected inputs."""
-    _reject_overlapping_temporal_rms_paths(args.input_path, args.output_dir)
-    paths = iter_npy_files(args.input_path, args.recursive)
+    paths, input_root = select_input_files(args.input_path, ".npy", args.recursive)
     if not paths:
-        raise FileNotFoundError(f"No .npy files found in {args.input_path}")
+        raise FileNotFoundError(f"No .npy files found for {args.input_path}")
+    args.input_path = input_root
+    _reject_overlapping_temporal_rms_paths(args.input_path, args.output_dir)
 
     config = build_temporal_rms_config(args)
     _write_temporal_rms_provenance(
