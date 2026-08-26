@@ -245,7 +245,7 @@ def process_checkpoint(
             )
         if qc_config is not None:
             _apply_qc(edges, qc_config)
-    except (FileNotFoundError, IndexError, TypeError, ValueError) as error:
+    except (OSError, IndexError, TypeError, ValueError) as error:
         message = str(error)
         print(f"Failed to analyze {_display_path(checkpoint_path)}: {message}")
         return _error_summary(relative_path, message)
