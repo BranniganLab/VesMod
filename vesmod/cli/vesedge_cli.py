@@ -15,6 +15,7 @@ import nd2
 import numpy as np
 
 from . import internal_structures_cli
+from .gif_cli import add_gif_parser, run_gif
 from .path_utils import _display_path, _relative_input_path
 from vesmod.VesEdge import (
     EdgeExtractionConfig,
@@ -37,6 +38,7 @@ def parse_args() -> argparse.Namespace:
     _add_extract_parser(subparsers)
     _add_qc_parser(subparsers)
     internal_structures_cli.add_parser(subparsers)
+    add_gif_parser(subparsers)
     return parser.parse_args()
 
 
@@ -61,8 +63,8 @@ def _add_extract_parser(subparsers) -> None:
         type=Path,
         default=None,
         help=(
-            "Directory for checkpoints and GIFs. By default, outputs are "
-            "written beside each input file."
+            "Directory for checkpoints. By default, outputs are written "
+            "beside each input file."
         ),
     )
     parser.add_argument(
@@ -103,11 +105,6 @@ def _add_extract_parser(subparsers) -> None:
         "--extractor-name",
         default="extract_edge_from_frame",
         help="Name of the extractor function in --extractor-file.",
-    )
-    parser.add_argument(
-        "--no-gif",
-        action="store_true",
-        help="Do not save a GIF showing the extracted contours.",
     )
     parser.add_argument(
         "--overwrite",
@@ -248,8 +245,6 @@ def process_extract_file(path: Path, args: argparse.Namespace) -> None:
     """Extract one ND2 video and save a reusable checkpoint."""
     output_base = _output_base(path, args.input_path, args.output_dir)
     checkpoint_path = output_base.with_suffix(".npz")
-    gif_path = output_base.with_suffix(".gif")
-
     if checkpoint_path.exists() and not args.overwrite:
         print(
             f"Skipping {_display_path(path)}: checkpoint already exists: "
@@ -280,9 +275,6 @@ def process_extract_file(path: Path, args: argparse.Namespace) -> None:
     except (IndexError, ValueError) as error:
         print(f"Failed to extract {_display_path(path)}: {error}")
         return
-
-    if not args.no_gif and (args.overwrite or not gif_path.exists()):
-        video.make_vesicle_gif(gif_path, edges)
 
 
 def _qc_config_from_args(args: argparse.Namespace) -> EdgeQCConfig:
@@ -601,6 +593,8 @@ def main() -> None:
         _run_extract(args)
     elif args.command == "qc":
         _run_qc(args)
+    elif args.command == "gif":
+        run_gif(args)
     elif args.command == "internal-structures":
         internal_structures_cli.run(args)
     else:
