@@ -14,6 +14,8 @@ import matplotlib.pyplot as plt
 import nd2
 import numpy as np
 
+from vesmod.cli.gif_cli import add_gif_parser, run_gif
+
 from vesmod.VesEdge import (
     EdgeExtractionConfig,
     EdgeQCConfig,
@@ -34,6 +36,7 @@ def parse_args() -> argparse.Namespace:
     subparsers = parser.add_subparsers(dest="command", required=True)
     _add_extract_parser(subparsers)
     _add_qc_parser(subparsers)
+    add_gif_parser(subparsers)
     return parser.parse_args()
 
 
@@ -596,8 +599,10 @@ def main() -> None:
     args = parse_args()
     if args.command == "extract":
         _run_extract(args)
-    else:
+    elif args.command == "qc":
         _run_qc(args)
+    else:
+        run_gif(args)
 
 
 if __name__ == "__main__":
