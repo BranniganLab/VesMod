@@ -71,6 +71,7 @@ class QCFlag(Enum):
     """Reasons a successfully extracted edge may fail quality control."""
 
     CURVATURE = auto()
+    AREA_DEVIATION = auto()
 
 
 @dataclass
@@ -85,12 +86,20 @@ class EdgeQC:
     curvature_score : float | None
         Maximum absolute wrapped finite second difference of the analysis
         contour. None if curvature QC has not been run.
+    area_pixels2 : float | None
+        Area enclosed by the native contour in squared pixels. None if area QC
+        has not been run.
+    relative_area_deviation : float | None
+        Absolute fractional deviation from the trajectory median contour area.
+        None if area QC has not been run.
     passed : bool
         Whether the edge has passed all QC checks that have been run.
     """
 
     flags: set[QCFlag] = field(default_factory=set)
     curvature_score: float | None = None
+    area_pixels2: float | None = None
+    relative_area_deviation: float | None = None
 
     @property
     def passed(self) -> bool:
@@ -165,6 +174,28 @@ class CurvatureQCResult:
 
 
 @dataclass(frozen=True)
+class AreaQCResult:
+    """Trajectory-level summary of contour-area deviation QC.
+
+    Attributes
+    ----------
+    areas_pixels2 : tuple[float, ...]
+        Enclosed area for each successful detection, in detection order.
+    reference_area_pixels2 : float
+        Median finite positive contour area used as the reference.
+    relative_deviations : tuple[float, ...]
+        Absolute fractional area deviation for each successful detection.
+    rejected_count : int
+        Number of detections rejected by area QC.
+    """
+
+    areas_pixels2: tuple[float, ...]
+    reference_area_pixels2: float
+    relative_deviations: tuple[float, ...]
+    rejected_count: int
+
+
+@dataclass(frozen=True)
 class VesicleQCResult:
     """Aggregate results from one completed VesEdge QC run.
 
@@ -175,7 +206,11 @@ class VesicleQCResult:
     curvature : CurvatureQCResult | None
         Summary of frame-level curvature QC. None when curvature QC was
         disabled.
+    area : AreaQCResult | None
+        Summary of trajectory-level contour-area QC. None when area QC was
+        disabled.
     """
 
     config: EdgeQCConfig
     curvature: CurvatureQCResult | None
+    area: AreaQCResult | None = None

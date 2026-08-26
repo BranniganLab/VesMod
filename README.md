@@ -19,7 +19,7 @@ Features include:
 * User-supplied edge extraction algorithms
 * Reusable `.npz` extraction checkpoints
 * Frame-level curvature quality control
-* Opt-in experimental median-radius screening for obvious wrong-object detections
+* Trajectory-relative contour-area quality control
 * Rerunnable QC without repeating edge extraction
 * QC provenance and batch-summary outputs
 * Optional angular downsampling
@@ -125,22 +125,15 @@ This creates:
 results/qc_standard/
 ├── sample01.npy
 ├── sample02.npy
+├── sample01.area_qc.csv
+├── sample01.area_qc.png
+├── sample02.area_qc.csv
+├── sample02.area_qc.png
 ├── vesedge_qc.json
 └── qc_summary.csv
 ```
 
-`vesedge_qc.json` records the exact QC configuration and input selection. `qc_summary.csv` reports extraction failures, curvature rejections, accepted-frame counts, and accepted fractions for each checkpoint. Curvature is VesEdge's stable built-in frame-rejection rule.
-
-An experimental, order-independent dust screen can be composed after curvature QC with an explicit relative radius cutoff:
-
-```bash
-vesedge qc ./checkpoints \
-    --curvature-threshold 5 \
-    --radius-deviation-threshold 0.2 \
-    --output-dir ./results/qc_radius_screen
-```
-
-This assumes the intended vesicle occupies more than half of the curvature-accepted frames. It is disabled unless the threshold is supplied. See the VesEdge CLI guide for its diagnostics and limitations.
+`vesedge_qc.json` records the exact QC configuration and input selection. `qc_summary.csv` reports extraction failures, curvature rejections, area-deviation rejections, accepted-frame counts, and accepted fractions for each checkpoint. When area QC produces `qc_result.area`, each checkpoint also receives an `*.area_qc.csv` file containing its per-frame area measurements and an `*.area_qc.png` area-versus-frame diagnostic plot. These two files are not generated when area QC is disabled with `--no-area-qc`.
 
 ### 3. Compare alternate QC configurations
 
@@ -272,7 +265,6 @@ Both successful physical fits remain available in `spectrum.fit_results`. Each `
 | `.npy` | Accepted contour radii for one QC configuration, ready for EdgeMod |
 | `vesedge_qc.json` | QC configuration and source path for one QC batch |
 | `qc_summary.csv` | Per-video QC counts and accepted fractions for one QC batch |
-| `.radius_deviation.json` | Experimental per-frame median-radius diagnostics and inclusion decisions |
 | `.spectrum_diagnostic.png` | Measured spectrum, attempted fit, compensated spectrum, and fit residuals |
 | `.json` | EdgeMod fixed-range spectrum/fitting output |
 | `.dynamic.json` | EdgeMod output produced when experimental dynamic selection is requested |

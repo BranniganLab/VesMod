@@ -82,6 +82,7 @@ def sample_edges(filename, processed_sample_edges):
     qc_config = EdgeQCConfig(
         curvature_threshold=10.0,
         enable_curvature_qc=True,
+        enable_area_qc=False,
     )
 
     video = VesicleVideo(np.load(path))

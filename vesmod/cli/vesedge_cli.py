@@ -10,6 +10,7 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import nd2
 import numpy as np
 
@@ -19,11 +20,6 @@ from vesmod.VesEdge import (
     QCFlag,
     VesicleEdges,
     VesicleVideo,
-)
-from vesmod.VesEdge.experimental import (
-    RadiusDeviationConfig,
-    RadiusDeviationResult,
-    screen_radius_deviations,
 )
 
 
@@ -157,14 +153,18 @@ def _add_qc_parser(subparsers) -> None:
         help="Disable frame-level curvature QC.",
     )
     parser.add_argument(
-        "--radius-deviation-threshold",
+        "--max-relative-area-deviation",
         type=float,
-        default=None,
+        default=0.25,
         help=(
-            "After curvature QC, reject detections whose median radius differs "
-            "from the trajectory-wide median by more than this fraction. For "
-            "example, 0.2 permits 20%% deviation. Disabled by default."
+            "Maximum absolute fractional deviation from the trajectory median "
+            "contour area. Default: 0.25."
         ),
+    )
+    parser.add_argument(
+        "--no-area-qc",
+        action="store_true",
+        help="Disable trajectory-level contour-area deviation QC.",
     )
     parser.add_argument(
         "--overwrite",
@@ -293,21 +293,9 @@ def _qc_config_from_args(args: argparse.Namespace) -> EdgeQCConfig:
     return EdgeQCConfig(
         curvature_threshold=args.curvature_threshold,
         enable_curvature_qc=not args.no_curvature_qc,
+        max_relative_area_deviation=args.max_relative_area_deviation,
+        enable_area_qc=not args.no_area_qc,
     )
-
-
-def _radius_deviation_config_from_args(
-    args: argparse.Namespace,
-) -> RadiusDeviationConfig | None:
-    """Build the optional experimental radius-screen configuration."""
-    threshold = getattr(
-        args,
-        "radius_deviation_threshold",
-        None,
-    )
-    if threshold is None:
-        return None
-    return RadiusDeviationConfig(max_relative_deviation=threshold)
 
 
 def _qc_provenance(
@@ -315,7 +303,6 @@ def _qc_provenance(
     input_path: Path,
     recursive: bool,
     paths: list[Path],
-    radius_config: RadiusDeviationConfig | None = None,
 ) -> dict:
     """Return serializable provenance for one resolved QC batch."""
     provenance = {
@@ -324,10 +311,6 @@ def _qc_provenance(
         "checkpoint_manifest": [str(path.resolve()) for path in paths],
         "qc_config": asdict(qc_config),
     }
-    if radius_config is not None:
-        provenance["experimental"] = {
-            "radius_deviation": radius_config.to_dict(),
-        }
     return provenance
 
 
@@ -335,12 +318,13 @@ def _remove_managed_qc_artifacts(output_dir: Path) -> None:
     """Remove filtered arrays and metadata managed by a previous QC batch."""
     for output_path in output_dir.rglob("*.npy"):
         output_path.unlink()
+    for pattern in ("*.area_qc.png", "*.area_qc.csv"):
+        for output_path in output_dir.rglob(pattern):
+            output_path.unlink()
     for filename in ("qc_summary.csv", "vesedge_qc.json"):
         output_path = output_dir / filename
         if output_path.exists():
             output_path.unlink()
-    for output_path in output_dir.rglob("*.radius_deviation.json"):
-        output_path.unlink()
 
 
 def _write_qc_provenance(
@@ -350,7 +334,6 @@ def _write_qc_provenance(
     recursive: bool,
     paths: list[Path],
     overwrite: bool,
-    radius_config: RadiusDeviationConfig | None = None,
 ) -> None:
     """Write QC provenance and reject incompatible existing provenance."""
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -360,7 +343,6 @@ def _write_qc_provenance(
         input_path,
         recursive,
         paths,
-        radius_config,
     )
 
     if provenance_path.exists():
@@ -387,7 +369,6 @@ def _qc_summary(
     edges: VesicleEdges,
     status: str,
     error: str = "",
-    radius_result: RadiusDeviationResult | None = None,
 ) -> dict:
     """Build a summary row for one QCed checkpoint."""
     successful = edges.successful_detections
@@ -395,19 +376,18 @@ def _qc_summary(
         QCFlag.CURVATURE in detection.qc.flags
         for detection in successful
     )
-    curvature_accepted = sum(detection.qc.passed for detection in successful)
-    radius_rejected = 0 if radius_result is None else radius_result.rejected_count
-    accepted = curvature_accepted - radius_rejected
+    area_rejected = sum(
+        QCFlag.AREA_DEVIATION in detection.qc.flags
+        for detection in successful
+    )
+    accepted = sum(detection.qc.passed for detection in successful)
     return {
         "file": str(_relative_input_path(path, input_path)),
         "frames": len(edges.detections),
         "successful_detections": len(successful),
         "extraction_failures": len(edges.detections) - len(successful),
         "curvature_rejected": curvature_rejected,
-        "radius_deviation_rejected": radius_rejected,
-        "radius_reference_pixels": (
-            "" if radius_result is None else radius_result.reference_radius_pixels
-        ),
+        "area_rejected": area_rejected,
         "accepted": accepted,
         "accepted_fraction": accepted / len(successful),
         "status": status,
@@ -423,8 +403,7 @@ def _load_error_summary(path: Path, input_path: Path, error: str) -> dict:
         "successful_detections": 0,
         "extraction_failures": 0,
         "curvature_rejected": 0,
-        "radius_deviation_rejected": 0,
-        "radius_reference_pixels": "",
+        "area_rejected": 0,
         "accepted": 0,
         "accepted_fraction": 0.0,
         "status": "load_error",
@@ -436,7 +415,6 @@ def process_qc_file(
     path: Path,
     args: argparse.Namespace,
     qc_config: EdgeQCConfig,
-    radius_config: RadiusDeviationConfig | None = None,
 ) -> dict:
     """Apply QC to one checkpoint and return its batch summary row."""
     output_path = (
@@ -468,21 +446,6 @@ def process_qc_file(
             status = "no_accepted_frames"
             print(f"QC produced no accepted frames for {path.name}: {error}")
 
-    radius_result = None
-    if status == "ok" and radius_config is not None:
-        try:
-            radius_result = screen_radius_deviations(
-                edges.accepted_detections,
-                radius_config,
-            )
-            if radius_result.accepted_count == 0:
-                status = "no_accepted_frames"
-                qc_error = "Experimental radius-deviation QC accepted no frames."
-        except ValueError as error:
-            status = "experimental_qc_error"
-            qc_error = str(error)
-            print(f"Experimental QC failed for {path.name}: {error}")
-
     if status == "no_accepted_frames" and args.overwrite and output_exists:
         output_path.unlink()
 
@@ -492,29 +455,87 @@ def process_qc_file(
         edges,
         status,
         qc_error,
-        radius_result,
     )
+    area_plot_path = output_path.with_suffix(".area_qc.png")
+    area_csv_path = output_path.with_suffix(".area_qc.csv")
+    has_area_result = (
+        edges.qc_result is not None
+        and getattr(edges.qc_result, "area", None) is not None
+    )
+    if has_area_result and (args.overwrite or not area_plot_path.exists()):
+        _save_area_qc_plot(area_plot_path, edges)
+    if has_area_result and (args.overwrite or not area_csv_path.exists()):
+        _write_area_qc_csv(area_csv_path, edges)
     if (
         status == "ok"
         and row["accepted"] > 0
         and (args.overwrite or not output_exists)
     ):
-        if radius_result is None:
-            edges.save_edge_to_npy(output_path)
-        else:
-            accepted_radii = edges.accepted_radii_microns[
-                list(radius_result.accepted_positions)
-            ]
-            np.save(output_path, accepted_radii)
-
-    if radius_result is not None:
-        diagnostics_path = output_path.with_suffix(".radius_deviation.json")
-        if args.overwrite or not diagnostics_path.exists():
-            diagnostics_path.write_text(
-                json.dumps(radius_result.to_dict(), indent=2) + "\n",
-                encoding="utf-8",
-            )
+        edges.save_edge_to_npy(output_path)
     return row
+
+
+def _write_area_qc_csv(path: Path, edges: VesicleEdges) -> None:
+    """Write exact per-frame contour-area QC measurements."""
+    area_result = edges.qc_result.area
+    rows = []
+    for detection, area, deviation in zip(
+        edges.successful_detections,
+        area_result.areas_pixels2,
+        area_result.relative_deviations,
+        strict=True,
+    ):
+        rows.append(
+            {
+                "frame_index": detection.frame_index,
+                "area_pixels2": area,
+                "relative_area_deviation": deviation,
+                "area_rejected": (
+                    QCFlag.AREA_DEVIATION in detection.qc.flags
+                ),
+            }
+        )
+    with path.open("w", newline="", encoding="utf-8") as output_file:
+        writer = csv.DictWriter(
+            output_file,
+            fieldnames=[
+                "frame_index",
+                "area_pixels2",
+                "relative_area_deviation",
+                "area_rejected",
+            ],
+        )
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _save_area_qc_plot(path: Path, edges: VesicleEdges) -> None:
+    """Plot contour area by source frame with configured acceptance bounds."""
+    area_result = edges.qc_result.area
+    config = edges.qc_result.config
+    detections = edges.successful_detections
+    frame_indices = [edge.frame_index for edge in detections]
+    areas = area_result.areas_pixels2
+    reference = area_result.reference_area_pixels2
+    deviation = config.max_relative_area_deviation
+    lower_bound = reference * (1 - deviation)
+    upper_bound = reference * (1 + deviation)
+
+    figure, axis = plt.subplots()
+    axis.plot(frame_indices, areas, ".", color="tab:blue", label="contour area")
+    axis.axhline(reference, color="black", label="trajectory median")
+    axis.axhline(
+        lower_bound,
+        color="tab:red",
+        linestyle="--",
+        label="acceptance bounds",
+    )
+    axis.axhline(upper_bound, color="tab:red", linestyle="--")
+    axis.set_xlabel("Source frame")
+    axis.set_ylabel("Contour area (pixels squared)")
+    axis.legend()
+    figure.savefig(path, dpi=200, bbox_inches="tight")
+    plt.close(figure)
 
 
 def _write_qc_summary(output_dir: Path, rows: list[dict]) -> None:
@@ -526,8 +547,7 @@ def _write_qc_summary(output_dir: Path, rows: list[dict]) -> None:
         "successful_detections",
         "extraction_failures",
         "curvature_rejected",
-        "radius_deviation_rejected",
-        "radius_reference_pixels",
+        "area_rejected",
         "accepted",
         "accepted_fraction",
         "status",
@@ -556,7 +576,6 @@ def _run_qc(args: argparse.Namespace) -> None:
         raise FileNotFoundError(f"No .npz files found in {args.input_path}")
 
     qc_config = _qc_config_from_args(args)
-    radius_config = _radius_deviation_config_from_args(args)
     _write_qc_provenance(
         args.output_dir,
         qc_config,
@@ -564,10 +583,9 @@ def _run_qc(args: argparse.Namespace) -> None:
         args.recursive,
         paths,
         args.overwrite,
-        radius_config,
     )
     rows = [
-        process_qc_file(path, args, qc_config, radius_config)
+        process_qc_file(path, args, qc_config)
         for path in paths
     ]
     _write_qc_summary(args.output_dir, rows)

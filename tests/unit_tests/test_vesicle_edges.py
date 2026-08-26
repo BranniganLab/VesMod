@@ -117,6 +117,8 @@ def test_run_qc_records_aggregate_results(edges, qc_config):
     assert edges.qc_result.curvature is not None
     assert len(edges.qc_result.curvature.scores) == 2
     assert edges.qc_result.curvature.rejected_count == 0
+    assert edges.qc_result.area is not None
+    assert edges.qc_result.area.rejected_count == 0
 
 
 def test_run_qc_preserves_frame_indices(edges, qc_config):
@@ -196,6 +198,7 @@ def test_save_edge_to_npy_saves_only_accepted_in_microns(
     )
     config = EdgeQCConfig(
         curvature_threshold=1.0,
+        enable_area_qc=False,
     )
     edge_results.run_qc(config)
 
@@ -350,3 +353,56 @@ def test_from_checkpoint_can_be_re_qced_with_new_settings(
     assert loaded.qc_result is not None
     assert loaded.qc_result.config is new_config
     assert len(loaded.accepted_detections) == 1
+
+
+def test_run_qc_applies_area_deviation_and_records_summary(extraction_config):
+    """Test trajectory QC rejects a substantially smaller contour."""
+    edge_results = VesicleEdges(
+        extraction_config=extraction_config,
+        detections=[
+            _edge(radius=10.0),
+            _edge(radius=10.0),
+            _edge(radius=5.0),
+        ],
+    )
+
+    edge_results.run_qc(
+        EdgeQCConfig(
+            curvature_threshold=100.0,
+            max_relative_area_deviation=0.25,
+        )
+    )
+
+    assert edge_results.qc_result.area is not None
+    assert edge_results.qc_result.area.rejected_count == 1
+    assert edge_results.qc_result.area.reference_area_pixels2 == pytest.approx(
+        100.0 * np.pi
+    )
+    assert QCFlag.AREA_DEVIATION in edge_results.detections[2].qc.flags
+    assert edge_results.accepted_detections == edge_results.detections[:2]
+
+
+def test_run_qc_can_disable_area_deviation(extraction_config):
+    """Test disabling area QC preserves otherwise acceptable contours."""
+    edge_results = VesicleEdges(
+        extraction_config=extraction_config,
+        detections=[
+            _edge(radius=10.0),
+            _edge(radius=10.0),
+            _edge(radius=2.0),
+        ],
+    )
+
+    edge_results.run_qc(
+        EdgeQCConfig(
+            curvature_threshold=100.0,
+            enable_area_qc=False,
+        )
+    )
+
+    assert edge_results.qc_result.area is None
+    assert len(edge_results.accepted_detections) == 3
+    assert all(
+        detection.qc.area_pixels2 is None
+        for detection in edge_results.successful_detections
+    )

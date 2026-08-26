@@ -78,6 +78,18 @@ def test_edge_extraction_config_allows_no_downsampling():
             {"curvature_threshold": -1.0},
             "curvature_threshold must be non-negative",
         ),
+        (
+            {"max_relative_area_deviation": -0.1},
+            "max_relative_area_deviation must be at least 0",
+        ),
+        (
+            {"max_relative_area_deviation": 1.0},
+            "max_relative_area_deviation must be at least 0",
+        ),
+        (
+            {"max_relative_area_deviation": np.inf},
+            "max_relative_area_deviation must be finite",
+        ),
     ],
 )
 def test_edge_qc_config_rejects_invalid_values(kwargs, match):
