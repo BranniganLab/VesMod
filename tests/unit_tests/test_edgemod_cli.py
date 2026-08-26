@@ -169,18 +169,14 @@ def test_recursive_run_skips_failed_fit_and_continues(
     """Test one failed spectrum does not abort a recursive batch."""
     failed_path = tmp_path / "failed.npy"
     successful_path = tmp_path / "successful.npy"
+    failed_path.touch()
+    successful_path.touch()
     args = _args()
     args.input_path = tmp_path
     args.recursive = True
     processed = []
 
     monkeypatch.setattr(edgemod_cli, "parse_args", lambda: args)
-    monkeypatch.setattr(
-        edgemod_cli,
-        "iter_npy_files",
-        lambda input_path, recursive: [failed_path, successful_path],
-    )
-
     def fake_process_file(path, parsed_args):
         processed.append(path)
         if path == failed_path:
@@ -197,16 +193,12 @@ def test_recursive_run_skips_failed_fit_and_continues(
 def test_nonrecursive_run_propagates_failed_fit(monkeypatch, tmp_path):
     """Test a direct single-spectrum run still reports failure to the caller."""
     failed_path = tmp_path / "failed.npy"
+    failed_path.touch()
     args = _args()
     args.input_path = failed_path
     args.recursive = False
 
     monkeypatch.setattr(edgemod_cli, "parse_args", lambda: args)
-    monkeypatch.setattr(
-        edgemod_cli,
-        "iter_npy_files",
-        lambda input_path, recursive: [failed_path],
-    )
     monkeypatch.setattr(
         edgemod_cli,
         "process_file",

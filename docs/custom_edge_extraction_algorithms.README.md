@@ -99,7 +99,7 @@ def constant_radius_extractor(frame):
 Run it during the extraction stage:
 
 ```bash
-vesedge extract sample.nd2 \
+vesedge extract "sample.nd2" \
     --extractor-file ./constant_radius_extractor.py \
     --extractor-name constant_radius_extractor
 ```
@@ -113,7 +113,7 @@ This writes a QC-independent `.npz` checkpoint. Apply QC later with `vesedge qc`
 Use `--extractor` with `module:function` syntax:
 
 ```bash
-vesedge extract sample.nd2 \
+vesedge extract "sample.nd2" \
     --extractor my_package.my_module:my_edge_extractor
 ```
 
@@ -151,12 +151,12 @@ Quality-control outcomes are **not** extraction failures. `VesicleVideo.extract_
 For example:
 
 ```bash
-vesedge extract sample.nd2 \
+vesedge extract "sample.nd2" \
     --extractor-file ./my_extractor.py \
     --extractor-name my_edge_extractor \
     --output-dir ./checkpoints
 
-vesedge qc ./checkpoints \
+vesedge qc "./checkpoints" \
     --curvature-threshold 10 \
     --output-dir ./results/qc_standard
 ```

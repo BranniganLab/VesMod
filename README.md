@@ -90,7 +90,7 @@ Extract each microscopy video once and keep the resulting checkpoint. QC can the
 ### 1. Extract videos to checkpoints
 
 ```bash
-vesedge extract ./videos \
+vesedge extract "./videos" \
     --pixels-per-micron 13.44 \
     --downsample \
     --n-samples 120 \
@@ -114,7 +114,7 @@ The checkpoint contains extraction state only. It does not store QC decisions.
 Use a dedicated output directory for each QC configuration:
 
 ```bash
-vesedge qc ./checkpoints \
+vesedge qc "./checkpoints" \
     --curvature-threshold 5 \
     --output-dir ./results/qc_standard
 ```
@@ -140,7 +140,7 @@ results/qc_standard/
 For example:
 
 ```bash
-vesedge qc ./checkpoints \
+vesedge qc "./checkpoints" \
     --curvature-threshold 10 \
     --output-dir ./results/qc_permissive
 ```
@@ -154,14 +154,14 @@ Do not store unrelated `.npy` files in a QC output directory: an incompatible re
 The default EdgeMod CLI uses the historical fixed q range, q = 3–7:
 
 ```bash
-edgemod ./results/qc_standard
-edgemod ./results/qc_permissive
+edgemod "./results/qc_standard"
+edgemod "./results/qc_permissive"
 ```
 
 Experimental dynamic q-range selection can be enabled explicitly. The selector runs before the stable physical fitter, searches only inside the configured candidate interval, and requires explicit acceptance thresholds:
 
 ```bash
-edgemod ./results/qc_standard \
+edgemod "./results/qc_standard" \
     --dynamic-range \
     --lower-fitting-bound 3 \
     --upper-fitting-bound 20 \
