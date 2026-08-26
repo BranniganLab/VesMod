@@ -6,6 +6,10 @@ edge extraction.
 
 ## Render recursively
 
+Always double-quote each checkpoint path or pattern. This is safe for ordinary
+paths and ensures that VesEdge, rather than the shell, expands wildcard
+patterns and applies `--recursive`.
+
 Given extraction checkpoints under `checkpoints/`:
 
 ```text
@@ -17,7 +21,7 @@ checkpoints/
 the following command mirrors that structure under `gifs/`:
 
 ```bash
-vesedge gif checkpoints/ --recursive --output-dir gifs/ --style edges
+vesedge gif "checkpoints/" --recursive --output-dir gifs/ --style edges
 ```
 
 ## Available styles
@@ -25,7 +29,7 @@ vesedge gif checkpoints/ --recursive --output-dir gifs/ --style edges
 Render the source video without annotations:
 
 ```bash
-vesedge gif checkpoints/ \
+vesedge gif "checkpoints/" \
     --recursive \
     --output-dir gifs/original/ \
     --style original
@@ -34,7 +38,7 @@ vesedge gif checkpoints/ \
 Render all successfully detected edges in green:
 
 ```bash
-vesedge gif checkpoints/ \
+vesedge gif "checkpoints/" \
     --recursive \
     --output-dir gifs/edges/ \
     --style edges
@@ -43,7 +47,7 @@ vesedge gif checkpoints/ \
 Render accepted edges in green and QC-rejected edges in red:
 
 ```bash
-vesedge gif checkpoints/ \
+vesedge gif "checkpoints/" \
     --recursive \
     --output-dir gifs/qc/ \
     --style qc \
@@ -77,7 +81,7 @@ recursive batch, that failure does not stop other checkpoints from rendering.
 Existing GIFs are skipped by default. Replace them with:
 
 ```bash
-vesedge gif checkpoints/ \
+vesedge gif "checkpoints/" \
     --recursive \
     --output-dir gifs/ \
     --style edges \
