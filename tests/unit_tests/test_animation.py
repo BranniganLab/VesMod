@@ -115,6 +115,36 @@ def test_make_gif_draws_synchronized_panels(monkeypatch, tmp_path):
     assert observed[0][1] is not observed[1][1]
 
 
+def test_make_gif_closes_figure_when_save_raises(monkeypatch, tmp_path):
+    """Test the animator closes its figure when saving fails."""
+    observed = {}
+
+    class FakePanel:
+        n_frames = 1
+
+        @staticmethod
+        def draw(axis, frame_index):
+            return None
+
+    class FakeAnimation:
+        def __init__(self, fig, animate, frames, **__):
+            observed["fig"] = fig
+
+        @staticmethod
+        def save(_):
+            raise RuntimeError("save failed")
+
+    monkeypatch.setattr(
+        "vesmod.VesEdge.animation.FuncAnimation",
+        FakeAnimation,
+    )
+
+    with pytest.raises(RuntimeError, match="save failed"):
+        make_gif(tmp_path / "combined.gif", [FakePanel()])
+
+    assert not plt.fignum_exists(observed["fig"].number)
+
+
 def test_make_gif_rejects_mismatched_frame_counts(tmp_path):
     """Test synchronized panels must have the same number of frames."""
     class FakePanel:
