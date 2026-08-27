@@ -8,8 +8,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
 from matplotlib.axes import Axes
 import numpy as np
 from numpy.typing import NDArray
@@ -209,55 +207,23 @@ class VesicleVideo:
         frame_decorator: Callable[[Axes, int], None] | None = None,
         title_provider: Callable[[int], str] | None = None,
     ) -> None:
-        """Save a single-panel GIF using the axes-based frame renderer.
+        """Save a single-panel vesicle GIF.
 
-        Successful detections are green before QC and after passing QC, and
-        red after a completed QC run rejects them. For multi-panel animations,
-        create the figure externally and call :meth:`draw_frame` from the
-        shared animation callback instead.
-
-        Parameters
-        ----------
-        path : str | Path
-            Output GIF path.
-        edges : VesicleEdges | None
-            Optional detections to draw with standard QC-aware coloring.
-        frame_decorator : Callable[[matplotlib.axes.Axes, int], None] | None
-            Optional callback that decorates a frame's axes with
-            analysis-specific artists. The callback does not control the frame
-            title, edge rendering, or QC colors.
-        title_provider : Callable[[int], str] | None
-            Optional callback that returns the title for a frame. Without one,
-            the renderer uses the default frame-number title.
-
-        Raises
-        ------
-        ValueError
-            If supplied extraction results do not match the frame count.
+        This convenience method delegates to the generic composable animation
+        API. Use :func:`vesmod.VesEdge.make_gif` directly when combining the
+        vesicle with time series or other synchronized panels.
         """
         self._validate_gif_edges(edges)
-        output_path = Path(path).with_suffix(".gif")
-        fig, ax = plt.subplots()
+        # Local import avoids a module cycle: animation panels call draw_frame.
+        from .animation import VesicleAnimationPanel, make_gif
 
-        def animate(index: int) -> None:
-            self.draw_frame(
-                ax,
-                index,
-                edges,
-                frame_decorator=frame_decorator,
-                title_provider=title_provider,
-            )
-
-        animation = FuncAnimation(
-            fig,
-            animate,
-            frames=self.frames.shape[0],
-            interval=150,
-            blit=False,
-            repeat_delay=1000,
+        panel = VesicleAnimationPanel(
+            self,
+            edges=edges,
+            frame_decorator=frame_decorator,
+            title_provider=title_provider,
         )
-        animation.save(output_path)
-        plt.close(fig)
+        make_gif(path, [panel])
 
     def _validate_gif_edges(self, edges: VesicleEdges | None) -> None:
         """Verify optional edge results correspond one-to-one with frames."""
