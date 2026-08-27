@@ -244,7 +244,7 @@ def test_make_vesicle_gif_rejects_mismatched_edges(
         )
 
 
-def test_make_vesicle_gif_composes_frame_overlay_with_qc_colors(
+def test_make_vesicle_gif_composes_frame_decorator_with_qc_colors(
     tmp_path,
     extraction_config,
     monkeypatch,
@@ -291,7 +291,7 @@ def test_make_vesicle_gif_composes_frame_overlay_with_qc_colors(
     video.make_vesicle_gif(
         tmp_path / "video.gif",
         FakeEdges(detections),
-        frame_overlay=add_overlay,
+        frame_decorator=add_overlay,
     )
 
     assert observed == [(0, "tab:green"), (1, "tab:red")]

@@ -677,7 +677,7 @@ def _save_overlay_gif(
     VesicleVideo(frames, source_path=edges.source_path).make_vesicle_gif(
         path,
         edges,
-        frame_overlay=add_structure_overlay,
+        frame_decorator=add_structure_overlay,
     )
 
 

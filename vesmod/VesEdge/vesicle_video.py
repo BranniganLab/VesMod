@@ -146,7 +146,7 @@ class VesicleVideo:
         self,
         path: str | Path,
         edges: VesicleEdges | None = None,
-        frame_overlay: Callable[[Axes, int], str | None] | None = None,
+        frame_decorator: Callable[[Axes, int], str | None] | None = None,
     ) -> None:
         """Save a GIF with optional edge and frame-specific overlays.
 
@@ -159,9 +159,10 @@ class VesicleVideo:
             Output GIF path.
         edges : VesicleEdges | None
             Optional detections to draw with standard QC-aware coloring.
-        frame_overlay : Callable[[matplotlib.axes.Axes, int], str | None] | None
-            Optional callback that adds analysis-specific artists for a frame.
-            A returned string replaces the default frame title. The callback
+        frame_decorator : Callable[[matplotlib.axes.Axes, int], str | None] | None
+            Optional callback that decorates a frame's axes with
+            analysis-specific artists. It may also return a replacement frame
+            title; returning None preserves the default title. The callback
             does not control edge rendering or QC colors.
 
         Raises
@@ -189,10 +190,12 @@ class VesicleVideo:
                     if edges.qc_config is not None and not result.qc.passed:
                         color = "tab:red"
                     ax.plot(contour.x, contour.y, color=color)
-            title = None
-            if frame_overlay is not None:
-                title = frame_overlay(ax, index)
-            ax.set_title(title or f"frame {index} / {self.frames.shape[0]}")
+            frame_title = f"frame {index} / {self.frames.shape[0]}"
+            if frame_decorator is not None:
+                decorated_title = frame_decorator(ax, index)
+                if decorated_title is not None:
+                    frame_title = decorated_title
+            ax.set_title(frame_title)
 
         animation = FuncAnimation(
             fig,

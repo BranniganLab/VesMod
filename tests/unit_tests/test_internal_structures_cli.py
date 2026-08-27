@@ -373,10 +373,10 @@ def test_save_overlay_gif_uses_shared_qc_aware_renderer(tmp_path, monkeypatch):
             observed["frames"] = supplied_frames
             observed["source_path"] = source_path
 
-        def make_vesicle_gif(self, path, supplied_edges, frame_overlay=None):
+        def make_vesicle_gif(self, path, supplied_edges, frame_decorator=None):
             observed["path"] = path
             observed["edges"] = supplied_edges
-            observed["title"] = frame_overlay(FakeAxis(), 0)
+            observed["title"] = frame_decorator(FakeAxis(), 0)
 
     monkeypatch.setattr(internal_structures_cli, "VesicleVideo", FakeVideo)
 
