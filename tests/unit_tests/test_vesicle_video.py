@@ -1,5 +1,6 @@
 """Unit tests for vesicle_video.py."""
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
@@ -218,38 +219,33 @@ def test_downsample_r_vals_rejects_more_samples_than_input():
         )
 
 
-def test_make_vesicle_gif_rejects_mismatched_edges(
-    tmp_path,
-    extraction_config,
-):
-    """Test that an overlay must correspond to every video frame."""
-    video = VesicleVideo(np.zeros((2, 20, 20)))
-    edge = VesicleVideo._compile_edge_detection_results(
-        np.full(20, 5.0),
-        (10.0, 10.0),
-        EdgeExtractionConfig(
-            pixels_per_micron=1.0,
-            n_angular_samples=20,
-        ),
-    )
-    edges = VesicleEdges(
-        extraction_config=extraction_config,
-        detections=[edge],
+def test_draw_frame_uses_supplied_axes_without_creating_figure(monkeypatch):
+    """Test frame rendering composes into a caller-owned Matplotlib figure."""
+    video = VesicleVideo(np.stack([np.zeros((20, 20)), np.ones((20, 20))]))
+    fig, axes = plt.subplots(1, 2)
+
+    def fail_subplots(*_, **__):
+        raise AssertionError("draw_frame must not create a figure")
+
+    monkeypatch.setattr(
+        "vesmod.VesEdge.vesicle_video.plt.subplots",
+        fail_subplots,
     )
 
-    with pytest.raises(ValueError, match="1 detections and 2 frames"):
-        video.make_vesicle_gif(
-            tmp_path / "video.gif",
-            edges,
-        )
+    video.draw_frame(axes[0], 1)
+    axes[1].plot([0, 1], [0, 1])
+
+    assert len(fig.axes) == 2
+    assert np.array_equal(axes[0].images[0].get_array(), video.frames[1])
+    assert axes[0].get_title() == "frame 1 / 2"
+    assert len(axes[1].lines) == 1
+    plt.close(fig)
 
 
-def test_make_vesicle_gif_composes_frame_decorator_with_qc_colors(
-    tmp_path,
+def test_draw_frame_composes_frame_decorator_with_qc_colors(
     extraction_config,
-    monkeypatch,
 ):
-    """Test custom overlays retain standard accepted/rejected edge colors."""
+    """Test axes rendering retains standard accepted/rejected edge colors."""
     video = VesicleVideo(np.zeros((2, 20, 20)))
     detections = [
         VesicleVideo._compile_edge_detection_results(
@@ -278,6 +274,60 @@ def test_make_vesicle_gif_composes_frame_decorator_with_qc_colors(
         requested_titles.append(frame_index)
         return f"custom frame {frame_index}"
 
+    fig, ax = plt.subplots()
+    edges = FakeEdges(detections)
+    for frame_index in range(2):
+        video.draw_frame(
+            ax,
+            frame_index,
+            edges,
+            frame_decorator=add_overlay,
+            title_provider=provide_title,
+        )
+
+    assert observed == [(0, "tab:green"), (1, "tab:red")]
+    assert requested_titles == [0, 1]
+    assert ax.get_title() == "custom frame 1"
+    plt.close(fig)
+
+
+def test_make_vesicle_gif_rejects_mismatched_edges(
+    tmp_path,
+    extraction_config,
+):
+    """Test that an overlay must correspond to every video frame."""
+    video = VesicleVideo(np.zeros((2, 20, 20)))
+    edge = VesicleVideo._compile_edge_detection_results(
+        np.full(20, 5.0),
+        (10.0, 10.0),
+        EdgeExtractionConfig(
+            pixels_per_micron=1.0,
+            n_angular_samples=20,
+        ),
+    )
+    edges = VesicleEdges(
+        extraction_config=extraction_config,
+        detections=[edge],
+    )
+
+    with pytest.raises(ValueError, match="1 detections and 2 frames"):
+        video.make_vesicle_gif(
+            tmp_path / "video.gif",
+            edges,
+        )
+
+
+def test_make_vesicle_gif_delegates_each_frame_to_draw_frame(
+    tmp_path,
+    monkeypatch,
+):
+    """Test the convenience GIF wrapper uses the composable axes renderer."""
+    video = VesicleVideo(np.zeros((2, 20, 20)))
+    observed = []
+
+    def draw_frame(axis, frame_index, edges=None, **kwargs):
+        observed.append((axis, frame_index, edges, kwargs))
+
     class FakeAnimation:
         def __init__(self, _, animate, frames, **__):
             for frame_index in range(frames):
@@ -287,17 +337,13 @@ def test_make_vesicle_gif_composes_frame_decorator_with_qc_colors(
         def save(_):
             return None
 
+    monkeypatch.setattr(video, "draw_frame", draw_frame)
     monkeypatch.setattr(
         "vesmod.VesEdge.vesicle_video.FuncAnimation",
         FakeAnimation,
     )
 
-    video.make_vesicle_gif(
-        tmp_path / "video.gif",
-        FakeEdges(detections),
-        frame_decorator=add_overlay,
-        title_provider=provide_title,
-    )
+    video.make_vesicle_gif(tmp_path / "video.gif")
 
-    assert observed == [(0, "tab:green"), (1, "tab:red")]
-    assert requested_titles == [0, 1]
+    assert [frame_index for _, frame_index, _, _ in observed] == [0, 1]
+    assert observed[0][0] is observed[1][0]
