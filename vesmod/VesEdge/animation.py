@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol
 
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
@@ -18,7 +18,6 @@ if TYPE_CHECKING:
     from .vesicle_video import VesicleVideo
 
 
-@runtime_checkable
 class AnimationPanel(Protocol):
     """Interface implemented by one panel in a synchronized animation."""
 
@@ -133,17 +132,21 @@ def make_gif(
     ValueError
         If no panels are supplied or panel frame counts differ.
     TypeError
-        If an object does not implement the :class:`AnimationPanel` protocol.
+        If an object does not provide ``n_frames`` and ``draw``.
     """
     if not panels:
         raise ValueError("At least one animation panel is required.")
+
+    frame_counts = []
     for panel in panels:
-        if not isinstance(panel, AnimationPanel):
+        if not hasattr(panel, "n_frames") or not callable(
+            getattr(panel, "draw", None)
+        ):
             raise TypeError(
                 "Every panel must define n_frames and draw(ax, frame_index)."
             )
+        frame_counts.append(panel.n_frames)
 
-    frame_counts = [panel.n_frames for panel in panels]
     if len(set(frame_counts)) != 1:
         raise ValueError(
             "All animation panels must contain the same number of frames; "
