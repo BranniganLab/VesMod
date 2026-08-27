@@ -8,8 +8,6 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
-import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
 import nd2
 import numpy as np
 
@@ -19,6 +17,7 @@ from vesmod.VesEdge import (
     InternalStructureConfig,
     InternalStructureFrameResult,
     VesicleEdges,
+    VesicleVideo,
     detect_internal_structures,
     summarize_internal_structures,
 )
@@ -647,24 +646,11 @@ def _save_overlay_gif(
     edges: VesicleEdges,
     results: dict[int, InternalStructureFrameResult],
 ) -> None:
-    """Save a diagnostic GIF in original-image coordinates."""
-    figure, axis = plt.subplots()
-
-    def animate(frame_index: int) -> None:
-        axis.clear()
-        axis.imshow(frames[frame_index], cmap="gray")
-        edge_result = edges.detections[frame_index]
-        if isinstance(edge_result, EdgeDetection):
-            axis.plot(
-                edge_result.full_contour.x,
-                edge_result.full_contour.y,
-                color="tab:green",
-                linewidth=1,
-            )
+    """Save channel overlays through the shared QC-aware GIF renderer."""
+    def add_structure_overlay(axis, frame_index: int) -> str:
         result = results.get(frame_index)
         if result is None:
-            axis.set_title(f"frame {frame_index}: not analyzed")
-            return
+            return f"frame {frame_index}: not analyzed"
         channel_specs = (
             ("light_region", "autumn"),
             ("dark_filament", "winter"),
@@ -680,24 +666,19 @@ def _save_overlay_gif(
                 vmin=0,
                 vmax=1,
             )
-        axis.set_title(
+        return (
             f"frame {frame_index}: "
             f"light={result.light_area_fraction:.3f}, "
             f"filament={result.filament_length_px}px, "
             f"bubbles={result.bubble_count}"
         )
 
-    animation = FuncAnimation(
-        figure,
-        animate,
-        frames=frames.shape[0],
-        interval=150,
-        blit=False,
-        repeat_delay=1000,
-    )
     path = output_base.with_name(output_base.name + "_internal_structures.gif")
-    animation.save(path)
-    plt.close(figure)
+    VesicleVideo(frames, source_path=edges.source_path).make_vesicle_gif(
+        path,
+        edges,
+        frame_overlay=add_structure_overlay,
+    )
 
 
 def _write_provenance(

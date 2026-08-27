@@ -10,6 +10,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
+from matplotlib.axes import Axes
 import numpy as np
 from numpy.typing import NDArray
 
@@ -145,11 +146,23 @@ class VesicleVideo:
         self,
         path: str | Path,
         edges: VesicleEdges | None = None,
+        frame_overlay: Callable[[Axes, int], str | None] | None = None,
     ) -> None:
-        """Save a GIF of the video, optionally overlaying extracted edges.
+        """Save a GIF with optional edge and frame-specific overlays.
 
         Successful detections are green before QC and after passing QC, and
         red after a completed QC run rejects them.
+
+        Parameters
+        ----------
+        path : str | Path
+            Output GIF path.
+        edges : VesicleEdges | None
+            Optional detections to draw with standard QC-aware coloring.
+        frame_overlay : Callable[[matplotlib.axes.Axes, int], str | None] | None
+            Optional callback that adds analysis-specific artists for a frame.
+            A returned string replaces the default frame title. The callback
+            does not control edge rendering or QC colors.
 
         Raises
         ------
@@ -167,18 +180,19 @@ class VesicleVideo:
 
         def animate(index: int) -> None:
             ax.clear()
-            ax.set_title(f"frame {index} / {self.frames.shape[0]}")
             ax.imshow(self.frames[index], cmap="gray", animated=True)
-            if edges is None:
-                return
-            result = edges.detections[index]
-            if not isinstance(result, EdgeDetection):
-                return
-            contour = result.full_contour
-            color = "tab:green"
-            if edges.qc_config is not None and not result.qc.passed:
-                color = "tab:red"
-            ax.plot(contour.x, contour.y, color=color)
+            if edges is not None:
+                result = edges.detections[index]
+                if isinstance(result, EdgeDetection):
+                    contour = result.full_contour
+                    color = "tab:green"
+                    if edges.qc_config is not None and not result.qc.passed:
+                        color = "tab:red"
+                    ax.plot(contour.x, contour.y, color=color)
+            title = None
+            if frame_overlay is not None:
+                title = frame_overlay(ax, index)
+            ax.set_title(title or f"frame {index} / {self.frames.shape[0]}")
 
         animation = FuncAnimation(
             fig,

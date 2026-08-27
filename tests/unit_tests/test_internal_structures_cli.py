@@ -349,3 +349,48 @@ def test_process_checkpoint_does_not_measure_qc_rejected_frame(
     assert frame_row["status"] == "qc_rejected"
     assert summary["qc_rejected"] == 1
     assert summary["analyzed_frames"] == 0
+
+
+def test_save_overlay_gif_uses_shared_qc_aware_renderer(tmp_path, monkeypatch):
+    """Test internal-structure GIFs delegate rendering to VesicleVideo."""
+    frames = np.zeros((1, 10, 10))
+    edges = argparse.Namespace(source_path=tmp_path / "sample.nd2")
+    result = argparse.Namespace(
+        light_area_fraction=0.2,
+        filament_length_px=8,
+        bubble_count=1,
+        to_full_frame_channel_mask=lambda _: np.zeros((10, 10), dtype=bool),
+    )
+    observed = {}
+
+    class FakeAxis:
+        @staticmethod
+        def imshow(*_, **__):
+            return None
+
+    class FakeVideo:
+        def __init__(self, supplied_frames, source_path=None):
+            observed["frames"] = supplied_frames
+            observed["source_path"] = source_path
+
+        def make_vesicle_gif(self, path, supplied_edges, frame_overlay=None):
+            observed["path"] = path
+            observed["edges"] = supplied_edges
+            observed["title"] = frame_overlay(FakeAxis(), 0)
+
+    monkeypatch.setattr(internal_structures_cli, "VesicleVideo", FakeVideo)
+
+    internal_structures_cli._save_overlay_gif(
+        tmp_path / "sample",
+        frames,
+        edges,
+        {0: result},
+    )
+
+    assert observed["frames"] is frames
+    assert observed["source_path"] == edges.source_path
+    assert observed["edges"] is edges
+    assert observed["path"] == tmp_path / "sample_internal_structures.gif"
+    assert observed["title"] == (
+        "frame 0: light=0.200, filament=8px, bubbles=1"
+    )
