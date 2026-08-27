@@ -161,13 +161,15 @@ def make_gif(
         for panel, ax in zip(panels, panel_axes):
             panel.draw(ax, frame_index)
 
-    animation = FuncAnimation(
-        fig,
-        animate,
-        frames=frame_counts[0],
-        interval=interval,
-        blit=False,
-        repeat_delay=repeat_delay,
-    )
-    animation.save(output_path)
-    plt.close(fig)
+    try:
+        animation = FuncAnimation(
+            fig,
+            animate,
+            frames=frame_counts[0],
+            interval=interval,
+            blit=False,
+            repeat_delay=repeat_delay,
+        )
+        animation.save(output_path)
+    finally:
+        plt.close(fig)
