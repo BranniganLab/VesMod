@@ -104,29 +104,68 @@ def add_parser(subparsers) -> None:
         help="Lower residual threshold used to grow seeded light regions.",
     )
     parser.add_argument(
-        "--filament-threshold-sigma",
+        "--min-light-circularity",
         type=float,
-        default=1.5,
-        help="Minimum multiscale dark-ridge response. Default: 1.5.",
+        default=0.2,
+        help="Minimum circularity for a bright internal vesicle. Default: 0.2.",
+    )
+    parser.add_argument(
+        "--min-light-solidity",
+        type=float,
+        default=0.8,
+        help="Minimum solidity for a bright internal vesicle. Default: 0.8.",
+    )
+    parser.add_argument(
+        "--max-light-eccentricity",
+        type=float,
+        default=0.95,
+        help="Maximum bright-vesicle eccentricity. Default: 0.95.",
+    )
+    parser.add_argument(
+        "--structure-boundary-exclusion-px",
+        type=int,
+        default=20,
+        help=(
+            "Pixels excluded from structure candidates near the detected "
+            "outer contour. Default: 20."
+        ),
+    )
+    parser.add_argument(
+        "--filament-seed-threshold",
+        type=float,
+        default=0.7,
+        help="High-confidence dark-vesselness seed threshold. Default: 0.7.",
+    )
+    parser.add_argument(
+        "--filament-grow-threshold",
+        type=float,
+        default=0.35,
+        help="Lower dark-vesselness threshold for filament growth. Default: 0.35.",
     )
     parser.add_argument(
         "--filament-scales-px",
         type=float,
         nargs="+",
-        default=(1.0, 2.0, 3.0),
+        default=(1.0, 2.0, 3.0, 4.0, 5.0, 6.0),
         help="Dark-filament ridge widths evaluated in pixels.",
     )
     parser.add_argument(
         "--min-filament-length-px",
         type=int,
-        default=8,
-        help="Minimum skeleton length retained as a filament. Default: 8.",
+        default=20,
+        help="Minimum skeleton length retained as a filament. Default: 20.",
     )
     parser.add_argument(
         "--bubble-edge-sigma",
         type=float,
         default=2.0,
         help="Dark residual threshold used for bubble boundaries.",
+    )
+    parser.add_argument(
+        "--bubble-edge-grow-sigma",
+        type=float,
+        default=1.0,
+        help="Lower dark-residual threshold used to grow bubble edges.",
     )
     parser.add_argument(
         "--bubble-closing-px",
@@ -137,14 +176,38 @@ def add_parser(subparsers) -> None:
     parser.add_argument(
         "--min-bubble-area-px",
         type=int,
-        default=25,
-        help="Minimum area enclosed by a detected bubble. Default: 25.",
+        default=100,
+        help="Minimum area enclosed by a detected bubble. Default: 100.",
     )
     parser.add_argument(
         "--min-bubble-boundary-fraction",
         type=float,
         default=0.45,
         help="Minimum fraction of an enclosed boundary supported by dark pixels.",
+    )
+    parser.add_argument(
+        "--min-bubble-circularity",
+        type=float,
+        default=0.2,
+        help="Minimum circularity for a dark-edged bubble. Default: 0.2.",
+    )
+    parser.add_argument(
+        "--min-bubble-solidity",
+        type=float,
+        default=0.8,
+        help="Minimum solidity for a dark-edged bubble. Default: 0.8.",
+    )
+    parser.add_argument(
+        "--max-bubble-eccentricity",
+        type=float,
+        default=0.95,
+        help="Maximum dark-edged bubble eccentricity. Default: 0.95.",
+    )
+    parser.add_argument(
+        "--max-bubble-area-fraction",
+        type=float,
+        default=0.5,
+        help="Largest usable-interior fraction one bubble may occupy. Default: 0.5.",
     )
     parser.add_argument(
         "--save-masks",
@@ -171,13 +234,23 @@ def config_from_args(args: argparse.Namespace) -> InternalStructureConfig:
         threshold_sigma=args.threshold_sigma,
         min_region_area_px=args.min_region_area_px,
         light_grow_sigma=args.light_grow_sigma,
-        filament_threshold_sigma=args.filament_threshold_sigma,
+        min_light_circularity=args.min_light_circularity,
+        min_light_solidity=args.min_light_solidity,
+        max_light_eccentricity=args.max_light_eccentricity,
+        structure_boundary_exclusion_px=args.structure_boundary_exclusion_px,
+        filament_seed_threshold=args.filament_seed_threshold,
+        filament_grow_threshold=args.filament_grow_threshold,
         filament_scales_px=tuple(args.filament_scales_px),
         min_filament_length_px=args.min_filament_length_px,
         bubble_edge_sigma=args.bubble_edge_sigma,
+        bubble_edge_grow_sigma=args.bubble_edge_grow_sigma,
         bubble_closing_px=args.bubble_closing_px,
         min_bubble_area_px=args.min_bubble_area_px,
         min_bubble_boundary_fraction=args.min_bubble_boundary_fraction,
+        min_bubble_circularity=args.min_bubble_circularity,
+        min_bubble_solidity=args.min_bubble_solidity,
+        max_bubble_eccentricity=args.max_bubble_eccentricity,
+        max_bubble_area_fraction=args.max_bubble_area_fraction,
     )
 
 

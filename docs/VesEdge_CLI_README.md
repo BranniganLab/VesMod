@@ -417,20 +417,30 @@ vesedge internal-structures "./checkpoints" \
     --threshold-sigma 4 \
     --light-grow-sigma 1.5 \
     --min-region-area-px 9 \
-    --filament-threshold-sigma 1.5 \
-    --filament-scales-px 1 2 3 \
-    --min-filament-length-px 8 \
+    --min-light-circularity 0.2 \
+    --min-light-solidity 0.8 \
+    --max-light-eccentricity 0.95 \
+    --structure-boundary-exclusion-px 20 \
+    --filament-seed-threshold 0.7 \
+    --filament-grow-threshold 0.35 \
+    --filament-scales-px 1 2 3 4 5 6 \
+    --min-filament-length-px 20 \
     --bubble-edge-sigma 2 \
+    --bubble-edge-grow-sigma 1 \
     --bubble-closing-px 2 \
-    --min-bubble-area-px 25 \
-    --min-bubble-boundary-fraction 0.45
+    --min-bubble-area-px 100 \
+    --min-bubble-boundary-fraction 0.45 \
+    --min-bubble-circularity 0.2 \
+    --min-bubble-solidity 0.8 \
+    --max-bubble-eccentricity 0.95 \
+    --max-bubble-area-fraction 0.5
 ```
 
-- `--membrane-exclusion-px` erodes the detected interior so the membrane and its optical blur are not counted.
+- `--membrane-exclusion-px` defines the usable interior used for abundance measurements. `--structure-boundary-exclusion-px` defines a wider interior in which structure candidates may be detected, preventing the outer membrane from seeding filaments or bubbles.
 - `--background-sigma-px` controls the spatial scale treated as smooth background. The broader default prevents large light domains from being absorbed into that estimate.
-- `--threshold-sigma` supplies high-confidence positive-residual seeds; `--light-grow-sigma` expands them through connected, moderately light pixels.
-- `--filament-threshold-sigma`, `--filament-scales-px`, and `--min-filament-length-px` configure a multiscale dark-ridge detector filtered by skeleton length.
-- The bubble options identify dark boundaries, close small gaps, require boundary support, and fill qualifying neutral interiors.
+- `--threshold-sigma` supplies high-confidence positive-residual seeds; `--light-grow-sigma` expands them through connected, moderately light pixels. Circularity, solidity, and eccentricity then distinguish circular or oval bright vesicles from amorphous light regions.
+- The filament seed, growth, scale, and length options configure multiscale Sato vesselness, lower-threshold connected growth, and skeleton-length filtering for faint dark tubules.
+- The bubble options identify dark boundaries, close small gaps, require boundary support, fill qualifying neutral interiors, and reject candidates occupying an implausibly large fraction of the vesicle.
 
 These defaults are starting values, not calibrated population boundaries. Compare diagnostic overlays across known empty and structured vesicles before interpreting absolute abundance values.
 
