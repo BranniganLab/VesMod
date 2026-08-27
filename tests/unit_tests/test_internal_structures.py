@@ -121,6 +121,7 @@ def test_dark_closed_edge_fills_neutral_bubble_interior():
     result = detect_internal_structures(frame, _circular_contour(), _config())
 
     assert result.bubble_count == 1
+    assert result.filament_length_px == 0
     full_bubble_mask = result.to_full_frame_channel_mask("bubble")
     assert full_bubble_mask[65, 70]
     assert result.bubble_area_fraction > 0.0

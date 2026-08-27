@@ -418,19 +418,32 @@ def detect_internal_structures(
             detection_mask,
             settings,
         )
+        ridge_response = _dark_ridge_response(
+            normalized,
+            settings.filament_scales_px,
+        )
         filament_mask, filament_skeleton = _detect_dark_filaments(
             normalized,
+            ridge_response,
             detection_mask,
             settings,
         )
         bubble_mask = _detect_bubbles(
             normalized,
+            ridge_response,
             detection_mask,
             usable_mask,
             settings,
         )
-        filament_mask &= ~bubble_mask
-        filament_skeleton &= filament_mask
+        bubble_margin = ndimage.binary_dilation(
+            bubble_mask,
+            structure=disk(int(np.ceil(max(settings.filament_scales_px)))),
+        )
+        filament_mask &= ~bubble_margin
+        filament_mask, filament_skeleton = _retain_long_filaments(
+            filament_mask,
+            settings.min_filament_length_px,
+        )
 
     structure_mask = light_mask | filament_mask | bubble_mask
     regions = (
@@ -638,14 +651,11 @@ def _dark_ridge_response(
 
 def _detect_dark_filaments(
     normalized_residual: NDArray[np.float64],
+    ridge_response: NDArray[np.float64],
     usable_mask: NDArray[np.bool_],
     config: InternalStructureConfig,
 ) -> tuple[NDArray[np.bool_], NDArray[np.bool_]]:
     """Detect thin dark ridges and retain components with sufficient length."""
-    ridge_response = _dark_ridge_response(
-        normalized_residual,
-        config.filament_scales_px,
-    )
     seeds = usable_mask & (
         ridge_response >= config.filament_seed_threshold
     )
@@ -672,13 +682,39 @@ def _detect_dark_filaments(
     return filament_mask, skeletonize(filament_mask)
 
 
+def _retain_long_filaments(
+    filament_mask: NDArray[np.bool_],
+    min_length_px: int,
+) -> tuple[NDArray[np.bool_], NDArray[np.bool_]]:
+    """Remove filament fragments made too short by bubble subtraction."""
+    retained_mask = np.zeros_like(filament_mask)
+    retained_skeleton = np.zeros_like(filament_mask)
+    for component in regionprops(label(filament_mask, connectivity=2)):
+        component_mask = np.zeros_like(filament_mask)
+        coordinates = component.coords
+        component_mask[coordinates[:, 0], coordinates[:, 1]] = True
+        component_skeleton = skeletonize(component_mask)
+        if np.count_nonzero(component_skeleton) < min_length_px:
+            continue
+        retained_mask |= component_mask
+        retained_skeleton |= component_skeleton
+    return retained_mask, retained_skeleton
+
+
 def _detect_bubbles(
     normalized_residual: NDArray[np.float64],
+    ridge_response: NDArray[np.float64],
     detection_mask: NDArray[np.bool_],
     usable_mask: NDArray[np.bool_],
     config: InternalStructureConfig,
 ) -> NDArray[np.bool_]:
-    """Detect dark, sufficiently closed boundaries and fill their interiors."""
+    """Detect dark, sufficiently closed boundaries and fill their interiors.
+
+    Bubble edges are dark ridges, just like filaments.  The distinction is
+    topological: a bubble ridge encloses a compact interior.  Residual-based
+    edges and ridge-based edges are evaluated separately so unrelated dark
+    texture cannot bridge two candidates into one artificial enclosure.
+    """
     dark_seeds = detection_mask & (
         normalized_residual <= -config.bubble_edge_sigma
     )
@@ -689,6 +725,43 @@ def _detect_bubbles(
         dark_seeds,
         mask=dark_candidates,
     )
+    ridge_candidates = (
+        detection_mask
+        & (normalized_residual < 0.0)
+        & (ridge_response >= config.filament_grow_threshold)
+    )
+    ridge_seed_threshold = np.mean(
+        (config.filament_seed_threshold, config.filament_grow_threshold)
+    )
+    ridge_seeds = ridge_candidates & (
+        ridge_response >= ridge_seed_threshold
+    )
+    ridge_edge = ndimage.binary_propagation(
+        ridge_seeds,
+        mask=ridge_candidates,
+    )
+    bubble_mask = _bubbles_enclosed_by_edge(
+        dark_edge,
+        detection_mask,
+        usable_mask,
+        config,
+    )
+    bubble_mask |= _bubbles_enclosed_by_edge(
+        ridge_edge,
+        detection_mask,
+        usable_mask,
+        config,
+    )
+    return bubble_mask
+
+
+def _bubbles_enclosed_by_edge(
+    dark_edge: NDArray[np.bool_],
+    detection_mask: NDArray[np.bool_],
+    usable_mask: NDArray[np.bool_],
+    config: InternalStructureConfig,
+) -> NDArray[np.bool_]:
+    """Return plausible bubble interiors enclosed by one edge-evidence map."""
     if config.bubble_closing_px:
         closed_edge = ndimage.binary_closing(
             dark_edge,
