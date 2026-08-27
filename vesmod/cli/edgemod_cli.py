@@ -736,7 +736,7 @@ def _run_fit(args: argparse.Namespace) -> None:
                 rows.append(
                     _fit_summary_row(path, args.input_path, status, fit=fit)
                 )
-        except (ValueError, FloatingPointError) as exc:
+        except (OSError, ValueError, FloatingPointError) as exc:
             if output_dir is not None:
                 rows.append(
                     _fit_summary_row(
