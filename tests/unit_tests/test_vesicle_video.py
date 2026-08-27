@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from vesmod.VesEdge import EdgeExtractionConfig, VesicleEdges, VesicleVideo
-from vesmod.VesEdge.models import EdgeDetection, EdgeDetectionFailure
+from vesmod.VesEdge.models import EdgeDetection, EdgeDetectionFailure, QCFlag
 
 
 @pytest.fixture
@@ -242,3 +242,62 @@ def test_make_vesicle_gif_rejects_mismatched_edges(
             tmp_path / "video.gif",
             edges,
         )
+
+
+def test_make_vesicle_gif_composes_frame_decorator_with_qc_colors(
+    tmp_path,
+    extraction_config,
+    monkeypatch,
+):
+    """Test custom overlays retain standard accepted/rejected edge colors."""
+    video = VesicleVideo(np.zeros((2, 20, 20)))
+    detections = [
+        VesicleVideo._compile_edge_detection_results(
+            np.full(120, 5.0),
+            (10.0, 10.0),
+            extraction_config,
+            frame_index=index,
+        )
+        for index in range(2)
+    ]
+    detections[1].qc.flags.add(next(iter(QCFlag)))
+
+    class FakeEdges:
+        qc_config = object()
+
+        def __init__(self, supplied_detections):
+            self.detections = supplied_detections
+
+    observed = []
+    requested_titles = []
+
+    def add_overlay(axis, frame_index):
+        observed.append((frame_index, axis.lines[-1].get_color()))
+
+    def provide_title(frame_index):
+        requested_titles.append(frame_index)
+        return f"custom frame {frame_index}"
+
+    class FakeAnimation:
+        def __init__(self, _, animate, frames, **__):
+            for frame_index in range(frames):
+                animate(frame_index)
+
+        @staticmethod
+        def save(_):
+            return None
+
+    monkeypatch.setattr(
+        "vesmod.VesEdge.vesicle_video.FuncAnimation",
+        FakeAnimation,
+    )
+
+    video.make_vesicle_gif(
+        tmp_path / "video.gif",
+        FakeEdges(detections),
+        frame_decorator=add_overlay,
+        title_provider=provide_title,
+    )
+
+    assert observed == [(0, "tab:green"), (1, "tab:red")]
+    assert requested_titles == [0, 1]
