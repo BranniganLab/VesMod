@@ -406,6 +406,33 @@ def test_external_fit_batch_summarizes_recursive_failure(
     assert "sample.npy,fit_error,,,fit failed" in summary
 
 
+def test_external_fit_batch_summarizes_nonrecursive_failure(
+    monkeypatch,
+    tmp_path,
+):
+    """Test a propagated direct failure is written before returning control."""
+    source_path = tmp_path / "sample.npy"
+    output_dir = tmp_path / "output"
+    source_path.touch()
+    args = _args()
+    args.input_path = source_path
+    args.output_dir = output_dir
+    args.overwrite = False
+    args.recursive = False
+
+    monkeypatch.setattr(
+        edgemod_cli,
+        "process_file",
+        lambda path, args: (_ for _ in ()).throw(ValueError("fit failed")),
+    )
+
+    with pytest.raises(ValueError, match="fit failed"):
+        edgemod_cli._run_fit(args)
+
+    summary = (output_dir / "fit_summary.csv").read_text(encoding="utf-8")
+    assert "sample.npy,fit_error,,,fit failed" in summary
+
+
 def test_external_fit_rejects_overlapping_paths(tmp_path):
     """Test recursive outputs cannot be placed inside the input tree."""
     input_dir = tmp_path / "input"
@@ -457,3 +484,30 @@ def test_remove_fit_artifacts_preserves_unrelated_files(tmp_path):
 
     assert not managed.exists()
     assert unrelated.is_file()
+
+def test_compatible_overwrite_removes_recorded_fit_artifacts(tmp_path):
+    """Test compatible overwrite also cleans its prior managed outputs."""
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    input_dir.mkdir()
+    source_path = input_dir / "sample.npy"
+    source_path.touch()
+    args = _args()
+    args.input_path = input_dir
+    args.output_dir = output_dir
+    args.overwrite = False
+    args.recursive = True
+
+    edgemod_cli._prepare_fit_output(args, [source_path])
+    managed = output_dir / "sample.json"
+    managed.write_text("{}", encoding="utf-8")
+    provenance_path = output_dir / "edgemod_fit.json"
+    provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+    provenance["managed_artifacts"] = ["sample.json"]
+    provenance_path.write_text(json.dumps(provenance), encoding="utf-8")
+
+    args.overwrite = True
+    edgemod_cli._prepare_fit_output(args, [source_path])
+
+    assert not managed.exists()
+
