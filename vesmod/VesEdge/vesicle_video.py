@@ -12,6 +12,7 @@ from matplotlib.axes import Axes
 import numpy as np
 from numpy.typing import NDArray
 
+from .animation import VesicleAnimationPanel, make_gif
 from .config import EdgeExtractionConfig
 from .models import (
     EdgeDetection,
@@ -214,9 +215,6 @@ class VesicleVideo:
         vesicle with time series or other synchronized panels.
         """
         self._validate_gif_edges(edges)
-        # Local import avoids a module cycle: animation panels call draw_frame.
-        from .animation import VesicleAnimationPanel, make_gif
-
         panel = VesicleAnimationPanel(
             self,
             edges=edges,
