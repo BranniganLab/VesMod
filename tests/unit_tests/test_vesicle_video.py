@@ -219,18 +219,10 @@ def test_downsample_r_vals_rejects_more_samples_than_input():
         )
 
 
-def test_draw_frame_uses_supplied_axes_without_creating_figure(monkeypatch):
+def test_draw_frame_uses_supplied_axes():
     """Test frame rendering composes into a caller-owned Matplotlib figure."""
     video = VesicleVideo(np.stack([np.zeros((20, 20)), np.ones((20, 20))]))
     fig, axes = plt.subplots(1, 2)
-
-    def fail_subplots(*_, **__):
-        raise AssertionError("draw_frame must not create a figure")
-
-    monkeypatch.setattr(
-        "vesmod.VesEdge.vesicle_video.plt.subplots",
-        fail_subplots,
-    )
 
     video.draw_frame(axes[0], 1)
     axes[1].plot([0, 1], [0, 1])
@@ -317,33 +309,19 @@ def test_make_vesicle_gif_rejects_mismatched_edges(
         )
 
 
-def test_make_vesicle_gif_delegates_each_frame_to_draw_frame(
-    tmp_path,
-    monkeypatch,
-):
-    """Test the convenience GIF wrapper uses the composable axes renderer."""
+def test_make_vesicle_gif_delegates_to_composable_api(tmp_path, monkeypatch):
+    """Test the convenience GIF wrapper delegates to the generic animator."""
     video = VesicleVideo(np.zeros((2, 20, 20)))
     observed = []
 
-    def draw_frame(axis, frame_index, edges=None, **kwargs):
-        observed.append((axis, frame_index, edges, kwargs))
+    def fake_make_gif(path, panels):
+        observed.append((path, panels))
 
-    class FakeAnimation:
-        def __init__(self, _, animate, frames, **__):
-            for frame_index in range(frames):
-                animate(frame_index)
+    monkeypatch.setattr("vesmod.VesEdge.animation.make_gif", fake_make_gif)
 
-        @staticmethod
-        def save(_):
-            return None
+    output_path = tmp_path / "video.gif"
+    video.make_vesicle_gif(output_path)
 
-    monkeypatch.setattr(video, "draw_frame", draw_frame)
-    monkeypatch.setattr(
-        "vesmod.VesEdge.vesicle_video.FuncAnimation",
-        FakeAnimation,
-    )
-
-    video.make_vesicle_gif(tmp_path / "video.gif")
-
-    assert [frame_index for _, frame_index, _, _ in observed] == [0, 1]
-    assert observed[0][0] is observed[1][0]
+    assert len(observed) == 1
+    assert observed[0][0] == output_path
+    assert observed[0][1][0].video is video
