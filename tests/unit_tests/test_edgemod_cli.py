@@ -485,6 +485,7 @@ def test_remove_fit_artifacts_preserves_unrelated_files(tmp_path):
     assert not managed.exists()
     assert unrelated.is_file()
 
+
 def test_compatible_overwrite_removes_recorded_fit_artifacts(tmp_path):
     """Test compatible overwrite also cleans its prior managed outputs."""
     input_dir = tmp_path / "input"
@@ -510,4 +511,3 @@ def test_compatible_overwrite_removes_recorded_fit_artifacts(tmp_path):
     edgemod_cli._prepare_fit_output(args, [source_path])
 
     assert not managed.exists()
-
