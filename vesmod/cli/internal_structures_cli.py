@@ -647,10 +647,10 @@ def _save_overlay_gif(
     results: dict[int, InternalStructureFrameResult],
 ) -> None:
     """Save channel overlays through the shared QC-aware GIF renderer."""
-    def add_structure_overlay(axis, frame_index: int) -> str:
+    def add_structure_overlays(axis, frame_index: int) -> None:
         result = results.get(frame_index)
         if result is None:
-            return f"frame {frame_index}: not analyzed"
+            return
         channel_specs = (
             ("light_region", "autumn"),
             ("dark_filament", "winter"),
@@ -666,6 +666,11 @@ def _save_overlay_gif(
                 vmin=0,
                 vmax=1,
             )
+
+    def structure_title(frame_index: int) -> str:
+        result = results.get(frame_index)
+        if result is None:
+            return f"frame {frame_index}: not analyzed"
         return (
             f"frame {frame_index}: "
             f"light={result.light_area_fraction:.3f}, "
@@ -677,7 +682,8 @@ def _save_overlay_gif(
     VesicleVideo(frames, source_path=edges.source_path).make_vesicle_gif(
         path,
         edges,
-        frame_decorator=add_structure_overlay,
+        frame_decorator=add_structure_overlays,
+        title_provider=structure_title,
     )
 
 

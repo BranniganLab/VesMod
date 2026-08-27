@@ -373,10 +373,17 @@ def test_save_overlay_gif_uses_shared_qc_aware_renderer(tmp_path, monkeypatch):
             observed["frames"] = supplied_frames
             observed["source_path"] = source_path
 
-        def make_vesicle_gif(self, path, supplied_edges, frame_decorator=None):
+        def make_vesicle_gif(
+            self,
+            path,
+            supplied_edges,
+            frame_decorator=None,
+            title_provider=None,
+        ):
             observed["path"] = path
             observed["edges"] = supplied_edges
-            observed["title"] = frame_decorator(FakeAxis(), 0)
+            observed["decorator_result"] = frame_decorator(FakeAxis(), 0)
+            observed["title"] = title_provider(0)
 
     monkeypatch.setattr(internal_structures_cli, "VesicleVideo", FakeVideo)
 
@@ -391,6 +398,7 @@ def test_save_overlay_gif_uses_shared_qc_aware_renderer(tmp_path, monkeypatch):
     assert observed["source_path"] == edges.source_path
     assert observed["edges"] is edges
     assert observed["path"] == tmp_path / "sample_internal_structures.gif"
+    assert observed["decorator_result"] is None
     assert observed["title"] == (
         "frame 0: light=0.200, filament=8px, bubbles=1"
     )

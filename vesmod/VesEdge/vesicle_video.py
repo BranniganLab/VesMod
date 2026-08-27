@@ -146,7 +146,8 @@ class VesicleVideo:
         self,
         path: str | Path,
         edges: VesicleEdges | None = None,
-        frame_decorator: Callable[[Axes, int], str | None] | None = None,
+        frame_decorator: Callable[[Axes, int], None] | None = None,
+        title_provider: Callable[[int], str] | None = None,
     ) -> None:
         """Save a GIF with optional edge and frame-specific overlays.
 
@@ -159,11 +160,13 @@ class VesicleVideo:
             Output GIF path.
         edges : VesicleEdges | None
             Optional detections to draw with standard QC-aware coloring.
-        frame_decorator : Callable[[matplotlib.axes.Axes, int], str | None] | None
+        frame_decorator : Callable[[matplotlib.axes.Axes, int], None] | None
             Optional callback that decorates a frame's axes with
-            analysis-specific artists. It may also return a replacement frame
-            title; returning None preserves the default title. The callback
-            does not control edge rendering or QC colors.
+            analysis-specific artists. The callback does not control the frame
+            title, edge rendering, or QC colors.
+        title_provider : Callable[[int], str] | None
+            Optional callback that returns the title for a frame. Without one,
+            the renderer uses the default frame-number title.
 
         Raises
         ------
@@ -190,11 +193,11 @@ class VesicleVideo:
                     if edges.qc_config is not None and not result.qc.passed:
                         color = "tab:red"
                     ax.plot(contour.x, contour.y, color=color)
-            frame_title = f"frame {index} / {self.frames.shape[0]}"
             if frame_decorator is not None:
-                decorated_title = frame_decorator(ax, index)
-                if decorated_title is not None:
-                    frame_title = decorated_title
+                frame_decorator(ax, index)
+            frame_title = f"frame {index} / {self.frames.shape[0]}"
+            if title_provider is not None:
+                frame_title = title_provider(index)
             ax.set_title(frame_title)
 
         animation = FuncAnimation(

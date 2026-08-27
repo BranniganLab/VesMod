@@ -269,9 +269,13 @@ def test_make_vesicle_gif_composes_frame_decorator_with_qc_colors(
             self.detections = supplied_detections
 
     observed = []
+    requested_titles = []
 
     def add_overlay(axis, frame_index):
         observed.append((frame_index, axis.lines[-1].get_color()))
+
+    def provide_title(frame_index):
+        requested_titles.append(frame_index)
         return f"custom frame {frame_index}"
 
     class FakeAnimation:
@@ -292,6 +296,8 @@ def test_make_vesicle_gif_composes_frame_decorator_with_qc_colors(
         tmp_path / "video.gif",
         FakeEdges(detections),
         frame_decorator=add_overlay,
+        title_provider=provide_title,
     )
 
     assert observed == [(0, "tab:green"), (1, "tab:red")]
+    assert requested_titles == [0, 1]
