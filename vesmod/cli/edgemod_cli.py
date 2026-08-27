@@ -343,6 +343,7 @@ def process_file(path: Path, args: argparse.Namespace):
 
     print(f"kc={fit.kC}, sigma={fit.surface_tension}")
     _write_output(spectrum, output_path, selection)
+    return fit
 
 
 def _relative_input_path(path: Path, input_path: Path) -> Path:
@@ -686,11 +687,16 @@ def _write_fit_batch_outputs(
     provenance_path = args.output_dir / "edgemod_fit.json"
     provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
     artifacts = []
-    for path in args.output_dir.rglob("*"):
-        if not path.is_file() or path in {summary_path, provenance_path}:
-            continue
-        if path.suffix in {".json", ".png"}:
-            artifacts.append(str(path.relative_to(args.output_dir)))
+    for row in rows:
+        relative_input = Path(row["file"])
+        json_path = output_path_for(
+            args.output_dir / relative_input,
+            args.dynamic_range,
+        )
+        diagnostic_path = json_path.with_suffix(".spectrum_diagnostic.png")
+        for artifact in (json_path, diagnostic_path):
+            if artifact.is_file():
+                artifacts.append(str(artifact.relative_to(args.output_dir)))
     provenance["managed_artifacts"] = sorted(artifacts)
     provenance_path.write_text(
         json.dumps(provenance, indent=2) + "\n",
