@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
@@ -35,8 +36,8 @@ class VesicleAnimationPanel:
 
     video: VesicleVideo
     edges: VesicleEdges | None = None
-    frame_decorator: callable | None = None
-    title_provider: callable | None = None
+    frame_decorator: Callable[[Axes, int], None] | None = None
+    title_provider: Callable[[int], str] | None = None
 
     @property
     def n_frames(self) -> int:
