@@ -161,7 +161,12 @@ def test_process_file_serializes_dynamic_rejection_diagnostics(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "error", [ValueError("fit failed"), FloatingPointError("fit failed")]
+    "error",
+    [
+        OSError("fit failed"),
+        ValueError("fit failed"),
+        FloatingPointError("fit failed"),
+    ],
 )
 def test_recursive_run_skips_failed_fit_and_continues(
     monkeypatch, capsys, tmp_path, error
@@ -190,7 +195,19 @@ def test_recursive_run_skips_failed_fit_and_continues(
     assert f"Skipping {failed_path}: fit failed" in capsys.readouterr().err
 
 
-def test_nonrecursive_run_propagates_failed_fit(monkeypatch, tmp_path):
+@pytest.mark.parametrize(
+    "error",
+    [
+        OSError("fit failed"),
+        ValueError("fit failed"),
+        FloatingPointError("fit failed"),
+    ],
+)
+def test_nonrecursive_run_propagates_failed_fit(
+    monkeypatch,
+    tmp_path,
+    error,
+):
     """Test a direct single-spectrum run still reports failure to the caller."""
     failed_path = tmp_path / "failed.npy"
     failed_path.touch()
@@ -202,10 +219,10 @@ def test_nonrecursive_run_propagates_failed_fit(monkeypatch, tmp_path):
     monkeypatch.setattr(
         edgemod_cli,
         "process_file",
-        lambda path, parsed_args: (_ for _ in ()).throw(ValueError("fit failed")),
+        lambda path, parsed_args: (_ for _ in ()).throw(error),
     )
 
-    with pytest.raises(ValueError, match="fit failed"):
+    with pytest.raises(type(error), match="fit failed"):
         edgemod_cli.main()
 
 
@@ -397,7 +414,7 @@ def test_external_fit_batch_summarizes_recursive_failure(
     monkeypatch.setattr(
         edgemod_cli,
         "process_file",
-        lambda path, args: (_ for _ in ()).throw(ValueError("fit failed")),
+        lambda path, args: (_ for _ in ()).throw(OSError("fit failed")),
     )
 
     edgemod_cli._run_fit(args)
@@ -431,6 +448,33 @@ def test_external_fit_batch_summarizes_nonrecursive_failure(
 
     summary = (output_dir / "fit_summary.csv").read_text(encoding="utf-8")
     assert "sample.npy,fit_error,,,fit failed" in summary
+
+
+def test_fit_batch_output_oserror_is_not_suppressed(
+    monkeypatch,
+    tmp_path,
+):
+    """Test failures writing batch outputs still propagate to the caller."""
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    input_dir.mkdir()
+    (input_dir / "sample.npy").touch()
+    args = _args()
+    args.input_path = input_dir
+    args.output_dir = output_dir
+    args.overwrite = False
+    args.recursive = True
+    fit = Namespace(kC=12.5, surface_tension=1.0e-8)
+
+    monkeypatch.setattr(edgemod_cli, "process_file", lambda path, args: fit)
+    monkeypatch.setattr(
+        edgemod_cli,
+        "_write_fit_batch_outputs",
+        lambda args, rows: (_ for _ in ()).throw(OSError("write failed")),
+    )
+
+    with pytest.raises(OSError, match="write failed"):
+        edgemod_cli._run_fit(args)
 
 
 def test_external_fit_rejects_overlapping_paths(tmp_path):
