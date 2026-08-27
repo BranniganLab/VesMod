@@ -639,7 +639,15 @@ def _prepare_fit_output(args: argparse.Namespace, paths: list[Path]) -> None:
         existing = json.loads(provenance_path.read_text(encoding="utf-8"))
         comparable = dict(existing) if isinstance(existing, dict) else {}
         comparable["managed_artifacts"] = []
-        if comparable != provenance:
+        if comparable == provenance:
+            if args.overwrite:
+                _remove_fit_artifacts(args.output_dir, existing)
+            else:
+                provenance["managed_artifacts"] = existing.get(
+                    "managed_artifacts",
+                    [],
+                )
+        else:
             if not args.overwrite:
                 raise ValueError(
                     "EdgeMod output directory already contains results from a "
@@ -739,6 +747,8 @@ def _run_fit(args: argparse.Namespace) -> None:
                     )
                 )
             if not args.recursive:
+                if output_dir is not None:
+                    _write_fit_batch_outputs(args, rows)
                 raise
             print(f"Skipping {path}: {exc}", file=sys.stderr)
 
