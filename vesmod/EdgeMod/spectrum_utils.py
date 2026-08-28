@@ -7,8 +7,8 @@ Created on Mon Apr  6 14:09:33 2026
 """
 from collections import namedtuple
 import numpy as np
-from scipy.special import gammaln
 from scipy.constants import Boltzmann
+from scipy.special import gammaln
 from lmfit import Model
 
 MiniSpectrum = namedtuple("MiniSpectrum", ['modes', 'avg_amps2', 'std_amps2'])
@@ -159,8 +159,8 @@ def Nlq_Plq0_squared(l: int, q: int) -> float:
     if (l + q) % 2:
         return 0.0
 
-    half_difference = (l - q) / 2
-    half_sum = (l + q) / 2
+    half_difference = (l - q) // 2
+    half_sum = (l + q) // 2
     log_total = (
         np.log(2 * l + 1)
         - np.log(4 * np.pi)
