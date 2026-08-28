@@ -6,6 +6,7 @@ import math
 import numpy as np
 import pytest
 from scipy.constants import Boltzmann
+from scipy.special import lpmv
 
 from vesmod.EdgeMod.spectrum_utils import (
     HSS97,
@@ -49,6 +50,41 @@ def test_calc_tension_from_reduced_tension_returns_zero_for_zero_reduced_tension
 def test_nlq_plq0_squared_matches_known_l2_q0_value():
     """Test N_lq P_lq(0)^2 for l=2 and q=0, where P_20(0)=-1/2 and the expected value is 5/(16*pi)."""
     assert Nlq_Plq0_squared(2, 0) == pytest.approx(5 / (16 * math.pi))
+
+
+@pytest.mark.parametrize(
+    ("l", "q"),
+    [(2, 0), (2, 2), (3, 1), (6, 4), (10, 3)],
+)
+def test_nlq_plq0_squared_matches_direct_low_mode_calculation(l, q):
+    """Test the stable expression retains established low-mode values."""
+    normalization = (2 * l + 1) / (4 * np.pi)
+    normalization *= math.factorial(l - q) / math.factorial(l + q)
+    expected = normalization * lpmv(q, l, 0) ** 2
+
+    assert Nlq_Plq0_squared(l, q) == pytest.approx(expected)
+
+
+def test_nlq_plq0_squared_returns_zero_for_odd_parity():
+    """Test P_lq(0) is exactly zero when l + q is odd."""
+    assert Nlq_Plq0_squared(l=89, q=88) == 0.0
+
+
+def test_nlq_plq0_squared_is_finite_at_l89_q89():
+    """Test the high-mode pair from the reported failure remains finite."""
+    result = Nlq_Plq0_squared(l=89, q=89)
+
+    assert np.isfinite(result)
+    assert result > 0.0
+
+
+def test_hss97_succeeds_for_q89():
+    """Test the full theoretical sum supports a high diagnostic mode."""
+    result = HSS97(q=[89], kC=20.0, sigma=0.0, lmax=500)
+
+    assert len(result) == 1
+    assert np.isfinite(result[0])
+    assert result[0] > 0.0
 
 
 def test_nlq_plq0_squared_requires_q_not_greater_than_l():
