@@ -5,11 +5,10 @@ Created on Mon Apr  6 14:09:33 2026
 
 @author: js2746
 """
-import math
 from collections import namedtuple
 import numpy as np
-from scipy.special import lpmv
 from scipy.constants import Boltzmann
+from scipy.special import gammaln
 from lmfit import Model
 
 MiniSpectrum = namedtuple("MiniSpectrum", ['modes', 'avg_amps2', 'std_amps2'])
@@ -133,9 +132,13 @@ def HSS97(q: list[int], kC: float, sigma: float, lmax: int) -> list[float]:
 
 
 def Nlq_Plq0_squared(l: int, q: int) -> float:
-    """
-    Generate the nomarlized associated legendre polynomial N_{lq} * P_{lq}(0)\
-    squared. See Hackl, Seifert, and Sackmann 1997 for more details.
+    """Return the squared normalized associated Legendre value at zero.
+
+    The direct product of the spherical-harmonic normalization and
+    scipy.special.lpmv is numerically unstable at high l and q: the
+    normalization can underflow while the polynomial overflows. This
+    implementation combines their analytic factorial expressions in log space
+    so only the finite final value is exponentiated.
 
     Parameters
     ----------
@@ -146,22 +149,28 @@ def Nlq_Plq0_squared(l: int, q: int) -> float:
 
     Returns
     -------
-    plq : float
-        The associated legendre polynomial evaluated at zero.
+    float
+        The squared normalized associated Legendre value from HSS97.
 
     """
     assert q <= l, "q must be <= l"
-    assert q >= 0, "q must be non-negative for lpmv to work"
-    Nlq = (2 * l + 1) / (4 * np.pi)
-    Nlq *= (math.factorial(l - q) / math.factorial(l + q))
-    sqrtNlq = np.sqrt(Nlq)
-    Plq0 = lpmv(q, l, 0)
-    try:
-        with np.errstate(all='raise'):
-            total = (sqrtNlq * Plq0)**2
-    except FloatingPointError as exc:
-        raise FloatingPointError(f"FloatingPointError when l = {l}; q = {q}") from exc
-    return total
+    assert q >= 0, "q must be non-negative"
+
+    if (l + q) % 2:
+        return 0.0
+
+    half_difference = (l - q) // 2
+    half_sum = (l + q) // 2
+    log_total = (
+        np.log(2 * l + 1)
+        - np.log(4 * np.pi)
+        + gammaln(l - q + 1)
+        + gammaln(l + q + 1)
+        - 2 * l * np.log(2)
+        - 2 * gammaln(half_difference + 1)
+        - 2 * gammaln(half_sum + 1)
+    )
+    return float(np.exp(log_total))
 
 
 def calc_tension_from_reduced_tension(
