@@ -374,7 +374,7 @@ The resulting EdgeMod estimates can be reported alongside each directory's `vese
 
 # `vesedge internal-structures`
 
-`vesedge internal-structures` is an experimental measurement command separate from edge QC. It measures broad light regions, thin dark filaments, and dark-edged bubbles with relatively neutral interiors inside every selected contour. The detectors share background normalization and original-image coordinate mapping but retain separate masks and measurements. The command does not alter checkpoints, introduce another edge-rejection rule, or assign vesicles to populations.
+`vesedge internal-structures` is an experimental measurement command separate from edge QC. It combines compact bright regions, compact dark regions, dark-or-light curvilinear structures, and enclosed boundaries into one authoritative structured mask. These are complementary image-evidence proposals rather than biological labels such as vesicle, bubble, or tubule. The command does not alter checkpoints, introduce another edge-rejection rule, or assign vesicles to populations.
 
 Run one checkpoint:
 
@@ -423,7 +423,7 @@ vesedge internal-structures "./checkpoints" \
     --structure-boundary-exclusion-px 20 \
     --filament-seed-threshold 0.7 \
     --filament-grow-threshold 0.35 \
-    --filament-scales-px 1 2 3 4 5 6 \
+    --filament-scales-px 1 2 3 4 5 6 7 8 9 10 \
     --min-filament-length-px 20 \
     --bubble-edge-sigma 2 \
     --bubble-edge-grow-sigma 1 \
@@ -438,9 +438,10 @@ vesedge internal-structures "./checkpoints" \
 
 - `--membrane-exclusion-px` defines the usable interior used for abundance measurements. `--structure-boundary-exclusion-px` defines a wider interior in which structure candidates may be detected, preventing the outer membrane from seeding filaments or bubbles.
 - `--background-sigma-px` controls the spatial scale treated as smooth background. The broader default prevents large light domains from being absorbed into that estimate.
-- `--threshold-sigma` supplies high-confidence positive-residual seeds; `--light-grow-sigma` expands them through connected, moderately light pixels. Circularity, solidity, and eccentricity then distinguish circular or oval bright vesicles from amorphous light regions.
-- The filament seed, growth, scale, and length options configure multiscale Sato vesselness, lower-threshold connected growth, and skeleton-length filtering for faint dark tubules.
-- The bubble options identify dark boundaries, close small gaps, require boundary support, fill qualifying neutral interiors, and reject candidates occupying an implausibly large fraction of the vesicle.
+- `--threshold-sigma` supplies high-confidence positive-residual seeds; `--light-grow-sigma` expands them through connected, moderately light pixels. Circularity, solidity, and eccentricity prevent amorphous bright regions from entering through the compact-bright proposal.
+- The same compact-shape checks are applied to negative residuals, allowing filled dark circles and ovals to contribute without requiring a neutral interior.
+- The filament seed, growth, scale, and length options configure multiscale dark-and-light Sato vesselness, connected growth, and skeleton-length filtering. Light ridge evidence is accepted only near supported dark interior evidence, which helps bridge light-bordered tubules without treating arbitrary bright texture as curvilinear structure.
+- The bubble options also identify dark boundaries, close small gaps, require boundary support, and fill qualifying neutral interiors. This enclosed-boundary proposal is merged with the other evidence rather than treated as an exclusive biological class.
 
 These defaults are starting values, not calibrated population boundaries. Compare diagnostic overlays across known empty and structured vesicles before interpreting absolute abundance values.
 
@@ -468,13 +469,13 @@ sample_regions.csv
 sample_internal_structures.gif
 ```
 
-Use `--save-masks` to additionally write `sample_masks.npz`. It contains `structure_masks` (the union), `light_region_masks`, `dark_filament_masks`, and `bubble_region_masks`, all aligned with the original image coordinates. `frame_indices` identifies the corresponding source frames.
+Use `--save-masks` to additionally write `sample_masks.npz`. It contains `structure_masks` (the authoritative union), plus diagnostic `light_region_masks`, `dark_region_masks`, `dark_filament_masks`, and `bubble_region_masks`, all aligned with the original image coordinates. The legacy channel names are retained for comparison; they describe evidence generators, not mutually exclusive structure classes. `frame_indices` identifies the corresponding source frames.
 
-`sample_frames.csv` reports the union structured-area fraction plus light area, filament area and skeleton length, bubble area and count, noise estimate, and status for every source frame.
+`sample_frames.csv` reports union structured area and merged region count, plus diagnostic bright-compact, dark-compact, curvilinear, and enclosed-boundary measurements, noise estimate, and status for every source frame.
 
-`sample_regions.csv` labels each region as `light_region`, `dark_filament`, or `bubble` and reports polarity, area, filament skeleton length, centroid, bounding box, and signed residual in original image coordinates.
+`sample_regions.csv` reports each connected union region as `structure`. Its `evidence_types` field records every proposal that overlaps the region (`bright_region`, `dark_region`, `curvilinear`, and/or `enclosed_boundary`) for diagnostics. It also reports mean polarity, area, skeleton length, centroid, bounding box, and signed residual in original image coordinates.
 
-`internal_structure_summary.csv` contains one row per video with failure counts, union abundance summaries, and channel-specific medians for light area, filament area and length, and bubble area and count. These are intended as inputs to later population segmentation; the command does not choose a present/absent cutoff.
+`internal_structure_summary.csv` contains one row per video with failure counts, authoritative union abundance summaries, and diagnostic proposal medians. These are intended as inputs to later population segmentation; the command does not choose a present/absent cutoff.
 
 The diagnostic GIF overlays the three structure classes in separate colors together with the extracted contour. Disable it with `--no-gif`.
 

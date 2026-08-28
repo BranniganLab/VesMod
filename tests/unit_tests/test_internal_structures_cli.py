@@ -81,7 +81,7 @@ def test_parse_args_selects_internal_structures_subcommand(monkeypatch, tmp_path
     assert args.background_sigma_px == pytest.approx(30.0)
     assert args.structure_boundary_exclusion_px == 20
     assert args.filament_scales_px == pytest.approx(
-        [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
+        [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
     )
 
 
@@ -104,7 +104,9 @@ def test_process_checkpoint_writes_measurements_in_original_coordinates(
         usable_area_px = 25
         structured_area_px = 4
         structured_area_fraction = 0.16
+        structure_count = 1
         light_area_fraction = 0.0
+        dark_region_area_fraction = 0.0
         filament_area_fraction = 0.0
         filament_length_px = 0
         bubble_area_fraction = 0.0
@@ -128,7 +130,12 @@ def test_process_checkpoint_writes_measurements_in_original_coordinates(
 
         @staticmethod
         def to_full_frame_channel_mask(structure_type):
-            assert structure_type in {"light_region", "dark_filament", "bubble"}
+            assert structure_type in {
+                "light_region",
+                "dark_region",
+                "dark_filament",
+                "bubble",
+            }
             return np.zeros((10, 10), dtype=bool)
 
     monkeypatch.setattr(
@@ -369,10 +376,9 @@ def test_save_overlay_gif_uses_shared_qc_aware_renderer(tmp_path, monkeypatch):
     frames = np.zeros((1, 10, 10))
     edges = argparse.Namespace(source_path=tmp_path / "sample.nd2")
     result = argparse.Namespace(
-        light_area_fraction=0.2,
-        filament_length_px=8,
-        bubble_count=1,
-        to_full_frame_channel_mask=lambda _: np.zeros((10, 10), dtype=bool),
+        structured_area_fraction=0.2,
+        structure_count=1,
+        to_full_frame_mask=lambda: np.zeros((10, 10), dtype=bool),
     )
     observed = {}
 
@@ -412,6 +418,4 @@ def test_save_overlay_gif_uses_shared_qc_aware_renderer(tmp_path, monkeypatch):
     assert observed["edges"] is edges
     assert observed["path"] == tmp_path / "sample_internal_structures.gif"
     assert observed["decorator_result"] is None
-    assert observed["title"] == (
-        "frame 0: light=0.200, filament=8px, bubbles=1"
-    )
+    assert observed["title"] == "frame 0: structured=0.200, regions=1"

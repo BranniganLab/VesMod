@@ -134,20 +134,20 @@ def add_parser(subparsers) -> None:
         "--filament-seed-threshold",
         type=float,
         default=0.7,
-        help="High-confidence dark-vesselness seed threshold. Default: 0.7.",
+        help="High-confidence ridge-evidence seed threshold. Default: 0.7.",
     )
     parser.add_argument(
         "--filament-grow-threshold",
         type=float,
         default=0.35,
-        help="Lower dark-vesselness threshold for filament growth. Default: 0.35.",
+        help="Lower dark-or-light ridge threshold for growth. Default: 0.35.",
     )
     parser.add_argument(
         "--filament-scales-px",
         type=float,
         nargs="+",
-        default=(1.0, 2.0, 3.0, 4.0, 5.0, 6.0),
-        help="Dark-filament ridge widths evaluated in pixels.",
+        default=(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0),
+        help="Dark and light curvilinear scales evaluated in pixels.",
     )
     parser.add_argument(
         "--min-filament-length-px",
@@ -531,7 +531,9 @@ def _frame_row(
         "usable_area_px": result.usable_area_px,
         "structured_area_px": result.structured_area_px,
         "structured_area_fraction": result.structured_area_fraction,
+        "structure_count": result.structure_count,
         "light_area_fraction": result.light_area_fraction,
+        "dark_region_area_fraction": result.dark_region_area_fraction,
         "filament_area_fraction": result.filament_area_fraction,
         "filament_length_px": result.filament_length_px,
         "bubble_area_fraction": result.bubble_area_fraction,
@@ -550,7 +552,9 @@ def _frame_error_row(frame_index: int, status: str, error: str) -> dict:
         "usable_area_px": "",
         "structured_area_px": "",
         "structured_area_fraction": "",
+        "structure_count": "",
         "light_area_fraction": "",
+        "dark_region_area_fraction": "",
         "filament_area_fraction": "",
         "filament_length_px": "",
         "bubble_area_fraction": "",
@@ -576,6 +580,7 @@ def _region_rows(
                 "frame_index": frame_index,
                 "region_label": region.label,
                 "structure_type": region.structure_type,
+                "evidence_types": ";".join(region.evidence_types),
                 "polarity": region.polarity,
                 "area_px": region.area_px,
                 "centroid_y": centroid_y,
@@ -618,6 +623,7 @@ def _summary_row(
             "upper_area_fraction": "",
             "frame_prevalence": "",
             "median_light_area_fraction": "",
+            "median_dark_region_area_fraction": "",
             "median_filament_area_fraction": "",
             "median_filament_length_px": "",
             "median_bubble_area_fraction": "",
@@ -630,6 +636,9 @@ def _summary_row(
         "upper_area_fraction": summary.upper_area_fraction,
         "frame_prevalence": summary.frame_prevalence,
         "median_light_area_fraction": summary.median_light_area_fraction,
+        "median_dark_region_area_fraction": (
+            summary.median_dark_region_area_fraction
+        ),
         "median_filament_area_fraction": summary.median_filament_area_fraction,
         "median_filament_length_px": summary.median_filament_length_px,
         "median_bubble_area_fraction": summary.median_bubble_area_fraction,
@@ -651,6 +660,7 @@ def _error_summary(relative_path: Path, error: str) -> dict:
         "upper_area_fraction": "",
         "frame_prevalence": "",
         "median_light_area_fraction": "",
+        "median_dark_region_area_fraction": "",
         "median_filament_area_fraction": "",
         "median_filament_length_px": "",
         "median_bubble_area_fraction": "",
@@ -689,11 +699,18 @@ def _save_masks(
                 for index in frame_indices
             ]
         )
+        dark_region_masks = np.stack(
+            [
+                _to_full_frame_channel_mask(results[index], "dark_region")
+                for index in frame_indices
+            ]
+        )
     else:
         masks = np.empty((0, *frame_shape), dtype=bool)
         light_masks = masks.copy()
         filament_masks = masks.copy()
         bubble_masks = masks.copy()
+        dark_region_masks = masks.copy()
     path = output_base.with_name(output_base.name + "_masks.npz")
     np.savez_compressed(
         path,
@@ -702,6 +719,7 @@ def _save_masks(
         light_region_masks=light_masks,
         dark_filament_masks=filament_masks,
         bubble_region_masks=bubble_masks,
+        dark_region_masks=dark_region_masks,
     )
 
 
@@ -719,26 +737,14 @@ def _save_overlay_gif(
     edges: VesicleEdges,
     results: dict[int, InternalStructureFrameResult],
 ) -> None:
-    """Save channel overlays through the shared QC-aware GIF renderer."""
+    """Save one merged structure overlay through the shared GIF renderer."""
     def add_structure_overlays(axis, frame_index: int) -> None:
         result = results.get(frame_index)
         if result is None:
             return
-        channel_specs = (
-            ("light_region", "autumn"),
-            ("dark_filament", "winter"),
-            ("bubble", "cool"),
-        )
-        for structure_type, color_map in channel_specs:
-            full_mask = _to_full_frame_channel_mask(result, structure_type)
-            overlay = np.ma.masked_where(~full_mask, full_mask)
-            axis.imshow(
-                overlay,
-                cmap=color_map,
-                alpha=0.55,
-                vmin=0,
-                vmax=1,
-            )
+        full_mask = result.to_full_frame_mask()
+        overlay = np.ma.masked_where(~full_mask, full_mask)
+        axis.imshow(overlay, cmap="winter", alpha=0.55, vmin=0, vmax=1)
 
     def structure_title(frame_index: int) -> str:
         result = results.get(frame_index)
@@ -746,9 +752,8 @@ def _save_overlay_gif(
             return f"frame {frame_index}: not analyzed"
         return (
             f"frame {frame_index}: "
-            f"light={result.light_area_fraction:.3f}, "
-            f"filament={result.filament_length_px}px, "
-            f"bubbles={result.bubble_count}"
+            f"structured={result.structured_area_fraction:.3f}, "
+            f"regions={result.structure_count}"
         )
 
     path = output_base.with_name(output_base.name + "_internal_structures.gif")
@@ -869,7 +874,9 @@ _FRAME_FIELDS = [
     "usable_area_px",
     "structured_area_px",
     "structured_area_fraction",
+    "structure_count",
     "light_area_fraction",
+    "dark_region_area_fraction",
     "filament_area_fraction",
     "filament_length_px",
     "bubble_area_fraction",
@@ -884,6 +891,7 @@ _REGION_FIELDS = [
     "frame_index",
     "region_label",
     "structure_type",
+    "evidence_types",
     "polarity",
     "area_px",
     "centroid_y",
@@ -908,6 +916,7 @@ _SUMMARY_FIELDS = [
     "upper_area_fraction",
     "frame_prevalence",
     "median_light_area_fraction",
+    "median_dark_region_area_fraction",
     "median_filament_area_fraction",
     "median_filament_length_px",
     "median_bubble_area_fraction",

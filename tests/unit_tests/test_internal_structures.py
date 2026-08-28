@@ -60,7 +60,7 @@ def test_large_light_region_grows_beyond_high_confidence_seed():
     )
 
 
-def test_amorphous_light_region_is_not_classified_as_vesicle():
+def test_amorphous_light_region_is_not_supported_by_bright_compact_evidence():
     frame = _base_frame()
     frame[43:48, 27:88] += 10.0
     frame[38:65, 52:59] += 10.0
@@ -70,7 +70,7 @@ def test_amorphous_light_region_is_not_classified_as_vesicle():
     assert not np.any(result.light_region_mask)
 
 
-def test_oval_light_region_is_classified_as_vesicle():
+def test_oval_light_region_has_bright_compact_evidence():
     frame = _base_frame()
     yy, xx = np.ogrid[:120, :120]
     light_oval = ((yy - 45) / 8) ** 2 + ((xx - 48) / 13) ** 2 <= 1.0
@@ -81,9 +81,7 @@ def test_oval_light_region_is_classified_as_vesicle():
     assert np.count_nonzero(result.light_region_mask) > 0.7 * np.count_nonzero(
         light_oval
     )
-    assert any(
-        region.structure_type == "light_region" for region in result.regions
-    )
+    assert any("bright_region" in region.evidence_types for region in result.regions)
 
 
 def test_thin_dark_filament_is_measured_by_length():
@@ -94,9 +92,7 @@ def test_thin_dark_filament_is_measured_by_length():
 
     assert result.filament_length_px >= 40
     assert result.filament_area_fraction > 0.0
-    assert any(
-        region.structure_type == "dark_filament" for region in result.regions
-    )
+    assert any("curvilinear" in region.evidence_types for region in result.regions)
 
 
 def test_outer_membrane_is_not_classified_as_filament():
@@ -121,11 +117,40 @@ def test_dark_closed_edge_fills_neutral_bubble_interior():
     result = detect_internal_structures(frame, _circular_contour(), _config())
 
     assert result.bubble_count == 1
-    assert result.filament_length_px == 0
     full_bubble_mask = result.to_full_frame_channel_mask("bubble")
     assert full_bubble_mask[65, 70]
     assert result.bubble_area_fraction > 0.0
-    assert any(region.structure_type == "bubble" for region in result.regions)
+    assert any(
+        "enclosed_boundary" in region.evidence_types
+        for region in result.regions
+    )
+
+
+def test_filled_dark_region_does_not_require_a_neutral_hole():
+    frame = _base_frame()
+    yy, xx = np.ogrid[:120, :120]
+    dark_disk = (yy - 65) ** 2 + (xx - 70) ** 2 <= 12**2
+    frame[dark_disk] -= 10.0
+
+    result = detect_internal_structures(frame, _circular_contour(), _config())
+
+    full_dark_mask = result.to_full_frame_channel_mask("dark_region")
+    assert full_dark_mask[65, 70]
+    assert result.to_full_frame_mask()[65, 70]
+    assert any("dark_region" in region.evidence_types for region in result.regions)
+
+
+def test_light_bordered_dark_band_is_merged_as_one_structure():
+    frame = _base_frame()
+    frame[66:69, 28:92] += 7.0
+    frame[69:76, 28:92] -= 8.0
+    frame[76:79, 28:92] += 7.0
+
+    result = detect_internal_structures(frame, _circular_contour(), _config())
+    full_mask = result.to_full_frame_mask()
+
+    assert np.mean(full_mask[69:76, 35:85]) > 0.7
+    assert any("curvilinear" in region.evidence_types for region in result.regions)
 
 
 def test_weak_connected_bubble_edge_grows_from_dark_seed():
@@ -189,3 +214,4 @@ def test_video_summary_retains_channel_specific_population_features():
     assert summary.frame_prevalence == 0.5
     assert summary.upper_area_fraction > summary.median_area_fraction
     assert summary.median_light_area_fraction > 0.0
+    assert summary.median_dark_region_area_fraction == 0.0
