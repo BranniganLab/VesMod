@@ -480,6 +480,18 @@ def detect_internal_structures(
             usable_mask,
             settings,
         )
+        (
+            dark_mask,
+            ridge_mask,
+            ridge_skeleton,
+            bubble_mask,
+        ) = _suppress_bright_region_halos(
+            light_mask,
+            dark_mask,
+            ridge_mask,
+            bubble_mask,
+            settings,
+        )
 
     evidence_masks = {
         "bright_region": light_mask,
@@ -601,12 +613,27 @@ def _exclude_structure_boundary(
     interior_mask: NDArray[np.bool_],
     config: InternalStructureConfig,
 ) -> NDArray[np.bool_]:
-    """Return the interior eligible to contain structure candidates."""
-    if config.structure_boundary_exclusion_px == 0:
+    """Return the interior eligible to contain structure candidates.
+
+    Multiscale ridge filters respond over several Gaussian widths.  A fixed
+    margin smaller than that support can therefore admit the inward optical
+    shadow of the outer membrane even though the membrane itself is masked.
+    Expand the requested margin to cover four times the largest ridge scale,
+    while limiting the automatic expansion to one half of the vesicle's
+    inradius so small vesicles retain a useful detection interior.
+    """
+    inradius = float(np.max(ndimage.distance_transform_edt(interior_mask)))
+    scale_margin = int(np.ceil(4.0 * max(config.filament_scales_px)))
+    size_limited_margin = min(scale_margin, int(np.floor(0.5 * inradius)))
+    exclusion_px = max(
+        config.structure_boundary_exclusion_px,
+        size_limited_margin,
+    )
+    if exclusion_px == 0:
         return interior_mask.copy()
     return ndimage.binary_erosion(
         interior_mask,
-        structure=disk(config.structure_boundary_exclusion_px),
+        structure=disk(exclusion_px),
     )
 
 
@@ -714,6 +741,82 @@ def _detect_compact_regions(
     return accepted
 
 
+def _suppress_bright_region_halos(
+    bright_mask: NDArray[np.bool_],
+    dark_mask: NDArray[np.bool_],
+    ridge_mask: NDArray[np.bool_],
+    enclosed_mask: NDArray[np.bool_],
+    config: InternalStructureConfig,
+) -> tuple[
+    NDArray[np.bool_],
+    NDArray[np.bool_],
+    NDArray[np.bool_],
+    NDArray[np.bool_],
+]:
+    """Remove secondary evidence caused by a compact bright structure.
+
+    Gaussian background subtraction produces a negative halo around a strong
+    positive object.  Without this suppression, the halo can be proposed a
+    second time as a dark ridge or closed boundary and artificially enlarge
+    the authoritative union.  Compact bright evidence remains untouched.
+
+    Light borders alongside elongated dark structures are not affected: they
+    fail the compact-region shape checks and therefore do not enter
+    ``bright_mask``.
+    """
+    if not np.any(bright_mask):
+        return dark_mask, ridge_mask, skeletonize(ridge_mask), enclosed_mask
+
+    halo_radius = int(np.ceil(4.0 * max(config.filament_scales_px)))
+    bright_neighborhood = ndimage.binary_dilation(
+        bright_mask,
+        structure=disk(halo_radius),
+    )
+    dark_without_halo = dark_mask & ~bright_neighborhood
+    ridge_without_halo = ridge_mask & ~bright_neighborhood
+    ridge_without_halo, ridge_skeleton = _retain_curvilinear_components(
+        ridge_without_halo,
+        config.min_filament_length_px,
+        int(np.ceil(max(config.filament_scales_px))),
+    )
+
+    enclosed_without_bright = np.zeros_like(enclosed_mask)
+    for component in regionprops(label(enclosed_mask, connectivity=2)):
+        coordinates = component.coords
+        if np.any(bright_mask[coordinates[:, 0], coordinates[:, 1]]):
+            continue
+        enclosed_without_bright[coordinates[:, 0], coordinates[:, 1]] = True
+
+    return (
+        dark_without_halo,
+        ridge_without_halo,
+        ridge_skeleton,
+        enclosed_without_bright,
+    )
+
+
+def _retain_curvilinear_components(
+    mask: NDArray[np.bool_],
+    minimum_length_px: int,
+    maximum_radius_px: int,
+) -> tuple[NDArray[np.bool_], NDArray[np.bool_]]:
+    """Reapply the skeleton-length requirement after masking a ridge."""
+    skeleton = skeletonize(mask)
+    kept_skeleton = np.zeros_like(skeleton)
+    for component in regionprops(label(skeleton, connectivity=2)):
+        if component.area < minimum_length_px:
+            continue
+        coordinates = component.coords
+        kept_skeleton[coordinates[:, 0], coordinates[:, 1]] = True
+    if not np.any(kept_skeleton):
+        return np.zeros_like(mask), kept_skeleton
+    kept_mask = mask & ndimage.binary_dilation(
+        kept_skeleton,
+        structure=disk(maximum_radius_px),
+    )
+    return kept_mask, skeletonize(kept_mask)
+
+
 def _ridge_response(
     normalized_residual: NDArray[np.float64],
     scales: tuple[float, ...],
@@ -741,20 +844,11 @@ def _detect_curvilinear_structures(
         ridge_response >= config.filament_grow_threshold
     )
     candidates = ndimage.binary_propagation(seeds, mask=candidates)
-    skeleton = skeletonize(candidates)
-    kept_skeleton = np.zeros_like(skeleton)
-    for component in regionprops(label(skeleton, connectivity=2)):
-        if component.area >= config.min_filament_length_px:
-            coordinates = component.coords
-            kept_skeleton[coordinates[:, 0], coordinates[:, 1]] = True
-    if not np.any(kept_skeleton):
-        return np.zeros_like(candidates), kept_skeleton
-    max_radius = int(np.ceil(max(config.filament_scales_px)))
-    filament_mask = candidates & ndimage.binary_dilation(
-        kept_skeleton,
-        structure=disk(max_radius),
+    return _retain_curvilinear_components(
+        candidates,
+        config.min_filament_length_px,
+        int(np.ceil(max(config.filament_scales_px))),
     )
-    return filament_mask, skeletonize(filament_mask)
 
 
 def _detect_bubbles(

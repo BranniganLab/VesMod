@@ -436,11 +436,12 @@ vesedge internal-structures "./checkpoints" \
     --max-bubble-area-fraction 0.5
 ```
 
-- `--membrane-exclusion-px` defines the usable interior used for abundance measurements. `--structure-boundary-exclusion-px` defines a wider interior in which structure candidates may be detected, preventing the outer membrane from seeding filaments or bubbles.
+- `--membrane-exclusion-px` defines the usable interior used for abundance measurements. `--structure-boundary-exclusion-px` defines the minimum outer margin excluded from structure proposals. The detector automatically widens that proposal margin when necessary to cover the spatial support of the configured ridge scales, preventing inward membrane shadows from seeding curvilinear structures.
 - `--background-sigma-px` controls the spatial scale treated as smooth background. The broader default prevents large light domains from being absorbed into that estimate.
 - `--threshold-sigma` supplies high-confidence positive-residual seeds; `--light-grow-sigma` expands them through connected, moderately light pixels. Circularity, solidity, and eccentricity prevent amorphous bright regions from entering through the compact-bright proposal.
 - The same compact-shape checks are applied to negative residuals, allowing filled dark circles and ovals to contribute without requiring a neutral interior.
 - The filament seed, growth, scale, and length options configure multiscale dark-and-light Sato vesselness, connected growth, and skeleton-length filtering. Light ridge evidence is accepted only near supported dark interior evidence, which helps bridge light-bordered tubules without treating arbitrary bright texture as curvilinear structure.
+- Once a compact bright region is accepted, secondary dark, ridge, and enclosed-boundary evidence within the ridge filter's support around it is suppressed. This prevents the opposite-polarity halo created by background subtraction from enlarging the merged structure.
 - The bubble options also identify dark boundaries, close small gaps, require boundary support, and fill qualifying neutral interiors. This enclosed-boundary proposal is merged with the other evidence rather than treated as an exclusive biological class.
 
 These defaults are starting values, not calibrated population boundaries. Compare diagnostic overlays across known empty and structured vesicles before interpreting absolute abundance values.

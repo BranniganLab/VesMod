@@ -60,6 +60,23 @@ def test_large_light_region_grows_beyond_high_confidence_seed():
     )
 
 
+def test_bright_region_subtraction_halo_is_not_added_to_union():
+    frame = _base_frame()
+    yy, xx = np.ogrid[:120, :120]
+    distance = np.sqrt((yy - 45) ** 2 + (xx - 45) ** 2)
+    frame[distance <= 10.0] += 20.0
+
+    result = detect_internal_structures(frame, _circular_contour(), _config())
+    full_mask = result.to_full_frame_mask()
+
+    assert full_mask[45, 45]
+    assert not np.any(full_mask[(distance >= 15.0) & (distance <= 25.0)])
+    assert all(
+        region.evidence_types == ("bright_region",)
+        for region in result.regions
+    )
+
+
 def test_amorphous_light_region_is_not_supported_by_bright_compact_evidence():
     frame = _base_frame()
     frame[43:48, 27:88] += 10.0
