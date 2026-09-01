@@ -45,9 +45,11 @@ def select_input_files(
     recursive : bool
         Whether directory and glob selectors should search subdirectories.
     return_roots : bool, optional
-        When True, also return the resolved root associated with each original
-        selector. This preserves the actual selected input trees separately
-        from the synthetic common root used for relative output paths.
+        When True, also return the resolved root represented by each original
+        selector. Explicit files remain file roots, while directory and glob
+        selectors retain their selected directory roots. This keeps overlap
+        validation independent of the synthetic common root used only for
+        relative output paths.
 
     Returns
     -------
@@ -60,12 +62,15 @@ def select_input_files(
     expected_suffix = suffix.lower()
     matches: set[Path] = set()
     roots: list[Path] = []
+    selector_roots: list[Path] = []
     single_explicit_file: Path | None = None
 
     for selector in input_paths:
         selector_text = os.path.expanduser(str(selector))
         if glob.has_magic(selector_text):
-            roots.append(_glob_root(selector_text))
+            glob_root = _glob_root(selector_text)
+            roots.append(glob_root)
+            selector_roots.append(glob_root)
             pattern = _recursive_glob(selector_text) if recursive else selector_text
             for match in glob.glob(pattern, recursive=recursive):
                 candidate = Path(match).expanduser().resolve()
@@ -79,12 +84,14 @@ def select_input_files(
                 raise ValueError(f"Expected a {expected_suffix} file, got: {resolved}")
             matches.add(resolved)
             roots.append(resolved.parent)
+            selector_roots.append(resolved)
             if len(input_paths) == 1:
                 single_explicit_file = resolved
             continue
 
         if resolved.is_dir():
             roots.append(resolved)
+            selector_roots.append(resolved)
             candidates = resolved.rglob("*") if recursive else resolved.glob("*")
             matches.update(
                 candidate.resolve()
@@ -103,7 +110,9 @@ def select_input_files(
 
     selected = sorted(matches)
     if return_roots:
-        unique_roots = tuple(dict.fromkeys(path.resolve() for path in roots))
+        unique_roots = tuple(
+            dict.fromkeys(path.resolve() for path in selector_roots)
+        )
         return selected, root, unique_roots
     return selected, root
 
