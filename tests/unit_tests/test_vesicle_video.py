@@ -1,5 +1,6 @@
 """Unit tests for vesicle_video.py."""
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
@@ -34,36 +35,24 @@ def test_post_init_requires_3d_array():
         VesicleVideo(np.zeros((10, 10)))
 
 
-def test_extract_edges_returns_vesicle_edges(
-    video,
-    extraction_config,
-):
+def test_extract_edges_returns_vesicle_edges(video, extraction_config):
     """Test that extraction returns a separate VesicleEdges object."""
     def extractor(frame):
         return np.full(200, 20.0), (60.0, 50.0)
 
-    edges = video.extract_edges(
-        extractor,
-        extraction_config,
-    )
+    edges = video.extract_edges(extractor, extraction_config)
 
     assert isinstance(edges, VesicleEdges)
     assert edges.qc_config is None
     assert len(edges.detections) == video.frames.shape[0]
-    assert all(
-        isinstance(result, EdgeDetection)
-        for result in edges.detections
-    )
+    assert all(isinstance(result, EdgeDetection) for result in edges.detections)
     assert [result.frame_index for result in edges.detections] == [0, 1]
 
 
 def test_extract_edges_propagates_source_path(extraction_config, tmp_path):
     """Test extracted edges retain the original video path."""
     source_path = tmp_path / "source.nd2"
-    video = VesicleVideo(
-        np.zeros((2, 200, 200)),
-        source_path=source_path,
-    )
+    video = VesicleVideo(np.zeros((2, 200, 200)), source_path=source_path)
 
     def extractor(frame):
         return np.full(200, 20.0), (60.0, 50.0)
@@ -74,9 +63,7 @@ def test_extract_edges_propagates_source_path(extraction_config, tmp_path):
     assert edges.source_path == source_path
 
 
-def test_extract_edges_preserves_frame_order_after_failure(
-    extraction_config,
-):
+def test_extract_edges_preserves_frame_order_after_failure(extraction_config):
     """Test extraction failures retain source-frame identity."""
     frames = np.zeros((3, 200, 200))
     frames[1] = 1.0
@@ -87,10 +74,7 @@ def test_extract_edges_preserves_frame_order_after_failure(
             raise RuntimeError("failure")
         return np.full(200, 20.0), (60.0, 50.0)
 
-    edges = video.extract_edges(
-        extractor,
-        extraction_config,
-    )
+    edges = video.extract_edges(extractor, extraction_config)
 
     assert isinstance(edges.detections[0], EdgeDetection)
     assert isinstance(edges.detections[1], EdgeDetectionFailure)
@@ -98,9 +82,7 @@ def test_extract_edges_preserves_frame_order_after_failure(
     assert [result.frame_index for result in edges.detections] == [0, 1, 2]
 
 
-def test_extract_edges_records_extractor_index_error(
-    extraction_config,
-):
+def test_extract_edges_records_extractor_index_error(extraction_config):
     """Test an IndexError raised by an extractor remains a frame failure."""
     frames = np.zeros((2, 200, 200))
     frames[0] = 1.0
@@ -122,10 +104,7 @@ def test_extract_edges_records_extractor_index_error(
 
 def test_extract_edges_propagates_invalid_downsampling_configuration(video):
     """Test an impossible analysis sample count is a configuration failure."""
-    config = EdgeExtractionConfig(
-        pixels_per_micron=1.0,
-        n_angular_samples=240,
-    )
+    config = EdgeExtractionConfig(pixels_per_micron=1.0, n_angular_samples=240)
 
     def extractor(frame):
         return np.full(200, 20.0), (60.0, 50.0)
@@ -134,30 +113,18 @@ def test_extract_edges_propagates_invalid_downsampling_configuration(video):
         video.extract_edges(extractor, config)
 
 
-def test_extract_edges_raises_when_all_extractions_fail(
-    video,
-    extraction_config,
-):
+def test_extract_edges_raises_when_all_extractions_fail(video, extraction_config):
     """Test that extraction reports failure when no frame yields a detection."""
     def failing_extractor(frame):
         raise RuntimeError("custom extractor failed")
 
-    with pytest.raises(
-        ValueError,
-        match="custom extractor failed",
-    ):
-        video.extract_edges(
-            failing_extractor,
-            extraction_config,
-        )
+    with pytest.raises(ValueError, match="custom extractor failed"):
+        video.extract_edges(failing_extractor, extraction_config)
 
 
 def test_extract_edges_rejects_inconsistent_analysis_lengths(video):
     """Test that stored analysis contours must have consistent lengths."""
-    config = EdgeExtractionConfig(
-        pixels_per_micron=1.0,
-        n_angular_samples=None,
-    )
+    config = EdgeExtractionConfig(pixels_per_micron=1.0, n_angular_samples=None)
     video.frames[1] = 1.0
 
     def extractor(frame):
@@ -165,10 +132,7 @@ def test_extract_edges_rejects_inconsistent_analysis_lengths(video):
             return np.full(180, 20.0), (60.0, 50.0)
         return np.full(200, 20.0), (60.0, 50.0)
 
-    with pytest.raises(
-        ValueError,
-        match="inconsistent numbers of angular samples",
-    ):
+    with pytest.raises(ValueError, match="inconsistent numbers of angular samples"):
         video.extract_edges(extractor, config)
 
 
@@ -179,10 +143,7 @@ def test_extract_edges_does_not_run_qc(video, extraction_config):
         radii[50] = 100.0
         return radii, (60.0, 50.0)
 
-    edges = video.extract_edges(
-        extractor,
-        extraction_config,
-    )
+    edges = video.extract_edges(extractor, extraction_config)
 
     assert edges.qc_config is None
     assert all(
@@ -212,44 +173,26 @@ def test_compile_edge_detection_results_preserves_and_downsamples_contour(
 def test_downsample_r_vals_rejects_more_samples_than_input():
     """Test that extraction cannot upsample through the downsampling path."""
     with pytest.raises(IndexError, match="Cannot downsample"):
-        VesicleVideo._downsample_r_vals(
-            np.ones(10),
-            20,
-        )
+        VesicleVideo._downsample_r_vals(np.ones(10), 20)
 
 
-def test_make_vesicle_gif_rejects_mismatched_edges(
-    tmp_path,
-    extraction_config,
-):
-    """Test that an overlay must correspond to every video frame."""
-    video = VesicleVideo(np.zeros((2, 20, 20)))
-    edge = VesicleVideo._compile_edge_detection_results(
-        np.full(20, 5.0),
-        (10.0, 10.0),
-        EdgeExtractionConfig(
-            pixels_per_micron=1.0,
-            n_angular_samples=20,
-        ),
-    )
-    edges = VesicleEdges(
-        extraction_config=extraction_config,
-        detections=[edge],
-    )
+def test_draw_frame_uses_supplied_axes():
+    """Test frame rendering composes into a caller-owned Matplotlib figure."""
+    video = VesicleVideo(np.stack([np.zeros((20, 20)), np.ones((20, 20))]))
+    fig, axes = plt.subplots(1, 2)
 
-    with pytest.raises(ValueError, match="1 detections and 2 frames"):
-        video.make_vesicle_gif(
-            tmp_path / "video.gif",
-            edges,
-        )
+    video.draw_frame(axes[0], 1)
+    axes[1].plot([0, 1], [0, 1])
+
+    assert len(fig.axes) == 2
+    assert np.array_equal(axes[0].images[0].get_array(), video.frames[1])
+    assert axes[0].get_title() == "frame 1 / 2"
+    assert len(axes[1].lines) == 1
+    plt.close(fig)
 
 
-def test_make_vesicle_gif_composes_frame_decorator_with_qc_colors(
-    tmp_path,
-    extraction_config,
-    monkeypatch,
-):
-    """Test custom overlays retain standard accepted/rejected edge colors."""
+def test_draw_frame_composes_frame_decorator_with_qc_colors(extraction_config):
+    """Test axes rendering retains standard accepted/rejected edge colors."""
     video = VesicleVideo(np.zeros((2, 20, 20)))
     detections = [
         VesicleVideo._compile_edge_detection_results(
@@ -278,26 +221,50 @@ def test_make_vesicle_gif_composes_frame_decorator_with_qc_colors(
         requested_titles.append(frame_index)
         return f"custom frame {frame_index}"
 
-    class FakeAnimation:
-        def __init__(self, _, animate, frames, **__):
-            for frame_index in range(frames):
-                animate(frame_index)
-
-        @staticmethod
-        def save(_):
-            return None
-
-    monkeypatch.setattr(
-        "vesmod.VesEdge.vesicle_video.FuncAnimation",
-        FakeAnimation,
-    )
-
-    video.make_vesicle_gif(
-        tmp_path / "video.gif",
-        FakeEdges(detections),
-        frame_decorator=add_overlay,
-        title_provider=provide_title,
-    )
+    fig, ax = plt.subplots()
+    edges = FakeEdges(detections)
+    for frame_index in range(2):
+        video.draw_frame(
+            ax,
+            frame_index,
+            edges,
+            frame_decorator=add_overlay,
+            title_provider=provide_title,
+        )
 
     assert observed == [(0, "tab:green"), (1, "tab:red")]
     assert requested_titles == [0, 1]
+    assert ax.get_title() == "custom frame 1"
+    plt.close(fig)
+
+
+def test_make_vesicle_gif_rejects_mismatched_edges(tmp_path, extraction_config):
+    """Test that an overlay must correspond to every video frame."""
+    video = VesicleVideo(np.zeros((2, 20, 20)))
+    edge = VesicleVideo._compile_edge_detection_results(
+        np.full(20, 5.0),
+        (10.0, 10.0),
+        EdgeExtractionConfig(pixels_per_micron=1.0, n_angular_samples=20),
+    )
+    edges = VesicleEdges(extraction_config=extraction_config, detections=[edge])
+
+    with pytest.raises(ValueError, match="1 detections and 2 frames"):
+        video.make_vesicle_gif(tmp_path / "video.gif", edges)
+
+
+def test_make_vesicle_gif_delegates_to_composable_api(tmp_path, monkeypatch):
+    """Test the convenience GIF wrapper delegates to the generic animator."""
+    video = VesicleVideo(np.zeros((2, 20, 20)))
+    observed = []
+
+    def fake_make_gif(path, panels):
+        observed.append((path, panels))
+
+    monkeypatch.setattr("vesmod.VesEdge.vesicle_video.make_gif", fake_make_gif)
+
+    output_path = tmp_path / "video.gif"
+    video.make_vesicle_gif(output_path)
+
+    assert len(observed) == 1
+    assert observed[0][0] == output_path
+    assert observed[0][1][0].video is video

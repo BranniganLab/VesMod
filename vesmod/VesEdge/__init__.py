@@ -1,5 +1,11 @@
 """Public VesEdge API."""
 
+from .animation import (
+    AnimationPanel,
+    TimeSeriesAnimationPanel,
+    VesicleAnimationPanel,
+    make_gif,
+)
 from .area_qc import check_area_deviation, contour_area
 from .config import EdgeExtractionConfig, EdgeQCConfig
 from .edge_extractor import extract_edge_from_frame
@@ -25,6 +31,7 @@ from .vesicle_edges import VesicleEdges
 from .vesicle_video import VesicleVideo
 
 __all__ = [
+    "AnimationPanel",
     "AreaQCResult",
     "check_area_deviation",
     "contour_area",
@@ -41,8 +48,11 @@ __all__ = [
     "InternalStructureFrameResult",
     "InternalStructureRegion",
     "InternalStructureVideoSummary",
+    "make_gif",
     "QCFlag",
     "summarize_internal_structures",
+    "TimeSeriesAnimationPanel",
+    "VesicleAnimationPanel",
     "VesicleEdges",
     "VesicleQCResult",
     "VesicleVideo",

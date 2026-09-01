@@ -8,7 +8,6 @@ manually labelled videos before they are used to classify populations.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from numbers import Integral, Real
 
 import numpy as np
 from numpy.typing import NDArray
@@ -19,6 +18,12 @@ from skimage.measure import label, regionprops
 from skimage.morphology import (
     disk,
     skeletonize,
+)
+
+from vesmod.validation import (
+    require_fraction,
+    require_integer,
+    require_positive_real,
 )
 
 from .models import ImageContour
@@ -53,17 +58,19 @@ class InternalStructureConfig:
         candidates. This may be larger than ``membrane_exclusion_px`` so the
         membrane's optical profile cannot seed filaments or bubbles.
     filament_seed_threshold : float
-        Sato vesselness required to seed a dark filament.
+        Sato vesselness required to seed a curvilinear structure.
     filament_grow_threshold : float
-        Lower Sato vesselness through which filament seeds may grow.
+        Lower Sato vesselness through which curvilinear seeds may grow.
     filament_scales_px : tuple[float, ...]
-        Gaussian scales used to calculate multiscale vesselness.
+        Gaussian scales used to calculate dark and light vesselness.
     min_filament_length_px : int
         Minimum connected skeleton length retained as a filament.
     bubble_edge_sigma : float
         Negative-residual magnitude required to seed a bubble boundary.
     bubble_edge_grow_sigma : float
-        Lower negative-residual magnitude through which boundaries grow.
+        Lower negative-residual magnitude through which bubble boundaries grow.
+        Its absolute magnitude also gates curvilinear ridge evidence so weak
+        residual texture cannot contribute ridge structure on its own.
     bubble_closing_px : int
         Radius used to close small gaps in candidate bubble boundaries.
     min_bubble_area_px : int
@@ -98,11 +105,15 @@ class InternalStructureConfig:
         4.0,
         5.0,
         6.0,
+        7.0,
+        8.0,
+        9.0,
+        10.0,
     )
     min_filament_length_px: int = 20
     bubble_edge_sigma: float = 2.0
     bubble_edge_grow_sigma: float = 1.0
-    bubble_closing_px: int = 2
+    bubble_closing_px: int = 4
     min_bubble_area_px: int = 100
     min_bubble_boundary_fraction: float = 0.45
     min_bubble_circularity: float = 0.2
@@ -111,46 +122,66 @@ class InternalStructureConfig:
     max_bubble_area_fraction: float = 0.5
 
     def __post_init__(self) -> None:
-        """Validate configuration values."""
-        _validate_nonnegative_integer(
-            self.membrane_exclusion_px,
-            "membrane_exclusion_px",
+        """Validate configuration values and normalize scalar state."""
+        integer_fields = (
+            ("membrane_exclusion_px", False),
+            ("min_region_area_px", True),
+            ("structure_boundary_exclusion_px", False),
+            ("min_filament_length_px", True),
+            ("bubble_closing_px", False),
+            ("min_bubble_area_px", True),
         )
-        _validate_positive_real(
-            self.background_sigma_px,
+        for name, must_be_positive in integer_fields:
+            value = require_integer(getattr(self, name), name)
+            if must_be_positive and value <= 0:
+                raise ValueError(f"{name} must be positive.")
+            if not must_be_positive and value < 0:
+                raise ValueError(f"{name} must be non-negative.")
+            object.__setattr__(self, name, value)
+
+        positive_real_fields = (
             "background_sigma_px",
+            "threshold_sigma",
+            "light_grow_sigma",
+            "filament_seed_threshold",
+            "filament_grow_threshold",
+            "bubble_edge_sigma",
+            "bubble_edge_grow_sigma",
         )
-        _validate_positive_real(self.threshold_sigma, "threshold_sigma")
-        _validate_positive_integer(
-            self.min_region_area_px,
-            "min_region_area_px",
+        for name in positive_real_fields:
+            value = require_positive_real(
+                getattr(self, name),
+                name,
+                finite_message=f"{name} must be finite and positive.",
+                range_message=f"{name} must be finite and positive.",
+            )
+            object.__setattr__(self, name, value)
+
+        fraction_fields = (
+            "min_light_circularity",
+            "min_light_solidity",
+            "max_light_eccentricity",
+            "min_bubble_boundary_fraction",
+            "min_bubble_circularity",
+            "min_bubble_solidity",
+            "max_bubble_eccentricity",
+            "max_bubble_area_fraction",
         )
-        _validate_positive_real(self.light_grow_sigma, "light_grow_sigma")
+        for name in fraction_fields:
+            value = require_fraction(
+                getattr(self, name),
+                name,
+                range_message=f"{name} must be between zero and one.",
+            )
+            object.__setattr__(self, name, value)
+
         if self.light_grow_sigma > self.threshold_sigma:
             raise ValueError("light_grow_sigma cannot exceed threshold_sigma.")
-        _validate_fraction(self.min_light_circularity, "min_light_circularity")
-        _validate_fraction(self.min_light_solidity, "min_light_solidity")
-        _validate_fraction(
-            self.max_light_eccentricity,
-            "max_light_eccentricity",
-        )
-        _validate_nonnegative_integer(
-            self.structure_boundary_exclusion_px,
-            "structure_boundary_exclusion_px",
-        )
         if self.structure_boundary_exclusion_px < self.membrane_exclusion_px:
             raise ValueError(
                 "structure_boundary_exclusion_px cannot be smaller than "
                 "membrane_exclusion_px."
             )
-        _validate_positive_real(
-            self.filament_seed_threshold,
-            "filament_seed_threshold",
-        )
-        _validate_positive_real(
-            self.filament_grow_threshold,
-            "filament_grow_threshold",
-        )
         if self.filament_grow_threshold > self.filament_seed_threshold:
             raise ValueError(
                 "filament_grow_threshold cannot exceed "
@@ -160,53 +191,31 @@ class InternalStructureConfig:
             raise TypeError("filament_scales_px must be a tuple.")
         if not self.filament_scales_px:
             raise ValueError("filament_scales_px cannot be empty.")
-        for scale in self.filament_scales_px:
-            _validate_positive_real(scale, "filament_scales_px")
-        _validate_positive_integer(
-            self.min_filament_length_px,
-            "min_filament_length_px",
+        filament_scales = tuple(
+            require_positive_real(
+                scale,
+                "filament_scales_px",
+                finite_message="filament_scales_px must be finite and positive.",
+                range_message="filament_scales_px must be finite and positive.",
+            )
+            for scale in self.filament_scales_px
         )
-        _validate_positive_real(self.bubble_edge_sigma, "bubble_edge_sigma")
-        _validate_positive_real(
-            self.bubble_edge_grow_sigma,
-            "bubble_edge_grow_sigma",
-        )
+        object.__setattr__(self, "filament_scales_px", filament_scales)
         if self.bubble_edge_grow_sigma > self.bubble_edge_sigma:
             raise ValueError(
                 "bubble_edge_grow_sigma cannot exceed bubble_edge_sigma."
             )
-        _validate_nonnegative_integer(
-            self.bubble_closing_px,
-            "bubble_closing_px",
-        )
-        _validate_positive_integer(
-            self.min_bubble_area_px,
-            "min_bubble_area_px",
-        )
-        _validate_fraction(
-            self.min_bubble_boundary_fraction,
-            "min_bubble_boundary_fraction",
-        )
-        _validate_fraction(
-            self.min_bubble_circularity,
-            "min_bubble_circularity",
-        )
-        _validate_fraction(self.min_bubble_solidity, "min_bubble_solidity")
-        _validate_fraction(
-            self.max_bubble_eccentricity,
-            "max_bubble_eccentricity",
-        )
-        _validate_fraction(
-            self.max_bubble_area_fraction,
-            "max_bubble_area_fraction",
-        )
         if self.max_bubble_area_fraction == 0.0:
             raise ValueError("max_bubble_area_fraction must be positive.")
 
 
 @dataclass(frozen=True)
 class InternalStructureRegion:
-    """One detected region, expressed in original-image coordinates."""
+    """One merged structure region in original-image coordinates.
+
+    ``evidence_types`` records which proposal generators support the region;
+    it is diagnostic provenance rather than a biological classification.
+    """
 
     label: int
     area_px: int
@@ -215,14 +224,11 @@ class InternalStructureRegion:
     mean_signed_residual: float
     structure_type: str = "unclassified"
     skeleton_length_px: int = 0
+    evidence_types: tuple[str, ...] = ()
 
     @property
     def polarity(self) -> str:
-        """Return the intensity polarity associated with this region type."""
-        if self.structure_type == "light_region":
-            return "bright"
-        if self.structure_type in {"dark_filament", "bubble"}:
-            return "dark"
+        """Return the mean intensity polarity of this merged region."""
         return "bright" if self.mean_signed_residual >= 0 else "dark"
 
 
@@ -245,6 +251,7 @@ class InternalStructureFrameResult:
     dark_filament_mask: NDArray[np.bool_] | None = None
     bubble_region_mask: NDArray[np.bool_] | None = None
     dark_filament_skeleton: NDArray[np.bool_] | None = None
+    dark_region_mask: NDArray[np.bool_] | None = None
 
     @property
     def usable_area_px(self) -> int:
@@ -278,6 +285,11 @@ class InternalStructureFrameResult:
         return self._area_fraction(self._channel_mask(self.light_region_mask))
 
     @property
+    def dark_region_area_fraction(self) -> float:
+        """Return the fraction supported by compact dark-region evidence."""
+        return self._area_fraction(self._channel_mask(self.dark_region_mask))
+
+    @property
     def filament_area_fraction(self) -> float:
         """Return the usable-interior fraction assigned to dark filaments."""
         return self._area_fraction(self._channel_mask(self.dark_filament_mask))
@@ -298,8 +310,13 @@ class InternalStructureFrameResult:
 
     @property
     def bubble_count(self) -> int:
-        """Return the number of detected bubble regions."""
-        return sum(region.structure_type == "bubble" for region in self.regions)
+        """Return the number of enclosed-boundary evidence regions."""
+        return int(label(self._channel_mask(self.bubble_region_mask)).max())
+
+    @property
+    def structure_count(self) -> int:
+        """Return the number of merged connected structure regions."""
+        return len(self.regions)
 
     def _area_fraction(self, mask: NDArray[np.bool_]) -> float:
         """Return mask area divided by usable interior area."""
@@ -320,10 +337,11 @@ class InternalStructureFrameResult:
         Parameters
         ----------
         structure_type : str
-            One of light_region, dark_filament, or bubble.
+            One of light_region, dark_region, dark_filament, or bubble.
         """
         channel_masks = {
             "light_region": self.light_region_mask,
+            "dark_region": self.dark_region_mask,
             "dark_filament": self.dark_filament_mask,
             "bubble": self.bubble_region_mask,
         }
@@ -357,6 +375,7 @@ class InternalStructureVideoSummary:
     frame_prevalence: float
     n_frames: int
     median_light_area_fraction: float = 0.0
+    median_dark_region_area_fraction: float = 0.0
     median_filament_area_fraction: float = 0.0
     median_filament_length_px: float = 0.0
     median_bubble_area_fraction: float = 0.0
@@ -368,7 +387,7 @@ def detect_internal_structures(
     contour: ImageContour,
     config: InternalStructureConfig | None = None,
 ) -> InternalStructureFrameResult:
-    """Detect light regions, dark filaments, and bubbles in one image frame.
+    """Detect a merged mask of resolvable internal structure evidence.
 
     Detection is performed in a crop around ``contour``. The returned masks
     remain in crop coordinates for compactness, while regions and
@@ -407,8 +426,9 @@ def detect_internal_structures(
 
     if noise_sigma == 0.0:
         light_mask = np.zeros_like(usable_mask)
-        filament_mask = np.zeros_like(usable_mask)
-        filament_skeleton = np.zeros_like(usable_mask)
+        dark_mask = np.zeros_like(usable_mask)
+        ridge_mask = np.zeros_like(usable_mask)
+        ridge_skeleton = np.zeros_like(usable_mask)
         bubble_mask = np.zeros_like(usable_mask)
     else:
         normalized = np.zeros_like(residual)
@@ -416,56 +436,93 @@ def detect_internal_structures(
         light_mask = _detect_light_regions(
             normalized,
             detection_mask,
+            usable_mask,
             settings,
         )
-        ridge_response = _dark_ridge_response(
+        dark_mask = _detect_dark_regions(
             normalized,
-            settings.filament_scales_px,
+            detection_mask,
+            usable_mask,
+            settings,
         )
-        filament_mask, filament_skeleton = _detect_dark_filaments(
-            normalized,
+        ridge_input = np.where(detection_mask, normalized, 0.0)
+        dark_ridge_response = _ridge_response(
+            ridge_input,
+            settings.filament_scales_px,
+            black_ridges=True,
+        )
+        light_ridge_response = _ridge_response(
+            ridge_input,
+            settings.filament_scales_px,
+            black_ridges=False,
+        )
+        dark_ridge_neighborhood = ndimage.binary_dilation(
+            detection_mask
+            & (normalized <= -settings.bubble_edge_grow_sigma),
+            structure=disk(int(np.ceil(max(settings.filament_scales_px)))),
+        )
+        paired_light_response = np.where(
+            dark_ridge_neighborhood,
+            light_ridge_response,
+            0.0,
+        )
+        ridge_response = np.maximum(
+            dark_ridge_response,
+            paired_light_response,
+        )
+        ridge_response[np.abs(normalized) < settings.bubble_edge_grow_sigma] = 0.0
+        ridge_mask, ridge_skeleton = _detect_curvilinear_structures(
             ridge_response,
+            detection_mask,
             detection_mask,
             settings,
         )
         bubble_mask = _detect_bubbles(
             normalized,
-            ridge_response,
+            dark_ridge_response,
+            ridge_mask,
             detection_mask,
             usable_mask,
             settings,
         )
-        bubble_margin = ndimage.binary_dilation(
+        (
+            dark_mask,
+            ridge_mask,
+            ridge_skeleton,
             bubble_mask,
-            structure=disk(int(np.ceil(max(settings.filament_scales_px)))),
+        ) = _suppress_bright_region_halos(
+            light_mask,
+            dark_mask,
+            ridge_mask,
+            bubble_mask,
+            settings,
         )
-        filament_mask &= ~bubble_margin
-        filament_mask, filament_skeleton = _retain_long_filaments(
-            filament_mask,
-            settings.min_filament_length_px,
+        (
+            light_mask,
+            dark_mask,
+            ridge_mask,
+            ridge_skeleton,
+        ) = _suppress_enclosed_boundary_halos(
+            bubble_mask,
+            light_mask,
+            dark_mask,
+            ridge_mask,
+            settings,
         )
 
-    structure_mask = light_mask | filament_mask | bubble_mask
-    regions = (
-        _describe_regions(
-            label(light_mask, connectivity=2),
-            residual,
-            crop_origin,
-            "light_region",
-        )
-        + _describe_regions(
-            label(filament_mask, connectivity=2),
-            residual,
-            crop_origin,
-            "dark_filament",
-            filament_skeleton,
-        )
-        + _describe_regions(
-            label(bubble_mask, connectivity=2),
-            residual,
-            crop_origin,
-            "bubble",
-        )
+    evidence_masks = {
+        "bright_region": light_mask,
+        "dark_region": dark_mask,
+        "curvilinear": ridge_mask,
+        "enclosed_boundary": bubble_mask,
+    }
+    structure_mask = np.logical_or.reduce(tuple(evidence_masks.values()))
+    regions = _describe_merged_regions(
+        label(structure_mask, connectivity=2),
+        residual,
+        crop_origin,
+        evidence_masks,
+        ridge_skeleton,
     )
     return InternalStructureFrameResult(
         original_shape=frame.shape,
@@ -476,9 +533,10 @@ def detect_internal_structures(
         regions=regions,
         noise_sigma=noise_sigma,
         light_region_mask=light_mask,
-        dark_filament_mask=filament_mask,
+        dark_region_mask=dark_mask,
+        dark_filament_mask=ridge_mask,
         bubble_region_mask=bubble_mask,
-        dark_filament_skeleton=filament_skeleton,
+        dark_filament_skeleton=ridge_skeleton,
     )
 
 
@@ -500,6 +558,11 @@ def summarize_internal_structures(
         n_frames=len(results),
         median_light_area_fraction=float(
             np.median([result.light_area_fraction for result in results])
+        ),
+        median_dark_region_area_fraction=float(
+            np.median(
+                [result.dark_region_area_fraction for result in results]
+            )
         ),
         median_filament_area_fraction=float(
             np.median([result.filament_area_fraction for result in results])
@@ -567,12 +630,27 @@ def _exclude_structure_boundary(
     interior_mask: NDArray[np.bool_],
     config: InternalStructureConfig,
 ) -> NDArray[np.bool_]:
-    """Return the interior eligible to contain structure candidates."""
-    if config.structure_boundary_exclusion_px == 0:
+    """Return the interior eligible to contain structure candidates.
+
+    Multiscale ridge filters respond over several Gaussian widths.  A fixed
+    margin smaller than that support can therefore admit the inward optical
+    shadow of the outer membrane even though the membrane itself is masked.
+    Expand the requested margin to cover four times the largest ridge scale,
+    while limiting the automatic expansion to one half of the vesicle's
+    inradius so small vesicles retain a useful detection interior.
+    """
+    inradius = float(np.max(ndimage.distance_transform_edt(interior_mask)))
+    scale_margin = int(np.ceil(4.0 * max(config.filament_scales_px)))
+    size_limited_margin = min(scale_margin, int(np.floor(0.5 * inradius)))
+    exclusion_px = max(
+        config.structure_boundary_exclusion_px,
+        size_limited_margin,
+    )
+    if exclusion_px == 0:
         return interior_mask.copy()
     return ndimage.binary_erosion(
         interior_mask,
-        structure=disk(config.structure_boundary_exclusion_px),
+        structure=disk(exclusion_px),
     )
 
 
@@ -608,28 +686,93 @@ def _robust_sigma(values: NDArray[np.float64]) -> float:
 
 def _detect_light_regions(
     normalized_residual: NDArray[np.float64],
-    usable_mask: NDArray[np.bool_],
+    seed_mask: NDArray[np.bool_],
+    growth_mask: NDArray[np.bool_],
     config: InternalStructureConfig,
 ) -> NDArray[np.bool_]:
-    """Grow broad light regions outward from high-confidence positive seeds."""
-    seeds = usable_mask & (
-        normalized_residual >= config.threshold_sigma
+    """Return compact positive-residual structure proposals."""
+    return _detect_compact_regions(
+        normalized_residual,
+        seed_mask,
+        growth_mask,
+        seed_sigma=config.threshold_sigma,
+        grow_sigma=config.light_grow_sigma,
+        polarity=1,
+        min_area_px=config.min_region_area_px,
+        min_circularity=config.min_light_circularity,
+        min_solidity=config.min_light_solidity,
+        max_eccentricity=config.max_light_eccentricity,
     )
-    candidates = usable_mask & (
-        normalized_residual >= config.light_grow_sigma
+
+
+def _detect_dark_regions(
+    normalized_residual: NDArray[np.float64],
+    seed_mask: NDArray[np.bool_],
+    growth_mask: NDArray[np.bool_],
+    config: InternalStructureConfig,
+) -> NDArray[np.bool_]:
+    """Return compact negative-residual structure proposals.
+
+    This proposal catches filled dark objects that do not contain the neutral
+    hole required by the enclosed-boundary detector.
+    """
+    return _detect_compact_regions(
+        normalized_residual,
+        seed_mask,
+        growth_mask,
+        seed_sigma=config.bubble_edge_sigma,
+        grow_sigma=config.bubble_edge_grow_sigma,
+        polarity=-1,
+        min_area_px=config.min_bubble_area_px,
+        min_circularity=config.min_bubble_circularity,
+        min_solidity=config.min_bubble_solidity,
+        max_eccentricity=config.max_bubble_eccentricity,
     )
+
+
+def _detect_compact_regions(
+    normalized_residual: NDArray[np.float64],
+    seed_mask: NDArray[np.bool_],
+    growth_mask: NDArray[np.bool_],
+    *,
+    seed_sigma: float,
+    grow_sigma: float,
+    polarity: int,
+    min_area_px: int,
+    min_circularity: float,
+    min_solidity: float,
+    max_eccentricity: float,
+) -> NDArray[np.bool_]:
+    """Grow and shape-filter compact signed-residual proposals."""
+    signed_residual = polarity * normalized_residual
+    seeds = seed_mask & (signed_residual >= seed_sigma)
+    candidates = growth_mask & (signed_residual >= grow_sigma)
     grown = ndimage.binary_propagation(seeds, mask=candidates)
-    grown = _remove_small_components(
+    return _retain_compact_components(
         grown,
-        min_size=config.min_region_area_px,
+        min_area_px,
+        min_circularity,
+        min_solidity,
+        max_eccentricity,
     )
-    accepted = np.zeros_like(grown)
-    for component in regionprops(label(grown, connectivity=2)):
+
+
+def _retain_compact_components(
+    mask: NDArray[np.bool_],
+    min_area_px: int,
+    min_circularity: float,
+    min_solidity: float,
+    max_eccentricity: float,
+) -> NDArray[np.bool_]:
+    """Reapply compact-component size and shape requirements to a mask."""
+    filtered = _remove_small_components(mask, min_size=min_area_px)
+    accepted = np.zeros_like(filtered)
+    for component in regionprops(label(filtered, connectivity=2)):
         if not _component_shape_passes(
             component,
-            config.min_light_circularity,
-            config.min_light_solidity,
-            config.max_light_eccentricity,
+            min_circularity,
+            min_solidity,
+            max_eccentricity,
         ):
             continue
         coordinates = component.coords
@@ -637,83 +780,197 @@ def _detect_light_regions(
     return accepted
 
 
-def _dark_ridge_response(
+def _suppress_bright_region_halos(
+    bright_mask: NDArray[np.bool_],
+    dark_mask: NDArray[np.bool_],
+    ridge_mask: NDArray[np.bool_],
+    enclosed_mask: NDArray[np.bool_],
+    config: InternalStructureConfig,
+) -> tuple[
+    NDArray[np.bool_],
+    NDArray[np.bool_],
+    NDArray[np.bool_],
+    NDArray[np.bool_],
+]:
+    """Remove secondary evidence caused by a compact bright structure.
+
+    Gaussian background subtraction produces a negative halo around a strong
+    positive object.  Without this suppression, the halo can be proposed a
+    second time as a dark ridge or closed boundary and artificially enlarge
+    the authoritative union.  Compact bright evidence remains untouched.
+
+    Light borders alongside elongated dark structures are not affected: they
+    fail the compact-region shape checks and therefore do not enter
+    ``bright_mask``.
+    """
+    if not np.any(bright_mask):
+        return dark_mask, ridge_mask, skeletonize(ridge_mask), enclosed_mask
+
+    halo_radius = int(np.ceil(4.0 * max(config.filament_scales_px)))
+    bright_neighborhood = ndimage.binary_dilation(
+        bright_mask,
+        structure=disk(halo_radius),
+    )
+    dark_without_halo = _retain_compact_components(
+        dark_mask & ~bright_neighborhood,
+        config.min_bubble_area_px,
+        config.min_bubble_circularity,
+        config.min_bubble_solidity,
+        config.max_bubble_eccentricity,
+    )
+    ridge_without_halo = ridge_mask & ~bright_neighborhood
+    ridge_without_halo, ridge_skeleton = _retain_curvilinear_components(
+        ridge_without_halo,
+        config.min_filament_length_px,
+        int(np.ceil(max(config.filament_scales_px))),
+    )
+
+    enclosed_without_bright = np.zeros_like(enclosed_mask)
+    for component in regionprops(label(enclosed_mask, connectivity=2)):
+        coordinates = component.coords
+        if np.any(bright_mask[coordinates[:, 0], coordinates[:, 1]]):
+            continue
+        enclosed_without_bright[coordinates[:, 0], coordinates[:, 1]] = True
+
+    return (
+        dark_without_halo,
+        ridge_without_halo,
+        ridge_skeleton,
+        enclosed_without_bright,
+    )
+
+
+def _suppress_enclosed_boundary_halos(
+    enclosed_mask: NDArray[np.bool_],
+    bright_mask: NDArray[np.bool_],
+    dark_mask: NDArray[np.bool_],
+    ridge_mask: NDArray[np.bool_],
+    config: InternalStructureConfig,
+) -> tuple[
+    NDArray[np.bool_],
+    NDArray[np.bool_],
+    NDArray[np.bool_],
+    NDArray[np.bool_],
+]:
+    """Remove redundant structure evidence immediately around bubbles.
+
+    A resolved bubble is represented by its filled enclosed-boundary mask.
+    Optical ringing and the multiscale filters can otherwise add a second
+    skirt of bright, dark, or curvilinear evidence around the same object.
+    Suppress that skirt over one maximum ridge scale while leaving the
+    enclosed-boundary evidence itself unchanged. Compact channels are
+    revalidated after masking so halo subtraction cannot leave fragments that
+    no longer satisfy their configured size or shape requirements.
+    """
+    if not np.any(enclosed_mask):
+        return bright_mask, dark_mask, ridge_mask, skeletonize(ridge_mask)
+
+    halo_radius = int(np.ceil(max(config.filament_scales_px))) + 1
+    bubble_neighborhood = ndimage.binary_dilation(
+        enclosed_mask,
+        structure=disk(halo_radius),
+    )
+    bright_without_halo = _retain_compact_components(
+        bright_mask & ~bubble_neighborhood,
+        config.min_region_area_px,
+        config.min_light_circularity,
+        config.min_light_solidity,
+        config.max_light_eccentricity,
+    )
+    dark_without_halo = _retain_compact_components(
+        dark_mask & ~bubble_neighborhood,
+        config.min_bubble_area_px,
+        config.min_bubble_circularity,
+        config.min_bubble_solidity,
+        config.max_bubble_eccentricity,
+    )
+    ridge_without_halo = ridge_mask & ~bubble_neighborhood
+    ridge_without_halo, ridge_skeleton = _retain_curvilinear_components(
+        ridge_without_halo,
+        config.min_filament_length_px,
+        halo_radius,
+    )
+    return (
+        bright_without_halo,
+        dark_without_halo,
+        ridge_without_halo,
+        ridge_skeleton,
+    )
+
+
+def _retain_curvilinear_components(
+    mask: NDArray[np.bool_],
+    minimum_length_px: int,
+    maximum_radius_px: int,
+) -> tuple[NDArray[np.bool_], NDArray[np.bool_]]:
+    """Reapply the skeleton-length requirement after masking a ridge."""
+    skeleton = skeletonize(mask)
+    kept_skeleton = np.zeros_like(skeleton)
+    for component in regionprops(label(skeleton, connectivity=2)):
+        if component.area < minimum_length_px:
+            continue
+        coordinates = component.coords
+        kept_skeleton[coordinates[:, 0], coordinates[:, 1]] = True
+    if not np.any(kept_skeleton):
+        return np.zeros_like(mask), kept_skeleton
+    kept_mask = mask & ndimage.binary_dilation(
+        kept_skeleton,
+        structure=disk(maximum_radius_px),
+    )
+    return kept_mask, skeletonize(kept_mask)
+
+
+def _ridge_response(
     normalized_residual: NDArray[np.float64],
     scales: tuple[float, ...],
+    *,
+    black_ridges: bool,
 ) -> NDArray[np.float64]:
-    """Return multiscale vesselness for dark, line-like structures."""
+    """Return multiscale vesselness for one intensity polarity."""
     return sato(
         normalized_residual,
         sigmas=scales,
-        black_ridges=True,
+        black_ridges=black_ridges,
     )
 
 
-def _detect_dark_filaments(
-    normalized_residual: NDArray[np.float64],
+def _detect_curvilinear_structures(
     ridge_response: NDArray[np.float64],
-    usable_mask: NDArray[np.bool_],
+    seed_mask: NDArray[np.bool_],
+    growth_mask: NDArray[np.bool_],
     config: InternalStructureConfig,
 ) -> tuple[NDArray[np.bool_], NDArray[np.bool_]]:
-    """Detect thin dark ridges and retain components with sufficient length."""
-    seeds = usable_mask & (
+    """Detect connected dark-or-light ridges with sufficient length."""
+    seeds = seed_mask & (
         ridge_response >= config.filament_seed_threshold
     )
-    candidates = usable_mask & (
+    candidates = growth_mask & (
         ridge_response >= config.filament_grow_threshold
     )
-    dark_pixels = normalized_residual < 0.0
-    seeds &= dark_pixels
-    candidates &= dark_pixels
     candidates = ndimage.binary_propagation(seeds, mask=candidates)
-    skeleton = skeletonize(candidates)
-    kept_skeleton = np.zeros_like(skeleton)
-    for component in regionprops(label(skeleton, connectivity=2)):
-        if component.area >= config.min_filament_length_px:
-            coordinates = component.coords
-            kept_skeleton[coordinates[:, 0], coordinates[:, 1]] = True
-    if not np.any(kept_skeleton):
-        return np.zeros_like(candidates), kept_skeleton
-    max_radius = int(np.ceil(max(config.filament_scales_px)))
-    filament_mask = candidates & ndimage.binary_dilation(
-        kept_skeleton,
-        structure=disk(max_radius),
+    return _retain_curvilinear_components(
+        candidates,
+        config.min_filament_length_px,
+        int(np.ceil(max(config.filament_scales_px))),
     )
-    return filament_mask, skeletonize(filament_mask)
-
-
-def _retain_long_filaments(
-    filament_mask: NDArray[np.bool_],
-    min_length_px: int,
-) -> tuple[NDArray[np.bool_], NDArray[np.bool_]]:
-    """Remove filament fragments made too short by bubble subtraction."""
-    retained_mask = np.zeros_like(filament_mask)
-    retained_skeleton = np.zeros_like(filament_mask)
-    for component in regionprops(label(filament_mask, connectivity=2)):
-        component_mask = np.zeros_like(filament_mask)
-        coordinates = component.coords
-        component_mask[coordinates[:, 0], coordinates[:, 1]] = True
-        component_skeleton = skeletonize(component_mask)
-        if np.count_nonzero(component_skeleton) < min_length_px:
-            continue
-        retained_mask |= component_mask
-        retained_skeleton |= component_skeleton
-    return retained_mask, retained_skeleton
 
 
 def _detect_bubbles(
     normalized_residual: NDArray[np.float64],
     ridge_response: NDArray[np.float64],
+    retained_ridge_mask: NDArray[np.bool_],
     detection_mask: NDArray[np.bool_],
     usable_mask: NDArray[np.bool_],
     config: InternalStructureConfig,
 ) -> NDArray[np.bool_]:
     """Detect dark, sufficiently closed boundaries and fill their interiors.
 
-    Bubble edges are dark ridges, just like filaments.  The distinction is
-    topological: a bubble ridge encloses a compact interior.  Residual-based
-    edges and ridge-based edges are evaluated separately so unrelated dark
-    texture cannot bridge two candidates into one artificial enclosure.
+    Bubble edges are ridges, just like filaments.  The distinction is
+    topological: a bubble ridge encloses a compact interior.  Residual-based,
+    dark-ridge, and retained curvilinear edges are evaluated separately so
+    unrelated texture from different proposal generators cannot bridge two
+    candidates into one artificial enclosure.  The retained mask recovers
+    mixed-polarity optical rings whose dark boundary alone is interrupted.
     """
     dark_seeds = detection_mask & (
         normalized_residual <= -config.bubble_edge_sigma
@@ -748,6 +1005,12 @@ def _detect_bubbles(
     )
     bubble_mask |= _bubbles_enclosed_by_edge(
         ridge_edge,
+        detection_mask,
+        usable_mask,
+        config,
+    )
+    bubble_mask |= _bubbles_enclosed_by_edge(
+        retained_ridge_mask,
         detection_mask,
         usable_mask,
         config,
@@ -837,19 +1100,27 @@ def _remove_small_components(
     return kept
 
 
-def _describe_regions(
+def _describe_merged_regions(
     labelled: NDArray[np.int_],
     residual: NDArray[np.float64],
     crop_origin: tuple[int, int],
-    structure_type: str,
-    skeleton: NDArray[np.bool_] | None = None,
+    evidence_masks: dict[str, NDArray[np.bool_]],
+    ridge_skeleton: NDArray[np.bool_],
 ) -> tuple[InternalStructureRegion, ...]:
-    """Convert labelled crop regions to original-image measurements."""
+    """Convert merged regions and their supporting evidence to measurements."""
     y_offset, x_offset = crop_origin
     descriptions = []
     for region in regionprops(labelled, intensity_image=residual):
         min_y, min_x, max_y, max_x = region.bbox
         centroid_y, centroid_x = region.centroid
+        coordinates = region.coords
+        rows = coordinates[:, 0]
+        columns = coordinates[:, 1]
+        evidence_types = tuple(
+            name
+            for name, mask in evidence_masks.items()
+            if np.any(mask[rows, columns])
+        )
         descriptions.append(
             InternalStructureRegion(
                 label=region.label,
@@ -865,51 +1136,11 @@ def _describe_regions(
                     max_x + x_offset,
                 ),
                 mean_signed_residual=float(region.intensity_mean),
-                structure_type=structure_type,
-                skeleton_length_px=(
-                    0
-                    if skeleton is None
-                    else int(
-                        np.count_nonzero(
-                            skeleton[
-                                min_y:max_y,
-                                min_x:max_x,
-                            ]
-                            & region.image
-                        )
-                    )
+                structure_type="structure",
+                skeleton_length_px=int(
+                    np.count_nonzero(ridge_skeleton[rows, columns])
                 ),
+                evidence_types=evidence_types,
             )
         )
     return tuple(descriptions)
-
-
-def _validate_positive_real(value: object, name: str) -> None:
-    """Require a finite positive real number."""
-    if isinstance(value, bool) or not isinstance(value, Real):
-        raise TypeError(f"{name} must be a real number.")
-    if not np.isfinite(value) or value <= 0:
-        raise ValueError(f"{name} must be finite and positive.")
-
-
-def _validate_nonnegative_integer(value: object, name: str) -> None:
-    """Require a non-negative integer."""
-    if isinstance(value, bool) or not isinstance(value, Integral):
-        raise TypeError(f"{name} must be an integer.")
-    if value < 0:
-        raise ValueError(f"{name} must be non-negative.")
-
-
-def _validate_positive_integer(value: object, name: str) -> None:
-    """Require a positive integer."""
-    _validate_nonnegative_integer(value, name)
-    if value == 0:
-        raise ValueError(f"{name} must be positive.")
-
-
-def _validate_fraction(value: object, name: str) -> None:
-    """Require a finite real number in the closed unit interval."""
-    if isinstance(value, bool) or not isinstance(value, Real):
-        raise TypeError(f"{name} must be a real number.")
-    if not np.isfinite(value) or not 0.0 <= value <= 1.0:
-        raise ValueError(f"{name} must be between zero and one.")

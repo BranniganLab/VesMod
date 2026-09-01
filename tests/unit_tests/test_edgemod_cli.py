@@ -161,7 +161,12 @@ def test_process_file_serializes_dynamic_rejection_diagnostics(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "error", [ValueError("fit failed"), FloatingPointError("fit failed")]
+    "error",
+    [
+        OSError("fit failed"),
+        ValueError("fit failed"),
+        FloatingPointError("fit failed"),
+    ],
 )
 def test_recursive_run_skips_failed_fit_and_continues(
     monkeypatch, capsys, tmp_path, error
@@ -190,7 +195,19 @@ def test_recursive_run_skips_failed_fit_and_continues(
     assert f"Skipping {failed_path}: fit failed" in capsys.readouterr().err
 
 
-def test_nonrecursive_run_propagates_failed_fit(monkeypatch, tmp_path):
+@pytest.mark.parametrize(
+    "error",
+    [
+        OSError("fit failed"),
+        ValueError("fit failed"),
+        FloatingPointError("fit failed"),
+    ],
+)
+def test_nonrecursive_run_propagates_failed_fit(
+    monkeypatch,
+    tmp_path,
+    error,
+):
     """Test a direct single-spectrum run still reports failure to the caller."""
     failed_path = tmp_path / "failed.npy"
     failed_path.touch()
@@ -202,10 +219,10 @@ def test_nonrecursive_run_propagates_failed_fit(monkeypatch, tmp_path):
     monkeypatch.setattr(
         edgemod_cli,
         "process_file",
-        lambda path, parsed_args: (_ for _ in ()).throw(ValueError("fit failed")),
+        lambda path, parsed_args: (_ for _ in ()).throw(error),
     )
 
-    with pytest.raises(ValueError, match="fit failed"):
+    with pytest.raises(type(error), match="fit failed"):
         edgemod_cli.main()
 
 
@@ -301,3 +318,240 @@ def test_remove_temporal_rms_artifacts_uses_validated_export_manifest(tmp_path):
 
     assert not exported_path.exists()
     assert unrelated_path.is_file()
+
+
+
+def test_parse_args_accepts_external_fit_output(monkeypatch, tmp_path):
+    """Test stable fitting exposes output and overwrite options."""
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "edgemod",
+            "edges",
+            "--output-dir",
+            str(tmp_path),
+            "--overwrite",
+        ],
+    )
+
+    args = edgemod_cli.parse_args()
+
+    assert args.output_dir == tmp_path
+    assert args.overwrite
+
+
+def test_fit_output_path_preserves_relative_directories(tmp_path):
+    """Test external fit outputs mirror the selected input hierarchy."""
+    input_dir = tmp_path / "input"
+    path = input_dir / "condition" / "sample.npy"
+    path.parent.mkdir(parents=True)
+    path.touch()
+    args = _args()
+    args.input_path = input_dir
+    args.output_dir = tmp_path / "output"
+
+    output_path = edgemod_cli._fit_output_path(path, args)
+
+    assert output_path == tmp_path / "output" / "condition" / "sample.json"
+    assert output_path.parent.is_dir()
+
+
+def test_fit_output_path_keeps_legacy_beside_input_behavior(tmp_path):
+    """Test omitting output-dir leaves the established path unchanged."""
+    path = tmp_path / "sample.npy"
+    args = _args()
+
+    assert edgemod_cli._fit_output_path(path, args) == tmp_path / "sample.json"
+
+
+def test_external_fit_batch_writes_provenance_and_summary(
+    monkeypatch,
+    tmp_path,
+):
+    """Test external batches record every successfully attempted input."""
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    input_dir.mkdir()
+    source_path = input_dir / "sample.npy"
+    source_path.touch()
+    args = _args()
+    args.input_path = input_dir
+    args.output_dir = output_dir
+    args.overwrite = False
+    args.recursive = True
+    fit = Namespace(kC=12.5, surface_tension=1.0e-8)
+
+    monkeypatch.setattr(edgemod_cli, "process_file", lambda path, args: fit)
+
+    edgemod_cli._run_fit(args)
+
+    provenance = json.loads(
+        (output_dir / "edgemod_fit.json").read_text(encoding="utf-8")
+    )
+    summary = (output_dir / "fit_summary.csv").read_text(encoding="utf-8")
+    assert provenance["analysis"] == "edgemod_fit"
+    assert provenance["input_manifest"] == [str(source_path.resolve())]
+    assert "sample.npy,ok,12.5,1e-08," in summary
+
+
+def test_external_fit_batch_summarizes_recursive_failure(
+    monkeypatch,
+    tmp_path,
+):
+    """Test recursive fitting failures are retained in the batch summary."""
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    input_dir.mkdir()
+    source_path = input_dir / "sample.npy"
+    source_path.touch()
+    args = _args()
+    args.input_path = input_dir
+    args.output_dir = output_dir
+    args.overwrite = False
+    args.recursive = True
+
+    monkeypatch.setattr(
+        edgemod_cli,
+        "process_file",
+        lambda path, args: (_ for _ in ()).throw(OSError("fit failed")),
+    )
+
+    edgemod_cli._run_fit(args)
+
+    summary = (output_dir / "fit_summary.csv").read_text(encoding="utf-8")
+    assert "sample.npy,fit_error,,,fit failed" in summary
+
+
+def test_external_fit_batch_summarizes_nonrecursive_failure(
+    monkeypatch,
+    tmp_path,
+):
+    """Test a propagated direct failure is written before returning control."""
+    source_path = tmp_path / "sample.npy"
+    output_dir = tmp_path / "output"
+    source_path.touch()
+    args = _args()
+    args.input_path = source_path
+    args.output_dir = output_dir
+    args.overwrite = False
+    args.recursive = False
+
+    monkeypatch.setattr(
+        edgemod_cli,
+        "process_file",
+        lambda path, args: (_ for _ in ()).throw(ValueError("fit failed")),
+    )
+
+    with pytest.raises(ValueError, match="fit failed"):
+        edgemod_cli._run_fit(args)
+
+    summary = (output_dir / "fit_summary.csv").read_text(encoding="utf-8")
+    assert "sample.npy,fit_error,,,fit failed" in summary
+
+
+def test_fit_batch_output_oserror_is_not_suppressed(
+    monkeypatch,
+    tmp_path,
+):
+    """Test failures writing batch outputs still propagate to the caller."""
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    input_dir.mkdir()
+    (input_dir / "sample.npy").touch()
+    args = _args()
+    args.input_path = input_dir
+    args.output_dir = output_dir
+    args.overwrite = False
+    args.recursive = True
+    fit = Namespace(kC=12.5, surface_tension=1.0e-8)
+
+    monkeypatch.setattr(edgemod_cli, "process_file", lambda path, args: fit)
+    monkeypatch.setattr(
+        edgemod_cli,
+        "_write_fit_batch_outputs",
+        lambda args, rows: (_ for _ in ()).throw(OSError("write failed")),
+    )
+
+    with pytest.raises(OSError, match="write failed"):
+        edgemod_cli._run_fit(args)
+
+
+def test_external_fit_rejects_overlapping_paths(tmp_path):
+    """Test recursive outputs cannot be placed inside the input tree."""
+    input_dir = tmp_path / "input"
+    input_dir.mkdir()
+    (input_dir / "sample.npy").touch()
+    args = _args()
+    args.input_path = input_dir
+    args.output_dir = input_dir / "fits"
+    args.overwrite = False
+    args.recursive = True
+
+    with pytest.raises(ValueError, match="must not overlap"):
+        edgemod_cli._run_fit(args)
+
+
+def test_incompatible_fit_provenance_requires_overwrite(tmp_path):
+    """Test an external directory cannot silently mix fit configurations."""
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    input_dir.mkdir()
+    source_path = input_dir / "sample.npy"
+    source_path.touch()
+    args = _args()
+    args.input_path = input_dir
+    args.output_dir = output_dir
+    args.overwrite = False
+    args.recursive = True
+
+    edgemod_cli._prepare_fit_output(args, [source_path])
+    args.temperature = 300.0
+
+    with pytest.raises(ValueError, match="different input selection"):
+        edgemod_cli._prepare_fit_output(args, [source_path])
+
+
+def test_remove_fit_artifacts_preserves_unrelated_files(tmp_path):
+    """Test overwrite cleanup removes only manifest-recorded fit artifacts."""
+    managed = tmp_path / "condition" / "sample.json"
+    unrelated = tmp_path / "notes.json"
+    managed.parent.mkdir()
+    managed.write_text("{}", encoding="utf-8")
+    unrelated.write_text("{}", encoding="utf-8")
+    provenance = {
+        "analysis": "edgemod_fit",
+        "managed_artifacts": ["condition/sample.json"],
+    }
+
+    edgemod_cli._remove_fit_artifacts(tmp_path, provenance)
+
+    assert not managed.exists()
+    assert unrelated.is_file()
+
+
+def test_compatible_overwrite_removes_recorded_fit_artifacts(tmp_path):
+    """Test compatible overwrite also cleans its prior managed outputs."""
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    input_dir.mkdir()
+    source_path = input_dir / "sample.npy"
+    source_path.touch()
+    args = _args()
+    args.input_path = input_dir
+    args.output_dir = output_dir
+    args.overwrite = False
+    args.recursive = True
+
+    edgemod_cli._prepare_fit_output(args, [source_path])
+    managed = output_dir / "sample.json"
+    managed.write_text("{}", encoding="utf-8")
+    provenance_path = output_dir / "edgemod_fit.json"
+    provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+    provenance["managed_artifacts"] = ["sample.json"]
+    provenance_path.write_text(json.dumps(provenance), encoding="utf-8")
+
+    args.overwrite = True
+    edgemod_cli._prepare_fit_output(args, [source_path])
+
+    assert not managed.exists()
