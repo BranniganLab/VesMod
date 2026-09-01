@@ -111,7 +111,7 @@ class InternalStructureConfig:
     min_filament_length_px: int = 20
     bubble_edge_sigma: float = 2.0
     bubble_edge_grow_sigma: float = 1.0
-    bubble_closing_px: int = 2
+    bubble_closing_px: int = 4
     min_bubble_area_px: int = 100
     min_bubble_boundary_fraction: float = 0.45
     min_bubble_circularity: float = 0.2
@@ -475,6 +475,7 @@ def detect_internal_structures(
         bubble_mask = _detect_bubbles(
             normalized,
             dark_ridge_response,
+            ridge_mask,
             detection_mask,
             usable_mask,
             settings,
@@ -853,16 +854,19 @@ def _detect_curvilinear_structures(
 def _detect_bubbles(
     normalized_residual: NDArray[np.float64],
     ridge_response: NDArray[np.float64],
+    retained_ridge_mask: NDArray[np.bool_],
     detection_mask: NDArray[np.bool_],
     usable_mask: NDArray[np.bool_],
     config: InternalStructureConfig,
 ) -> NDArray[np.bool_]:
     """Detect dark, sufficiently closed boundaries and fill their interiors.
 
-    Bubble edges are dark ridges, just like filaments.  The distinction is
-    topological: a bubble ridge encloses a compact interior.  Residual-based
-    edges and ridge-based edges are evaluated separately so unrelated dark
-    texture cannot bridge two candidates into one artificial enclosure.
+    Bubble edges are ridges, just like filaments.  The distinction is
+    topological: a bubble ridge encloses a compact interior.  Residual-based,
+    dark-ridge, and retained curvilinear edges are evaluated separately so
+    unrelated texture from different proposal generators cannot bridge two
+    candidates into one artificial enclosure.  The retained mask recovers
+    mixed-polarity optical rings whose dark boundary alone is interrupted.
     """
     dark_seeds = detection_mask & (
         normalized_residual <= -config.bubble_edge_sigma
@@ -897,6 +901,12 @@ def _detect_bubbles(
     )
     bubble_mask |= _bubbles_enclosed_by_edge(
         ridge_edge,
+        detection_mask,
+        usable_mask,
+        config,
+    )
+    bubble_mask |= _bubbles_enclosed_by_edge(
+        retained_ridge_mask,
         detection_mask,
         usable_mask,
         config,

@@ -170,7 +170,7 @@ def add_parser(subparsers) -> None:
     parser.add_argument(
         "--bubble-closing-px",
         type=int,
-        default=2,
+        default=4,
         help="Maximum local gap closed in candidate bubble edges.",
     )
     parser.add_argument(

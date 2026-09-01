@@ -1,7 +1,9 @@
 """Tests for experimental internal-structure measurements."""
 
 import numpy as np
+from skimage.measure import label
 
+from vesmod.VesEdge import internal_structures
 from vesmod.VesEdge.internal_structures import (
     InternalStructureConfig,
     detect_internal_structures,
@@ -182,6 +184,29 @@ def test_weak_connected_bubble_edge_grows_from_dark_seed():
 
     assert result.bubble_count == 1
     assert result.to_full_frame_channel_mask("bubble")[65, 70]
+
+
+def test_retained_curvilinear_ring_can_define_bubble_boundary():
+    """Test a closed retained ridge contributes enclosed-boundary evidence."""
+    shape = (120, 120)
+    yy, xx = np.ogrid[:120, :120]
+    distance = np.sqrt((yy - 60) ** 2 + (xx - 60) ** 2)
+    retained_ridge = np.abs(distance - 12.0) <= 1.0
+    detection_mask = (yy - 60) ** 2 + (xx - 60) ** 2 <= 40**2
+    normalized = np.zeros(shape, dtype=float)
+    ridge_response = np.zeros(shape, dtype=float)
+
+    bubble_mask = internal_structures._detect_bubbles(
+        normalized,
+        ridge_response,
+        retained_ridge,
+        detection_mask,
+        detection_mask,
+        _config(),
+    )
+
+    assert bubble_mask[60, 60]
+    assert label(bubble_mask, connectivity=2).max() == 1
 
 
 def test_whole_interior_is_not_classified_as_bubble():

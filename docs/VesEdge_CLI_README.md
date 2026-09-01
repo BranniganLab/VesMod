@@ -427,7 +427,7 @@ vesedge internal-structures "./checkpoints" \
     --min-filament-length-px 20 \
     --bubble-edge-sigma 2 \
     --bubble-edge-grow-sigma 1 \
-    --bubble-closing-px 2 \
+    --bubble-closing-px 4 \
     --min-bubble-area-px 100 \
     --min-bubble-boundary-fraction 0.45 \
     --min-bubble-circularity 0.2 \

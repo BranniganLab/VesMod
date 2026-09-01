@@ -43,7 +43,7 @@ def _args(tmp_path, checkpoint):
         min_filament_length_px=20,
         bubble_edge_sigma=2.0,
         bubble_edge_grow_sigma=1.0,
-        bubble_closing_px=2,
+        bubble_closing_px=4,
         min_bubble_area_px=100,
         min_bubble_boundary_fraction=0.45,
         min_bubble_circularity=0.2,
@@ -80,6 +80,7 @@ def test_parse_args_selects_internal_structures_subcommand(monkeypatch, tmp_path
     assert args.save_masks
     assert args.background_sigma_px == pytest.approx(30.0)
     assert args.structure_boundary_exclusion_px == 20
+    assert args.bubble_closing_px == 4
     assert args.filament_scales_px == pytest.approx(
         [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
     )
