@@ -23,22 +23,6 @@ class SpectrumFitConfig:
     The historical positional order of ``lmax``, ``free_sigma``, and
     ``temperature`` is retained for compatibility. New q-bound fields follow
     those existing parameters.
-
-    Parameters
-    ----------
-    lmax : int, default=500
-        Exclusive upper summation index in the theoretical spectrum model.
-    free_sigma : bool, default=True
-        Whether reduced surface tension is fitted as a free parameter.
-    temperature : float, default=295.0
-        Finite, positive experimental temperature in Kelvin used when
-        converting reduced tension to surface tension.
-    lower_bound : int, default=3
-        Inclusive lowest Fourier mode used for the physical fit. HSS97 is
-        defined here only for physical modes q >= 2.
-    upper_bound : int, default=8
-        Exclusive upper Fourier-mode bound. The defaults therefore fit
-        q = 3, 4, 5, 6, 7.
     """
 
     lmax: int = 500
@@ -57,15 +41,21 @@ class SpectrumFitConfig:
             if not isinstance(value, Integral) or isinstance(value, bool):
                 raise TypeError(f"{name} must be an integer.")
 
+        if self.lower_bound <= 0:
+            raise ValueError("lower_bound must be positive.")
         if self.lower_bound < 2:
             raise ValueError("lower_bound must be at least 2 for HSS97.")
         if self.upper_bound <= self.lower_bound:
             raise ValueError("upper_bound must be greater than lower_bound.")
+        if self.lmax <= 0:
+            raise ValueError("lmax must be positive.")
         if self.lmax < self.upper_bound:
             raise ValueError(
                 "lmax must be at least upper_bound because HSS97 uses lmax "
                 "as an exclusive summation bound."
             )
+        if not isinstance(self.free_sigma, bool):
+            raise TypeError("free_sigma must be a bool.")
         n_modes = self.upper_bound - self.lower_bound
         n_varying_parameters = 2 if self.free_sigma else 1
         if n_modes < n_varying_parameters:
@@ -73,8 +63,6 @@ class SpectrumFitConfig:
                 "Configured q range contains too few modes for the number of "
                 "varying fit parameters."
             )
-        if not isinstance(self.free_sigma, bool):
-            raise TypeError("free_sigma must be a bool.")
         if not isinstance(self.temperature, Real) or isinstance(
             self.temperature,
             bool,
