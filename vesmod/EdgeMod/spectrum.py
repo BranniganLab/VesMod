@@ -33,8 +33,9 @@ class Spectrum:
     Successful construction guarantees a finite positive two-dimensional radii
     trajectory with at least one frame and two angular samples. Derived ``r0``,
     ``avg_amps2``, ``modes``, and ``fit_results`` state is initialized before
-    the object is exposed to callers, so downstream methods may rely on those
-    object invariants.
+    the object is exposed to callers. Because these attributes remain publicly
+    mutable for compatibility, methods still validate state that callers can
+    invalidate after construction.
 
     ``kC`` and ``surface_tension`` are compatibility attributes containing the
     most recent successful physical fit. Durable per-fit provenance is stored
@@ -138,6 +139,8 @@ class Spectrum:
 
     def isolate_mode_range(self, lower_bound: int, upper_bound: int) -> MiniSpectrum:
         """Return modes with ``lower_bound <= q < upper_bound`` and amplitudes."""
+        if self.modes is None:
+            raise AttributeError("There are no modes; Cannot return mode range.")
         mask1 = self.modes >= lower_bound
         mask2 = self.modes < upper_bound
         combined_mask = mask1 & mask2
