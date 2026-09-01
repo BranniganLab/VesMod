@@ -26,13 +26,35 @@ def select_input_files(
     input_path: Path | list[Path],
     suffix: str,
     recursive: bool,
-) -> tuple[list[Path], Path]:
+    *,
+    return_roots: bool = False,
+) -> tuple[list[Path], Path] | tuple[list[Path], Path, tuple[Path, ...]]:
     """Resolve CLI selectors to unique files and a stable relative-path root.
 
     Selectors may be explicit files, directories, shell-expanded filenames, or
     unexpanded glob patterns. With ``recursive=True``, a glob pattern is also
     matched below subdirectories of its selected parent, so a selector such as
     ``pattern*.npz`` finds matching files recursively.
+
+    Parameters
+    ----------
+    input_path : Path or list[Path]
+        One or more user-supplied selectors.
+    suffix : str
+        Required file suffix, including the leading period.
+    recursive : bool
+        Whether directory and glob selectors should search subdirectories.
+    return_roots : bool, optional
+        When True, also return the resolved root associated with each original
+        selector. This preserves the actual selected input trees separately
+        from the synthetic common root used for relative output paths.
+
+    Returns
+    -------
+    tuple
+        Selected files and their common relative-path root. When
+        ``return_roots`` is True, a tuple of unique resolved selector roots is
+        returned as the third item.
     """
     input_paths = normalize_input_paths(input_path)
     expected_suffix = suffix.lower()
@@ -78,7 +100,12 @@ def select_input_files(
         root = single_explicit_file
     else:
         root = Path(os.path.commonpath([str(path) for path in roots])).resolve()
-    return sorted(matches), root
+
+    selected = sorted(matches)
+    if return_roots:
+        unique_roots = tuple(dict.fromkeys(path.resolve() for path in roots))
+        return selected, root, unique_roots
+    return selected, root
 
 
 def _recursive_glob(pattern: str) -> str:
