@@ -85,6 +85,8 @@ class Spectrum:
             raise ValueError("radii must contain at least two angular samples.")
         if not np.issubdtype(radii.dtype, np.number):
             raise TypeError("radii must contain numeric values.")
+        if np.issubdtype(radii.dtype, np.complexfloating):
+            raise TypeError("radii must contain real-valued numbers.")
 
         validated = np.asarray(radii, dtype=float).copy()
         if not np.all(np.isfinite(validated)):
