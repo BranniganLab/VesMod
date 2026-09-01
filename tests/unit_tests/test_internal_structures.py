@@ -62,6 +62,32 @@ def test_large_light_region_grows_beyond_high_confidence_seed():
     )
 
 
+def test_strong_interior_seed_can_fill_into_boundary_exclusion_band():
+    shape = (100, 100)
+    yy, xx = np.ogrid[:100, :100]
+    seed_mask = (yy - 50) ** 2 + (xx - 50) ** 2 <= 25**2
+    growth_mask = (yy - 50) ** 2 + (xx - 50) ** 2 <= 42**2
+    structure = (yy - 50) ** 2 + (xx - 70) ** 2 <= 12**2
+    normalized = np.zeros(shape, dtype=float)
+    normalized[structure] = 5.0
+
+    detected = internal_structures._detect_compact_regions(
+        normalized,
+        seed_mask,
+        growth_mask,
+        seed_sigma=4.0,
+        grow_sigma=1.5,
+        polarity=1,
+        min_area_px=9,
+        min_circularity=0.2,
+        min_solidity=0.8,
+        max_eccentricity=0.95,
+    )
+
+    assert detected[50, 81]
+    assert not seed_mask[50, 81]
+
+
 def test_bright_region_subtraction_halo_is_not_added_to_union():
     frame = _base_frame()
     yy, xx = np.ogrid[:120, :120]
@@ -207,6 +233,32 @@ def test_retained_curvilinear_ring_can_define_bubble_boundary():
 
     assert bubble_mask[60, 60]
     assert label(bubble_mask, connectivity=2).max() == 1
+
+
+def test_enclosed_boundary_suppresses_neighboring_structure_halos():
+    shape = (120, 120)
+    yy, xx = np.ogrid[:120, :120]
+    distance = np.sqrt((yy - 55) ** 2 + (xx - 55) ** 2)
+    bubble = distance <= 10.0
+    halo = (distance > 10.0) & (distance <= 14.0)
+    distant_filament = np.zeros(shape, dtype=bool)
+    distant_filament[90:93, 35:85] = True
+
+    bright, dark, ridge, skeleton = (
+        internal_structures._suppress_enclosed_boundary_halos(
+            bubble,
+            halo.copy(),
+            halo.copy(),
+            halo | distant_filament,
+            _config(),
+        )
+    )
+
+    assert not np.any(bright[halo])
+    assert not np.any(dark[halo])
+    assert not np.any(ridge[halo])
+    assert np.any(ridge[distant_filament])
+    assert np.any(skeleton[distant_filament])
 
 
 def test_whole_interior_is_not_classified_as_bubble():

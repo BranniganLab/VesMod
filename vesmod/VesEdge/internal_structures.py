@@ -434,11 +434,13 @@ def detect_internal_structures(
         light_mask = _detect_light_regions(
             normalized,
             detection_mask,
+            usable_mask,
             settings,
         )
         dark_mask = _detect_dark_regions(
             normalized,
             detection_mask,
+            usable_mask,
             settings,
         )
         ridge_input = np.where(detection_mask, normalized, 0.0)
@@ -470,6 +472,7 @@ def detect_internal_structures(
         ridge_mask, ridge_skeleton = _detect_curvilinear_structures(
             ridge_response,
             detection_mask,
+            detection_mask,
             settings,
         )
         bubble_mask = _detect_bubbles(
@@ -490,6 +493,18 @@ def detect_internal_structures(
             dark_mask,
             ridge_mask,
             bubble_mask,
+            settings,
+        )
+        (
+            light_mask,
+            dark_mask,
+            ridge_mask,
+            ridge_skeleton,
+        ) = _suppress_enclosed_boundary_halos(
+            bubble_mask,
+            light_mask,
+            dark_mask,
+            ridge_mask,
             settings,
         )
 
@@ -669,13 +684,15 @@ def _robust_sigma(values: NDArray[np.float64]) -> float:
 
 def _detect_light_regions(
     normalized_residual: NDArray[np.float64],
-    usable_mask: NDArray[np.bool_],
+    seed_mask: NDArray[np.bool_],
+    growth_mask: NDArray[np.bool_],
     config: InternalStructureConfig,
 ) -> NDArray[np.bool_]:
     """Return compact positive-residual structure proposals."""
     return _detect_compact_regions(
         normalized_residual,
-        usable_mask,
+        seed_mask,
+        growth_mask,
         seed_sigma=config.threshold_sigma,
         grow_sigma=config.light_grow_sigma,
         polarity=1,
@@ -688,7 +705,8 @@ def _detect_light_regions(
 
 def _detect_dark_regions(
     normalized_residual: NDArray[np.float64],
-    usable_mask: NDArray[np.bool_],
+    seed_mask: NDArray[np.bool_],
+    growth_mask: NDArray[np.bool_],
     config: InternalStructureConfig,
 ) -> NDArray[np.bool_]:
     """Return compact negative-residual structure proposals.
@@ -698,7 +716,8 @@ def _detect_dark_regions(
     """
     return _detect_compact_regions(
         normalized_residual,
-        usable_mask,
+        seed_mask,
+        growth_mask,
         seed_sigma=config.bubble_edge_sigma,
         grow_sigma=config.bubble_edge_grow_sigma,
         polarity=-1,
@@ -711,7 +730,8 @@ def _detect_dark_regions(
 
 def _detect_compact_regions(
     normalized_residual: NDArray[np.float64],
-    usable_mask: NDArray[np.bool_],
+    seed_mask: NDArray[np.bool_],
+    growth_mask: NDArray[np.bool_],
     *,
     seed_sigma: float,
     grow_sigma: float,
@@ -723,8 +743,8 @@ def _detect_compact_regions(
 ) -> NDArray[np.bool_]:
     """Grow and shape-filter compact signed-residual proposals."""
     signed_residual = polarity * normalized_residual
-    seeds = usable_mask & (signed_residual >= seed_sigma)
-    candidates = usable_mask & (signed_residual >= grow_sigma)
+    seeds = seed_mask & (signed_residual >= seed_sigma)
+    candidates = growth_mask & (signed_residual >= grow_sigma)
     grown = ndimage.binary_propagation(seeds, mask=candidates)
     grown = _remove_small_components(grown, min_size=min_area_px)
     accepted = np.zeros_like(grown)
@@ -795,6 +815,50 @@ def _suppress_bright_region_halos(
     )
 
 
+def _suppress_enclosed_boundary_halos(
+    enclosed_mask: NDArray[np.bool_],
+    bright_mask: NDArray[np.bool_],
+    dark_mask: NDArray[np.bool_],
+    ridge_mask: NDArray[np.bool_],
+    config: InternalStructureConfig,
+) -> tuple[
+    NDArray[np.bool_],
+    NDArray[np.bool_],
+    NDArray[np.bool_],
+    NDArray[np.bool_],
+]:
+    """Remove redundant structure evidence immediately around bubbles.
+
+    A resolved bubble is represented by its filled enclosed-boundary mask.
+    Optical ringing and the multiscale filters can otherwise add a second
+    skirt of bright, dark, or curvilinear evidence around the same object.
+    Suppress that skirt over one maximum ridge scale while leaving the
+    enclosed-boundary evidence itself unchanged.
+    """
+    if not np.any(enclosed_mask):
+        return bright_mask, dark_mask, ridge_mask, skeletonize(ridge_mask)
+
+    halo_radius = int(np.ceil(max(config.filament_scales_px))) + 1
+    bubble_neighborhood = ndimage.binary_dilation(
+        enclosed_mask,
+        structure=disk(halo_radius),
+    )
+    bright_without_halo = bright_mask & ~bubble_neighborhood
+    dark_without_halo = dark_mask & ~bubble_neighborhood
+    ridge_without_halo = ridge_mask & ~bubble_neighborhood
+    ridge_without_halo, ridge_skeleton = _retain_curvilinear_components(
+        ridge_without_halo,
+        config.min_filament_length_px,
+        halo_radius,
+    )
+    return (
+        bright_without_halo,
+        dark_without_halo,
+        ridge_without_halo,
+        ridge_skeleton,
+    )
+
+
 def _retain_curvilinear_components(
     mask: NDArray[np.bool_],
     minimum_length_px: int,
@@ -833,14 +897,15 @@ def _ridge_response(
 
 def _detect_curvilinear_structures(
     ridge_response: NDArray[np.float64],
-    usable_mask: NDArray[np.bool_],
+    seed_mask: NDArray[np.bool_],
+    growth_mask: NDArray[np.bool_],
     config: InternalStructureConfig,
 ) -> tuple[NDArray[np.bool_], NDArray[np.bool_]]:
     """Detect connected dark-or-light ridges with sufficient length."""
-    seeds = usable_mask & (
+    seeds = seed_mask & (
         ridge_response >= config.filament_seed_threshold
     )
-    candidates = usable_mask & (
+    candidates = growth_mask & (
         ridge_response >= config.filament_grow_threshold
     )
     candidates = ndimage.binary_propagation(seeds, mask=candidates)
