@@ -105,7 +105,11 @@ class Spectrum:
 
     def _initialize_from_radii(self, radii: np.ndarray, frame_cutoff) -> None:
         """Validate radii, apply an optional cutoff, and calculate the spectrum."""
-        if not isinstance(frame_cutoff, (int, NoneType)):
+        if (
+            frame_cutoff is not None
+            and (isinstance(frame_cutoff, bool) or not isinstance(frame_cutoff, int))
+        ):
+            raise TypeError("frame_cutoff must either be None or an int.")
             raise TypeError("frame_cutoff must either be None or an int.")
         if isinstance(frame_cutoff, int) and frame_cutoff <= 0:
             raise ValueError("frame_cutoff must be a positive int.")
