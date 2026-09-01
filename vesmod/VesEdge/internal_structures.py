@@ -68,7 +68,9 @@ class InternalStructureConfig:
     bubble_edge_sigma : float
         Negative-residual magnitude required to seed a bubble boundary.
     bubble_edge_grow_sigma : float
-        Lower negative-residual magnitude through which boundaries grow.
+        Lower negative-residual magnitude through which bubble boundaries grow.
+        Its absolute magnitude also gates curvilinear ridge evidence so weak
+        residual texture cannot contribute ridge structure on its own.
     bubble_closing_px : int
         Radius used to close small gaps in candidate bubble boundaries.
     min_bubble_area_px : int
@@ -746,9 +748,26 @@ def _detect_compact_regions(
     seeds = seed_mask & (signed_residual >= seed_sigma)
     candidates = growth_mask & (signed_residual >= grow_sigma)
     grown = ndimage.binary_propagation(seeds, mask=candidates)
-    grown = _remove_small_components(grown, min_size=min_area_px)
-    accepted = np.zeros_like(grown)
-    for component in regionprops(label(grown, connectivity=2)):
+    return _retain_compact_components(
+        grown,
+        min_area_px,
+        min_circularity,
+        min_solidity,
+        max_eccentricity,
+    )
+
+
+def _retain_compact_components(
+    mask: NDArray[np.bool_],
+    min_area_px: int,
+    min_circularity: float,
+    min_solidity: float,
+    max_eccentricity: float,
+) -> NDArray[np.bool_]:
+    """Reapply compact-component size and shape requirements to a mask."""
+    filtered = _remove_small_components(mask, min_size=min_area_px)
+    accepted = np.zeros_like(filtered)
+    for component in regionprops(label(filtered, connectivity=2)):
         if not _component_shape_passes(
             component,
             min_circularity,
@@ -792,7 +811,13 @@ def _suppress_bright_region_halos(
         bright_mask,
         structure=disk(halo_radius),
     )
-    dark_without_halo = dark_mask & ~bright_neighborhood
+    dark_without_halo = _retain_compact_components(
+        dark_mask & ~bright_neighborhood,
+        config.min_bubble_area_px,
+        config.min_bubble_circularity,
+        config.min_bubble_solidity,
+        config.max_bubble_eccentricity,
+    )
     ridge_without_halo = ridge_mask & ~bright_neighborhood
     ridge_without_halo, ridge_skeleton = _retain_curvilinear_components(
         ridge_without_halo,
@@ -833,7 +858,9 @@ def _suppress_enclosed_boundary_halos(
     Optical ringing and the multiscale filters can otherwise add a second
     skirt of bright, dark, or curvilinear evidence around the same object.
     Suppress that skirt over one maximum ridge scale while leaving the
-    enclosed-boundary evidence itself unchanged.
+    enclosed-boundary evidence itself unchanged. Compact channels are
+    revalidated after masking so halo subtraction cannot leave fragments that
+    no longer satisfy their configured size or shape requirements.
     """
     if not np.any(enclosed_mask):
         return bright_mask, dark_mask, ridge_mask, skeletonize(ridge_mask)
@@ -843,8 +870,20 @@ def _suppress_enclosed_boundary_halos(
         enclosed_mask,
         structure=disk(halo_radius),
     )
-    bright_without_halo = bright_mask & ~bubble_neighborhood
-    dark_without_halo = dark_mask & ~bubble_neighborhood
+    bright_without_halo = _retain_compact_components(
+        bright_mask & ~bubble_neighborhood,
+        config.min_region_area_px,
+        config.min_light_circularity,
+        config.min_light_solidity,
+        config.max_light_eccentricity,
+    )
+    dark_without_halo = _retain_compact_components(
+        dark_mask & ~bubble_neighborhood,
+        config.min_bubble_area_px,
+        config.min_bubble_circularity,
+        config.min_bubble_solidity,
+        config.max_bubble_eccentricity,
+    )
     ridge_without_halo = ridge_mask & ~bubble_neighborhood
     ridge_without_halo, ridge_skeleton = _retain_curvilinear_components(
         ridge_without_halo,
