@@ -171,17 +171,13 @@ def HSS97(q: list[int], kC: float, sigma: float, lmax: int) -> list[float]:
     lmax = int(lmax)
     for wavenum in modes:
         summ = 0.0
-        for degree in range(wavenum, lmax + 1):
-            denom = (
-                (degree - 1)
-                * (degree + 2)
-                * (degree ** 2 + degree + sigma)
-            )
+        for l in range(wavenum, lmax + 1):
+            denom = (l - 1) * (l + 2) * (l ** 2 + l + sigma)
             if denom == 0:
                 raise ValueError(
                     "HSS97 denominator is zero for the requested sigma and mode."
                 )
-            summ += Nlq_Plq0_squared(degree, wavenum) / denom
+            summ += Nlq_Plq0_squared(l, wavenum) / denom
         function.append((1 / kC) * summ)
     return function
 
