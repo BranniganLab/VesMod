@@ -23,6 +23,21 @@ class SpectrumFitConfig:
     The historical positional order of ``lmax``, ``free_sigma``, and
     ``temperature`` is retained for compatibility. New q-bound fields follow
     those existing parameters.
+
+    Parameters
+    ----------
+    lmax : int, default=500
+        Exclusive upper summation bound in the theoretical spectrum model.
+    free_sigma : bool, default=True
+        Whether reduced surface tension is fitted as a free parameter.
+    temperature : float, default=295.0
+        Finite, positive experimental temperature in Kelvin used when
+        converting reduced tension to surface tension.
+    lower_bound : int, default=3
+        Inclusive lowest Fourier mode used for the physical fit.
+    upper_bound : int, default=8
+        Exclusive upper Fourier-mode bound. The defaults therefore fit
+        q = 3, 4, 5, 6, 7.
     """
 
     lmax: int = 500
