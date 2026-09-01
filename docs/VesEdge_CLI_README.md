@@ -479,7 +479,7 @@ Use `--save-masks` to additionally write `sample_masks.npz`. It contains `struct
 
 `internal_structure_summary.csv` contains one row per video with failure counts, authoritative union abundance summaries, and diagnostic proposal medians. These are intended as inputs to later population segmentation; the command does not choose a present/absent cutoff.
 
-The diagnostic GIF overlays the three structure classes in separate colors together with the extracted contour. Disable it with `--no-gif`.
+The diagnostic GIF overlays the merged structure mask in one color together with the extracted contour. Each frame title reports the union structured-area fraction and the merged region count. Disable it with `--no-gif`.
 
 As with QC, incompatible provenance is rejected unless `--overwrite` is supplied. An incompatible overwrite removes only files managed by the previous internal-structure batch.
 
