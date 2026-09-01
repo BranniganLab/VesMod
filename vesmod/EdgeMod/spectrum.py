@@ -55,15 +55,62 @@ class Spectrum:
                 "edges_over_time must be a str, pathlib Path, or VesicleEdges."
             )
 
+        self._initialize_from_radii(input_data, frame_cutoff)
+
+    @classmethod
+    def from_radii(
+        cls,
+        radii: np.ndarray,
+        frame_cutoff=None,
+    ) -> "Spectrum":
+        """Create a Spectrum directly from an in-memory radii array.
+
+        The caller's array is validated and copied so later mutations do not
+        change the constructed spectrum.
+        """
+        spectrum = cls.__new__(cls)
+        spectrum._initialize_from_radii(radii, frame_cutoff)
+        return spectrum
+
+    @staticmethod
+    def _validate_radii(radii: np.ndarray) -> np.ndarray:
+        """Return a validated float copy of a contour-radius trajectory."""
+        if not isinstance(radii, np.ndarray):
+            raise TypeError("radii must be a NumPy array.")
+        if radii.ndim != 2:
+            raise ValueError("radii must be a two-dimensional array.")
+        if radii.shape[0] == 0:
+            raise ValueError("radii must contain at least one frame.")
+        if radii.shape[1] < 2:
+            raise ValueError("radii must contain at least two angular samples.")
+        if not np.issubdtype(radii.dtype, np.number):
+            raise TypeError("radii must contain numeric values.")
+        if np.issubdtype(radii.dtype, np.complexfloating):
+            raise TypeError("radii must contain real-valued numbers.")
+
+        validated = np.asarray(radii, dtype=float).copy()
+        if not np.all(np.isfinite(validated)):
+            raise ValueError("radii must contain only finite values.")
+        if np.any(validated <= 0):
+            raise ValueError("radii must contain only positive values.")
+
+        mean_radius = float(np.mean(validated))
+        if not np.isfinite(mean_radius) or mean_radius <= 0:
+            raise ValueError("radii must have a finite, positive mean radius.")
+        return validated
+
+    def _initialize_from_radii(self, radii: np.ndarray, frame_cutoff) -> None:
+        """Validate radii, apply an optional cutoff, and calculate the spectrum."""
         if not isinstance(frame_cutoff, (int, NoneType)):
             raise TypeError("frame_cutoff must either be None or an int.")
         if isinstance(frame_cutoff, int) and frame_cutoff <= 0:
             raise ValueError("frame_cutoff must be a positive int.")
 
+        input_data = self._validate_radii(radii)
         if frame_cutoff is not None and frame_cutoff < input_data.shape[0]:
             input_data = input_data[:frame_cutoff, :]
 
-        self.r0 = np.mean(input_data)
+        self.r0 = float(np.mean(input_data))
         self.avg_amps2 = self._calc_avg_sq_amplitudes(input_data)
         self.modes = self._calc_integer_modes()
         self.kC = None
