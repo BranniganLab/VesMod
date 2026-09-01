@@ -122,14 +122,22 @@ def _validate_hss97_inputs(q, kC, sigma, lmax) -> list[int]:
         raise TypeError("q must be an iterable of integer modes.") from error
     if not modes:
         raise ValueError("q must contain at least one mode.")
+
+    integer_modes = []
     for mode in modes:
-        if not isinstance(mode, Integral) or isinstance(mode, bool):
-            raise TypeError("q must contain only integer modes.")
-        if mode < 2:
+        # lmfit coerces independent variables to floating arrays, so accept
+        # finite integer-valued Reals as well as Python/NumPy integer scalars.
+        if not isinstance(mode, Real) or isinstance(mode, bool):
+            raise TypeError("q must contain only integer-valued modes.")
+        if not math.isfinite(mode) or not float(mode).is_integer():
+            raise ValueError("q must contain only finite integer-valued modes.")
+        mode_int = int(mode)
+        if mode_int < 2:
             raise ValueError("HSS97 requires q >= 2.")
-        if mode >= lmax_int:
+        if mode_int >= lmax_int:
             raise ValueError("Each q mode must be less than lmax.")
-    return [int(mode) for mode in modes]
+        integer_modes.append(mode_int)
+    return integer_modes
 
 
 def HSS97(q: list[int], kC: float, sigma: float, lmax: int) -> list[float]:
