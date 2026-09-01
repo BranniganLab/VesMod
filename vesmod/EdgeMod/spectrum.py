@@ -12,6 +12,7 @@ from types import NoneType
 import json
 import numpy as np
 from vesmod.VesEdge import VesicleEdges
+from vesmod.validation import require_finite_array, require_numeric_array
 from .diagnostic_plotting import (
     SpectrumDiagnosticData,
     save_spectrum_fit_diagnostic,
@@ -28,6 +29,13 @@ from .spectrum_utils import (
 
 class Spectrum:
     """Calculate and fit the fluctuation spectrum of one vesicle trajectory.
+
+    Successful construction guarantees a finite positive two-dimensional radii
+    trajectory with at least one frame and two angular samples. Derived ``r0``,
+    ``avg_amps2``, ``modes``, and ``fit_results`` state is initialized before
+    the object is exposed to callers. Because these attributes remain publicly
+    mutable for compatibility, methods still validate state that callers can
+    invalidate after construction.
 
     ``kC`` and ``surface_tension`` are compatibility attributes containing the
     most recent successful physical fit. Durable per-fit provenance is stored
@@ -55,15 +63,58 @@ class Spectrum:
                 "edges_over_time must be a str, pathlib Path, or VesicleEdges."
             )
 
+        self._initialize_from_radii(input_data, frame_cutoff)
+
+    @classmethod
+    def from_radii(
+        cls,
+        radii: np.ndarray,
+        frame_cutoff=None,
+    ) -> "Spectrum":
+        """Create a Spectrum directly from an in-memory radii array.
+
+        The caller's array is validated and copied so later mutations do not
+        change the constructed spectrum.
+        """
+        spectrum = cls.__new__(cls)
+        spectrum._initialize_from_radii(radii, frame_cutoff)
+        return spectrum
+
+    @staticmethod
+    def _validate_radii(radii: np.ndarray) -> np.ndarray:
+        """Return a validated float copy of a contour-radius trajectory."""
+        require_numeric_array(radii, "radii")
+        if radii.ndim != 2:
+            raise ValueError("radii must be a two-dimensional array.")
+        if radii.shape[0] == 0:
+            raise ValueError("radii must contain at least one frame.")
+        if radii.shape[1] < 2:
+            raise ValueError("radii must contain at least two angular samples.")
+        if np.issubdtype(radii.dtype, np.complexfloating):
+            raise TypeError("radii must contain real-valued numbers.")
+
+        require_finite_array(radii, "radii")
+        validated = np.asarray(radii, dtype=float).copy()
+        if np.any(validated <= 0):
+            raise ValueError("radii must contain only positive values.")
+
+        mean_radius = float(np.mean(validated))
+        if not np.isfinite(mean_radius) or mean_radius <= 0:
+            raise ValueError("radii must have a finite, positive mean radius.")
+        return validated
+
+    def _initialize_from_radii(self, radii: np.ndarray, frame_cutoff) -> None:
+        """Validate radii, apply an optional cutoff, and calculate the spectrum."""
         if not isinstance(frame_cutoff, (int, NoneType)):
             raise TypeError("frame_cutoff must either be None or an int.")
         if isinstance(frame_cutoff, int) and frame_cutoff <= 0:
             raise ValueError("frame_cutoff must be a positive int.")
 
+        input_data = self._validate_radii(radii)
         if frame_cutoff is not None and frame_cutoff < input_data.shape[0]:
             input_data = input_data[:frame_cutoff, :]
 
-        self.r0 = np.mean(input_data)
+        self.r0 = float(np.mean(input_data))
         self.avg_amps2 = self._calc_avg_sq_amplitudes(input_data)
         self.modes = self._calc_integer_modes()
         self.kC = None
@@ -153,8 +204,6 @@ class Spectrum:
             config=config,
         )
 
-        if not hasattr(self, "fit_results"):
-            self.fit_results = []
         self.fit_results.append(fit_result)
 
         return fit_result

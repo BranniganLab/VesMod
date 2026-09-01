@@ -12,6 +12,8 @@ Stable core features:
 
 * Process a single `.npy` file or a directory of `.npy` files
 * Optional recursive directory traversal
+* Optional separate output tree with preserved relative input paths
+* Batch provenance and one summary row per attempted fit
 * Automatic fluctuation spectrum calculation
 * Fitting of membrane bending modulus ($k_C$)
 * Optional fitting of membrane surface tension ($\sigma$)
@@ -56,11 +58,13 @@ sample.spectrum_diagnostic.png
 
 If physical-fit validation fails after HSS97 fitting is attempted, EdgeMod writes the diagnostic PNG before propagating the validation error.
 
-For a VesEdge batch:
+For a VesEdge batch with each analysis stage in its own directory:
 
 ```bash
 vesedge qc "./checkpoints" --output-dir ./results/qc_standard
-edgemod "./results/qc_standard"
+edgemod "./results/qc_standard" \
+    --recursive \
+    --output-dir ./results/edgemod_standard
 ```
 
 ---
@@ -108,6 +112,47 @@ By default, EdgeMod fits reduced surface tension as a free parameter. Use `--fix
 ### `--temperature`
 
 Experimental temperature in Kelvin used to convert fitted reduced tension into physical surface tension. It must be finite and positive. Default: `295`.
+
+---
+
+## Output Directory and Batch Provenance
+
+By default, EdgeMod remains backward compatible and writes each JSON result and
+diagnostic beside its input `.npy`. Use `--output-dir` to keep fitting
+artifacts in a separate tree:
+
+```bash
+edgemod "./results/qc_standard" \
+    --recursive \
+    --output-dir ./results/edgemod_standard
+```
+
+Relative input directories are preserved. For example,
+`qc_standard/condition_a/sample.npy` produces:
+
+```text
+edgemod_standard/
+├── condition_a/
+│   ├── sample.json
+│   └── sample.spectrum_diagnostic.png
+├── edgemod_fit.json
+└── fit_summary.csv
+```
+
+`edgemod_fit.json` records the resolved input manifest, recursion setting,
+physical fit configuration, optional dynamic-range configuration, and the
+artifacts managed by the batch. `fit_summary.csv` contains one row per
+attempted input with its status, fitted values when available, and any error.
+
+External input and output paths must not overlap. Reusing an output directory
+with a different input selection or configuration is rejected unless
+`--overwrite` is supplied. Overwrite cleanup removes only JSON and diagnostic
+PNG files recorded in the preceding valid artifact manifest; unrelated files
+are preserved.
+
+When a compatible result already exists and `--overwrite` is omitted, EdgeMod
+keeps it and records `kept_existing` in the new summary. Omit
+`--output-dir` to retain the historical beside-input behavior.
 
 ---
 
@@ -415,6 +460,17 @@ The experimental selector found no contiguous q interval inside the trusted sear
 ### Fits produce unexpected values
 
 Potential causes include poor contour quality, an inappropriate fixed range, an experimental selector accepting an unintended range, too few accepted frames, temperature mismatch, or sensitivity to VesEdge QC settings. Compare fixed and dynamic results explicitly when evaluating the experimental method.
+
+### EdgeMod input and output paths overlap
+
+Choose a fit `--output-dir` outside the selected input file or directory.
+External fit outputs are kept separate from the QC arrays they consume.
+
+### EdgeMod output directory contains another batch
+
+Choose another `--output-dir`, or use `--overwrite` after confirming that
+the recorded prior EdgeMod artifacts should be replaced. Unrelated files are
+not removed.
 
 ### Temporal-RMS input and output paths overlap
 

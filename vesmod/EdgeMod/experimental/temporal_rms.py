@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from numbers import Integral, Real
-import math
 
 import numpy as np
 from numpy.typing import NDArray
+
+from vesmod.validation import require_integer, require_nonnegative_real
 
 
 @dataclass(frozen=True)
@@ -16,6 +16,11 @@ class TemporalRMSConfig:
 
     ``upper_bound`` is exclusive. When ``cutoff_nm`` is omitted, amplitudes are
     measured and reported without excluding any trajectory.
+
+    Successful construction guarantees integer q bounds with a non-empty
+    interval and, when present, a finite non-negative cutoff. The temporal-RMS
+    calculation can therefore trust configuration invariants and focus its
+    validation on the independently supplied trajectory and available modes.
     """
 
     lower_bound: int = 3
@@ -24,28 +29,20 @@ class TemporalRMSConfig:
 
     def __post_init__(self) -> None:
         """Validate experimental temporal-RMS parameters."""
-        for name, value in (
-            ("lower_bound", self.lower_bound),
-            ("upper_bound", self.upper_bound),
-        ):
-            if not isinstance(value, Integral) or isinstance(value, bool):
-                raise TypeError(f"{name} must be an integer q value.")
-        if self.lower_bound < 1:
+        lower_bound = require_integer(self.lower_bound, "lower_bound")
+        upper_bound = require_integer(self.upper_bound, "upper_bound")
+        object.__setattr__(self, "lower_bound", lower_bound)
+        object.__setattr__(self, "upper_bound", upper_bound)
+
+        if lower_bound < 1:
             raise ValueError("lower_bound must be at least 1.")
-        if self.upper_bound <= self.lower_bound:
+        if upper_bound <= lower_bound:
             raise ValueError("upper_bound must be greater than lower_bound.")
 
         if self.cutoff_nm is None:
             return
-        if not isinstance(self.cutoff_nm, Real) or isinstance(
-            self.cutoff_nm,
-            bool,
-        ):
-            raise TypeError("cutoff_nm must be numeric or None.")
-        if not math.isfinite(self.cutoff_nm):
-            raise ValueError("cutoff_nm must be finite.")
-        if self.cutoff_nm < 0:
-            raise ValueError("cutoff_nm must be non-negative.")
+        cutoff_nm = require_nonnegative_real(self.cutoff_nm, "cutoff_nm")
+        object.__setattr__(self, "cutoff_nm", cutoff_nm)
 
     def to_dict(self) -> dict:
         """Return JSON-serializable configuration values."""

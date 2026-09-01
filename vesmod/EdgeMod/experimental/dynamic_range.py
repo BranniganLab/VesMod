@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from numbers import Integral, Real
 from typing import Iterator
 import math
 
 import numpy as np
+
+from vesmod.validation import (
+    require_integer,
+    require_nonnegative_real,
+)
 
 
 @dataclass(frozen=True)
@@ -58,6 +62,10 @@ class QMinusThreeRangeSelector:
     when both its fitted log-log slope and its residual to a fixed q^-3 model
     satisfy the supplied criteria.
 
+    Successful construction guarantees integer q bounds and ``min_modes``, plus
+    finite non-negative slope and residual tolerances. Relationships between
+    those validated values remain local scientific-policy checks below.
+
     Parameters
     ----------
     lower_bound : int
@@ -82,25 +90,41 @@ class QMinusThreeRangeSelector:
 
     def __post_init__(self) -> None:
         """Validate experimental selection parameters."""
-        if not isinstance(self.lower_bound, Integral) or isinstance(
+        lower_bound = require_integer(
             self.lower_bound,
-            bool,
-        ):
-            raise TypeError("lower_bound must be an integer q value.")
-        if not isinstance(self.upper_bound, Integral) or isinstance(
+            "lower_bound",
+            type_message="lower_bound must be an integer q value.",
+        )
+        upper_bound = require_integer(
             self.upper_bound,
-            bool,
-        ):
-            raise TypeError("upper_bound must be an integer q value.")
-        if not isinstance(self.min_modes, Integral) or isinstance(
+            "upper_bound",
+            type_message="upper_bound must be an integer q value.",
+        )
+        min_modes = require_integer(
             self.min_modes,
-            bool,
-        ):
-            raise TypeError("min_modes must be an integer.")
-        if not isinstance(self.slope_tolerance, Real):
-            raise TypeError("slope_tolerance must be numeric.")
-        if not isinstance(self.max_log_rmse, Real):
-            raise TypeError("max_log_rmse must be numeric.")
+            "min_modes",
+            type_message="min_modes must be an integer.",
+        )
+        slope_tolerance = require_nonnegative_real(
+            self.slope_tolerance,
+            "slope_tolerance",
+            type_message="slope_tolerance must be numeric.",
+            finite_message="slope_tolerance must be finite.",
+            range_message="slope_tolerance must be non-negative.",
+        )
+        max_log_rmse = require_nonnegative_real(
+            self.max_log_rmse,
+            "max_log_rmse",
+            type_message="max_log_rmse must be numeric.",
+            finite_message="max_log_rmse must be finite.",
+            range_message="max_log_rmse must be non-negative.",
+        )
+
+        object.__setattr__(self, "lower_bound", lower_bound)
+        object.__setattr__(self, "upper_bound", upper_bound)
+        object.__setattr__(self, "min_modes", min_modes)
+        object.__setattr__(self, "slope_tolerance", slope_tolerance)
+        object.__setattr__(self, "max_log_rmse", max_log_rmse)
 
         if self.lower_bound <= 0:
             raise ValueError("lower_bound must be a positive integer q value.")
@@ -108,14 +132,6 @@ class QMinusThreeRangeSelector:
             raise ValueError("upper_bound must be greater than lower_bound.")
         if self.min_modes < 2:
             raise ValueError("min_modes must be at least 2.")
-        if not math.isfinite(self.slope_tolerance):
-            raise ValueError("slope_tolerance must be finite.")
-        if self.slope_tolerance < 0:
-            raise ValueError("slope_tolerance must be non-negative.")
-        if not math.isfinite(self.max_log_rmse):
-            raise ValueError("max_log_rmse must be finite.")
-        if self.max_log_rmse < 0:
-            raise ValueError("max_log_rmse must be non-negative.")
 
     def select(
         self,

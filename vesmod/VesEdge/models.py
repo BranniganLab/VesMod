@@ -13,6 +13,12 @@ from enum import Enum, auto
 import numpy as np
 from numpy.typing import NDArray
 
+from vesmod.validation import (
+    require_finite_array,
+    require_finite_real,
+    require_numeric_array,
+)
+
 from .config import EdgeQCConfig
 
 
@@ -22,7 +28,11 @@ class ImageContour:
     A vesicle contour expressed in the coordinate system of an image.
 
     The radial coordinates are assumed to be sampled at evenly spaced angular
-    positions spanning 0 to 2π, not including 2π itself.
+    positions spanning 0 to 2π, not including 2π itself. Successful
+    construction guarantees a finite two-coordinate origin and a non-empty,
+    one-dimensional, finite, positive real-valued radial array. The radial
+    array is copied so mutation of the caller's input cannot invalidate the
+    constructed contour.
 
     Attributes
     ----------
@@ -43,6 +53,31 @@ class ImageContour:
 
     origin: tuple[float, float]
     r: NDArray[np.float64]
+
+    def __post_init__(self) -> None:
+        """Validate and normalize contour coordinates."""
+        if not isinstance(self.origin, tuple) or len(self.origin) != 2:
+            raise TypeError("origin must be a two-coordinate tuple.")
+        origin = tuple(
+            require_finite_real(value, "origin coordinate")
+            for value in self.origin
+        )
+
+        require_numeric_array(self.r, "r")
+        if self.r.ndim != 1:
+            raise ValueError("r must be a one-dimensional array.")
+        if self.r.size == 0:
+            raise ValueError("r must contain at least one radial sample.")
+        if np.issubdtype(self.r.dtype, np.complexfloating):
+            raise TypeError("r must contain real-valued numbers.")
+        require_finite_array(self.r, "r")
+
+        radii = np.asarray(self.r, dtype=float).copy()
+        if np.any(radii <= 0):
+            raise ValueError("r must contain only positive values.")
+
+        object.__setattr__(self, "origin", origin)
+        object.__setattr__(self, "r", radii)
 
     @property
     def theta(self) -> NDArray[np.float64]:

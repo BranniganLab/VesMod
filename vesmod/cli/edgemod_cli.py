@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import argparse
 import csv
-from dataclasses import replace
+from dataclasses import asdict, replace
 import json
 from pathlib import Path
 import sys
@@ -138,6 +138,20 @@ def _add_fit_options(parser: argparse.ArgumentParser) -> None:
         type=float,
         default=295,
         help="Temperature in Kelvin when experiment performed. Default: 295.",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Directory for fit JSON, diagnostics, provenance, and a batch "
+            "summary. By default, outputs are written beside each input file."
+        ),
+    )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Replace outputs managed by a prior compatible EdgeMod batch.",
     )
 
 
@@ -271,11 +285,29 @@ def _select_dynamic_config(
     )
 
 
-def process_file(path: Path, args: argparse.Namespace) -> None:
+def _fit_output_path(path: Path, args: argparse.Namespace) -> Path:
+    """Return the fit JSON path, optionally beneath an external output root."""
+    output_dir = getattr(args, "output_dir", None)
+    if output_dir is None:
+        return output_path_for(path, args.dynamic_range)
+    relative_path = _relative_input_path(path, args.input_path)
+    output_input = output_dir / relative_path
+    output_input.parent.mkdir(parents=True, exist_ok=True)
+    return output_path_for(output_input, args.dynamic_range)
+
+
+def process_file(path: Path, args: argparse.Namespace):
     """Fit one trajectory and save core results plus optional diagnostics."""
     config = build_fit_config(args)
-    output_path = output_path_for(path, args.dynamic_range)
+    output_path = _fit_output_path(path, args)
     diagnostic_path = output_path.with_suffix(".spectrum_diagnostic.png")
+    if (
+        getattr(args, "output_dir", None) is not None
+        and output_path.exists()
+        and not getattr(args, "overwrite", False)
+    ):
+        print(f"Keeping existing output for {path}: {output_path}")
+        return None
 
     print(f"Working on file {path.stem}")
     spectrum = Spectrum(path)
@@ -311,6 +343,7 @@ def process_file(path: Path, args: argparse.Namespace) -> None:
 
     print(f"kc={fit.kC}, sigma={fit.surface_tension}")
     _write_output(spectrum, output_path, selection)
+    return fit
 
 
 def _relative_input_path(path: Path, input_path: Path) -> Path:
@@ -527,6 +560,158 @@ def _write_temporal_rms_summary(output_dir: Path, rows: list[dict]) -> None:
         writer.writerows(rows)
 
 
+def _reject_overlapping_fit_paths(input_path: Path, output_dir: Path) -> None:
+    """Reject external fit outputs that overlap the selected input tree."""
+    resolved_input = input_path.expanduser().resolve()
+    resolved_output = output_dir.expanduser().resolve()
+    if (
+        resolved_input == resolved_output
+        or resolved_input in resolved_output.parents
+        or resolved_output in resolved_input.parents
+    ):
+        raise ValueError(
+            "EdgeMod input and output paths must not overlap. "
+            "Choose an --output-dir outside the input path."
+        )
+
+
+def _fit_provenance(args: argparse.Namespace, paths: list[Path]) -> dict:
+    """Return reproducible provenance for one external-output fit batch."""
+    config = asdict(build_fit_config(args))
+    dynamic = None
+    if args.dynamic_range:
+        dynamic = {
+            "min_modes": args.min_modes,
+            "slope_tolerance": args.slope_tolerance,
+            "max_log_rmse": args.max_log_rmse,
+        }
+    return {
+        "analysis": "edgemod_fit",
+        "input_path": str(args.input_path.expanduser().resolve()),
+        "recursive": args.recursive,
+        "input_manifest": [str(path.resolve()) for path in paths],
+        "fit_config": config,
+        "dynamic_range": args.dynamic_range,
+        "dynamic_range_config": dynamic,
+        "managed_artifacts": [],
+    }
+
+
+def _remove_fit_artifacts(output_dir: Path, provenance: dict) -> None:
+    """Remove only artifacts recorded by a validated prior fit batch."""
+    artifacts = provenance.get("managed_artifacts")
+    if (
+        provenance.get("analysis") != "edgemod_fit"
+        or not isinstance(artifacts, list)
+        or any(not isinstance(item, str) for item in artifacts)
+    ):
+        raise ValueError(
+            "Existing EdgeMod provenance has no valid artifact manifest; "
+            "refusing to remove files."
+        )
+    resolved_output = output_dir.expanduser().resolve()
+    for item in artifacts:
+        relative = Path(item)
+        artifact = (resolved_output / relative).resolve()
+        if (
+            relative.is_absolute()
+            or resolved_output not in artifact.parents
+            or artifact.suffix not in {".json", ".png"}
+        ):
+            raise ValueError(
+                "Existing EdgeMod provenance contains an unsafe artifact path; "
+                "refusing to remove files."
+            )
+        if artifact.is_file():
+            artifact.unlink()
+    for filename in ("edgemod_fit.json", "fit_summary.csv"):
+        managed_path = output_dir / filename
+        if managed_path.exists():
+            managed_path.unlink()
+
+
+def _prepare_fit_output(args: argparse.Namespace, paths: list[Path]) -> None:
+    """Validate and write provenance for an external-output fit batch."""
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    provenance_path = args.output_dir / "edgemod_fit.json"
+    provenance = _fit_provenance(args, paths)
+    if provenance_path.exists():
+        existing = json.loads(provenance_path.read_text(encoding="utf-8"))
+        comparable = dict(existing) if isinstance(existing, dict) else {}
+        comparable["managed_artifacts"] = []
+        if comparable == provenance:
+            if args.overwrite:
+                _remove_fit_artifacts(args.output_dir, existing)
+            else:
+                provenance["managed_artifacts"] = existing.get(
+                    "managed_artifacts",
+                    [],
+                )
+        else:
+            if not args.overwrite:
+                raise ValueError(
+                    "EdgeMod output directory already contains results from a "
+                    "different input selection or fit configuration. Choose "
+                    "another --output-dir or use --overwrite."
+                )
+            _remove_fit_artifacts(args.output_dir, existing)
+    provenance_path.write_text(
+        json.dumps(provenance, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _fit_summary_row(
+    path: Path,
+    input_root: Path,
+    status: str,
+    fit=None,
+    error: str = "",
+) -> dict:
+    """Return one batch-summary row."""
+    return {
+        "file": str(_relative_input_path(path, input_root)),
+        "status": status,
+        "kC": "" if fit is None else fit.kC,
+        "surface_tension": "" if fit is None else fit.surface_tension,
+        "error": error,
+    }
+
+
+def _write_fit_batch_outputs(
+    args: argparse.Namespace,
+    rows: list[dict],
+) -> None:
+    """Write the summary and record JSON/PNG files owned by this batch."""
+    summary_path = args.output_dir / "fit_summary.csv"
+    with summary_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=["file", "status", "kC", "surface_tension", "error"],
+        )
+        writer.writeheader()
+        writer.writerows(rows)
+
+    provenance_path = args.output_dir / "edgemod_fit.json"
+    provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+    artifacts = []
+    for row in rows:
+        relative_input = Path(row["file"])
+        json_path = output_path_for(
+            args.output_dir / relative_input,
+            args.dynamic_range,
+        )
+        diagnostic_path = json_path.with_suffix(".spectrum_diagnostic.png")
+        for artifact in (json_path, diagnostic_path):
+            if artifact.is_file():
+                artifacts.append(str(artifact.relative_to(args.output_dir)))
+    provenance["managed_artifacts"] = sorted(artifacts)
+    provenance_path.write_text(
+        json.dumps(provenance, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
 def _run_fit(args: argparse.Namespace) -> None:
     """Run core fitting over selected contour trajectories."""
     build_fit_config(args)
@@ -537,14 +722,38 @@ def _run_fit(args: argparse.Namespace) -> None:
     if not paths:
         raise FileNotFoundError(f"No .npy files found for {args.input_path}")
     args.input_path = input_root
+    output_dir = getattr(args, "output_dir", None)
+    if output_dir is not None:
+        _reject_overlapping_fit_paths(args.input_path, output_dir)
+        _prepare_fit_output(args, paths)
 
+    rows = []
     for path in paths:
         try:
-            process_file(path, args)
-        except (ValueError, FloatingPointError) as exc:
+            fit = process_file(path, args)
+            if output_dir is not None:
+                status = "kept_existing" if fit is None else "ok"
+                rows.append(
+                    _fit_summary_row(path, args.input_path, status, fit=fit)
+                )
+        except (OSError, ValueError, FloatingPointError) as exc:
+            if output_dir is not None:
+                rows.append(
+                    _fit_summary_row(
+                        path,
+                        args.input_path,
+                        "fit_error",
+                        error=str(exc),
+                    )
+                )
             if not args.recursive:
+                if output_dir is not None:
+                    _write_fit_batch_outputs(args, rows)
                 raise
             print(f"Skipping {path}: {exc}", file=sys.stderr)
+
+    if output_dir is not None:
+        _write_fit_batch_outputs(args, rows)
 
 
 def _run_temporal_rms(args: argparse.Namespace) -> None:
