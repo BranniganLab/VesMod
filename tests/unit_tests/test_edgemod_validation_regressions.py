@@ -34,9 +34,12 @@ def test_from_radii_constructs_spectrum_and_copies_input():
     radii[:] = 99.0
 
     assert spectrum.r0 == pytest.approx(2.5)
+    # Each frame is circular, so only q=0 is populated. Because amplitudes are
+    # normalized by the trajectory-wide mean radius (2.5), the two q=0 frame
+    # amplitudes are 0.8 and 1.2 and their mean squared amplitude is 1.04.
     np.testing.assert_allclose(
         spectrum.avg_amps2,
-        np.array([1.0, 0.0, 0.0, 0.0]),
+        np.array([1.04, 0.0, 0.0, 0.0]),
     )
 
 
@@ -82,6 +85,7 @@ def test_fit_config_requires_enough_modes_for_free_parameters():
         ({"q": [3], "kC": 0.0, "sigma": 0.0, "lmax": 10}, ValueError, "positive"),
         ({"q": [3], "kC": 20.0, "sigma": np.nan, "lmax": 10}, ValueError, "finite"),
         ({"q": [3], "kC": 20.0, "sigma": 0.0, "lmax": 3.5}, ValueError, "integer-valued"),
+        ({"q": [3.5], "kC": 20.0, "sigma": 0.0, "lmax": 10}, ValueError, "integer-valued"),
     ],
 )
 def test_hss97_rejects_invalid_public_domain(kwargs, error_type, message):
@@ -90,9 +94,14 @@ def test_hss97_rejects_invalid_public_domain(kwargs, error_type, message):
         HSS97(**kwargs)
 
 
-def test_hss97_accepts_lmfit_style_float_lmax():
-    """A fixed lmfit parameter may reach HSS97 as an integral-valued float."""
-    result = HSS97(q=np.array([3, 4]), kC=20.0, sigma=0.0, lmax=10.0)
+def test_hss97_accepts_lmfit_style_float_lmax_and_modes():
+    """lmfit may pass fixed parameters and independent variables as floats."""
+    result = HSS97(
+        q=np.array([3.0, 4.0]),
+        kC=20.0,
+        sigma=0.0,
+        lmax=10.0,
+    )
     assert len(result) == 2
     assert np.all(np.isfinite(result))
 
