@@ -34,6 +34,23 @@ def test_q_minus_three_selector_prefers_longest_acceptable_range():
     assert result.log_rmse == pytest.approx(0.0, abs=1e-12)
 
 
+def test_q_minus_three_selector_normalizes_numpy_scalars():
+    """Test validated selector state uses ordinary Python scalar values."""
+    selector = _selector(
+        lower_bound=np.int64(3),
+        upper_bound=np.int64(11),
+        min_modes=np.int64(5),
+        slope_tolerance=np.float64(0.1),
+        max_log_rmse=np.float64(0.05),
+    )
+
+    assert isinstance(selector.lower_bound, int)
+    assert isinstance(selector.upper_bound, int)
+    assert isinstance(selector.min_modes, int)
+    assert isinstance(selector.slope_tolerance, float)
+    assert isinstance(selector.max_log_rmse, float)
+
+
 def test_q_minus_three_selector_can_exclude_bad_low_q_modes():
     """Test the selector finds a later contiguous q^-3 scaling regime."""
     modes = np.arange(3, 12)
