@@ -101,3 +101,28 @@ def test_edge_qc_config_rejects_invalid_values(kwargs, match):
 
     with pytest.raises(ValueError, match=match):
         EdgeQCConfig(**config_values)
+
+
+def test_edge_qc_config_normalizes_numeric_thresholds():
+    """Successful construction exposes normalized finite threshold values."""
+    config = EdgeQCConfig(
+        curvature_threshold=np.float64(5.0),
+        max_relative_area_deviation=np.float64(0.25),
+    )
+
+    assert isinstance(config.curvature_threshold, float)
+    assert config.curvature_threshold == 5.0
+    assert isinstance(config.max_relative_area_deviation, float)
+    assert config.max_relative_area_deviation == 0.25
+
+
+@pytest.mark.parametrize("field", ["enable_curvature_qc", "enable_area_qc"])
+def test_edge_qc_config_requires_boolean_enable_flags(field):
+    """QC enable flags are part of the validated config invariant."""
+    kwargs = {
+        "curvature_threshold": 5.0,
+        field: 1,
+    }
+
+    with pytest.raises(TypeError, match=f"{field} must be a bool"):
+        EdgeQCConfig(**kwargs)

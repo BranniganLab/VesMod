@@ -12,6 +12,7 @@ from types import NoneType
 import json
 import numpy as np
 from vesmod.VesEdge import VesicleEdges
+from vesmod.validation import require_finite_array, require_numeric_array
 from .diagnostic_plotting import (
     SpectrumDiagnosticData,
     save_spectrum_fit_diagnostic,
@@ -28,6 +29,13 @@ from .spectrum_utils import (
 
 class Spectrum:
     """Calculate and fit the fluctuation spectrum of one vesicle trajectory.
+
+    Successful construction guarantees a finite positive two-dimensional radii
+    trajectory with at least one frame and two angular samples. Derived ``r0``,
+    ``avg_amps2``, ``modes``, and ``fit_results`` state is initialized before
+    the object is exposed to callers. Because these attributes remain publicly
+    mutable for compatibility, methods still validate state that callers can
+    invalidate after construction.
 
     ``kC`` and ``surface_tension`` are compatibility attributes containing the
     most recent successful physical fit. Durable per-fit provenance is stored
@@ -75,22 +83,18 @@ class Spectrum:
     @staticmethod
     def _validate_radii(radii: np.ndarray) -> np.ndarray:
         """Return a validated float copy of a contour-radius trajectory."""
-        if not isinstance(radii, np.ndarray):
-            raise TypeError("radii must be a NumPy array.")
+        require_numeric_array(radii, "radii")
         if radii.ndim != 2:
             raise ValueError("radii must be a two-dimensional array.")
         if radii.shape[0] == 0:
             raise ValueError("radii must contain at least one frame.")
         if radii.shape[1] < 2:
             raise ValueError("radii must contain at least two angular samples.")
-        if not np.issubdtype(radii.dtype, np.number):
-            raise TypeError("radii must contain numeric values.")
         if np.issubdtype(radii.dtype, np.complexfloating):
             raise TypeError("radii must contain real-valued numbers.")
 
+        require_finite_array(radii, "radii")
         validated = np.asarray(radii, dtype=float).copy()
-        if not np.all(np.isfinite(validated)):
-            raise ValueError("radii must contain only finite values.")
         if np.any(validated <= 0):
             raise ValueError("radii must contain only positive values.")
 
@@ -200,8 +204,6 @@ class Spectrum:
             config=config,
         )
 
-        if not hasattr(self, "fit_results"):
-            self.fit_results = []
         self.fit_results.append(fit_result)
 
         return fit_result

@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from numbers import Integral, Real
-import math
+
+from vesmod.validation import require_integer, require_positive_real
 
 
 @dataclass(frozen=True)
@@ -19,6 +19,11 @@ class SpectrumFitConfig:
     ``lmax`` is the inclusive upper summation bound in HSS97. Therefore it must
     be at least ``upper_bound - 1`` so the highest fitted mode contributes at
     least its ``l=q`` term.
+
+    Successful construction guarantees integer q/lmax bounds, a finite positive
+    temperature, a valid fixed q interval, and enough fitted modes for the
+    configured number of varying physical parameters. Downstream fit code may
+    rely on those invariants rather than revalidating the same configuration.
 
     The historical positional order of ``lmax``, ``free_sigma``, and
     ``temperature`` is retained for compatibility. New q-bound fields follow
@@ -47,46 +52,39 @@ class SpectrumFitConfig:
     upper_bound: int = 8
 
     def __post_init__(self) -> None:
-        """Validate physical-fit parameters."""
-        for name, value in (
-            ("lower_bound", self.lower_bound),
-            ("upper_bound", self.upper_bound),
-            ("lmax", self.lmax),
-        ):
-            if not isinstance(value, Integral) or isinstance(value, bool):
-                raise TypeError(f"{name} must be an integer.")
+        """Validate physical-fit parameters and establish config invariants."""
+        lower_bound = require_integer(self.lower_bound, "lower_bound")
+        upper_bound = require_integer(self.upper_bound, "upper_bound")
+        lmax = require_integer(self.lmax, "lmax")
+        temperature = require_positive_real(self.temperature, "temperature")
 
-        if self.lower_bound <= 0:
+        object.__setattr__(self, "lower_bound", lower_bound)
+        object.__setattr__(self, "upper_bound", upper_bound)
+        object.__setattr__(self, "lmax", lmax)
+        object.__setattr__(self, "temperature", temperature)
+
+        if lower_bound <= 0:
             raise ValueError("lower_bound must be positive.")
-        if self.lower_bound < 2:
+        if lower_bound < 2:
             raise ValueError("lower_bound must be at least 2 for HSS97.")
-        if self.upper_bound <= self.lower_bound:
+        if upper_bound <= lower_bound:
             raise ValueError("upper_bound must be greater than lower_bound.")
-        if self.lmax <= 0:
+        if lmax <= 0:
             raise ValueError("lmax must be positive.")
-        if self.lmax < self.upper_bound - 1:
+        if lmax < upper_bound - 1:
             raise ValueError(
                 "lmax must be at least upper_bound - 1 because HSS97 uses "
                 "lmax as an inclusive summation bound."
             )
         if not isinstance(self.free_sigma, bool):
             raise TypeError("free_sigma must be a bool.")
-        n_modes = self.upper_bound - self.lower_bound
+        n_modes = upper_bound - lower_bound
         n_varying_parameters = 2 if self.free_sigma else 1
         if n_modes < n_varying_parameters:
             raise ValueError(
                 "Configured q range contains too few modes for the number of "
                 "varying fit parameters."
             )
-        if not isinstance(self.temperature, Real) or isinstance(
-            self.temperature,
-            bool,
-        ):
-            raise TypeError("temperature must be numeric.")
-        if not math.isfinite(self.temperature):
-            raise ValueError("temperature must be finite.")
-        if self.temperature <= 0:
-            raise ValueError("temperature must be positive.")
 
     def to_dict(self) -> dict:
         """Return physical-fit settings in JSON-serializable form."""

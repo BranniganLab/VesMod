@@ -3,14 +3,23 @@
 """Configuration models for VesEdge extraction and quality control."""
 
 from dataclasses import dataclass
-from numbers import Real
 
-import numpy as np
+from vesmod.validation import (
+    require_fraction,
+    require_integer_valued,
+    require_nonnegative_real,
+    require_positive_real,
+)
 
 
 @dataclass(frozen=True)
 class EdgeExtractionConfig:
     """Configuration parameters for edge extraction and contour preparation.
+
+    Successful construction guarantees a finite positive spatial calibration
+    and either no angular downsampling or a positive integer sample count.
+    Numeric values are normalized to ordinary Python ``float``/``int`` values,
+    so downstream extraction code may rely on those invariants.
 
     Attributes
     ----------
@@ -25,34 +34,19 @@ class EdgeExtractionConfig:
 
     def __post_init__(self) -> None:
         """Validate and normalize edge-extraction configuration."""
-        if isinstance(self.pixels_per_micron, bool) or not isinstance(
+        pixels_per_micron = require_positive_real(
             self.pixels_per_micron,
-            Real,
-        ):
-            raise TypeError("pixels_per_micron must be a real number.")
-
-        pixels_per_micron = float(self.pixels_per_micron)
-        if not np.isfinite(pixels_per_micron):
-            raise ValueError("pixels_per_micron must be finite.")
-        if pixels_per_micron <= 0:
-            raise ValueError("pixels_per_micron must be positive.")
+            "pixels_per_micron",
+        )
         object.__setattr__(self, "pixels_per_micron", pixels_per_micron)
 
         if self.n_angular_samples is None:
             return
-        if isinstance(self.n_angular_samples, bool) or not isinstance(
-            self.n_angular_samples,
-            Real,
-        ):
-            raise TypeError(
-                "n_angular_samples must be an integer-valued number or None."
-            )
-        if not np.isfinite(self.n_angular_samples):
-            raise ValueError("n_angular_samples must be finite.")
-        if not float(self.n_angular_samples).is_integer():
-            raise ValueError("n_angular_samples must be integer-valued.")
 
-        n_angular_samples = int(self.n_angular_samples)
+        n_angular_samples = require_integer_valued(
+            self.n_angular_samples,
+            "n_angular_samples",
+        )
         if n_angular_samples <= 0:
             raise ValueError("n_angular_samples must be positive.")
         object.__setattr__(self, "n_angular_samples", n_angular_samples)
@@ -61,6 +55,10 @@ class EdgeExtractionConfig:
 @dataclass(frozen=True)
 class EdgeQCConfig:
     """Configuration parameters for VesEdge quality-control checks.
+
+    Successful construction guarantees finite numeric QC thresholds within
+    their allowed ranges and boolean enable/disable flags. QC execution code
+    may therefore treat this object as validated configuration.
 
     Attributes
     ----------
@@ -86,18 +84,30 @@ class EdgeQCConfig:
 
         Raises
         ------
+        TypeError
+            If an enable/disable flag is not boolean or a numeric threshold is
+            not a real number.
         ValueError
             If any numeric parameter lies outside its allowed range.
         """
-        if not np.isfinite(self.curvature_threshold):
-            raise ValueError("curvature_threshold must be finite.")
-        if self.curvature_threshold < 0:
-            raise ValueError("curvature_threshold must be non-negative.")
-        if not np.isfinite(self.max_relative_area_deviation):
-            raise ValueError(
-                "max_relative_area_deviation must be finite."
-            )
-        if not 0 <= self.max_relative_area_deviation < 1:
-            raise ValueError(
-                "max_relative_area_deviation must be at least 0 and less than 1."
-            )
+        curvature_threshold = require_nonnegative_real(
+            self.curvature_threshold,
+            "curvature_threshold",
+        )
+        max_relative_area_deviation = require_fraction(
+            self.max_relative_area_deviation,
+            "max_relative_area_deviation",
+            include_one=False,
+        )
+
+        if not isinstance(self.enable_curvature_qc, bool):
+            raise TypeError("enable_curvature_qc must be a bool.")
+        if not isinstance(self.enable_area_qc, bool):
+            raise TypeError("enable_area_qc must be a bool.")
+
+        object.__setattr__(self, "curvature_threshold", curvature_threshold)
+        object.__setattr__(
+            self,
+            "max_relative_area_deviation",
+            max_relative_area_deviation,
+        )
