@@ -10,7 +10,12 @@ from numbers import Integral, Real
 import numpy as np
 
 
-def require_real(value, name: str) -> float:
+def require_real(
+    value,
+    name: str,
+    *,
+    type_message: str | None = None,
+) -> float:
     """Return ``value`` as a float after requiring a non-boolean real number.
 
     Parameters
@@ -19,6 +24,8 @@ def require_real(value, name: str) -> float:
         Value to validate.
     name : str
         Parameter name used in validation errors.
+    type_message : str | None, default=None
+        Optional replacement for the default type-error message.
 
     Returns
     -------
@@ -26,53 +33,105 @@ def require_real(value, name: str) -> float:
         Validated value converted to ``float``.
     """
     if isinstance(value, bool) or not isinstance(value, Real):
-        raise TypeError(f"{name} must be a real number.")
+        raise TypeError(type_message or f"{name} must be a real number.")
     return float(value)
 
 
-def require_finite_real(value, name: str) -> float:
+def require_finite_real(
+    value,
+    name: str,
+    *,
+    type_message: str | None = None,
+    finite_message: str | None = None,
+) -> float:
     """Return a finite non-boolean real number as ``float``."""
-    validated = require_real(value, name)
+    validated = require_real(value, name, type_message=type_message)
     if not np.isfinite(validated):
-        raise ValueError(f"{name} must be finite.")
+        raise ValueError(finite_message or f"{name} must be finite.")
     return validated
 
 
-def require_positive_real(value, name: str) -> float:
+def require_positive_real(
+    value,
+    name: str,
+    *,
+    type_message: str | None = None,
+    finite_message: str | None = None,
+    range_message: str | None = None,
+) -> float:
     """Return a finite real number greater than zero."""
-    validated = require_finite_real(value, name)
+    validated = require_finite_real(
+        value,
+        name,
+        type_message=type_message,
+        finite_message=finite_message,
+    )
     if validated <= 0:
-        raise ValueError(f"{name} must be positive.")
+        raise ValueError(range_message or f"{name} must be positive.")
     return validated
 
 
-def require_nonnegative_real(value, name: str) -> float:
+def require_nonnegative_real(
+    value,
+    name: str,
+    *,
+    type_message: str | None = None,
+    finite_message: str | None = None,
+    range_message: str | None = None,
+) -> float:
     """Return a finite real number greater than or equal to zero."""
-    validated = require_finite_real(value, name)
+    validated = require_finite_real(
+        value,
+        name,
+        type_message=type_message,
+        finite_message=finite_message,
+    )
     if validated < 0:
-        raise ValueError(f"{name} must be non-negative.")
+        raise ValueError(range_message or f"{name} must be non-negative.")
     return validated
 
 
-def require_integer(value, name: str) -> int:
+def require_integer(
+    value,
+    name: str,
+    *,
+    type_message: str | None = None,
+) -> int:
     """Return a non-boolean integer value as a Python ``int``."""
     if isinstance(value, bool) or not isinstance(value, Integral):
-        raise TypeError(f"{name} must be an integer.")
+        raise TypeError(type_message or f"{name} must be an integer.")
     return int(value)
 
 
-def require_integer_valued(value, name: str) -> int:
+def require_integer_valued(
+    value,
+    name: str,
+    *,
+    type_message: str | None = None,
+    finite_message: str | None = None,
+    integer_message: str | None = None,
+) -> int:
     """Return a finite integer-valued real number as a Python ``int``."""
     if isinstance(value, bool) or not isinstance(value, Real):
-        raise TypeError(f"{name} must be an integer-valued number.")
+        raise TypeError(
+            type_message or f"{name} must be an integer-valued number."
+        )
     if not np.isfinite(value):
-        raise ValueError(f"{name} must be finite.")
+        raise ValueError(finite_message or f"{name} must be finite.")
     if not float(value).is_integer():
-        raise ValueError(f"{name} must be integer-valued.")
+        raise ValueError(integer_message or f"{name} must be integer-valued.")
     return int(value)
 
 
-def require_fraction(value, name: str, *, include_one: bool = True) -> float:
+def require_fraction(
+    value,
+    name: str,
+    *,
+    include_one: bool = True,
+    type_message: str | None = None,
+    finite_message: str | None = None,
+    range_message: str | None = None,
+) -> float:
     """Return a finite fraction bounded between zero and one.
 
     Parameters
@@ -83,17 +142,30 @@ def require_fraction(value, name: str, *, include_one: bool = True) -> float:
         Parameter name used in validation errors.
     include_one : bool, default=True
         Whether exactly one is an allowed upper-bound value.
+    type_message : str | None, default=None
+        Optional replacement for the default type-error message.
+    finite_message : str | None, default=None
+        Optional replacement for the default non-finite-value message.
+    range_message : str | None, default=None
+        Optional replacement for the default range-error message.
 
     Returns
     -------
     float
         Validated fraction.
     """
-    validated = require_finite_real(value, name)
+    validated = require_finite_real(
+        value,
+        name,
+        type_message=type_message,
+        finite_message=finite_message,
+    )
     upper_valid = validated <= 1 if include_one else validated < 1
     if validated < 0 or not upper_valid:
         relation = "at most 1" if include_one else "less than 1"
-        raise ValueError(f"{name} must be at least 0 and {relation}.")
+        raise ValueError(
+            range_message or f"{name} must be at least 0 and {relation}."
+        )
     return validated
 
 
