@@ -16,9 +16,9 @@ class SpectrumFitConfig:
     q range. Experimental procedures may choose those bounds upstream, but the
     physical fitter does not depend on how they were selected.
 
-    ``lmax`` is the exclusive upper summation bound in HSS97. Therefore it must
-    be at least ``upper_bound`` so the highest fitted mode contributes at least
-    its ``l=q`` term.
+    ``lmax`` is the inclusive upper summation bound in HSS97. Therefore it must
+    be at least ``upper_bound - 1`` so the highest fitted mode contributes at
+    least its ``l=q`` term.
 
     The historical positional order of ``lmax``, ``free_sigma``, and
     ``temperature`` is retained for compatibility. New q-bound fields follow
@@ -27,7 +27,7 @@ class SpectrumFitConfig:
     Parameters
     ----------
     lmax : int, default=500
-        Exclusive upper summation bound in the theoretical spectrum model.
+        Inclusive upper summation bound in the theoretical spectrum model.
     free_sigma : bool, default=True
         Whether reduced surface tension is fitted as a free parameter.
     temperature : float, default=295.0
@@ -64,10 +64,10 @@ class SpectrumFitConfig:
             raise ValueError("upper_bound must be greater than lower_bound.")
         if self.lmax <= 0:
             raise ValueError("lmax must be positive.")
-        if self.lmax < self.upper_bound:
+        if self.lmax < self.upper_bound - 1:
             raise ValueError(
-                "lmax must be at least upper_bound because HSS97 uses lmax "
-                "as an exclusive summation bound."
+                "lmax must be at least upper_bound - 1 because HSS97 uses "
+                "lmax as an inclusive summation bound."
             )
         if not isinstance(self.free_sigma, bool):
             raise TypeError("free_sigma must be a bool.")
