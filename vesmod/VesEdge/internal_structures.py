@@ -8,7 +8,6 @@ manually labelled videos before they are used to classify populations.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from numbers import Integral, Real
 
 import numpy as np
 from numpy.typing import NDArray
@@ -19,6 +18,12 @@ from skimage.measure import label, regionprops
 from skimage.morphology import (
     disk,
     skeletonize,
+)
+
+from vesmod.validation import (
+    require_fraction,
+    require_integer,
+    require_positive_real,
 )
 
 from .models import ImageContour
@@ -115,46 +120,66 @@ class InternalStructureConfig:
     max_bubble_area_fraction: float = 0.5
 
     def __post_init__(self) -> None:
-        """Validate configuration values."""
-        _validate_nonnegative_integer(
-            self.membrane_exclusion_px,
-            "membrane_exclusion_px",
+        """Validate configuration values and normalize scalar state."""
+        integer_fields = (
+            ("membrane_exclusion_px", False),
+            ("min_region_area_px", True),
+            ("structure_boundary_exclusion_px", False),
+            ("min_filament_length_px", True),
+            ("bubble_closing_px", False),
+            ("min_bubble_area_px", True),
         )
-        _validate_positive_real(
-            self.background_sigma_px,
+        for name, must_be_positive in integer_fields:
+            value = require_integer(getattr(self, name), name)
+            if must_be_positive and value <= 0:
+                raise ValueError(f"{name} must be positive.")
+            if not must_be_positive and value < 0:
+                raise ValueError(f"{name} must be non-negative.")
+            object.__setattr__(self, name, value)
+
+        positive_real_fields = (
             "background_sigma_px",
+            "threshold_sigma",
+            "light_grow_sigma",
+            "filament_seed_threshold",
+            "filament_grow_threshold",
+            "bubble_edge_sigma",
+            "bubble_edge_grow_sigma",
         )
-        _validate_positive_real(self.threshold_sigma, "threshold_sigma")
-        _validate_positive_integer(
-            self.min_region_area_px,
-            "min_region_area_px",
+        for name in positive_real_fields:
+            value = require_positive_real(
+                getattr(self, name),
+                name,
+                finite_message=f"{name} must be finite and positive.",
+                range_message=f"{name} must be finite and positive.",
+            )
+            object.__setattr__(self, name, value)
+
+        fraction_fields = (
+            "min_light_circularity",
+            "min_light_solidity",
+            "max_light_eccentricity",
+            "min_bubble_boundary_fraction",
+            "min_bubble_circularity",
+            "min_bubble_solidity",
+            "max_bubble_eccentricity",
+            "max_bubble_area_fraction",
         )
-        _validate_positive_real(self.light_grow_sigma, "light_grow_sigma")
+        for name in fraction_fields:
+            value = require_fraction(
+                getattr(self, name),
+                name,
+                range_message=f"{name} must be between zero and one.",
+            )
+            object.__setattr__(self, name, value)
+
         if self.light_grow_sigma > self.threshold_sigma:
             raise ValueError("light_grow_sigma cannot exceed threshold_sigma.")
-        _validate_fraction(self.min_light_circularity, "min_light_circularity")
-        _validate_fraction(self.min_light_solidity, "min_light_solidity")
-        _validate_fraction(
-            self.max_light_eccentricity,
-            "max_light_eccentricity",
-        )
-        _validate_nonnegative_integer(
-            self.structure_boundary_exclusion_px,
-            "structure_boundary_exclusion_px",
-        )
         if self.structure_boundary_exclusion_px < self.membrane_exclusion_px:
             raise ValueError(
                 "structure_boundary_exclusion_px cannot be smaller than "
                 "membrane_exclusion_px."
             )
-        _validate_positive_real(
-            self.filament_seed_threshold,
-            "filament_seed_threshold",
-        )
-        _validate_positive_real(
-            self.filament_grow_threshold,
-            "filament_grow_threshold",
-        )
         if self.filament_grow_threshold > self.filament_seed_threshold:
             raise ValueError(
                 "filament_grow_threshold cannot exceed "
@@ -164,46 +189,20 @@ class InternalStructureConfig:
             raise TypeError("filament_scales_px must be a tuple.")
         if not self.filament_scales_px:
             raise ValueError("filament_scales_px cannot be empty.")
-        for scale in self.filament_scales_px:
-            _validate_positive_real(scale, "filament_scales_px")
-        _validate_positive_integer(
-            self.min_filament_length_px,
-            "min_filament_length_px",
+        filament_scales = tuple(
+            require_positive_real(
+                scale,
+                "filament_scales_px",
+                finite_message="filament_scales_px must be finite and positive.",
+                range_message="filament_scales_px must be finite and positive.",
+            )
+            for scale in self.filament_scales_px
         )
-        _validate_positive_real(self.bubble_edge_sigma, "bubble_edge_sigma")
-        _validate_positive_real(
-            self.bubble_edge_grow_sigma,
-            "bubble_edge_grow_sigma",
-        )
+        object.__setattr__(self, "filament_scales_px", filament_scales)
         if self.bubble_edge_grow_sigma > self.bubble_edge_sigma:
             raise ValueError(
                 "bubble_edge_grow_sigma cannot exceed bubble_edge_sigma."
             )
-        _validate_nonnegative_integer(
-            self.bubble_closing_px,
-            "bubble_closing_px",
-        )
-        _validate_positive_integer(
-            self.min_bubble_area_px,
-            "min_bubble_area_px",
-        )
-        _validate_fraction(
-            self.min_bubble_boundary_fraction,
-            "min_bubble_boundary_fraction",
-        )
-        _validate_fraction(
-            self.min_bubble_circularity,
-            "min_bubble_circularity",
-        )
-        _validate_fraction(self.min_bubble_solidity, "min_bubble_solidity")
-        _validate_fraction(
-            self.max_bubble_eccentricity,
-            "max_bubble_eccentricity",
-        )
-        _validate_fraction(
-            self.max_bubble_area_fraction,
-            "max_bubble_area_fraction",
-        )
         if self.max_bubble_area_fraction == 0.0:
             raise ValueError("max_bubble_area_fraction must be positive.")
 
@@ -1031,34 +1030,3 @@ def _describe_merged_regions(
             )
         )
     return tuple(descriptions)
-
-
-def _validate_positive_real(value: object, name: str) -> None:
-    """Require a finite positive real number."""
-    if isinstance(value, bool) or not isinstance(value, Real):
-        raise TypeError(f"{name} must be a real number.")
-    if not np.isfinite(value) or value <= 0:
-        raise ValueError(f"{name} must be finite and positive.")
-
-
-def _validate_nonnegative_integer(value: object, name: str) -> None:
-    """Require a non-negative integer."""
-    if isinstance(value, bool) or not isinstance(value, Integral):
-        raise TypeError(f"{name} must be an integer.")
-    if value < 0:
-        raise ValueError(f"{name} must be non-negative.")
-
-
-def _validate_positive_integer(value: object, name: str) -> None:
-    """Require a positive integer."""
-    _validate_nonnegative_integer(value, name)
-    if value == 0:
-        raise ValueError(f"{name} must be positive.")
-
-
-def _validate_fraction(value: object, name: str) -> None:
-    """Require a finite real number in the closed unit interval."""
-    if isinstance(value, bool) or not isinstance(value, Real):
-        raise TypeError(f"{name} must be a real number.")
-    if not np.isfinite(value) or not 0.0 <= value <= 1.0:
-        raise ValueError(f"{name} must be between zero and one.")
