@@ -88,14 +88,14 @@ def test_hss97_succeeds_for_q89():
 
 
 def test_nlq_plq0_squared_requires_q_not_greater_than_l():
-    """Test that Nlq_Plq0_squared rejects q > l because associated Legendre modes require q <= l."""
-    with pytest.raises(AssertionError, match="q must be <= l"):
+    """Test that Nlq_Plq0_squared rejects q > l explicitly."""
+    with pytest.raises(ValueError, match="q must be <= l"):
         Nlq_Plq0_squared(l=2, q=3)
 
 
 def test_nlq_plq0_squared_requires_nonnegative_q():
-    """Test that Nlq_Plq0_squared rejects negative q because scipy.special.lpmv requires non-negative q here."""
-    with pytest.raises(AssertionError, match="q must be non-negative"):
+    """Test that Nlq_Plq0_squared rejects negative q explicitly."""
+    with pytest.raises(ValueError, match="q must be non-negative"):
         Nlq_Plq0_squared(l=2, q=-1)
 
 
