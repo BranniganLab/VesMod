@@ -145,8 +145,26 @@ def HSS97(q: list[int], kC: float, sigma: float, lmax: int) -> list[float]:
     Generate function to be fit in order to estimate kC and sigma. See Hackl,\
     Seifert, and Sackmann 1997 eqs 7 & 8.
 
-    ``lmax`` is an exclusive upper summation bound. Public calls require
-    physical Fourier modes q >= 2 and q < lmax.
+    Parameters
+    ----------
+    q : list[int]
+        Wave number / independent variable.
+    kC : float
+        Bending modulus to be fit.
+    sigma : float
+        Effective tension to be fit.
+    lmax : int
+        Exclusive upper value of the summation.
+
+    Returns
+    -------
+    function : list
+        The values to be fit.
+
+    Notes
+    -----
+    Public calls require physical Fourier modes q >= 2 and q < lmax.
+
     """
     modes = _validate_hss97_inputs(q, kC, sigma, lmax)
     function = []
@@ -172,6 +190,19 @@ def Nlq_Plq0_squared(l: int, q: int) -> float:
     normalization can underflow while the polynomial overflows. This
     implementation combines their analytic factorial expressions in log space
     so only the finite final value is exponentiated.
+
+    Parameters
+    ----------
+    l : int
+        Polynomial order.
+    q : int
+        Polynomial degree / wave number.
+
+    Returns
+    -------
+    float
+        The squared normalized associated Legendre value from HSS97.
+
     """
     for name, value in (("l", l), ("q", q)):
         if not isinstance(value, Integral) or isinstance(value, bool):
@@ -218,9 +249,32 @@ def calc_tension_from_reduced_tension(
     sigma = tilde_sigma * kc * k_B * T / r0^2
 
     where ``kc`` is expressed in units of kBT and ``r0`` is the vesicle radius.
+
+    Parameters
+    ----------
+    r0 : float
+        Average vesicle radius in microns.
+    reduced_sigma : float
+        Dimensionless reduced tension obtained from fitting the fluctuation
+        spectrum.
+    kc : float
+        Membrane bending modulus in units of kBT.
+    temperature : float
+        Temperature in Kelvin.
+
+    Returns
+    -------
+    float
+        Physical membrane tension in N/m (equivalently J/m²).
+
+    Notes
+    -----
+    The input radius is converted from microns to meters before computing
+    the tension.
+
     """
-    one_kBT = Boltzmann * temperature
-    r0_meter = r0 / 1e6
-    r0_meter2 = r0_meter ** 2
-    sigma = reduced_tension * kc * one_kBT / r0_meter2
+    one_kBT = Boltzmann * temperature                   # units of Joules
+    r0_meter = r0 / 1e6                                 # units of meters
+    r0_meter2 = r0_meter ** 2                           # units of meters^2
+    sigma = reduced_tension * kc * one_kBT / r0_meter2  # units of J/m^2 or N/m
     return sigma
