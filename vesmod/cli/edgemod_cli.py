@@ -560,19 +560,23 @@ def _write_temporal_rms_summary(output_dir: Path, rows: list[dict]) -> None:
         writer.writerows(rows)
 
 
-def _reject_overlapping_fit_paths(input_path: Path, output_dir: Path) -> None:
-    """Reject external fit outputs that overlap the selected input tree."""
-    resolved_input = input_path.expanduser().resolve()
+def _reject_overlapping_fit_paths(
+    input_roots: tuple[Path, ...],
+    output_dir: Path,
+) -> None:
+    """Reject external fit outputs that overlap an actual selected input tree."""
     resolved_output = output_dir.expanduser().resolve()
-    if (
-        resolved_input == resolved_output
-        or resolved_input in resolved_output.parents
-        or resolved_output in resolved_input.parents
-    ):
-        raise ValueError(
-            "EdgeMod input and output paths must not overlap. "
-            "Choose an --output-dir outside the input path."
-        )
+    for input_root in input_roots:
+        resolved_input = input_root.expanduser().resolve()
+        if (
+            resolved_input == resolved_output
+            or resolved_input in resolved_output.parents
+            or resolved_output in resolved_input.parents
+        ):
+            raise ValueError(
+                "EdgeMod input and output paths must not overlap. "
+                "Choose an --output-dir outside the input path."
+            )
 
 
 def _fit_provenance(args: argparse.Namespace, paths: list[Path]) -> dict:
@@ -678,19 +682,34 @@ def _fit_summary_row(
     }
 
 
+def _safe_csv_text(value):
+    """Prefix spreadsheet-formula-like text while preserving other values."""
+    if isinstance(value, str) and value.startswith(("=", "+", "-", "@")):
+        return "'" + value
+    return value
+
+
 def _write_fit_batch_outputs(
     args: argparse.Namespace,
     rows: list[dict],
 ) -> None:
     """Write the summary and record JSON/PNG files owned by this batch."""
     summary_path = args.output_dir / "fit_summary.csv"
+    safe_rows = [
+        {
+            **row,
+            "file": _safe_csv_text(row["file"]),
+            "error": _safe_csv_text(row["error"]),
+        }
+        for row in rows
+    ]
     with summary_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(
             handle,
             fieldnames=["file", "status", "kC", "surface_tension", "error"],
         )
         writer.writeheader()
-        writer.writerows(rows)
+        writer.writerows(safe_rows)
 
     provenance_path = args.output_dir / "edgemod_fit.json"
     provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
@@ -718,13 +737,18 @@ def _run_fit(args: argparse.Namespace) -> None:
     if args.dynamic_range:
         build_dynamic_selector(args)
 
-    paths, input_root = select_input_files(args.input_path, ".npy", args.recursive)
+    paths, input_root, input_roots = select_input_files(
+        args.input_path,
+        ".npy",
+        args.recursive,
+        return_roots=True,
+    )
     if not paths:
         raise FileNotFoundError(f"No .npy files found for {args.input_path}")
     args.input_path = input_root
     output_dir = getattr(args, "output_dir", None)
     if output_dir is not None:
-        _reject_overlapping_fit_paths(args.input_path, output_dir)
+        _reject_overlapping_fit_paths(input_roots, output_dir)
         _prepare_fit_output(args, paths)
 
     rows = []
