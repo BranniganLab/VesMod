@@ -110,7 +110,6 @@ class Spectrum:
             and (isinstance(frame_cutoff, bool) or not isinstance(frame_cutoff, int))
         ):
             raise TypeError("frame_cutoff must either be None or an int.")
-            raise TypeError("frame_cutoff must either be None or an int.")
         if isinstance(frame_cutoff, int) and frame_cutoff <= 0:
             raise ValueError("frame_cutoff must be a positive int.")
 
