@@ -1,6 +1,7 @@
 """Tests for experimental internal-structure measurements."""
 
 import numpy as np
+import pytest
 
 from vesmod.VesEdge.internal_structures import (
     InternalStructureConfig,
@@ -34,6 +35,67 @@ def _config():
         min_bubble_area_px=25,
         min_bubble_boundary_fraction=0.4,
     )
+
+
+def test_internal_structure_config_normalizes_numpy_scalars():
+    """Test shared validation normalizes scalar configuration values."""
+    config = InternalStructureConfig(
+        membrane_exclusion_px=np.int64(4),
+        background_sigma_px=np.float64(30.0),
+        threshold_sigma=np.float64(4.0),
+        min_region_area_px=np.int64(9),
+        light_grow_sigma=np.float64(1.25),
+        filament_threshold_sigma=np.float64(1.0),
+        filament_scales_px=(np.float64(1.0), np.float64(2.0)),
+        min_filament_length_px=np.int64(8),
+        bubble_edge_sigma=np.float64(2.0),
+        bubble_closing_px=np.int64(2),
+        min_bubble_area_px=np.int64(25),
+        min_bubble_boundary_fraction=np.float64(0.4),
+    )
+
+    assert isinstance(config.membrane_exclusion_px, int)
+    assert isinstance(config.background_sigma_px, float)
+    assert isinstance(config.min_region_area_px, int)
+    assert all(isinstance(scale, float) for scale in config.filament_scales_px)
+    assert isinstance(config.min_bubble_boundary_fraction, float)
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "error", "match"),
+    [
+        ({"membrane_exclusion_px": True}, TypeError, "must be an integer"),
+        ({"min_region_area_px": 0}, ValueError, "must be positive"),
+        ({"background_sigma_px": np.inf}, ValueError, "finite and positive"),
+        ({"filament_scales_px": (1.0, 0.0)}, ValueError, "finite and positive"),
+        ({"bubble_closing_px": -1}, ValueError, "must be non-negative"),
+        (
+            {"min_bubble_boundary_fraction": 1.1},
+            ValueError,
+            "between zero and one",
+        ),
+    ],
+)
+def test_internal_structure_config_rejects_invalid_values(kwargs, error, match):
+    """Test representative invalid settings fail at config construction."""
+    config_values = {
+        "membrane_exclusion_px": 4,
+        "background_sigma_px": 30.0,
+        "threshold_sigma": 4.0,
+        "min_region_area_px": 9,
+        "light_grow_sigma": 1.25,
+        "filament_threshold_sigma": 1.0,
+        "filament_scales_px": (1.0, 2.0, 3.0),
+        "min_filament_length_px": 8,
+        "bubble_edge_sigma": 2.0,
+        "bubble_closing_px": 2,
+        "min_bubble_area_px": 25,
+        "min_bubble_boundary_fraction": 0.4,
+    }
+    config_values.update(kwargs)
+
+    with pytest.raises(error, match=match):
+        InternalStructureConfig(**config_values)
 
 
 def test_large_light_region_grows_beyond_high_confidence_seed():
