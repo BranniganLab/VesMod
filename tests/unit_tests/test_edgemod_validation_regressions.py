@@ -61,11 +61,11 @@ def test_fit_config_rejects_q1_domain():
 
 def test_fit_config_requires_lmax_to_cover_fit_interval():
     """lmax must include an l=q term for the highest configured q mode."""
-    with pytest.raises(ValueError, match="at least upper_bound"):
-        SpectrumFitConfig(lower_bound=3, upper_bound=8, lmax=7)
+    with pytest.raises(ValueError, match="at least upper_bound - 1"):
+        SpectrumFitConfig(lower_bound=3, upper_bound=8, lmax=6)
 
-    config = SpectrumFitConfig(lower_bound=3, upper_bound=8, lmax=8)
-    assert config.lmax == 8
+    config = SpectrumFitConfig(lower_bound=3, upper_bound=8, lmax=7)
+    assert config.lmax == 7
 
 
 def test_fit_config_requires_enough_modes_for_free_parameters():
@@ -82,7 +82,7 @@ def test_fit_config_requires_enough_modes_for_free_parameters():
     "kwargs, error_type, message",
     [
         ({"q": [1], "kC": 20.0, "sigma": 0.0, "lmax": 10}, ValueError, "q >= 2"),
-        ({"q": [10], "kC": 20.0, "sigma": 0.0, "lmax": 10}, ValueError, "less than lmax"),
+        ({"q": [11], "kC": 20.0, "sigma": 0.0, "lmax": 10}, ValueError, "less than or equal to lmax"),
         ({"q": [3], "kC": 0.0, "sigma": 0.0, "lmax": 10}, ValueError, "positive"),
         ({"q": [3], "kC": 20.0, "sigma": np.nan, "lmax": 10}, ValueError, "finite"),
         ({"q": [3], "kC": 20.0, "sigma": 0.0, "lmax": 3.5}, ValueError, "integer-valued"),
