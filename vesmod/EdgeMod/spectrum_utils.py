@@ -108,9 +108,12 @@ def _validate_hss97_inputs(q, kC, sigma, lmax) -> list[int]:
         raise TypeError("sigma must be numeric.")
     if not math.isfinite(sigma):
         raise ValueError("sigma must be finite.")
-    if not isinstance(lmax, Integral) or isinstance(lmax, bool):
-        raise TypeError("lmax must be an integer.")
-    if lmax <= 2:
+    if not isinstance(lmax, Real) or isinstance(lmax, bool):
+        raise TypeError("lmax must be an integer-valued number.")
+    if not math.isfinite(lmax) or not float(lmax).is_integer():
+        raise ValueError("lmax must be a finite integer-valued number.")
+    lmax_int = int(lmax)
+    if lmax_int <= 2:
         raise ValueError("lmax must be greater than 2.")
 
     try:
@@ -124,7 +127,7 @@ def _validate_hss97_inputs(q, kC, sigma, lmax) -> list[int]:
             raise TypeError("q must contain only integer modes.")
         if mode < 2:
             raise ValueError("HSS97 requires q >= 2.")
-        if mode >= lmax:
+        if mode >= lmax_int:
             raise ValueError("Each q mode must be less than lmax.")
     return [int(mode) for mode in modes]
 
