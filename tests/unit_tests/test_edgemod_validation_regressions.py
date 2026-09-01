@@ -14,6 +14,7 @@ from vesmod.EdgeMod.spectrum_utils import HSS97, Nlq_Plq0_squared
         (np.empty((0, 4)), ValueError, "at least one frame"),
         (np.ones((2, 1)), ValueError, "at least two angular samples"),
         (np.array([["a", "b"]], dtype=object), TypeError, "numeric"),
+        (np.array([[1 + 1j, 2 + 1j]]), TypeError, "real-valued"),
         (np.array([[1.0, np.nan]]), ValueError, "finite"),
         (np.array([[1.0, np.inf]]), ValueError, "finite"),
         (np.array([[1.0, 0.0]]), ValueError, "positive"),
