@@ -118,19 +118,31 @@ def test_hss97_returns_one_value_per_input_mode():
     assert len(values) == len(q)
 
 
-def test_hss97_uses_range_from_q_to_lmax_exclusive():
-    """Test that HSS97 sums over l from q through lmax-1, matching Python's range(q, lmax) behavior."""
+def test_hss97_uses_inclusive_lmax():
+    """Test that HSS97 sums over l from q through lmax, inclusive."""
     q = 2
     kC = 5.0
     sigma = 0.0
     lmax = 4
 
     expected_sum = 0.0
-    for l in range(q, lmax):
+    for l in range(q, lmax + 1):
         denom = (l - 1) * (l + 2) * (l**2 + l + sigma)
         expected_sum += Nlq_Plq0_squared(l, q) / denom
 
     assert HSS97(q=[q], kC=kC, sigma=sigma, lmax=lmax)[0] == pytest.approx(expected_sum / kC)
+
+
+def test_hss97_allows_q_equal_to_lmax():
+    """Test that q equal to inclusive lmax contributes its l=q term."""
+    q = 4
+    kC = 5.0
+    sigma = 0.0
+
+    denom = (q - 1) * (q + 2) * (q**2 + q + sigma)
+    expected = Nlq_Plq0_squared(q, q) / denom / kC
+
+    assert HSS97(q=[q], kC=kC, sigma=sigma, lmax=q)[0] == pytest.approx(expected)
 
 
 def test_fit_spectrum_to_theory_lmfit_recovers_synthetic_kc_when_sigma_is_fixed():
