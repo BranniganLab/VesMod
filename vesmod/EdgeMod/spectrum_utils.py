@@ -76,7 +76,7 @@ def fit_spectrum_to_theory_lmfit(fitting_group, lmax, free_sigma=False, weighted
         Mini_spectrum containing modes, avg_amps2, and std_amps2 of just the \
         modes you wish to fit to.
     lmax : int
-        Exclusive upper bound on the summation.
+        Inclusive upper bound on the summation.
 
     Returns
     -------
@@ -113,8 +113,8 @@ def _validate_hss97_inputs(q, kC, sigma, lmax) -> list[int]:
     if not math.isfinite(lmax) or not float(lmax).is_integer():
         raise ValueError("lmax must be a finite integer-valued number.")
     lmax_int = int(lmax)
-    if lmax_int <= 2:
-        raise ValueError("lmax must be greater than 2.")
+    if lmax_int < 2:
+        raise ValueError("lmax must be at least 2.")
 
     try:
         modes = list(q)
@@ -134,8 +134,8 @@ def _validate_hss97_inputs(q, kC, sigma, lmax) -> list[int]:
         mode_int = int(mode)
         if mode_int < 2:
             raise ValueError("HSS97 requires q >= 2.")
-        if mode_int >= lmax_int:
-            raise ValueError("Each q mode must be less than lmax.")
+        if mode_int > lmax_int:
+            raise ValueError("Each q mode must be less than or equal to lmax.")
         integer_modes.append(mode_int)
     return integer_modes
 
@@ -154,7 +154,7 @@ def HSS97(q: list[int], kC: float, sigma: float, lmax: int) -> list[float]:
     sigma : float
         Effective tension to be fit.
     lmax : int
-        Exclusive upper value of the summation.
+        Inclusive upper value of the summation.
 
     Returns
     -------
@@ -163,7 +163,7 @@ def HSS97(q: list[int], kC: float, sigma: float, lmax: int) -> list[float]:
 
     Notes
     -----
-    Public calls require physical Fourier modes q >= 2 and q < lmax.
+    Public calls require physical Fourier modes q >= 2 and q <= lmax.
 
     """
     modes = _validate_hss97_inputs(q, kC, sigma, lmax)
@@ -171,7 +171,7 @@ def HSS97(q: list[int], kC: float, sigma: float, lmax: int) -> list[float]:
     lmax = int(lmax)
     for wavenum in modes:
         summ = 0.0
-        for l in range(wavenum, lmax):
+        for l in range(wavenum, lmax + 1):
             denom = (l - 1) * (l + 2) * (l ** 2 + l + sigma)
             if denom == 0:
                 raise ValueError(
