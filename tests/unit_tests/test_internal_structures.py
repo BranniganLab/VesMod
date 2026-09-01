@@ -55,10 +55,10 @@ def test_internal_structure_config_normalizes_numpy_scalars():
     )
 
     assert isinstance(config.membrane_exclusion_px, int)
-    assert isinstance(config.background_sigma_px, float)
+    assert type(config.background_sigma_px) is float
     assert isinstance(config.min_region_area_px, int)
-    assert all(isinstance(scale, float) for scale in config.filament_scales_px)
-    assert isinstance(config.min_bubble_boundary_fraction, float)
+    assert all(type(scale) is float for scale in config.filament_scales_px)
+    assert type(config.min_bubble_boundary_fraction) is float
 
 
 @pytest.mark.parametrize(
