@@ -6,6 +6,8 @@ Created on Mon Apr  6 14:09:33 2026
 @author: js2746
 """
 from collections import namedtuple
+from numbers import Integral, Real
+import math
 import numpy as np
 from scipy.constants import Boltzmann
 from scipy.special import gammaln
@@ -74,8 +76,7 @@ def fit_spectrum_to_theory_lmfit(fitting_group, lmax, free_sigma=False, weighted
         Mini_spectrum containing modes, avg_amps2, and std_amps2 of just the \
         modes you wish to fit to.
     lmax : int
-        Upper bound on the summation. Usually = the highest positive mode \
-        present in the full spectrum.
+        Exclusive upper bound on the summation.
 
     Returns
     -------
@@ -97,35 +98,56 @@ def fit_spectrum_to_theory_lmfit(fitting_group, lmax, free_sigma=False, weighted
     return result.best_values['kC'], result.best_values['sigma']
 
 
+def _validate_hss97_inputs(q, kC, sigma, lmax) -> list[int]:
+    """Validate the public HSS97 domain and return integer modes."""
+    if not isinstance(kC, Real) or isinstance(kC, bool):
+        raise TypeError("kC must be numeric.")
+    if not math.isfinite(kC) or kC <= 0:
+        raise ValueError("kC must be finite and positive.")
+    if not isinstance(sigma, Real) or isinstance(sigma, bool):
+        raise TypeError("sigma must be numeric.")
+    if not math.isfinite(sigma):
+        raise ValueError("sigma must be finite.")
+    if not isinstance(lmax, Integral) or isinstance(lmax, bool):
+        raise TypeError("lmax must be an integer.")
+    if lmax <= 2:
+        raise ValueError("lmax must be greater than 2.")
+
+    try:
+        modes = list(q)
+    except TypeError as error:
+        raise TypeError("q must be an iterable of integer modes.") from error
+    if not modes:
+        raise ValueError("q must contain at least one mode.")
+    for mode in modes:
+        if not isinstance(mode, Integral) or isinstance(mode, bool):
+            raise TypeError("q must contain only integer modes.")
+        if mode < 2:
+            raise ValueError("HSS97 requires q >= 2.")
+        if mode >= lmax:
+            raise ValueError("Each q mode must be less than lmax.")
+    return [int(mode) for mode in modes]
+
+
 def HSS97(q: list[int], kC: float, sigma: float, lmax: int) -> list[float]:
     """
     Generate function to be fit in order to estimate kC and sigma. See Hackl,\
     Seifert, and Sackmann 1997 eqs 7 & 8.
 
-    Parameters
-    ----------
-    q : list[int]
-        Wave number / independent variable.
-    kC : float
-        Bending modulus to be fit.
-    sigma : float
-        Effective tension to be fit. 
-    lmax : int
-        Maximum value to sum up to.
-
-    Returns
-    -------
-    function : list
-        The values to be fit.
-
+    ``lmax`` is an exclusive upper summation bound. Public calls require
+    physical Fourier modes q >= 2 and q < lmax.
     """
+    modes = _validate_hss97_inputs(q, kC, sigma, lmax)
     function = []
     lmax = int(lmax)
-    for wavenum in q:
-        wavenum = int(wavenum)
-        summ = 0
+    for wavenum in modes:
+        summ = 0.0
         for l in range(wavenum, lmax):
             denom = (l - 1) * (l + 2) * (l ** 2 + l + sigma)
+            if denom == 0:
+                raise ValueError(
+                    "HSS97 denominator is zero for the requested sigma and mode."
+                )
             summ += Nlq_Plq0_squared(l, wavenum) / denom
         function.append((1 / kC) * summ)
     return function
@@ -139,23 +161,19 @@ def Nlq_Plq0_squared(l: int, q: int) -> float:
     normalization can underflow while the polynomial overflows. This
     implementation combines their analytic factorial expressions in log space
     so only the finite final value is exponentiated.
-
-    Parameters
-    ----------
-    l : int
-        Polynomial order.
-    q : int
-        Polynomial degree / wave number.
-
-    Returns
-    -------
-    float
-        The squared normalized associated Legendre value from HSS97.
-
     """
-    assert q <= l, "q must be <= l"
-    assert q >= 0, "q must be non-negative"
+    for name, value in (("l", l), ("q", q)):
+        if not isinstance(value, Integral) or isinstance(value, bool):
+            raise TypeError(f"{name} must be an integer.")
+    if q < 0:
+        raise ValueError("q must be non-negative.")
+    if l < 0:
+        raise ValueError("l must be non-negative.")
+    if q > l:
+        raise ValueError("q must be <= l.")
 
+    l = int(l)
+    q = int(q)
     if (l + q) % 2:
         return 0.0
 
@@ -189,32 +207,9 @@ def calc_tension_from_reduced_tension(
     sigma = tilde_sigma * kc * k_B * T / r0^2
 
     where ``kc`` is expressed in units of kBT and ``r0`` is the vesicle radius.
-
-    Parameters
-    ----------
-    r0 : float
-        Average vesicle radius in microns.
-    reduced_sigma : float
-        Dimensionless reduced tension obtained from fitting the fluctuation
-        spectrum.
-    kc : float
-        Membrane bending modulus in units of kBT.
-    temperature : float
-        Temperature in Kelvin.
-
-    Returns
-    -------
-    float
-        Physical membrane tension in N/m (equivalently J/m²).
-
-    Notes
-    -----
-    The input radius is converted from microns to meters before computing
-    the tension.
-
     """
-    one_kBT = Boltzmann * temperature                   # units of Joules
-    r0_meter = r0 / 1e6                                 # units of meters
-    r0_meter2 = r0_meter ** 2                           # units of meters^2
-    sigma = reduced_tension * kc * one_kBT / r0_meter2  # units of J/m^2 or N/m
+    one_kBT = Boltzmann * temperature
+    r0_meter = r0 / 1e6
+    r0_meter2 = r0_meter ** 2
+    sigma = reduced_tension * kc * one_kBT / r0_meter2
     return sigma
