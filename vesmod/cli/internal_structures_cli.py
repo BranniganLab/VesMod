@@ -165,7 +165,10 @@ def add_parser(subparsers) -> None:
         "--bubble-edge-grow-sigma",
         type=float,
         default=1.0,
-        help="Lower dark-residual threshold used to grow bubble edges.",
+        help=(
+            "Lower dark-residual threshold used to grow bubble edges; its "
+            "absolute magnitude also gates curvilinear ridge evidence."
+        ),
     )
     parser.add_argument(
         "--bubble-closing-px",
