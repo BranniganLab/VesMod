@@ -115,7 +115,7 @@ Use a dedicated output directory for each QC configuration:
 
 ```bash
 vesedge qc "./checkpoints" \
-    --curvature-threshold 5 \
+    --curvature-threshold 0.059 \
     --output-dir ./results/qc_standard
 ```
 
@@ -205,7 +205,7 @@ Reload the checkpoint and apply QC later:
 edges = VesicleEdges.from_checkpoint("sample.npz")
 
 qc_config = EdgeQCConfig(
-    curvature_threshold=10.0,
+    curvature_threshold=0.059,
 )
 
 edges.run_qc(qc_config)

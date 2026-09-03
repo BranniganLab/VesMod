@@ -63,8 +63,9 @@ class EdgeQCConfig:
     Attributes
     ----------
     curvature_threshold : float
-        Maximum allowed absolute wrapped finite second difference of an
-        analysis contour.
+        Maximum allowed absolute wrapped finite second difference of a
+        median-radius-normalized analysis contour. This threshold is
+        dimensionless.
     enable_curvature_qc : bool
         Whether frame-level curvature QC runs. Default is True.
     max_relative_area_deviation : float

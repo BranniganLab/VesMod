@@ -34,7 +34,7 @@ Apply one QC configuration:
 
 ```bash
 vesedge qc "./checkpoints" \
-    --curvature-threshold 5 \
+    --curvature-threshold 0.059 \
     --max-relative-area-deviation 0.25 \
     --output-dir ./results/qc_standard
 ```
@@ -227,9 +227,9 @@ vesedge qc "./checkpoints" \
     --output-dir ./results/qc_standard
 ```
 
-The curvature threshold is the maximum allowed absolute wrapped finite second difference of an analysis contour. A successful detection is rejected when its score is greater than the threshold.
+The curvature threshold is the maximum allowed absolute wrapped finite second difference of an analysis contour after its radii are divided by their median. The score and threshold are dimensionless and invariant to uniform scaling of the contour. A successful detection is rejected when its score is greater than the threshold.
 
-Default: `5.0`.
+Default: `0.059`.
 
 Disable curvature QC with:
 
@@ -502,7 +502,7 @@ Later:
 edges = VesicleEdges.from_checkpoint("sample.npz")
 edges.run_qc(
     EdgeQCConfig(
-        curvature_threshold=10.0,
+        curvature_threshold=0.059,
     )
 )
 edges.save_edge_to_npy("sample.npy")

@@ -28,7 +28,7 @@ def _make_edge(
 def test_check_curvature_accepts_smooth_contour():
     """Test that a constant-radius contour passes curvature QC."""
     edge = _make_edge()
-    check_curvature(edge, threshold=1.0)
+    check_curvature(edge, threshold=0.1)
 
     assert edge.qc.curvature_score == pytest.approx(0.0)
     assert QCFlag.CURVATURE not in edge.qc.flags
@@ -39,10 +39,23 @@ def test_check_curvature_rejects_large_local_deviation():
     edge = _make_edge()
     edge.analysis_contour.r[3] = 20.0
 
-    check_curvature(edge, threshold=1.0)
+    check_curvature(edge, threshold=0.1)
 
     assert edge.qc.curvature_score >= 1.0
     assert QCFlag.CURVATURE in edge.qc.flags
+
+
+def test_curvature_score_is_invariant_to_uniform_contour_scaling():
+    """Geometrically identical contours have the same normalized score."""
+    first = _make_edge(radius=10.0)
+    first.analysis_contour.r[3] = 12.0
+    second = _make_edge(radius=100.0)
+    second.analysis_contour.r[3] = 120.0
+
+    check_curvature(first, threshold=np.finfo(float).max)
+    check_curvature(second, threshold=np.finfo(float).max)
+
+    assert first.qc.curvature_score == pytest.approx(second.qc.curvature_score)
 
 
 def test_check_curvature_accepts_score_equal_to_threshold():
