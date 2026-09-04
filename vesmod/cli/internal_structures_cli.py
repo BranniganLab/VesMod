@@ -24,7 +24,11 @@ from vesmod.VesEdge.experimental import (
     summarize_internal_structures,
 )
 
-from .path_utils import _display_path, _relative_input_path
+from .path_utils import (
+    _display_path,
+    _relative_input_path,
+    remove_manifest_artifacts,
+)
 
 
 def add_parser(subparsers) -> None:
@@ -817,10 +821,13 @@ def _write_provenance(
                 "qc_config": asdict(qc_config),
             }
         ),
+        "managed_artifacts": [],
     }
     if provenance_path.exists():
         existing = json.loads(provenance_path.read_text(encoding="utf-8"))
-        if existing != provenance:
+        comparable = dict(existing) if isinstance(existing, dict) else {}
+        comparable["managed_artifacts"] = []
+        if comparable != provenance:
             if not args.overwrite:
                 raise ValueError(
                     "Output directory contains internal-structure results from "
@@ -836,22 +843,55 @@ def _write_provenance(
 
 def _remove_managed_outputs(output_dir: Path) -> None:
     """Remove only files managed by an earlier measurement batch."""
-    patterns = (
-        "*_frames.csv",
-        "*_regions.csv",
-        "*_masks.npz",
-        "*_internal_structures.gif",
-    )
-    for pattern in patterns:
-        for path in output_dir.rglob(pattern):
-            path.unlink()
-    for filename in (
-        "internal_structure_summary.csv",
-        "internal_structure_analysis.json",
+    provenance_path = output_dir / "internal_structure_analysis.json"
+    try:
+        provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, TypeError) as error:
+        raise ValueError(
+            "Existing internal-structure provenance is malformed; refusing "
+            "to remove files."
+        ) from error
+    if (
+        not isinstance(provenance, dict)
+        or provenance.get("experimental_method") != "internal_structures"
     ):
-        path = output_dir / filename
-        if path.exists():
-            path.unlink()
+        raise ValueError(
+            "Existing internal-structure provenance is incomplete; refusing "
+            "to remove files."
+        )
+    remove_manifest_artifacts(
+        output_dir,
+        provenance,
+        manifest_key="managed_artifacts",
+        manifest_name="internal-structure provenance",
+        allowed_suffixes={".csv", ".npz", ".gif"},
+        metadata_files=(
+            "internal_structure_summary.csv",
+            "internal_structure_analysis.json",
+        ),
+    )
+
+
+def _record_managed_outputs(output_dir: Path, rows: list[dict]) -> None:
+    """Record files created for each checkpoint in the batch manifest."""
+    provenance_path = output_dir / "internal_structure_analysis.json"
+    provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+    artifacts = []
+    for row in rows:
+        base = output_dir / Path(row["file"]).with_suffix("")
+        for artifact in (
+            base.with_name(base.name + "_frames.csv"),
+            base.with_name(base.name + "_regions.csv"),
+            base.with_name(base.name + "_masks.npz"),
+            base.with_name(base.name + "_internal_structures.gif"),
+        ):
+            if artifact.is_file():
+                artifacts.append(str(artifact.relative_to(output_dir)))
+    provenance["managed_artifacts"] = sorted(artifacts)
+    provenance_path.write_text(
+        json.dumps(provenance, indent=2) + "\n",
+        encoding="utf-8",
+    )
 
 
 def _write_csv(path: Path, rows: list[dict], fieldnames: list[str]) -> None:
