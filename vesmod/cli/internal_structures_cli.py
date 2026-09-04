@@ -302,8 +302,16 @@ def run(args: argparse.Namespace) -> None:
         qc_provenance_path,
     )
     video_index = _build_video_filename_index(paths, args.video_root)
+    managed_outputs: set[Path] = set()
     summary_rows = [
-        process_checkpoint(path, args, config, qc_config, video_index)
+        process_checkpoint(
+            path,
+            args,
+            config,
+            qc_config,
+            video_index,
+            managed_outputs,
+        )
         for path in paths
     ]
     _write_csv(
@@ -311,6 +319,7 @@ def run(args: argparse.Namespace) -> None:
         summary_rows,
         _SUMMARY_FIELDS,
     )
+    _record_managed_outputs(args.output_dir, managed_outputs)
 
 
 def process_checkpoint(
@@ -319,6 +328,7 @@ def process_checkpoint(
     config: InternalStructureConfig,
     qc_config: EdgeQCConfig | None,
     video_index: dict[str, tuple[Path, ...]] | None = None,
+    managed_outputs: set[Path] | None = None,
 ) -> dict:
     """Measure one checkpoint and write its frame- and region-level outputs."""
     relative_path = _relative_input_path(checkpoint_path, args.input_path)
@@ -380,20 +390,36 @@ def process_checkpoint(
         frame_rows.append(_frame_row(frame_index, result))
         region_rows.extend(_region_rows(frame_index, result))
 
+    frames_path = output_base.with_name(output_base.name + "_frames.csv")
     _write_csv(
-        output_base.with_name(output_base.name + "_frames.csv"),
+        frames_path,
         frame_rows,
         _FRAME_FIELDS,
     )
+    if managed_outputs is not None:
+        managed_outputs.add(frames_path)
+    regions_path = output_base.with_name(output_base.name + "_regions.csv")
     _write_csv(
-        output_base.with_name(output_base.name + "_regions.csv"),
+        regions_path,
         region_rows,
         _REGION_FIELDS,
     )
+    if managed_outputs is not None:
+        managed_outputs.add(regions_path)
     if args.save_masks:
         _save_masks(output_base, results, frames.shape[1:])
+        if managed_outputs is not None:
+            managed_outputs.add(
+                output_base.with_name(output_base.name + "_masks.npz")
+            )
     if not args.no_gif:
         _save_overlay_gif(output_base, frames, edges, results)
+        if managed_outputs is not None:
+            managed_outputs.add(
+                output_base.with_name(
+                    output_base.name + "_internal_structures.gif"
+                )
+            )
 
     return _summary_row(
         relative_path,
@@ -872,22 +898,17 @@ def _remove_managed_outputs(output_dir: Path) -> None:
     )
 
 
-def _record_managed_outputs(output_dir: Path, rows: list[dict]) -> None:
+def _record_managed_outputs(
+    output_dir: Path,
+    managed_outputs: set[Path],
+) -> None:
     """Record files created for each checkpoint in the batch manifest."""
     provenance_path = output_dir / "internal_structure_analysis.json"
     provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
-    artifacts = []
-    for row in rows:
-        base = output_dir / Path(row["file"]).with_suffix("")
-        for artifact in (
-            base.with_name(base.name + "_frames.csv"),
-            base.with_name(base.name + "_regions.csv"),
-            base.with_name(base.name + "_masks.npz"),
-            base.with_name(base.name + "_internal_structures.gif"),
-        ):
-            if artifact.is_file():
-                artifacts.append(str(artifact.relative_to(output_dir)))
-    provenance["managed_artifacts"] = sorted(artifacts)
+    provenance["managed_artifacts"] = sorted(
+        str(path.resolve().relative_to(output_dir.resolve()))
+        for path in managed_outputs
+    )
     provenance_path.write_text(
         json.dumps(provenance, indent=2) + "\n",
         encoding="utf-8",
