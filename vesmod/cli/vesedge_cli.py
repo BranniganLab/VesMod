@@ -353,6 +353,8 @@ def _write_qc_provenance(
         if comparable == provenance:
             if overwrite:
                 _remove_managed_qc_artifacts(output_dir)
+                # The matching-provenance cleanup already removed the old
+                # manifest; continue by writing the replacement below.
             else:
                 provenance["managed_artifacts"] = existing.get(
                     "managed_artifacts", []
@@ -362,7 +364,7 @@ def _write_qc_provenance(
                     encoding="utf-8",
                 )
                 return
-        if not overwrite:
+        elif not overwrite:
             raise ValueError(
                 "QC output directory already contains results from a different "
                 "input selection or QC configuration. Choose another --output-dir "
@@ -428,6 +430,7 @@ def process_qc_file(
     path: Path,
     args: argparse.Namespace,
     qc_config: EdgeQCConfig,
+    managed_artifacts: set[Path] | None = None,
 ) -> dict:
     """Apply QC to one checkpoint and return its batch summary row."""
     output_path = (
@@ -483,32 +486,34 @@ def process_qc_file(
     )
     if has_area_result and (args.overwrite or not area_plot_path.exists()):
         _save_area_qc_plot(area_plot_path, edges)
+        if managed_artifacts is not None:
+            managed_artifacts.add(area_plot_path)
     if has_area_result and (args.overwrite or not area_csv_path.exists()):
         _write_area_qc_csv(area_csv_path, edges)
+        if managed_artifacts is not None:
+            managed_artifacts.add(area_csv_path)
     if (
         status == "ok"
         and row["accepted"] > 0
         and (args.overwrite or not output_exists)
     ):
         edges.save_edge_to_npy(output_path)
+        if managed_artifacts is not None:
+            managed_artifacts.add(output_path)
     return row
 
 
-def _record_qc_artifacts(output_dir: Path, rows: list[dict]) -> None:
+def _record_qc_artifacts(
+    output_dir: Path,
+    managed_artifacts: set[Path],
+) -> None:
     """Record the filtered arrays and diagnostics created by this batch."""
     provenance_path = output_dir / "vesedge_qc.json"
     provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
-    artifacts = []
-    for row in rows:
-        output_base = output_dir / Path(row["file"]).with_suffix("")
-        for artifact in (
-            output_base.with_suffix(".npy"),
-            output_base.with_suffix(".area_qc.png"),
-            output_base.with_suffix(".area_qc.csv"),
-        ):
-            if artifact.is_file():
-                artifacts.append(str(artifact.relative_to(output_dir)))
-    provenance["managed_artifacts"] = sorted(artifacts)
+    provenance["managed_artifacts"] = sorted(
+        str(path.resolve().relative_to(output_dir.resolve()))
+        for path in managed_artifacts
+    )
     provenance_path.write_text(
         json.dumps(provenance, indent=2) + "\n",
         encoding="utf-8",
@@ -626,12 +631,13 @@ def _run_qc(args: argparse.Namespace) -> None:
         paths,
         args.overwrite,
     )
+    managed_artifacts: set[Path] = set()
     rows = [
-        process_qc_file(path, args, qc_config)
+        process_qc_file(path, args, qc_config, managed_artifacts)
         for path in paths
     ]
     _write_qc_summary(args.output_dir, rows)
-    _record_qc_artifacts(args.output_dir, rows)
+    _record_qc_artifacts(args.output_dir, managed_artifacts)
 
 
 def main() -> None:
