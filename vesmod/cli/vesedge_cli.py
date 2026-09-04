@@ -17,7 +17,11 @@ import numpy as np
 from . import internal_structures_batch_cli as internal_structures_cli
 from .gif_cli import add_gif_parser, run_gif
 from .input_selection import InputPathsAction, select_input_files
-from .path_utils import _display_path, _relative_input_path
+from .path_utils import (
+    _display_path,
+    _relative_input_path,
+    remove_manifest_artifacts,
+)
 from vesmod.VesEdge import (
     EdgeExtractionConfig,
     EdgeQCConfig,
@@ -291,21 +295,37 @@ def _qc_provenance(
         "recursive": recursive,
         "checkpoint_manifest": [str(path.resolve()) for path in paths],
         "qc_config": asdict(qc_config),
+        "managed_artifacts": [],
     }
     return provenance
 
 
 def _remove_managed_qc_artifacts(output_dir: Path) -> None:
     """Remove filtered arrays and metadata managed by a previous QC batch."""
-    for output_path in output_dir.rglob("*.npy"):
-        output_path.unlink()
-    for pattern in ("*.area_qc.png", "*.area_qc.csv"):
-        for output_path in output_dir.rglob(pattern):
-            output_path.unlink()
-    for filename in ("qc_summary.csv", "vesedge_qc.json"):
-        output_path = output_dir / filename
-        if output_path.exists():
-            output_path.unlink()
+    provenance_path = output_dir / "vesedge_qc.json"
+    try:
+        provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, TypeError) as error:
+        raise ValueError(
+            "Existing VesEdge QC provenance is malformed; refusing to remove "
+            "files."
+        ) from error
+    if not isinstance(provenance, dict) or not {
+        "checkpoint_manifest",
+        "qc_config",
+    }.issubset(provenance):
+        raise ValueError(
+            "Existing VesEdge QC provenance is incomplete; refusing to remove "
+            "files."
+        )
+    remove_manifest_artifacts(
+        output_dir,
+        provenance,
+        manifest_key="managed_artifacts",
+        manifest_name="VesEdge QC provenance",
+        allowed_suffixes={".npy", ".png", ".csv"},
+        metadata_files=("qc_summary.csv", "vesedge_qc.json"),
+    )
 
 
 def _write_qc_provenance(
@@ -328,8 +348,20 @@ def _write_qc_provenance(
 
     if provenance_path.exists():
         existing = json.loads(provenance_path.read_text(encoding="utf-8"))
-        if existing == provenance:
-            return
+        comparable = dict(existing) if isinstance(existing, dict) else {}
+        comparable["managed_artifacts"] = []
+        if comparable == provenance:
+            if overwrite:
+                _remove_managed_qc_artifacts(output_dir)
+            else:
+                provenance["managed_artifacts"] = existing.get(
+                    "managed_artifacts", []
+                )
+                provenance_path.write_text(
+                    json.dumps(provenance, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+                return
         if not overwrite:
             raise ValueError(
                 "QC output directory already contains results from a different "
@@ -462,6 +494,27 @@ def process_qc_file(
     return row
 
 
+def _record_qc_artifacts(output_dir: Path, rows: list[dict]) -> None:
+    """Record the filtered arrays and diagnostics created by this batch."""
+    provenance_path = output_dir / "vesedge_qc.json"
+    provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+    artifacts = []
+    for row in rows:
+        output_base = output_dir / Path(row["file"]).with_suffix("")
+        for artifact in (
+            output_base.with_suffix(".npy"),
+            output_base.with_suffix(".area_qc.png"),
+            output_base.with_suffix(".area_qc.csv"),
+        ):
+            if artifact.is_file():
+                artifacts.append(str(artifact.relative_to(output_dir)))
+    provenance["managed_artifacts"] = sorted(artifacts)
+    provenance_path.write_text(
+        json.dumps(provenance, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
 def _write_area_qc_csv(path: Path, edges: VesicleEdges) -> None:
     """Write exact per-frame contour-area QC measurements."""
     area_result = edges.qc_result.area
@@ -578,6 +631,7 @@ def _run_qc(args: argparse.Namespace) -> None:
         for path in paths
     ]
     _write_qc_summary(args.output_dir, rows)
+    _record_qc_artifacts(args.output_dir, rows)
 
 
 def main() -> None:
