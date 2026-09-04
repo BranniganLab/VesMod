@@ -421,7 +421,7 @@ def test_write_qc_provenance_records_manifest_and_recursive_setting(tmp_path):
 
 
 def test_overwrite_incompatible_provenance_removes_stale_outputs(tmp_path):
-    """Test incompatible overwrite clears prior managed QC artifacts."""
+    """Test incompatible overwrite clears only recorded QC artifacts."""
     output_dir = tmp_path / "qc"
     checkpoint = tmp_path / "sample.npz"
     config = EdgeQCConfig(5.0)
@@ -436,7 +436,13 @@ def test_overwrite_incompatible_provenance_removes_stale_outputs(tmp_path):
     stale = output_dir / "nested" / "orphan.npy"
     stale.parent.mkdir(parents=True)
     stale.touch()
+    unrelated = output_dir / "unrelated.npy"
+    unrelated.touch()
     (output_dir / "qc_summary.csv").write_text("old")
+    provenance_path = output_dir / "vesedge_qc.json"
+    provenance = json.loads(provenance_path.read_text())
+    provenance["managed_artifacts"] = ["nested/orphan.npy"]
+    provenance_path.write_text(json.dumps(provenance), encoding="utf-8")
 
     different = EdgeQCConfig(8.0)
     vesedge_cli._write_qc_provenance(
@@ -449,6 +455,7 @@ def test_overwrite_incompatible_provenance_removes_stale_outputs(tmp_path):
     )
 
     assert not stale.exists()
+    assert unrelated.is_file()
     assert not (output_dir / "qc_summary.csv").exists()
     data = json.loads((output_dir / "vesedge_qc.json").read_text())
     assert data["qc_config"]["curvature_threshold"] == 8.0
@@ -478,6 +485,36 @@ def test_write_qc_summary_writes_batch_csv(tmp_path):
     assert "curvature_rejected" in summary
     assert "area_rejected" in summary
     assert ",7," in summary
+
+
+@pytest.mark.parametrize(
+    "manifest",
+    [
+        {"managed_artifacts": ["../outside.npy"]},
+        {"managed_artifacts": ["nested/data.txt"]},
+        {"managed_artifacts": "not-a-list"},
+    ],
+)
+def test_qc_overwrite_rejects_unsafe_or_malformed_manifest(tmp_path, manifest):
+    """Test QC refuses cleanup unless its artifact manifest is trustworthy."""
+    output_dir = tmp_path / "qc"
+    output_dir.mkdir()
+    provenance = {
+        "checkpoint_manifest": [],
+        "qc_config": {},
+        **manifest,
+    }
+    (output_dir / "vesedge_qc.json").write_text(
+        json.dumps(provenance),
+        encoding="utf-8",
+    )
+    unrelated = output_dir / "unrelated.npy"
+    unrelated.touch()
+
+    with pytest.raises(ValueError, match="refusing to remove files"):
+        vesedge_cli._remove_managed_qc_artifacts(output_dir)
+
+    assert unrelated.is_file()
 
 
 def test_run_qc_writes_summary_when_every_checkpoint_fails_to_load(
