@@ -650,7 +650,8 @@ def _exclude_structure_boundary(
     while limiting the automatic expansion to one half of the vesicle's
     inradius so small vesicles retain a useful detection interior.
     """
-    inradius = float(np.max(ndimage.distance_transform_edt(interior_mask)))
+    distance_from_boundary = ndimage.distance_transform_edt(interior_mask)
+    inradius = float(np.max(distance_from_boundary))
     scale_margin = int(np.ceil(4.0 * max(config.filament_scales_px)))
     size_limited_margin = min(scale_margin, int(np.floor(0.5 * inradius)))
     exclusion_px = max(
@@ -659,10 +660,7 @@ def _exclude_structure_boundary(
     )
     if exclusion_px == 0:
         return interior_mask.copy()
-    return ndimage.binary_erosion(
-        interior_mask,
-        structure=disk(exclusion_px),
-    )
+    return distance_from_boundary > exclusion_px
 
 
 def _masked_gaussian_background(
@@ -818,10 +816,8 @@ def _suppress_bright_region_halos(
         return dark_mask, ridge_mask, skeletonize(ridge_mask), enclosed_mask
 
     halo_radius = int(np.ceil(4.0 * max(config.filament_scales_px)))
-    bright_neighborhood = ndimage.binary_dilation(
-        bright_mask,
-        structure=disk(halo_radius),
-    )
+    distance_from_bright = ndimage.distance_transform_edt(~bright_mask)
+    bright_neighborhood = distance_from_bright <= halo_radius
     dark_without_halo = _retain_compact_components(
         dark_mask & ~bright_neighborhood,
         config.min_bubble_area_px,
