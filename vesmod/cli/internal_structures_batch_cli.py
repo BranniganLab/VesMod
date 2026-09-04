@@ -48,6 +48,7 @@ def run(args) -> None:
         paths,
         args.video_root,
     )
+    managed_outputs: set[Path] = set()
     summary_rows = [
         internal_structures_cli.process_checkpoint(
             path,
@@ -55,6 +56,7 @@ def run(args) -> None:
             config,
             qc_config,
             video_index,
+            managed_outputs,
         )
         for path in paths
     ]
@@ -65,5 +67,5 @@ def run(args) -> None:
     )
     internal_structures_cli._record_managed_outputs(
         args.output_dir,
-        summary_rows,
+        managed_outputs,
     )
