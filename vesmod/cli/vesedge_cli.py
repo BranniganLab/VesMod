@@ -364,13 +364,14 @@ def _write_qc_provenance(
                     encoding="utf-8",
                 )
                 return
-        elif not overwrite:
-            raise ValueError(
-                "QC output directory already contains results from a different "
-                "input selection or QC configuration. Choose another --output-dir "
-                "or use --overwrite."
-            )
-        _remove_managed_qc_artifacts(output_dir)
+        else:
+            if not overwrite:
+                raise ValueError(
+                    "QC output directory already contains results from a different "
+                    "input selection or QC configuration. Choose another "
+                    "--output-dir or use --overwrite."
+                )
+            _remove_managed_qc_artifacts(output_dir)
 
     provenance_path.write_text(
         json.dumps(provenance, indent=2) + "\n",
