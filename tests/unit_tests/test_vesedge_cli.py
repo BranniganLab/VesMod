@@ -461,6 +461,57 @@ def test_overwrite_incompatible_provenance_removes_stale_outputs(tmp_path):
     assert data["qc_config"]["curvature_threshold"] == 8.0
 
 
+def test_matching_qc_overwrite_replaces_provenance_after_cleanup(tmp_path):
+    """Test a matching overwrite cleans once and writes new provenance."""
+    output_dir = tmp_path / "qc"
+    checkpoint = tmp_path / "sample.npz"
+    config = EdgeQCConfig(5.0)
+    vesedge_cli._write_qc_provenance(
+        output_dir, config, checkpoint, False, [checkpoint], overwrite=False
+    )
+    managed = output_dir / "sample.npy"
+    managed.touch()
+    provenance_path = output_dir / "vesedge_qc.json"
+    provenance = json.loads(provenance_path.read_text())
+    provenance["managed_artifacts"] = ["sample.npy"]
+    provenance_path.write_text(json.dumps(provenance), encoding="utf-8")
+
+    vesedge_cli._write_qc_provenance(
+        output_dir, config, checkpoint, False, [checkpoint], overwrite=True
+    )
+
+    assert not managed.exists()
+    assert provenance_path.is_file()
+    assert json.loads(provenance_path.read_text())["managed_artifacts"] == []
+
+
+def test_qc_manifest_excludes_preexisting_expected_outputs(tmp_path):
+    """Test preserved outputs are not adopted by the current-run manifest."""
+    output_dir = tmp_path / "qc"
+    output_dir.mkdir()
+    expected = output_dir / "sample.npy"
+    expected.touch()
+    provenance = {
+        "input_path": str(tmp_path.resolve()),
+        "recursive": False,
+        "checkpoint_manifest": [],
+        "qc_config": {},
+        "managed_artifacts": [],
+    }
+    (output_dir / "vesedge_qc.json").write_text(
+        json.dumps(provenance),
+        encoding="utf-8",
+    )
+
+    vesedge_cli._record_qc_artifacts(output_dir, set())
+
+    recorded = json.loads(
+        (output_dir / "vesedge_qc.json").read_text(encoding="utf-8")
+    )
+    assert recorded["managed_artifacts"] == []
+    assert expected.is_file()
+
+
 def test_write_qc_summary_writes_batch_csv(tmp_path):
     """Test QC summary output contains one row per processed checkpoint."""
     rows = [
