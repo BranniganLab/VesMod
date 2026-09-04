@@ -684,7 +684,7 @@ def _fit_summary_row(
 
 def _safe_csv_text(value):
     """Prefix spreadsheet-formula-like text while preserving other values."""
-    if isinstance(value, str) and value.startswith(("=", "+", "-", "@")):
+    if isinstance(value, str) and value.lstrip().startswith(("=", "+", "-", "@")):
         return "'" + value
     return value
 

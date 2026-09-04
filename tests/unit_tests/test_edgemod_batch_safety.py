@@ -69,11 +69,11 @@ def test_fit_summary_prefixes_formula_like_file_and_error_cells(tmp_path):
     args = Namespace(output_dir=output_dir, dynamic_range=False)
     rows = [
         {
-            "file": "=formula.npy",
+            "file": "\t=formula.npy",
             "status": "fit_error",
             "kC": "",
             "surface_tension": "",
-            "error": "+formula error",
+            "error": "\t+formula error",
         }
     ]
 
@@ -84,7 +84,7 @@ def test_fit_summary_prefixes_formula_like_file_and_error_cells(tmp_path):
         encoding="utf-8",
     ) as handle:
         row = next(csv.DictReader(handle))
-    assert row["file"] == "'=formula.npy"
-    assert row["error"] == "'+formula error"
-    assert rows[0]["file"] == "=formula.npy"
-    assert rows[0]["error"] == "+formula error"
+    assert row["file"] == "'\t=formula.npy"
+    assert row["error"] == "'\t+formula error"
+    assert rows[0]["file"] == "\t=formula.npy"
+    assert rows[0]["error"] == "\t+formula error"
