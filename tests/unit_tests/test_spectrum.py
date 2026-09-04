@@ -331,7 +331,7 @@ def test_to_dict_includes_arrays_when_requested():
     spectrum.modes = np.array([0, 1, -1])
     spectrum.avg_amps2 = np.array([1.0, 0.1, 0.1])
 
-    data = spectrum._to_dict(include_arrays=True)
+    data = spectrum.to_dict(include_arrays=True)
     assert data == {
         "r0": 10.0,
         "kC": 20.0,
@@ -350,7 +350,7 @@ def test_to_dict_excludes_arrays_when_requested():
     spectrum.modes = np.array([0])
     spectrum.avg_amps2 = np.array([1.0])
 
-    data = spectrum._to_dict(include_arrays=False)
+    data = spectrum.to_dict(include_arrays=False)
     assert data == {
         "r0": 10.0,
         "kC": None,

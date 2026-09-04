@@ -265,10 +265,6 @@ class Spectrum:
 
         return data
 
-    def _to_dict(self, include_arrays=True) -> dict:
-        """Return spectrum state through the legacy private API."""
-        return self.to_dict(include_arrays=include_arrays)
-
     def to_json(
         self,
         outfile: str | Path,
