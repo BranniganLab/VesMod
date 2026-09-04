@@ -30,6 +30,7 @@ from vesmod.EdgeMod.experimental.temporal_rms_plotting import (
 )
 
 from vesmod.cli.input_selection import InputPathsAction, select_input_files
+from vesmod.cli.path_utils import remove_manifest_artifacts
 
 
 def parse_args() -> argparse.Namespace:
@@ -404,49 +405,24 @@ def _remove_temporal_rms_artifacts(
     provenance: dict,
 ) -> None:
     """Remove only files recorded by a validated prior temporal-RMS batch."""
-    if not isinstance(provenance, dict):
+    if not isinstance(provenance, dict) or provenance.get(
+        "experimental_method"
+    ) != "temporal_rms":
         raise ValueError(
             "Existing temporal-RMS metadata is invalid; refusing to remove files."
         )
-    exported_files = provenance.get("exported_files")
-    if (
-        provenance.get("experimental_method") != "temporal_rms"
-        or not isinstance(exported_files, list)
-        or any(not isinstance(path, str) for path in exported_files)
-    ):
-        raise ValueError(
-            "Existing temporal-RMS metadata does not contain a valid export "
-            "manifest; refusing to remove files."
-        )
-
-    resolved_output = output_dir.expanduser().resolve()
-    export_paths = []
-    for exported_file in exported_files:
-        relative_path = Path(exported_file)
-        export_path = (resolved_output / relative_path).resolve()
-        if (
-            relative_path.is_absolute()
-            or relative_path.suffix != ".npy"
-            or resolved_output not in export_path.parents
-        ):
-            raise ValueError(
-                "Existing temporal-RMS metadata contains an unsafe export path; "
-                "refusing to remove files."
-            )
-        export_paths.append(export_path)
-
-    for export_path in export_paths:
-        if export_path.is_file():
-            export_path.unlink()
-
-    for filename in (
-        "temporal_rms_qc.json",
-        "temporal_rms_summary.csv",
-        "temporal_rms_histogram.png",
-    ):
-        output_path = output_dir / filename
-        if output_path.exists():
-            output_path.unlink()
+    remove_manifest_artifacts(
+        output_dir,
+        provenance,
+        manifest_key="exported_files",
+        manifest_name="temporal-RMS metadata",
+        allowed_suffixes={".npy"},
+        metadata_files=(
+            "temporal_rms_qc.json",
+            "temporal_rms_summary.csv",
+            "temporal_rms_histogram.png",
+        ),
+    )
 
 
 def _write_temporal_rms_provenance(
@@ -603,35 +579,19 @@ def _fit_provenance(args: argparse.Namespace, paths: list[Path]) -> dict:
 
 def _remove_fit_artifacts(output_dir: Path, provenance: dict) -> None:
     """Remove only artifacts recorded by a validated prior fit batch."""
-    artifacts = provenance.get("managed_artifacts")
-    if (
-        provenance.get("analysis") != "edgemod_fit"
-        or not isinstance(artifacts, list)
-        or any(not isinstance(item, str) for item in artifacts)
-    ):
+    if not isinstance(provenance, dict) or provenance.get("analysis") != "edgemod_fit":
         raise ValueError(
             "Existing EdgeMod provenance has no valid artifact manifest; "
             "refusing to remove files."
         )
-    resolved_output = output_dir.expanduser().resolve()
-    for item in artifacts:
-        relative = Path(item)
-        artifact = (resolved_output / relative).resolve()
-        if (
-            relative.is_absolute()
-            or resolved_output not in artifact.parents
-            or artifact.suffix not in {".json", ".png"}
-        ):
-            raise ValueError(
-                "Existing EdgeMod provenance contains an unsafe artifact path; "
-                "refusing to remove files."
-            )
-        if artifact.is_file():
-            artifact.unlink()
-    for filename in ("edgemod_fit.json", "fit_summary.csv"):
-        managed_path = output_dir / filename
-        if managed_path.exists():
-            managed_path.unlink()
+    remove_manifest_artifacts(
+        output_dir,
+        provenance,
+        manifest_key="managed_artifacts",
+        manifest_name="EdgeMod provenance",
+        allowed_suffixes={".json", ".png"},
+        metadata_files=("edgemod_fit.json", "fit_summary.csv"),
+    )
 
 
 def _prepare_fit_output(args: argparse.Namespace, paths: list[Path]) -> None:
