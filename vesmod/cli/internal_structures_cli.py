@@ -14,10 +14,12 @@ import numpy as np
 from vesmod.VesEdge import (
     EdgeDetection,
     EdgeQCConfig,
-    InternalStructureConfig,
-    InternalStructureFrameResult,
     VesicleEdges,
     VesicleVideo,
+)
+from vesmod.VesEdge.experimental import (
+    InternalStructureConfig,
+    InternalStructureFrameResult,
     detect_internal_structures,
     summarize_internal_structures,
 )
