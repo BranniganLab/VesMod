@@ -130,7 +130,8 @@ def make_gif(
     Raises
     ------
     ValueError
-        If no panels are supplied or panel frame counts differ.
+        If no panels are supplied, a panel has fewer than one frame, or panel
+        frame counts differ.
     TypeError
         If an object does not provide ``n_frames`` and ``draw``.
     """
@@ -147,6 +148,11 @@ def make_gif(
             )
         frame_counts.append(panel.n_frames)
 
+    if any(frame_count < 1 for frame_count in frame_counts):
+        raise ValueError(
+            "Every animation panel must contain at least one frame; "
+            f"received {frame_counts}."
+        )
     if len(set(frame_counts)) != 1:
         raise ValueError(
             "All animation panels must contain the same number of frames; "

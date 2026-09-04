@@ -431,7 +431,7 @@ gifs/edges/
 
 # `vesedge internal-structures`
 
-`vesedge internal-structures` is an experimental measurement command separate from edge QC. It measures broad light regions, thin dark filaments, and dark-edged bubbles with relatively neutral interiors inside every selected contour. The detectors share background normalization and original-image coordinate mapping but retain separate masks and measurements. The command does not alter checkpoints, introduce another edge-rejection rule, or assign vesicles to populations.
+`vesedge internal-structures` is an experimental measurement command separate from edge QC. It combines compact bright regions, compact dark regions, dark-or-light curvilinear structures, and enclosed boundaries into one authoritative structured mask. These are complementary image-evidence proposals rather than biological labels such as vesicle, bubble, or tubule. The command does not alter checkpoints, introduce another edge-rejection rule, or assign vesicles to populations.
 
 Run one checkpoint:
 
@@ -474,20 +474,33 @@ vesedge internal-structures "./checkpoints" \
     --threshold-sigma 4 \
     --light-grow-sigma 1.5 \
     --min-region-area-px 9 \
-    --filament-threshold-sigma 1.5 \
-    --filament-scales-px 1 2 3 \
-    --min-filament-length-px 8 \
+    --min-light-circularity 0.2 \
+    --min-light-solidity 0.8 \
+    --max-light-eccentricity 0.95 \
+    --structure-boundary-exclusion-px 20 \
+    --filament-seed-threshold 0.7 \
+    --filament-grow-threshold 0.35 \
+    --filament-scales-px 1 2 3 4 5 6 7 8 9 10 \
+    --min-filament-length-px 20 \
     --bubble-edge-sigma 2 \
-    --bubble-closing-px 2 \
-    --min-bubble-area-px 25 \
-    --min-bubble-boundary-fraction 0.45
+    --bubble-edge-grow-sigma 1 \
+    --bubble-closing-px 4 \
+    --min-bubble-area-px 100 \
+    --min-bubble-boundary-fraction 0.45 \
+    --min-bubble-circularity 0.2 \
+    --min-bubble-solidity 0.8 \
+    --max-bubble-eccentricity 0.95 \
+    --max-bubble-area-fraction 0.5
 ```
 
-- `--membrane-exclusion-px` erodes the detected interior so the membrane and its optical blur are not counted.
+- `--membrane-exclusion-px` defines the usable interior used for abundance measurements. `--structure-boundary-exclusion-px` defines the minimum outer margin in which new structure proposals cannot seed. The detector automatically widens that seed margin when necessary to cover the spatial support of the configured ridge scales, preventing inward membrane shadows from seeding curvilinear structures. A high-confidence compact bright or dark proposal seeded in the conservative interior can still fill outward through connected supporting signal as far as the membrane-exclusion margin, so these real structures are not sharply clipped at the seed boundary. Ridge filtering remains confined to the conservative interior because extending its spatial support reintroduces the outer membrane response.
 - `--background-sigma-px` controls the spatial scale treated as smooth background. The broader default prevents large light domains from being absorbed into that estimate.
-- `--threshold-sigma` supplies high-confidence positive-residual seeds; `--light-grow-sigma` expands them through connected, moderately light pixels.
-- `--filament-threshold-sigma`, `--filament-scales-px`, and `--min-filament-length-px` configure a multiscale dark-ridge detector filtered by skeleton length.
-- The bubble options identify dark boundaries, close small gaps, require boundary support, and fill qualifying neutral interiors.
+- `--threshold-sigma` supplies high-confidence positive-residual seeds; `--light-grow-sigma` expands them through connected, moderately light pixels. Circularity, solidity, and eccentricity prevent amorphous bright regions from entering through the compact-bright proposal.
+- The same compact-shape checks are applied to negative residuals, allowing filled dark circles and ovals to contribute without requiring a neutral interior.
+- The filament seed, growth, scale, and length options configure multiscale dark-and-light Sato vesselness, connected growth, and skeleton-length filtering. Light ridge evidence is accepted only near supported dark interior evidence, which helps bridge light-bordered tubules without treating arbitrary bright texture as curvilinear structure. `--bubble-edge-grow-sigma` also provides the minimum absolute normalized-residual magnitude required for curvilinear ridge evidence to contribute, in addition to controlling dark bubble-edge growth.
+- Once a compact bright region is accepted, secondary dark, ridge, and enclosed-boundary evidence within the ridge filter's support around it is suppressed. This prevents the opposite-polarity halo created by background subtraction from enlarging the merged structure.
+- Once an enclosed bubble is accepted, its filled mask is authoritative within one maximum ridge scale. Redundant bright, dark, and curvilinear evidence in that immediate neighborhood is suppressed so optical ringing does not add a second structure skirt around the bubble.
+- The bubble options also identify dark boundaries, close small gaps, require boundary support, and fill qualifying neutral interiors. This enclosed-boundary proposal is merged with the other evidence rather than treated as an exclusive biological class.
 
 These defaults are starting values, not calibrated population boundaries. Compare diagnostic overlays across known empty and structured vesicles before interpreting absolute abundance values.
 
@@ -515,15 +528,15 @@ sample_regions.csv
 sample_internal_structures.gif
 ```
 
-Use `--save-masks` to additionally write `sample_masks.npz`. It contains `structure_masks` (the union), `light_region_masks`, `dark_filament_masks`, and `bubble_region_masks`, all aligned with the original image coordinates. `frame_indices` identifies the corresponding source frames.
+Use `--save-masks` to additionally write `sample_masks.npz`. It contains `structure_masks` (the authoritative union), plus diagnostic `light_region_masks`, `dark_region_masks`, `dark_filament_masks`, and `bubble_region_masks`, all aligned with the original image coordinates. The legacy channel names are retained for comparison; they describe evidence generators, not mutually exclusive structure classes. `frame_indices` identifies the corresponding source frames.
 
-`sample_frames.csv` reports the union structured-area fraction plus light area, filament area and skeleton length, bubble area and count, noise estimate, and status for every source frame.
+`sample_frames.csv` reports union structured area and merged region count, plus diagnostic bright-compact, dark-compact, curvilinear, and enclosed-boundary measurements, noise estimate, and status for every source frame.
 
-`sample_regions.csv` labels each region as `light_region`, `dark_filament`, or `bubble` and reports polarity, area, filament skeleton length, centroid, bounding box, and signed residual in original image coordinates.
+`sample_regions.csv` reports each connected union region as `structure`. Its `evidence_types` field records every proposal that overlaps the region (`bright_region`, `dark_region`, `curvilinear`, and/or `enclosed_boundary`) for diagnostics. It also reports mean polarity, area, skeleton length, centroid, bounding box, and signed residual in original image coordinates.
 
-`internal_structure_summary.csv` contains one row per video with failure counts, union abundance summaries, and channel-specific medians for light area, filament area and length, and bubble area and count. These are intended as inputs to later population segmentation; the command does not choose a present/absent cutoff.
+`internal_structure_summary.csv` contains one row per video with failure counts, authoritative union abundance summaries, and diagnostic proposal medians. These are intended as inputs to later population segmentation; the command does not choose a present/absent cutoff.
 
-The diagnostic GIF overlays the three structure classes in separate colors together with the extracted contour. Disable it with `--no-gif`.
+The diagnostic GIF overlays the merged structure mask in one color together with the extracted contour. Each frame title reports the union structured-area fraction and the merged region count. Disable it with `--no-gif`.
 
 As with QC, incompatible provenance is rejected unless `--overwrite` is supplied. An incompatible overwrite removes only files managed by the previous internal-structure batch.
 
@@ -532,6 +545,11 @@ As with QC, incompatible provenance is rejected unless `--overwrite` is supplied
 ## Python API
 
 The CLI mirrors the Python API separation:
+
+Stable extraction, checkpoint, and QC objects are exported from
+`vesmod.VesEdge`. Internal-structure detection is experimental and is
+intentionally exported only from `vesmod.VesEdge.experimental`; callers should
+expect its configuration, result models, and measurements to evolve.
 
 ```python
 from vesmod.VesEdge import (
@@ -566,6 +584,19 @@ edges.save_edge_to_npy("sample.npy")
 ```
 
 A completed run is summarized by `edges.qc_result`; individual detections retain their curvature score and pass/fail flag through `EdgeDetection.qc`.
+
+Internal-structure measurements use the experimental namespace:
+
+```python
+from vesmod.VesEdge.experimental import (
+    InternalStructureConfig,
+    detect_internal_structures,
+    summarize_internal_structures,
+)
+
+result = detect_internal_structures(frame, contour, InternalStructureConfig())
+summary = summarize_internal_structures([result])
+```
 
 ---
 

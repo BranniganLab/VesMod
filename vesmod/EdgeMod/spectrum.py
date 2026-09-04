@@ -105,7 +105,10 @@ class Spectrum:
 
     def _initialize_from_radii(self, radii: np.ndarray, frame_cutoff) -> None:
         """Validate radii, apply an optional cutoff, and calculate the spectrum."""
-        if not isinstance(frame_cutoff, (int, NoneType)):
+        if (
+            frame_cutoff is not None
+            and (isinstance(frame_cutoff, bool) or not isinstance(frame_cutoff, int))
+        ):
             raise TypeError("frame_cutoff must either be None or an int.")
         if isinstance(frame_cutoff, int) and frame_cutoff <= 0:
             raise ValueError("frame_cutoff must be a positive int.")
@@ -232,7 +235,7 @@ class Spectrum:
             path,
         )
 
-    def _to_dict(self, include_arrays=True) -> dict:
+    def to_dict(self, include_arrays=True) -> dict:
         """Return spectrum state and retained physical-fit provenance."""
         data = {
             "r0": float(self.r0) if getattr(self, "r0", None) is not None else None,
@@ -271,4 +274,4 @@ class Spectrum:
         """Serialize spectrum state and retained fit records to JSON."""
         outfile = Path(outfile).with_suffix('.json')
         with outfile.open("w", encoding="utf-8") as f:
-            json.dump(self._to_dict(include_arrays=include_arrays), f, indent=indent)
+            json.dump(self.to_dict(include_arrays=include_arrays), f, indent=indent)

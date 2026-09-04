@@ -14,10 +14,12 @@ import numpy as np
 from vesmod.VesEdge import (
     EdgeDetection,
     EdgeQCConfig,
-    InternalStructureConfig,
-    InternalStructureFrameResult,
     VesicleEdges,
     VesicleVideo,
+)
+from vesmod.VesEdge.experimental import (
+    InternalStructureConfig,
+    InternalStructureFrameResult,
     detect_internal_structures,
     summarize_internal_structures,
 )
@@ -104,47 +106,135 @@ def add_parser(subparsers) -> None:
         help="Lower residual threshold used to grow seeded light regions.",
     )
     parser.add_argument(
-        "--filament-threshold-sigma",
+        "--min-light-circularity",
         type=float,
-        default=1.5,
-        help="Minimum multiscale dark-ridge response. Default: 1.5.",
+        default=0.2,
+        help="Minimum circularity for a bright internal vesicle. Default: 0.2.",
+    )
+    parser.add_argument(
+        "--min-light-solidity",
+        type=float,
+        default=0.8,
+        help="Minimum solidity for a bright internal vesicle. Default: 0.8.",
+    )
+    parser.add_argument(
+        "--max-light-eccentricity",
+        type=float,
+        default=0.95,
+        help="Maximum bright-vesicle eccentricity. Default: 0.95.",
+    )
+    parser.add_argument(
+        "--structure-boundary-exclusion-px",
+        type=int,
+        default=20,
+        help=(
+            "Pixels excluded from structure candidates near the detected "
+            "outer contour. Default: 20."
+        ),
+    )
+    parser.add_argument(
+        "--filament-seed-threshold",
+        type=float,
+        default=0.7,
+        help="High-confidence ridge-evidence seed threshold. Default: 0.7.",
+    )
+    parser.add_argument(
+        "--filament-grow-threshold",
+        type=float,
+        default=0.35,
+        help="Lower dark-or-light ridge threshold for growth. Default: 0.35.",
     )
     parser.add_argument(
         "--filament-scales-px",
         type=float,
         nargs="+",
-        default=(1.0, 2.0, 3.0),
-        help="Dark-filament ridge widths evaluated in pixels.",
+        default=(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0),
+        help="Dark and light curvilinear scales evaluated in pixels.",
     )
     parser.add_argument(
         "--min-filament-length-px",
         type=int,
-        default=8,
-        help="Minimum skeleton length retained as a filament. Default: 8.",
+        default=20,
+        help="Minimum skeleton length retained as a filament. Default: 20.",
     )
     parser.add_argument(
         "--bubble-edge-sigma",
         type=float,
         default=2.0,
-        help="Dark residual threshold used for bubble boundaries.",
+        help=(
+            "Negative-residual threshold for bubble boundaries and compact "
+            "dark-region masks; affects dark-region measurements and merged "
+            "structure output."
+        ),
+    )
+    parser.add_argument(
+        "--bubble-edge-grow-sigma",
+        type=float,
+        default=1.0,
+        help=(
+            "Lower negative-residual threshold for growing bubble boundaries "
+            "and compact dark-region masks; its absolute magnitude also gates "
+            "curvilinear ridge evidence and can affect dark-region "
+            "measurements and merged structure output."
+        ),
     )
     parser.add_argument(
         "--bubble-closing-px",
         type=int,
-        default=2,
+        default=4,
         help="Maximum local gap closed in candidate bubble edges.",
     )
     parser.add_argument(
         "--min-bubble-area-px",
         type=int,
-        default=25,
-        help="Minimum area enclosed by a detected bubble. Default: 25.",
+        default=100,
+        help=(
+            "Minimum area for enclosed bubbles and compact dark-region masks; "
+            "affects dark-region measurements and merged structure output. "
+            "Default: 100."
+        ),
     )
     parser.add_argument(
         "--min-bubble-boundary-fraction",
         type=float,
         default=0.45,
         help="Minimum fraction of an enclosed boundary supported by dark pixels.",
+    )
+    parser.add_argument(
+        "--min-bubble-circularity",
+        type=float,
+        default=0.2,
+        help=(
+            "Minimum circularity for dark-edged bubbles and compact "
+            "dark-region masks; affects dark-region measurements and merged "
+            "structure output. Default: 0.2."
+        ),
+    )
+    parser.add_argument(
+        "--min-bubble-solidity",
+        type=float,
+        default=0.8,
+        help=(
+            "Minimum solidity for dark-edged bubbles and compact dark-region "
+            "masks; affects dark-region measurements and merged structure "
+            "output. Default: 0.8."
+        ),
+    )
+    parser.add_argument(
+        "--max-bubble-eccentricity",
+        type=float,
+        default=0.95,
+        help=(
+            "Maximum eccentricity for dark-edged bubbles and compact "
+            "dark-region masks; affects dark-region measurements and merged "
+            "structure output. Default: 0.95."
+        ),
+    )
+    parser.add_argument(
+        "--max-bubble-area-fraction",
+        type=float,
+        default=0.5,
+        help="Largest usable-interior fraction one bubble may occupy. Default: 0.5.",
     )
     parser.add_argument(
         "--save-masks",
@@ -171,13 +261,23 @@ def config_from_args(args: argparse.Namespace) -> InternalStructureConfig:
         threshold_sigma=args.threshold_sigma,
         min_region_area_px=args.min_region_area_px,
         light_grow_sigma=args.light_grow_sigma,
-        filament_threshold_sigma=args.filament_threshold_sigma,
+        min_light_circularity=args.min_light_circularity,
+        min_light_solidity=args.min_light_solidity,
+        max_light_eccentricity=args.max_light_eccentricity,
+        structure_boundary_exclusion_px=args.structure_boundary_exclusion_px,
+        filament_seed_threshold=args.filament_seed_threshold,
+        filament_grow_threshold=args.filament_grow_threshold,
         filament_scales_px=tuple(args.filament_scales_px),
         min_filament_length_px=args.min_filament_length_px,
         bubble_edge_sigma=args.bubble_edge_sigma,
+        bubble_edge_grow_sigma=args.bubble_edge_grow_sigma,
         bubble_closing_px=args.bubble_closing_px,
         min_bubble_area_px=args.min_bubble_area_px,
         min_bubble_boundary_fraction=args.min_bubble_boundary_fraction,
+        min_bubble_circularity=args.min_bubble_circularity,
+        min_bubble_solidity=args.min_bubble_solidity,
+        max_bubble_eccentricity=args.max_bubble_eccentricity,
+        max_bubble_area_fraction=args.max_bubble_area_fraction,
     )
 
 
@@ -458,7 +558,9 @@ def _frame_row(
         "usable_area_px": result.usable_area_px,
         "structured_area_px": result.structured_area_px,
         "structured_area_fraction": result.structured_area_fraction,
+        "structure_count": result.structure_count,
         "light_area_fraction": result.light_area_fraction,
+        "dark_region_area_fraction": result.dark_region_area_fraction,
         "filament_area_fraction": result.filament_area_fraction,
         "filament_length_px": result.filament_length_px,
         "bubble_area_fraction": result.bubble_area_fraction,
@@ -477,7 +579,9 @@ def _frame_error_row(frame_index: int, status: str, error: str) -> dict:
         "usable_area_px": "",
         "structured_area_px": "",
         "structured_area_fraction": "",
+        "structure_count": "",
         "light_area_fraction": "",
+        "dark_region_area_fraction": "",
         "filament_area_fraction": "",
         "filament_length_px": "",
         "bubble_area_fraction": "",
@@ -503,6 +607,7 @@ def _region_rows(
                 "frame_index": frame_index,
                 "region_label": region.label,
                 "structure_type": region.structure_type,
+                "evidence_types": ";".join(region.evidence_types),
                 "polarity": region.polarity,
                 "area_px": region.area_px,
                 "centroid_y": centroid_y,
@@ -545,6 +650,7 @@ def _summary_row(
             "upper_area_fraction": "",
             "frame_prevalence": "",
             "median_light_area_fraction": "",
+            "median_dark_region_area_fraction": "",
             "median_filament_area_fraction": "",
             "median_filament_length_px": "",
             "median_bubble_area_fraction": "",
@@ -557,6 +663,9 @@ def _summary_row(
         "upper_area_fraction": summary.upper_area_fraction,
         "frame_prevalence": summary.frame_prevalence,
         "median_light_area_fraction": summary.median_light_area_fraction,
+        "median_dark_region_area_fraction": (
+            summary.median_dark_region_area_fraction
+        ),
         "median_filament_area_fraction": summary.median_filament_area_fraction,
         "median_filament_length_px": summary.median_filament_length_px,
         "median_bubble_area_fraction": summary.median_bubble_area_fraction,
@@ -578,6 +687,7 @@ def _error_summary(relative_path: Path, error: str) -> dict:
         "upper_area_fraction": "",
         "frame_prevalence": "",
         "median_light_area_fraction": "",
+        "median_dark_region_area_fraction": "",
         "median_filament_area_fraction": "",
         "median_filament_length_px": "",
         "median_bubble_area_fraction": "",
@@ -616,11 +726,18 @@ def _save_masks(
                 for index in frame_indices
             ]
         )
+        dark_region_masks = np.stack(
+            [
+                _to_full_frame_channel_mask(results[index], "dark_region")
+                for index in frame_indices
+            ]
+        )
     else:
         masks = np.empty((0, *frame_shape), dtype=bool)
         light_masks = masks.copy()
         filament_masks = masks.copy()
         bubble_masks = masks.copy()
+        dark_region_masks = masks.copy()
     path = output_base.with_name(output_base.name + "_masks.npz")
     np.savez_compressed(
         path,
@@ -629,6 +746,7 @@ def _save_masks(
         light_region_masks=light_masks,
         dark_filament_masks=filament_masks,
         bubble_region_masks=bubble_masks,
+        dark_region_masks=dark_region_masks,
     )
 
 
@@ -646,26 +764,14 @@ def _save_overlay_gif(
     edges: VesicleEdges,
     results: dict[int, InternalStructureFrameResult],
 ) -> None:
-    """Save channel overlays through the shared QC-aware GIF renderer."""
+    """Save one merged structure overlay through the shared GIF renderer."""
     def add_structure_overlays(axis, frame_index: int) -> None:
         result = results.get(frame_index)
         if result is None:
             return
-        channel_specs = (
-            ("light_region", "autumn"),
-            ("dark_filament", "winter"),
-            ("bubble", "cool"),
-        )
-        for structure_type, color_map in channel_specs:
-            full_mask = _to_full_frame_channel_mask(result, structure_type)
-            overlay = np.ma.masked_where(~full_mask, full_mask)
-            axis.imshow(
-                overlay,
-                cmap=color_map,
-                alpha=0.55,
-                vmin=0,
-                vmax=1,
-            )
+        full_mask = result.to_full_frame_mask()
+        overlay = np.ma.masked_where(~full_mask, full_mask)
+        axis.imshow(overlay, cmap="winter", alpha=0.55, vmin=0, vmax=1)
 
     def structure_title(frame_index: int) -> str:
         result = results.get(frame_index)
@@ -673,9 +779,8 @@ def _save_overlay_gif(
             return f"frame {frame_index}: not analyzed"
         return (
             f"frame {frame_index}: "
-            f"light={result.light_area_fraction:.3f}, "
-            f"filament={result.filament_length_px}px, "
-            f"bubbles={result.bubble_count}"
+            f"structured={result.structured_area_fraction:.3f}, "
+            f"regions={result.structure_count}"
         )
 
     path = output_base.with_name(output_base.name + "_internal_structures.gif")
@@ -796,7 +901,9 @@ _FRAME_FIELDS = [
     "usable_area_px",
     "structured_area_px",
     "structured_area_fraction",
+    "structure_count",
     "light_area_fraction",
+    "dark_region_area_fraction",
     "filament_area_fraction",
     "filament_length_px",
     "bubble_area_fraction",
@@ -811,6 +918,7 @@ _REGION_FIELDS = [
     "frame_index",
     "region_label",
     "structure_type",
+    "evidence_types",
     "polarity",
     "area_px",
     "centroid_y",
@@ -835,6 +943,7 @@ _SUMMARY_FIELDS = [
     "upper_area_fraction",
     "frame_prevalence",
     "median_light_area_fraction",
+    "median_dark_region_area_fraction",
     "median_filament_area_fraction",
     "median_filament_length_px",
     "median_bubble_area_fraction",

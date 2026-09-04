@@ -109,7 +109,7 @@ def test_core_spectrum_serialization_has_no_dynamic_selection_state():
     selection = _selector().select(spectrum.modes, spectrum.avg_amps2)
     assert selection.accepted
 
-    data = spectrum._to_dict(include_arrays=False)
+    data = spectrum.to_dict(include_arrays=False)
 
     assert "fit_range_selection" not in data
     assert "dynamic_range_selection" not in data

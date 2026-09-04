@@ -162,6 +162,15 @@ def test_make_gif_rejects_mismatched_frame_counts(tmp_path):
         )
 
 
+def test_make_gif_rejects_zero_frame_video(tmp_path):
+    """Test zero-frame videos fail before animation or saving begins."""
+    video = VesicleVideo(np.empty((0, 10, 10)))
+    panel = VesicleAnimationPanel(video)
+
+    with pytest.raises(ValueError, match="at least one frame"):
+        make_gif(tmp_path / "empty.gif", [panel])
+
+
 def test_make_gif_requires_at_least_one_panel(tmp_path):
     """Test an animation cannot be constructed without panels."""
     with pytest.raises(ValueError, match="At least one"):

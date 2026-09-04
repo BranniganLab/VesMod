@@ -91,7 +91,7 @@ def test_to_dict_serializes_all_physical_fit_results(monkeypatch):
     spectrum.extract_kc_from_fit(first_config)
     spectrum.extract_kc_from_fit(second_config)
 
-    data = spectrum._to_dict(include_arrays=False)
+    data = spectrum.to_dict(include_arrays=False)
 
     assert len(data["fit_results"]) == 2
     assert data["fit_results"][0]["lower_bound"] == 3

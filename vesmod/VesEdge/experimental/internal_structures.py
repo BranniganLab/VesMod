@@ -26,7 +26,7 @@ from vesmod.validation import (
     require_positive_real,
 )
 
-from .models import ImageContour
+from ..models import ImageContour
 
 
 @dataclass(frozen=True)
@@ -66,34 +66,23 @@ class InternalStructureConfig:
     min_filament_length_px : int
         Minimum connected skeleton length retained as a filament.
     bubble_edge_sigma : float
-        Negative-residual magnitude required to seed a bubble boundary or
-        compact dark-region mask. This can affect dark-region measurements
-        and the merged structure output.
+        Negative-residual magnitude required to seed a bubble boundary.
     bubble_edge_grow_sigma : float
-        Lower negative-residual magnitude through which bubble boundaries and
-        compact dark-region masks grow. Its absolute magnitude also gates
-        curvilinear ridge evidence, so it can affect dark-region measurements
-        and the merged structure output.
+        Lower negative-residual magnitude through which bubble boundaries grow.
+        Its absolute magnitude also gates curvilinear ridge evidence so weak
+        residual texture cannot contribute ridge structure on its own.
     bubble_closing_px : int
         Radius used to close small gaps in candidate bubble boundaries.
     min_bubble_area_px : int
-        Minimum area retained for an enclosed bubble or compact dark-region
-        mask. This can affect dark-region measurements and the merged
-        structure output.
+        Minimum enclosed bubble area.
     min_bubble_boundary_fraction : float
         Minimum fraction of an enclosed boundary supported by dark pixels.
     min_bubble_circularity : float
-        Minimum circularity retained for a dark-edged bubble or compact
-        dark-region mask. This can affect dark-region measurements and the
-        merged structure output.
+        Minimum circularity retained as a dark-edged bubble.
     min_bubble_solidity : float
-        Minimum filled fraction of a bubble or compact dark-region candidate's
-        convex hull. This can affect dark-region measurements and the merged
-        structure output.
+        Minimum filled fraction of a bubble candidate's convex hull.
     max_bubble_eccentricity : float
-        Maximum eccentricity retained for a circular or oval bubble or compact
-        dark-region mask. This can affect dark-region measurements and the
-        merged structure output.
+        Maximum eccentricity retained as a circular or oval bubble.
     max_bubble_area_fraction : float
         Maximum usable-interior fraction enclosed by one bubble.
     """
@@ -650,8 +639,7 @@ def _exclude_structure_boundary(
     while limiting the automatic expansion to one half of the vesicle's
     inradius so small vesicles retain a useful detection interior.
     """
-    distance_from_boundary = ndimage.distance_transform_edt(interior_mask)
-    inradius = float(np.max(distance_from_boundary))
+    inradius = float(np.max(ndimage.distance_transform_edt(interior_mask)))
     scale_margin = int(np.ceil(4.0 * max(config.filament_scales_px)))
     size_limited_margin = min(scale_margin, int(np.floor(0.5 * inradius)))
     exclusion_px = max(
@@ -660,7 +648,10 @@ def _exclude_structure_boundary(
     )
     if exclusion_px == 0:
         return interior_mask.copy()
-    return distance_from_boundary > exclusion_px
+    return ndimage.binary_erosion(
+        interior_mask,
+        structure=disk(exclusion_px),
+    )
 
 
 def _masked_gaussian_background(
@@ -816,8 +807,10 @@ def _suppress_bright_region_halos(
         return dark_mask, ridge_mask, skeletonize(ridge_mask), enclosed_mask
 
     halo_radius = int(np.ceil(4.0 * max(config.filament_scales_px)))
-    distance_from_bright = ndimage.distance_transform_edt(~bright_mask)
-    bright_neighborhood = distance_from_bright <= halo_radius
+    bright_neighborhood = ndimage.binary_dilation(
+        bright_mask,
+        structure=disk(halo_radius),
+    )
     dark_without_halo = _retain_compact_components(
         dark_mask & ~bright_neighborhood,
         config.min_bubble_area_px,

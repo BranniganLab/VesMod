@@ -13,9 +13,9 @@ from vesmod.VesEdge import (
     EdgeDetection,
     EdgeQCConfig,
     ImageContour,
-    InternalStructureRegion,
     QCFlag,
 )
+from vesmod.VesEdge.experimental import InternalStructureRegion
 from vesmod.cli import internal_structures_cli, vesedge_cli
 
 
@@ -33,13 +33,23 @@ def _args(tmp_path, checkpoint):
         threshold_sigma=4.0,
         min_region_area_px=9,
         light_grow_sigma=1.5,
-        filament_threshold_sigma=1.5,
-        filament_scales_px=(1.0, 2.0, 3.0),
-        min_filament_length_px=8,
+        min_light_circularity=0.2,
+        min_light_solidity=0.8,
+        max_light_eccentricity=0.95,
+        structure_boundary_exclusion_px=20,
+        filament_seed_threshold=0.7,
+        filament_grow_threshold=0.35,
+        filament_scales_px=(1.0, 2.0, 3.0, 4.0, 5.0, 6.0),
+        min_filament_length_px=20,
         bubble_edge_sigma=2.0,
-        bubble_closing_px=2,
-        min_bubble_area_px=25,
+        bubble_edge_grow_sigma=1.0,
+        bubble_closing_px=4,
+        min_bubble_area_px=100,
         min_bubble_boundary_fraction=0.45,
+        min_bubble_circularity=0.2,
+        min_bubble_solidity=0.8,
+        max_bubble_eccentricity=0.95,
+        max_bubble_area_fraction=0.5,
         save_masks=True,
         no_gif=True,
         overwrite=False,
@@ -69,7 +79,11 @@ def test_parse_args_selects_internal_structures_subcommand(monkeypatch, tmp_path
     assert args.output_dir == tmp_path
     assert args.save_masks
     assert args.background_sigma_px == pytest.approx(30.0)
-    assert args.filament_scales_px == pytest.approx([1.0, 2.0, 3.0])
+    assert args.structure_boundary_exclusion_px == 20
+    assert args.bubble_closing_px == 4
+    assert args.filament_scales_px == pytest.approx(
+        [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
+    )
 
 
 def test_process_checkpoint_writes_measurements_in_original_coordinates(
@@ -91,7 +105,9 @@ def test_process_checkpoint_writes_measurements_in_original_coordinates(
         usable_area_px = 25
         structured_area_px = 4
         structured_area_fraction = 0.16
+        structure_count = 1
         light_area_fraction = 0.0
+        dark_region_area_fraction = 0.0
         filament_area_fraction = 0.0
         filament_length_px = 0
         bubble_area_fraction = 0.0
@@ -115,7 +131,12 @@ def test_process_checkpoint_writes_measurements_in_original_coordinates(
 
         @staticmethod
         def to_full_frame_channel_mask(structure_type):
-            assert structure_type in {"light_region", "dark_filament", "bubble"}
+            assert structure_type in {
+                "light_region",
+                "dark_region",
+                "dark_filament",
+                "bubble",
+            }
             return np.zeros((10, 10), dtype=bool)
 
     monkeypatch.setattr(
@@ -356,10 +377,9 @@ def test_save_overlay_gif_uses_shared_qc_aware_renderer(tmp_path, monkeypatch):
     frames = np.zeros((1, 10, 10))
     edges = argparse.Namespace(source_path=tmp_path / "sample.nd2")
     result = argparse.Namespace(
-        light_area_fraction=0.2,
-        filament_length_px=8,
-        bubble_count=1,
-        to_full_frame_channel_mask=lambda _: np.zeros((10, 10), dtype=bool),
+        structured_area_fraction=0.2,
+        structure_count=1,
+        to_full_frame_mask=lambda: np.zeros((10, 10), dtype=bool),
     )
     observed = {}
 
@@ -399,6 +419,4 @@ def test_save_overlay_gif_uses_shared_qc_aware_renderer(tmp_path, monkeypatch):
     assert observed["edges"] is edges
     assert observed["path"] == tmp_path / "sample_internal_structures.gif"
     assert observed["decorator_result"] is None
-    assert observed["title"] == (
-        "frame 0: light=0.200, filament=8px, bubbles=1"
-    )
+    assert observed["title"] == "frame 0: structured=0.200, regions=1"
