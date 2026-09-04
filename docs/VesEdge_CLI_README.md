@@ -11,6 +11,7 @@ The intended workflow is:
         ▼
 QC-independent .npz checkpoints
         │
+        ├── vesedge gif ──────────────────────────────▶ inspection GIFs
         ├── vesedge qc with configuration A ──▶ filtered .npy files ──▶ EdgeMod
         ├── vesedge qc with configuration B ──▶ filtered .npy files ──▶ EdgeMod
         └── vesedge internal-structures ───────▶ interior measurements
@@ -37,6 +38,15 @@ vesedge qc "./checkpoints" \
     --curvature-threshold 0.059 \
     --max-relative-area-deviation 0.25 \
     --output-dir ./results/qc_standard
+```
+
+Render QC-colored inspection GIFs after QC:
+
+```bash
+vesedge gif "./checkpoints" \
+    --output-dir ./gifs/qc_standard \
+    --style qc \
+    --qc-dir ./results/qc_standard
 ```
 
 Analyze the filtered results:
@@ -92,7 +102,7 @@ Directory discovery treats file suffixes case-insensitively, so `.nd2` and `.ND2
 
 ## Output Location
 
-By default, `.npz` and GIF outputs are written beside each ND2 input.
+By default, `.npz` checkpoints are written beside each ND2 input.
 
 Use a dedicated checkpoint directory with:
 
@@ -100,24 +110,18 @@ Use a dedicated checkpoint directory with:
 vesedge extract "./videos" --output-dir ./checkpoints
 ```
 
-For a file named `sample.nd2`, extraction normally produces:
+For a file named `sample.nd2`, extraction produces:
 
 ```text
 sample.npz
-sample.gif
 ```
 
 When recursive input discovery is used with `--output-dir`, VesEdge preserves each input file's path relative to the selected input directory. For example, `videos/a/sample.nd2` and `videos/b/sample.nd2` produce `checkpoints/a/sample.npz` and `checkpoints/b/sample.npz` rather than colliding.
 
 The `.npz` file is the reusable extraction product. It contains successful detections, extraction failures, frame ordering, pixel-space native and analysis contours, the extraction configuration, and source-video provenance when available. It contains no QC decisions.
 
-The GIF overlays the extracted full contour on the original image frames for visual inspection.
-
-Disable GIF creation with:
-
-```bash
-vesedge extract "sample.nd2" --no-gif
-```
+GIFs are not created during extraction. Use the standalone `vesedge gif`
+command after extraction when visual inspection is needed.
 
 Existing checkpoints are not overwritten unless:
 
@@ -369,6 +373,59 @@ edgemod "./results/qc_permissive"
 ```
 
 The resulting EdgeMod estimates can be reported alongside each directory's `vesedge_qc.json` and `qc_summary.csv` to show whether the scientific conclusion depends strongly on QC choices.
+
+---
+
+# `vesedge gif`
+
+`vesedge gif` renders inspection animations from reusable `.npz` checkpoints.
+It reads the source-video path stored in each checkpoint and requires an
+explicit output directory.
+
+Render unannotated source frames:
+
+```bash
+vesedge gif "./checkpoints" \
+    --output-dir ./gifs/original \
+    --style original
+```
+
+Render extracted contours (the default style):
+
+```bash
+vesedge gif "./checkpoints" \
+    --output-dir ./gifs/edges \
+    --style edges
+```
+
+Render edges colored by their recorded QC result:
+
+```bash
+vesedge gif "./checkpoints" \
+    --output-dir ./gifs/qc_standard \
+    --style qc \
+    --qc-dir ./results/qc_standard
+```
+
+`--qc-dir` is required with `--style qc` and is invalid with the other styles.
+The directory must contain the paired QC `.npy` files and `vesedge_qc.json`
+written by `vesedge qc`. VesEdge reapplies the recorded configuration so
+accepted edges are shown in green and rejected edges in red. A completed run
+with no accepted frames can therefore produce a red-only GIF.
+
+Directory and glob selection follows the other VesEdge commands. Use
+`--recursive` for nested checkpoint directories; output GIFs retain the same
+relative directory structure. Existing GIFs are skipped unless `--overwrite`
+is supplied.
+
+For `checkpoints/sample01.npz` and `checkpoints/sample02.npz`, the edge-style
+command above creates:
+
+```text
+gifs/edges/
+├── sample01.gif
+└── sample02.gif
+```
 
 ---
 

@@ -77,6 +77,7 @@ ND2 videos
    ▼
 QC-independent .npz checkpoints
    │
+   ├── vesedge gif ──────────────────────────▶ inspection GIFs
    ├── vesedge qc, configuration A ──▶ accepted .npy files
    ├── vesedge qc, configuration B ──▶ accepted .npy files
    └── vesedge qc, configuration C ──▶ accepted .npy files
@@ -97,19 +98,35 @@ vesedge extract "./videos" \
     --output-dir ./checkpoints
 ```
 
-This creates one `.npz` checkpoint per input video and, unless `--no-gif` is used, a GIF showing the extracted contours.
+This creates one reusable `.npz` checkpoint per input video:
 
 ```text
 checkpoints/
 ├── sample01.npz
-├── sample01.gif
-├── sample02.npz
-└── sample02.gif
+└── sample02.npz
 ```
 
 The checkpoint contains extraction state only. It does not store QC decisions.
 
-### 2. Apply curvature QC
+### 2. Create inspection GIFs
+
+GIF generation is an explicit post-extraction step. Render the source frames,
+the extracted edges, or QC-colored edges into separate output directories:
+
+```bash
+vesedge gif "./checkpoints" --output-dir ./gifs/original --style original
+vesedge gif "./checkpoints" --output-dir ./gifs/edges --style edges
+vesedge gif "./checkpoints" \
+    --output-dir ./gifs/qc_standard \
+    --style qc \
+    --qc-dir ./results/qc_standard
+```
+
+The `qc` style requires a completed `vesedge qc` run and its output directory
+via `--qc-dir`; run that command after the next step. Add `--recursive` when the
+checkpoint input contains nested directories.
+
+### 3. Apply curvature QC
 
 Use a dedicated output directory for each QC configuration:
 
@@ -135,7 +152,7 @@ results/qc_standard/
 
 `vesedge_qc.json` records the exact QC configuration and input selection. `qc_summary.csv` reports extraction failures, curvature rejections, area-deviation rejections, accepted-frame counts, and accepted fractions for each checkpoint. When area QC produces `qc_result.area`, each checkpoint also receives an `*.area_qc.csv` file containing its per-frame area measurements and an `*.area_qc.png` area-versus-frame diagnostic plot. These two files are not generated when area QC is disabled with `--no-area-qc`.
 
-### 3. Compare alternate QC configurations
+### 4. Compare alternate QC configurations
 
 For example:
 
@@ -149,7 +166,7 @@ Keeping each QC configuration in its own directory makes the analysis provenance
 
 Do not store unrelated `.npy` files in a QC output directory: an incompatible rerun with `--overwrite` clears NumPy arrays beneath that directory before writing the new result.
 
-### 4. Analyze each QC result with EdgeMod
+### 5. Analyze each QC result with EdgeMod
 
 The default EdgeMod CLI uses the historical fixed q range, q = 3–7:
 
@@ -261,7 +278,7 @@ Both successful physical fits remain available in `spectrum.fit_results`. Each `
 | File | Meaning |
 | --- | --- |
 | `.npz` | Reusable, QC-independent VesEdge extraction checkpoint |
-| `.gif` | Visual inspection of raw image frames with extracted contours |
+| `.gif` | Visual inspection created explicitly by `vesedge gif` in original, edge-overlay, or QC-colored style |
 | `.npy` | Accepted contour radii for one QC configuration, ready for EdgeMod |
 | `vesedge_qc.json` | QC configuration and source path for one QC batch |
 | `qc_summary.csv` | Per-video QC counts and accepted fractions for one QC batch |
