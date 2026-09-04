@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from vesmod.VesEdge.internal_structures import (
+from vesmod.VesEdge.experimental.internal_structures import (
     InternalStructureConfig,
     _suppress_bright_region_halos,
     _suppress_enclosed_boundary_halos,

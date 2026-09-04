@@ -26,7 +26,7 @@ from vesmod.validation import (
     require_positive_real,
 )
 
-from .models import ImageContour
+from ..models import ImageContour
 
 
 @dataclass(frozen=True)
