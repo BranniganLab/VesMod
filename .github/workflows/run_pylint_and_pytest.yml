@@ -31,3 +31,6 @@ jobs:
     - name: Running approval tests with pytest
       run: |
         python -m pytest ./tests/test_edge_extractor_quality.py
+    - name: Running end-to-end acceptance test with pytest
+      run: |
+        python -m pytest ./tests/test_end_to_end_acceptance.py
