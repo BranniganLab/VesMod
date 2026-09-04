@@ -38,7 +38,7 @@ EXTRACTION_CONFIG = EdgeExtractionConfig(
     n_angular_samples=120,
 )
 QC_CONFIG = EdgeQCConfig(
-    curvature_threshold=5.0,
+    curvature_threshold=0.059,
     enable_curvature_qc=True,
     max_relative_area_deviation=0.25,
     enable_area_qc=True,

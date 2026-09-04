@@ -119,8 +119,9 @@ class EdgeQC:
     flags : set[QCFlag]
         QC checks that the edge has failed.
     curvature_score : float | None
-        Maximum absolute wrapped finite second difference of the analysis
-        contour. None if curvature QC has not been run.
+        Maximum absolute wrapped finite second difference of the
+        median-radius-normalized analysis contour. This score is dimensionless.
+        None if curvature QC has not been run.
     area_pixels2 : float | None
         Area enclosed by the native contour in squared pixels. None if area QC
         has not been run.
@@ -198,8 +199,9 @@ class CurvatureQCResult:
     Attributes
     ----------
     scores : tuple[float, ...]
-        Curvature score for each successfully extracted detection, in detection
-        order. Non-finite contours are represented by ``nan``.
+        Dimensionless normalized-curvature score for each successfully
+        extracted detection, in detection order. Non-finite contours are
+        represented by ``nan``.
     rejected_count : int
         Number of detections rejected by curvature QC.
     """

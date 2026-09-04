@@ -88,6 +88,7 @@ def test_parse_args_selects_qc_subcommand(monkeypatch, tmp_path):
     assert args.input_path == Path("checkpoints")
     assert args.output_dir == tmp_path
     assert args.no_curvature_qc
+    assert args.curvature_threshold == pytest.approx(0.059)
     assert args.max_relative_area_deviation == pytest.approx(0.25)
     assert not args.no_area_qc
 
