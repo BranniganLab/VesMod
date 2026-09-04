@@ -8,6 +8,12 @@ def pytest_addoption(parser):
         default=False,
         help="Update reference values instead of asserting"
     )
+    parser.addoption(
+        "--update-acceptance-reference",
+        action="store_true",
+        default=False,
+        help="Update end-to-end canonical outputs instead of asserting",
+    )
 
 
 def pytest_collection_modifyitems(config, items):
