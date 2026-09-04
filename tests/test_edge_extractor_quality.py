@@ -77,10 +77,10 @@ def sample_edges(filename, processed_sample_edges):
     )
     extraction_config = EdgeExtractionConfig(
         pixels_per_micron=1.0,
-        n_angular_samples=None,
+        n_angular_samples=120,
     )
     qc_config = EdgeQCConfig(
-        curvature_threshold=10.0,
+        curvature_threshold=0.059,
         enable_curvature_qc=True,
         enable_area_qc=False,
     )

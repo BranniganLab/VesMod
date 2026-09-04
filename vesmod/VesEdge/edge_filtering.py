@@ -15,7 +15,9 @@ def check_curvature(
     """Check a detected edge for excessive local curvature.
 
     The edge fails curvature QC when the largest absolute wrapped finite
-    second difference of its analysis contour exceeds ``threshold``.
+    second difference of its median-radius-normalized analysis contour exceeds
+    ``threshold``. The resulting dimensionless score is invariant to uniform
+    spatial scaling of the contour.
 
     Raises
     ------
@@ -27,8 +29,11 @@ def check_curvature(
     if threshold < 0:
         raise ValueError("threshold must be non-negative.")
 
+    normalized_radii = (
+        edge.analysis_contour.r / np.median(edge.analysis_contour.r)
+    )
     finite_second_difference = measure_wrapped_finite_second_difference(
-        edge.analysis_contour.r
+        normalized_radii
     )
 
     if not np.all(np.isfinite(finite_second_difference)):

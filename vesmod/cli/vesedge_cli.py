@@ -146,10 +146,11 @@ def _add_qc_parser(subparsers) -> None:
     parser.add_argument(
         "--curvature-threshold",
         type=float,
-        default=5.0,
+        default=0.059,
         help=(
-            "Maximum wrapped finite second difference allowed by curvature QC. "
-            "Default: 5."
+            "Maximum dimensionless wrapped finite second difference of the "
+            "median-radius-normalized contour allowed by curvature QC. "
+            "Default: 0.059."
         ),
     )
     parser.add_argument(
