@@ -14,12 +14,10 @@ import numpy as np
 from vesmod.VesEdge import (
     EdgeDetection,
     EdgeQCConfig,
-    VesicleEdges,
-    VesicleVideo,
-)
-from vesmod.VesEdge.experimental import (
     InternalStructureConfig,
     InternalStructureFrameResult,
+    VesicleEdges,
+    VesicleVideo,
     detect_internal_structures,
     summarize_internal_structures,
 )
@@ -161,15 +159,21 @@ def add_parser(subparsers) -> None:
         "--bubble-edge-sigma",
         type=float,
         default=2.0,
-        help="Dark residual threshold used for bubble boundaries.",
+        help=(
+            "Negative-residual threshold for bubble boundaries and compact "
+            "dark-region masks; affects dark-region measurements and merged "
+            "structure output."
+        ),
     )
     parser.add_argument(
         "--bubble-edge-grow-sigma",
         type=float,
         default=1.0,
         help=(
-            "Lower dark-residual threshold used to grow bubble edges; its "
-            "absolute magnitude also gates curvilinear ridge evidence."
+            "Lower negative-residual threshold for growing bubble boundaries "
+            "and compact dark-region masks; its absolute magnitude also gates "
+            "curvilinear ridge evidence and can affect dark-region "
+            "measurements and merged structure output."
         ),
     )
     parser.add_argument(
@@ -182,7 +186,11 @@ def add_parser(subparsers) -> None:
         "--min-bubble-area-px",
         type=int,
         default=100,
-        help="Minimum area enclosed by a detected bubble. Default: 100.",
+        help=(
+            "Minimum area for enclosed bubbles and compact dark-region masks; "
+            "affects dark-region measurements and merged structure output. "
+            "Default: 100."
+        ),
     )
     parser.add_argument(
         "--min-bubble-boundary-fraction",
@@ -194,19 +202,31 @@ def add_parser(subparsers) -> None:
         "--min-bubble-circularity",
         type=float,
         default=0.2,
-        help="Minimum circularity for a dark-edged bubble. Default: 0.2.",
+        help=(
+            "Minimum circularity for dark-edged bubbles and compact "
+            "dark-region masks; affects dark-region measurements and merged "
+            "structure output. Default: 0.2."
+        ),
     )
     parser.add_argument(
         "--min-bubble-solidity",
         type=float,
         default=0.8,
-        help="Minimum solidity for a dark-edged bubble. Default: 0.8.",
+        help=(
+            "Minimum solidity for dark-edged bubbles and compact dark-region "
+            "masks; affects dark-region measurements and merged structure "
+            "output. Default: 0.8."
+        ),
     )
     parser.add_argument(
         "--max-bubble-eccentricity",
         type=float,
         default=0.95,
-        help="Maximum dark-edged bubble eccentricity. Default: 0.95.",
+        help=(
+            "Maximum eccentricity for dark-edged bubbles and compact "
+            "dark-region masks; affects dark-region measurements and merged "
+            "structure output. Default: 0.95."
+        ),
     )
     parser.add_argument(
         "--max-bubble-area-fraction",
