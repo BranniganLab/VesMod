@@ -13,9 +13,9 @@ from vesmod.VesEdge import (
     EdgeDetection,
     EdgeQCConfig,
     ImageContour,
-    InternalStructureRegion,
     QCFlag,
 )
+from vesmod.VesEdge.experimental import InternalStructureRegion
 from vesmod.cli import internal_structures_cli, vesedge_cli
 
 

@@ -4,8 +4,8 @@ import numpy as np
 import pytest
 from skimage.measure import label
 
-from vesmod.VesEdge import internal_structures
-from vesmod.VesEdge.internal_structures import (
+from vesmod.VesEdge.experimental import internal_structures
+from vesmod.VesEdge.experimental.internal_structures import (
     InternalStructureConfig,
     detect_internal_structures,
     summarize_internal_structures,

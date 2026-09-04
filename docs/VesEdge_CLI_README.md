@@ -489,6 +489,11 @@ As with QC, incompatible provenance is rejected unless `--overwrite` is supplied
 
 The CLI mirrors the Python API separation:
 
+Stable extraction, checkpoint, and QC objects are exported from
+`vesmod.VesEdge`. Internal-structure detection is experimental and is
+intentionally exported only from `vesmod.VesEdge.experimental`; callers should
+expect its configuration, result models, and measurements to evolve.
+
 ```python
 from vesmod.VesEdge import (
     EdgeExtractionConfig,
@@ -522,6 +527,19 @@ edges.save_edge_to_npy("sample.npy")
 ```
 
 A completed run is summarized by `edges.qc_result`; individual detections retain their curvature score and pass/fail flag through `EdgeDetection.qc`.
+
+Internal-structure measurements use the experimental namespace:
+
+```python
+from vesmod.VesEdge.experimental import (
+    InternalStructureConfig,
+    detect_internal_structures,
+    summarize_internal_structures,
+)
+
+result = detect_internal_structures(frame, contour, InternalStructureConfig())
+summary = summarize_internal_structures([result])
+```
 
 ---
 

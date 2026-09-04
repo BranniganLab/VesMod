@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from vesmod.VesEdge.internal_structures import InternalStructureConfig
+from vesmod.VesEdge.experimental.internal_structures import InternalStructureConfig
 
 
 def test_unified_internal_structure_config_normalizes_numpy_scalars():
