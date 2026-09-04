@@ -63,3 +63,7 @@ def run(args) -> None:
         summary_rows,
         internal_structures_cli._SUMMARY_FIELDS,
     )
+    internal_structures_cli._record_managed_outputs(
+        args.output_dir,
+        summary_rows,
+    )
