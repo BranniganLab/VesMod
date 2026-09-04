@@ -15,10 +15,10 @@ inputs. Integer identities and configuration metadata must match exactly.
 Floating-point scientific outputs use tight tolerances; the nonlinear fit uses
 a slightly wider relative tolerance to allow harmless optimizer differences.
 
-Each name in `ACCEPTANCE_CASES` has a matching input under
-`tests/sample_vesicle_videos/` and canonical file here. This makes adding a
-second biologically distinct video straightforward without changing the test
-design.
+Each entry in `ACCEPTANCE_CASES` explicitly pairs an input filename under
+`tests/sample_vesicle_videos/` with a generic reference filename here. The
+generic names distinguish these files from ordinary VesEdge checkpoints and
+make adding a second biologically distinct video straightforward.
 
 To intentionally approve a scientific-output change, run:
 

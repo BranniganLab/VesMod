@@ -28,7 +28,9 @@ from vesmod.VesEdge import (
 
 
 TEST_ROOT = Path(__file__).parent
-ACCEPTANCE_CASES = ("ND_Acquisition_2_crop",)
+ACCEPTANCE_CASES = (
+    ("ND_Acquisition_2_crop", "reference_video_1"),
+)
 REFERENCE_SCHEMA_VERSION = 1
 
 EXTRACTION_CONFIG = EdgeExtractionConfig(
@@ -55,9 +57,9 @@ def _fixture_path(case_name: str) -> Path:
     return TEST_ROOT / "sample_vesicle_videos" / f"{case_name}.npy"
 
 
-def _reference_path(case_name: str) -> Path:
+def _reference_path(reference_name: str) -> Path:
     """Return the canonical scientific outputs for one acceptance case."""
-    return TEST_ROOT / "acceptance" / f"{case_name}.npz"
+    return TEST_ROOT / "acceptance" / f"{reference_name}.npz"
 
 
 def _sha256(path: Path) -> str:
@@ -217,11 +219,20 @@ def _assert_matches_reference(
         )
 
 
-@pytest.mark.parametrize("case_name", ACCEPTANCE_CASES)
-def test_end_to_end_acceptance(request, tmp_path, case_name):
+@pytest.mark.parametrize(
+    ("case_name", "reference_name"),
+    ACCEPTANCE_CASES,
+    ids=[reference_name for _, reference_name in ACCEPTANCE_CASES],
+)
+def test_end_to_end_acceptance(
+    request,
+    tmp_path,
+    case_name,
+    reference_name,
+):
     """Require the full scientific pipeline to match reviewed output."""
     measured = _run_pipeline(case_name, tmp_path)
-    reference_path = _reference_path(case_name)
+    reference_path = _reference_path(reference_name)
     if request.config.getoption("--update-acceptance-reference"):
         reference_path.parent.mkdir(parents=True, exist_ok=True)
         np.savez_compressed(reference_path, **measured)
