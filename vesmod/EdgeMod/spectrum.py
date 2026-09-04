@@ -235,7 +235,7 @@ class Spectrum:
             path,
         )
 
-    def _to_dict(self, include_arrays=True) -> dict:
+    def to_dict(self, include_arrays=True) -> dict:
         """Return spectrum state and retained physical-fit provenance."""
         data = {
             "r0": float(self.r0) if getattr(self, "r0", None) is not None else None,
@@ -265,6 +265,10 @@ class Spectrum:
 
         return data
 
+    def _to_dict(self, include_arrays=True) -> dict:
+        """Return spectrum state through the legacy private API."""
+        return self.to_dict(include_arrays=include_arrays)
+
     def to_json(
         self,
         outfile: str | Path,
@@ -274,4 +278,4 @@ class Spectrum:
         """Serialize spectrum state and retained fit records to JSON."""
         outfile = Path(outfile).with_suffix('.json')
         with outfile.open("w", encoding="utf-8") as f:
-            json.dump(self._to_dict(include_arrays=include_arrays), f, indent=indent)
+            json.dump(self.to_dict(include_arrays=include_arrays), f, indent=indent)

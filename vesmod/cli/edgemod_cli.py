@@ -29,7 +29,7 @@ from vesmod.EdgeMod.experimental.temporal_rms_plotting import (
     save_temporal_rms_histogram,
 )
 
-from .input_selection import InputPathsAction, select_input_files
+from vesmod.cli.input_selection import InputPathsAction, select_input_files
 
 
 def parse_args() -> argparse.Namespace:
@@ -256,7 +256,7 @@ def _write_output(
         spectrum.to_json(output_path)
         return
 
-    data = spectrum._to_dict(include_arrays=True)
+    data = spectrum.to_dict(include_arrays=True)
     data["experimental"] = {
         "dynamic_range_selection": selection.to_dict(),
     }
