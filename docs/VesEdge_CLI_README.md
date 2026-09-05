@@ -26,8 +26,7 @@ Extract a directory of ND2 videos:
 ```bash
 vesedge extract "./videos" \
     --pixels-per-micron 13.44 \
-    --downsample \
-    --n-samples 120 \
+    --n-angular-samples 120 \
     --output-dir ./checkpoints
 ```
 
@@ -70,28 +69,34 @@ deduplication, and `--recursive` consistently. Double quotes also allow shell
 variables such as `"$DATA_DIR/*.nd2"` to expand while preserving the wildcard
 for VesEdge.
 
+Because extraction now requires an explicit calibration choice, each example
+below must be combined with either `--pixels-per-micron VALUE` or
+`--assume-one-pixel-per-micron`.
+
 Extract one video:
 
 ```bash
-vesedge extract "sample.nd2"
+vesedge extract "sample.nd2" --pixels-per-micron 13.44
 ```
 
 Extract all ND2 files in a directory:
 
 ```bash
-vesedge extract "./videos"
+vesedge extract "./videos" --pixels-per-micron 13.44
 ```
 
 Search recursively:
 
 ```bash
-vesedge extract "./videos" --recursive
+vesedge extract "./videos" --recursive --pixels-per-micron 13.44
 ```
 
 Select multiple files or patterns by listing each selector separately:
 
 ```bash
-vesedge extract "./condition_a/*.nd2" "./condition_b/*.nd2" --recursive
+vesedge extract "./condition_a/*.nd2" "./condition_b/*.nd2" \
+    --recursive \
+    --pixels-per-micron 13.44
 ```
 
 Do not remove the quotes from wildcard examples. An unquoted wildcard may be
@@ -107,7 +112,9 @@ By default, `.npz` checkpoints are written beside each ND2 input.
 Use a dedicated checkpoint directory with:
 
 ```bash
-vesedge extract "./videos" --output-dir ./checkpoints
+vesedge extract "./videos" \
+    --pixels-per-micron 13.44 \
+    --output-dir ./checkpoints
 ```
 
 For a file named `sample.nd2`, extraction produces:
@@ -118,7 +125,7 @@ sample.npz
 
 When recursive input discovery is used with `--output-dir`, VesEdge preserves each input file's path relative to the selected input directory. For example, `videos/a/sample.nd2` and `videos/b/sample.nd2` produce `checkpoints/a/sample.npz` and `checkpoints/b/sample.npz` rather than colliding.
 
-The `.npz` file is the reusable extraction product. It contains successful detections, extraction failures, frame ordering, pixel-space native and analysis contours, the extraction configuration, and source-video provenance when available. It contains no QC decisions.
+The `.npz` file is the reusable extraction product. It contains successful detections, extraction failures, frame ordering, pixel-space native and analysis contours, the extraction configuration, calibration provenance, and source-video provenance when available. It contains no QC decisions.
 
 GIFs are not created during extraction. Use the standalone `vesedge gif`
 command after extraction when visual inspection is needed.
@@ -126,10 +133,12 @@ command after extraction when visual inspection is needed.
 Existing checkpoints are not overwritten unless:
 
 ```bash
-vesedge extract "sample.nd2" --overwrite
+vesedge extract "sample.nd2" --pixels-per-micron 13.44 --overwrite
 ```
 
 ## Microscope Calibration
+
+For calibrated microscopy, provide the measured calibration explicitly:
 
 ```bash
 vesedge extract "sample.nd2" --pixels-per-micron 13.44
@@ -137,19 +146,35 @@ vesedge extract "sample.nd2" --pixels-per-micron 13.44
 
 `--pixels-per-micron` stores the microscope calibration in the checkpoint. Accepted contours are converted from pixels to microns later, when QC output is exported to `.npy`.
 
-Default: `1.0`.
+There is no silent `1 pixel / micron` CLI default. Workflows that intentionally use unit calibration must opt in explicitly:
+
+```bash
+vesedge extract "sample.nd2" --assume-one-pixel-per-micron
+```
+
+New checkpoints record whether the calibration was `measured` or `assumed`. Older checkpoints remain loadable and use `unspecified` because that provenance was not recorded historically.
 
 ## Angular Sampling
 
 Use fixed angular sampling with:
 
 ```bash
-vesedge extract "sample.nd2" --downsample --n-samples 120
+vesedge extract "sample.nd2" \
+    --pixels-per-micron 13.44 \
+    --n-angular-samples 120
 ```
 
-`--n-samples` defaults to `120` and is used only when `--downsample` is provided.
+`--n-angular-samples` defaults to `120`, matching `EdgeExtractionConfig` in the Python API.
 
-Without `--downsample`, the extractor's native angular sampling is retained as the analysis contour. Successful detections must therefore have consistent analysis-contour lengths.
+To retain the extractor's native angular sampling, request that explicitly:
+
+```bash
+vesedge extract "sample.nd2" \
+    --pixels-per-micron 13.44 \
+    --n-angular-samples native
+```
+
+The previous coupled `--downsample --n-samples N` interface has been removed. See [VesEdge extraction-default migration](VesEdge_extraction_defaults_migration.md) for migration examples.
 
 ## Extraction Algorithm
 
@@ -163,6 +188,7 @@ Use an importable custom extractor with:
 
 ```bash
 vesedge extract "sample.nd2" \
+    --pixels-per-micron 13.44 \
     --extractor my_package.my_module:my_edge_extractor
 ```
 
@@ -170,6 +196,7 @@ or a Python source file with:
 
 ```bash
 vesedge extract "sample.nd2" \
+    --pixels-per-micron 13.44 \
     --extractor-file ./my_extractor.py \
     --extractor-name my_edge_extractor
 ```
@@ -569,6 +596,7 @@ edges = video.extract_edges(
     EdgeExtractionConfig(
         pixels_per_micron=13.44,
         n_angular_samples=120,
+        calibration_source="measured",
     ),
 )
 edges.save_checkpoint("sample.npz")
@@ -609,9 +637,17 @@ summary = summarize_internal_structures([result])
 
 If extraction fails on every frame, VesEdge reports the extractor errors and does not produce a checkpoint.
 
+### Extraction reports that calibration is required
+
+Provide the microscope calibration with `--pixels-per-micron VALUE`. If the workflow intentionally uses unit calibration, opt in explicitly with `--assume-one-pixel-per-micron`.
+
 ### Inconsistent angular sample counts
 
-If downsampling is disabled, successful detections must have consistent analysis-contour lengths. Enable `--downsample` or modify the extractor to return consistent sampling.
+The default analysis contour has 120 evenly spaced angular samples. If you explicitly use `--n-angular-samples native`, successful detections must have consistent analysis-contour lengths; otherwise use a fixed positive sample count or modify the extractor to return consistent sampling.
+
+### Old `--downsample` or `--n-samples` arguments are unrecognized
+
+Replace the coupled options with `--n-angular-samples N`. Use `--n-angular-samples native` when you intentionally want to preserve native extractor sampling.
 
 ### No frames pass QC
 
