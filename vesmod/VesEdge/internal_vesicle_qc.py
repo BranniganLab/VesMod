@@ -95,7 +95,9 @@ def check_internal_vesicle_selection(
     if not detections:
         raise ValueError("Internal-vesicle QC requires successful detections.")
     if any(
-        edge.frame_index is None or edge.frame_index >= video.shape[0]
+        edge.frame_index is None
+        or edge.frame_index < 0
+        or edge.frame_index >= video.shape[0]
         for edge in detections
     ):
         raise ValueError(

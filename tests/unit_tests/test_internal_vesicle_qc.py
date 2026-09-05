@@ -1,6 +1,7 @@
 """Tests for detecting a wrongly traced vesicle inside a larger vesicle."""
 
 import numpy as np
+import pytest
 
 from vesmod.VesEdge import EdgeQCConfig
 from vesmod.VesEdge.internal_vesicle_qc import (
@@ -85,3 +86,19 @@ def test_isolated_outer_boundary_does_not_reject_video():
     assert result.positive_frame_fraction < 0.5
     assert result.rejected_count == 0
     assert all(detection.qc.passed for detection in detections)
+
+
+def test_negative_frame_index_is_rejected():
+    """Negative indices must not silently select frames from the video end."""
+    detection = _detection(radius=12.0, frame_index=-1)
+    config = EdgeQCConfig(
+        curvature_threshold=1.0,
+        enable_internal_vesicle_qc=True,
+    )
+
+    with pytest.raises(ValueError, match="do not match detection indices"):
+        check_internal_vesicle_selection(
+            np.stack([_ring_frame(12.0, 32.0)]),
+            [detection],
+            config,
+        )
