@@ -182,6 +182,19 @@ def _assert_matches_reference(
     with np.load(reference_path, allow_pickle=False) as stored:
         expected = {key: stored[key] for key in stored.files}
 
+    # Schema-v1 references created before calibration provenance was added do
+    # not contain this metadata field. Treat the known acceptance calibration
+    # as measured during the migration; regenerated references write it
+    # explicitly and therefore bypass this compatibility path.
+    expected_metadata = json.loads(expected["metadata_json"].item())
+    if "calibration_source" not in expected_metadata["extraction_config"]:
+        expected_metadata["extraction_config"]["calibration_source"] = (
+            EXTRACTION_CONFIG.calibration_source
+        )
+        expected["metadata_json"] = np.asarray(
+            json.dumps(expected_metadata, sort_keys=True)
+        )
+
     assert measured.keys() == expected.keys()
     exact_keys = {
         "metadata_json",
