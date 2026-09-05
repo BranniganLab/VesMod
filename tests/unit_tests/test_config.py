@@ -116,7 +116,14 @@ def test_edge_qc_config_normalizes_numeric_thresholds():
     assert config.max_relative_area_deviation == 0.25
 
 
-@pytest.mark.parametrize("field", ["enable_curvature_qc", "enable_area_qc"])
+@pytest.mark.parametrize(
+    "field",
+    [
+        "enable_curvature_qc",
+        "enable_area_qc",
+        "enable_internal_vesicle_qc",
+    ],
+)
 def test_edge_qc_config_requires_boolean_enable_flags(field):
     """QC enable flags are part of the validated config invariant."""
     kwargs = {

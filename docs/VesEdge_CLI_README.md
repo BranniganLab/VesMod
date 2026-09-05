@@ -306,6 +306,36 @@ vesedge qc "./checkpoints" \
 
 The trajectory median assumes that most successful detections trace the correct object. The threshold is an absolute fractional change rather than a MAD-scaled z-score, so its meaning does not depend on how narrowly normal areas happen to vary. Compare the area diagnostic across representative acquisitions before treating the default as universal.
 
+## Internal-Vesicle Mis-Selection QC
+
+Area-deviation QC cannot detect a stable mistake in which the edge detector
+traces a small vesicle located inside the intended larger vesicle. Enable the
+optional image-based check with:
+
+```bash
+vesedge qc "./checkpoints" \
+    --internal-vesicle-qc \
+    --output-dir ./results/qc_internal_vesicles
+```
+
+This is an edge-selection QC check, not internal-structure measurement. It
+searches outside the traced contour for radial intensity-gradient evidence of
+a larger enclosing membrane and aggregates that evidence across frames.
+
+The inexpensive size gate runs first. If the median traced contour occupies at
+least half of the image, it is considered too large to plausibly be an internal
+vesicle and no radial image inspection runs. Change that cutoff with
+`--max-internal-vesicle-area-fraction`; change the fraction of positive frames
+required to reject the video with `--internal-vesicle-min-frame-fraction`.
+
+Each enabled run writes `*.internal_vesicle_qc.csv`, containing the quantitative
+enclosing-boundary angular-coverage score for each inspected frame. The video
+summary records the traced area fraction, positive-frame fraction, rejection
+count, and a human-readable reason. The implementation should be evaluated on
+the documented failure cases `DOPC_C1P_92.5_7.5/ND Acquisition 25_crop` and
+`DOPC_C16_95_5/ND Acquisition 20_crop` when those source acquisitions are
+available.
+
 
 ## QC Outputs
 
@@ -346,6 +376,7 @@ This file records:
 - whether curvature QC was enabled;
 - the maximum relative area deviation;
 - whether area QC was enabled.
+- whether internal-vesicle QC was enabled and all of its thresholds.
 
 Consequently, recursive and non-recursive runs, or runs resolving to different checkpoint sets, have different provenance even if their QC thresholds are identical.
 
@@ -358,6 +389,7 @@ The summary contains one row per selected checkpoint with:
 - extraction failures;
 - curvature rejections;
 - area-deviation rejections;
+- internal-vesicle inspection, scores, and rejections;
 - accepted frames;
 - accepted fraction;
 - processing status;

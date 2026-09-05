@@ -119,6 +119,18 @@ def test_run_qc_records_aggregate_results(edges, qc_config):
     assert edges.qc_result.curvature.rejected_count == 0
     assert edges.qc_result.area is not None
     assert edges.qc_result.area.rejected_count == 0
+    assert edges.qc_result.internal_vesicle is None
+
+
+def test_run_qc_requires_frames_for_internal_vesicle_check(edges):
+    """Image-based QC cannot run from contours alone."""
+    config = EdgeQCConfig(
+        curvature_threshold=100.0,
+        enable_internal_vesicle_qc=True,
+    )
+
+    with pytest.raises(ValueError, match="source video frames"):
+        edges.run_qc(config)
 
 
 def test_run_qc_preserves_frame_indices(edges, qc_config):

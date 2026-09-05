@@ -187,10 +187,23 @@ def _assert_matches_reference(
     # as measured during the migration; regenerated references write it
     # explicitly and therefore bypass this compatibility path.
     expected_metadata = json.loads(expected["metadata_json"].item())
+    metadata_migrated = False
     if "calibration_source" not in expected_metadata["extraction_config"]:
         expected_metadata["extraction_config"]["calibration_source"] = (
             EXTRACTION_CONFIG.calibration_source
         )
+        metadata_migrated = True
+
+    # Schema-v1 references also predate optional internal-vesicle QC. Missing
+    # fields inherit the current disabled/default configuration; any explicit
+    # stored value is still compared exactly.
+    expected_qc_config = expected_metadata["qc_config"]
+    for key, value in asdict(QC_CONFIG).items():
+        if key not in expected_qc_config:
+            expected_qc_config[key] = value
+            metadata_migrated = True
+
+    if metadata_migrated:
         expected["metadata_json"] = np.asarray(
             json.dumps(expected_metadata, sort_keys=True)
         )

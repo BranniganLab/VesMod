@@ -16,6 +16,7 @@ from .models import (
     EdgeDetectionFailure,
     EdgeResult,
     ImageContour,
+    InternalVesicleQCResult,
     QCFlag,
     VesicleQCResult,
 )
@@ -35,6 +36,7 @@ __all__ = [
     "EdgeResult",
     "extract_edge_from_frame",
     "ImageContour",
+    "InternalVesicleQCResult",
     "make_gif",
     "QCFlag",
     "TimeSeriesAnimationPanel",

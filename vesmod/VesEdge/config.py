@@ -88,12 +88,26 @@ class EdgeQCConfig:
         median contour area. Default is 0.25.
     enable_area_qc : bool
         Whether trajectory-level contour-area QC runs. Default is True.
+    enable_internal_vesicle_qc : bool
+        Whether QC checks for persistent tracing of a smaller vesicle enclosed
+        by the intended vesicle. Default is False.
+    max_internal_vesicle_area_fraction : float
+        Maximum fraction of the image that a traced contour may occupy and
+        still qualify for the more expensive enclosing-membrane inspection.
+        Default is 0.5.
     """
 
     curvature_threshold: float
     enable_curvature_qc: bool = True
     max_relative_area_deviation: float = 0.25
     enable_area_qc: bool = True
+    enable_internal_vesicle_qc: bool = False
+    max_internal_vesicle_area_fraction: float = 0.5
+    internal_vesicle_min_radius_ratio: float = 1.15
+    internal_vesicle_min_separation_pixels: float = 5.0
+    internal_vesicle_gradient_ratio: float = 0.5
+    internal_vesicle_min_angular_coverage: float = 0.6
+    internal_vesicle_min_frame_fraction: float = 0.5
 
     def __post_init__(self) -> None:
         """Validate quality-control configuration parameters.
@@ -115,15 +129,75 @@ class EdgeQCConfig:
             "max_relative_area_deviation",
             include_one=False,
         )
+        max_internal_vesicle_area_fraction = require_fraction(
+            self.max_internal_vesicle_area_fraction,
+            "max_internal_vesicle_area_fraction",
+        )
+        internal_vesicle_min_angular_coverage = require_fraction(
+            self.internal_vesicle_min_angular_coverage,
+            "internal_vesicle_min_angular_coverage",
+        )
+        internal_vesicle_min_frame_fraction = require_fraction(
+            self.internal_vesicle_min_frame_fraction,
+            "internal_vesicle_min_frame_fraction",
+        )
+        internal_vesicle_min_radius_ratio = require_positive_real(
+            self.internal_vesicle_min_radius_ratio,
+            "internal_vesicle_min_radius_ratio",
+        )
+        if internal_vesicle_min_radius_ratio <= 1:
+            raise ValueError(
+                "internal_vesicle_min_radius_ratio must be greater than 1."
+            )
+        internal_vesicle_gradient_ratio = require_nonnegative_real(
+            self.internal_vesicle_gradient_ratio,
+            "internal_vesicle_gradient_ratio",
+        )
+        internal_vesicle_min_separation_pixels = require_nonnegative_real(
+            self.internal_vesicle_min_separation_pixels,
+            "internal_vesicle_min_separation_pixels",
+        )
 
         if not isinstance(self.enable_curvature_qc, bool):
             raise TypeError("enable_curvature_qc must be a bool.")
         if not isinstance(self.enable_area_qc, bool):
             raise TypeError("enable_area_qc must be a bool.")
+        if not isinstance(self.enable_internal_vesicle_qc, bool):
+            raise TypeError("enable_internal_vesicle_qc must be a bool.")
 
         object.__setattr__(self, "curvature_threshold", curvature_threshold)
         object.__setattr__(
             self,
             "max_relative_area_deviation",
             max_relative_area_deviation,
+        )
+        object.__setattr__(
+            self,
+            "max_internal_vesicle_area_fraction",
+            max_internal_vesicle_area_fraction,
+        )
+        object.__setattr__(
+            self,
+            "internal_vesicle_min_radius_ratio",
+            internal_vesicle_min_radius_ratio,
+        )
+        object.__setattr__(
+            self,
+            "internal_vesicle_gradient_ratio",
+            internal_vesicle_gradient_ratio,
+        )
+        object.__setattr__(
+            self,
+            "internal_vesicle_min_separation_pixels",
+            internal_vesicle_min_separation_pixels,
+        )
+        object.__setattr__(
+            self,
+            "internal_vesicle_min_angular_coverage",
+            internal_vesicle_min_angular_coverage,
+        )
+        object.__setattr__(
+            self,
+            "internal_vesicle_min_frame_fraction",
+            internal_vesicle_min_frame_fraction,
         )

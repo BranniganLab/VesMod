@@ -107,6 +107,7 @@ class QCFlag(Enum):
 
     CURVATURE = auto()
     AREA_DEVIATION = auto()
+    INTERNAL_VESICLE = auto()
 
 
 @dataclass
@@ -128,6 +129,9 @@ class EdgeQC:
     relative_area_deviation : float | None
         Absolute fractional deviation from the trajectory median contour area.
         None if area QC has not been run.
+    internal_vesicle_score : float | None
+        Fraction of radial directions containing evidence of a larger outer
+        membrane. None when internal-vesicle QC did not inspect this frame.
     passed : bool
         Whether the edge has passed all QC checks that have been run.
     """
@@ -136,6 +140,7 @@ class EdgeQC:
     curvature_score: float | None = None
     area_pixels2: float | None = None
     relative_area_deviation: float | None = None
+    internal_vesicle_score: float | None = None
 
     @property
     def passed(self) -> bool:
@@ -234,6 +239,18 @@ class AreaQCResult:
 
 
 @dataclass(frozen=True)
+class InternalVesicleQCResult:
+    """Summary of QC for mistakenly traced internal vesicles."""
+
+    inspected: bool
+    contour_area_fraction: float
+    scores: tuple[float, ...]
+    positive_frame_fraction: float
+    rejected_count: int
+    reason: str
+
+
+@dataclass(frozen=True)
 class VesicleQCResult:
     """Aggregate results from one completed VesEdge QC run.
 
@@ -247,8 +264,12 @@ class VesicleQCResult:
     area : AreaQCResult | None
         Summary of trajectory-level contour-area QC. None when area QC was
         disabled.
+    internal_vesicle : InternalVesicleQCResult | None
+        Evidence that the selected edge belongs to a smaller enclosed vesicle.
+        None when internal-vesicle QC was disabled.
     """
 
     config: EdgeQCConfig
     curvature: CurvatureQCResult | None
     area: AreaQCResult | None = None
+    internal_vesicle: InternalVesicleQCResult | None = None

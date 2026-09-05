@@ -24,6 +24,7 @@ from .models import (
     QCFlag,
     VesicleQCResult,
 )
+from .internal_vesicle_qc import check_internal_vesicle_selection
 
 
 @dataclass
@@ -108,6 +109,7 @@ class VesicleEdges:
     def run_qc(
         self,
         qc_config: EdgeQCConfig | None = None,
+        frames: NDArray[np.number] | None = None,
     ) -> None:
         """Run enabled QC checks on stored detections.
 
@@ -136,10 +138,23 @@ class VesicleEdges:
 
         curvature_result = self._curvature_qc_result(config)
         area_result = self._area_qc_result(config)
+        internal_vesicle_result = None
+        if config.enable_internal_vesicle_qc:
+            if frames is None:
+                raise ValueError(
+                    "Internal-vesicle QC is enabled but source video frames "
+                    "were not supplied."
+                )
+            internal_vesicle_result = check_internal_vesicle_selection(
+                frames,
+                self.successful_detections,
+                config,
+            )
         self.qc_result = VesicleQCResult(
             config=config,
             curvature=curvature_result,
             area=area_result,
+            internal_vesicle=internal_vesicle_result,
         )
         self._validate_usable_detections()
 

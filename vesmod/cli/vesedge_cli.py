@@ -199,6 +199,33 @@ def _add_qc_parser(subparsers) -> None:
         help="Disable trajectory-level contour-area deviation QC.",
     )
     parser.add_argument(
+        "--internal-vesicle-qc",
+        action="store_true",
+        help=(
+            "Check whether the edge detector persistently traced a smaller "
+            "vesicle enclosed by the intended vesicle. Disabled by default."
+        ),
+    )
+    parser.add_argument(
+        "--max-internal-vesicle-area-fraction",
+        type=float,
+        default=0.5,
+        help=(
+            "Inspect for a larger enclosing membrane only when the median "
+            "traced contour occupies less than this fraction of the image. "
+            "Default: 0.5."
+        ),
+    )
+    parser.add_argument(
+        "--internal-vesicle-min-frame-fraction",
+        type=float,
+        default=0.5,
+        help=(
+            "Minimum fraction of inspected frames with enclosing-boundary "
+            "evidence required to reject the video. Default: 0.5."
+        ),
+    )
+    parser.add_argument(
         "--overwrite",
         action="store_true",
         help="Overwrite existing filtered .npy outputs and QC provenance.",
@@ -323,6 +350,17 @@ def _qc_config_from_args(args: argparse.Namespace) -> EdgeQCConfig:
         enable_curvature_qc=not args.no_curvature_qc,
         max_relative_area_deviation=args.max_relative_area_deviation,
         enable_area_qc=not args.no_area_qc,
+        enable_internal_vesicle_qc=getattr(
+            args,
+            "internal_vesicle_qc",
+            False,
+        ),
+        max_internal_vesicle_area_fraction=(
+            getattr(args, "max_internal_vesicle_area_fraction", 0.5)
+        ),
+        internal_vesicle_min_frame_fraction=(
+            getattr(args, "internal_vesicle_min_frame_fraction", 0.5)
+        ),
     )
 
 
@@ -440,6 +478,11 @@ def _qc_summary(
         for detection in successful
     )
     accepted = sum(detection.qc.passed for detection in successful)
+    internal_result = getattr(
+        edges.qc_result,
+        "internal_vesicle",
+        None,
+    )
     return {
         "file": str(_relative_input_path(path, input_path)),
         "frames": len(edges.detections),
@@ -447,6 +490,26 @@ def _qc_summary(
         "extraction_failures": len(edges.detections) - len(successful),
         "curvature_rejected": curvature_rejected,
         "area_rejected": area_rejected,
+        "internal_vesicle_rejected": sum(
+            QCFlag.INTERNAL_VESICLE in detection.qc.flags
+            for detection in successful
+        ),
+        "internal_vesicle_inspected": (
+            internal_result.inspected if internal_result is not None else False
+        ),
+        "internal_vesicle_area_fraction": (
+            internal_result.contour_area_fraction
+            if internal_result is not None
+            else ""
+        ),
+        "internal_vesicle_positive_frame_fraction": (
+            internal_result.positive_frame_fraction
+            if internal_result is not None
+            else ""
+        ),
+        "internal_vesicle_reason": (
+            internal_result.reason if internal_result is not None else ""
+        ),
         "accepted": accepted,
         "accepted_fraction": accepted / len(successful),
         "status": status,
@@ -463,6 +526,11 @@ def _load_error_summary(path: Path, input_path: Path, error: str) -> dict:
         "extraction_failures": 0,
         "curvature_rejected": 0,
         "area_rejected": 0,
+        "internal_vesicle_rejected": 0,
+        "internal_vesicle_inspected": False,
+        "internal_vesicle_area_fraction": "",
+        "internal_vesicle_positive_frame_fraction": "",
+        "internal_vesicle_reason": "",
         "accepted": 0,
         "accepted_fraction": 0.0,
         "status": "load_error",
@@ -499,8 +567,19 @@ def process_qc_file(
     status = "ok"
     qc_error = ""
     try:
-        edges.run_qc(qc_config)
-    except ValueError as error:
+        frames = None
+        if qc_config.enable_internal_vesicle_qc:
+            if edges.source_path is None:
+                raise ValueError(
+                    "Internal-vesicle QC requires a checkpoint with a source "
+                    "video path."
+                )
+            frames = nd2.imread(edges.source_path)
+        if frames is None:
+            edges.run_qc(qc_config)
+        else:
+            edges.run_qc(qc_config, frames=frames)
+    except (OSError, ValueError) as error:
         qc_error = str(error)
         if edges.qc_result is None:
             status = "qc_error"
@@ -524,6 +603,9 @@ def process_qc_file(
     )
     area_plot_path = output_path.with_suffix(".area_qc.png")
     area_csv_path = output_path.with_suffix(".area_qc.csv")
+    internal_vesicle_csv_path = output_path.with_suffix(
+        ".internal_vesicle_qc.csv"
+    )
     has_area_result = (
         edges.qc_result is not None
         and getattr(edges.qc_result, "area", None) is not None
@@ -536,6 +618,16 @@ def process_qc_file(
         _write_area_qc_csv(area_csv_path, edges)
         if managed_artifacts is not None:
             managed_artifacts.add(area_csv_path)
+    has_internal_vesicle_result = (
+        edges.qc_result is not None
+        and getattr(edges.qc_result, "internal_vesicle", None) is not None
+    )
+    if has_internal_vesicle_result and (
+        args.overwrite or not internal_vesicle_csv_path.exists()
+    ):
+        _write_internal_vesicle_qc_csv(internal_vesicle_csv_path, edges)
+        if managed_artifacts is not None:
+            managed_artifacts.add(internal_vesicle_csv_path)
     if (
         status == "ok"
         and row["accepted"] > 0
@@ -598,6 +690,41 @@ def _write_area_qc_csv(path: Path, edges: VesicleEdges) -> None:
         writer.writerows(rows)
 
 
+def _write_internal_vesicle_qc_csv(
+    path: Path,
+    edges: VesicleEdges,
+) -> None:
+    """Write per-frame evidence of a wrongly traced internal vesicle."""
+    result = edges.qc_result.internal_vesicle
+    rows = []
+    if result.inspected:
+        for detection, score in zip(
+            edges.successful_detections,
+            result.scores,
+            strict=True,
+        ):
+            rows.append(
+                {
+                    "frame_index": detection.frame_index,
+                    "enclosing_boundary_angular_coverage": score,
+                    "internal_vesicle_rejected": (
+                        QCFlag.INTERNAL_VESICLE in detection.qc.flags
+                    ),
+                }
+            )
+    with path.open("w", newline="", encoding="utf-8") as output_file:
+        writer = csv.DictWriter(
+            output_file,
+            fieldnames=[
+                "frame_index",
+                "enclosing_boundary_angular_coverage",
+                "internal_vesicle_rejected",
+            ],
+        )
+        writer.writeheader()
+        writer.writerows(rows)
+
+
 def _save_area_qc_plot(path: Path, edges: VesicleEdges) -> None:
     """Plot contour area by source frame with configured acceptance bounds."""
     area_result = edges.qc_result.area
@@ -637,6 +764,11 @@ def _write_qc_summary(output_dir: Path, rows: list[dict]) -> None:
         "extraction_failures",
         "curvature_rejected",
         "area_rejected",
+        "internal_vesicle_rejected",
+        "internal_vesicle_inspected",
+        "internal_vesicle_area_fraction",
+        "internal_vesicle_positive_frame_fraction",
+        "internal_vesicle_reason",
         "accepted",
         "accepted_fraction",
         "status",
