@@ -12,6 +12,9 @@ from vesmod.validation import (
 )
 
 
+_CALIBRATION_SOURCES = {"measured", "assumed", "unspecified"}
+
+
 @dataclass(frozen=True)
 class EdgeExtractionConfig:
     """Configuration parameters for edge extraction and contour preparation.
@@ -27,10 +30,16 @@ class EdgeExtractionConfig:
         How many pixels in the image represent one micron in real space.
     n_angular_samples : int | None
         How many angular samples to downsample to. If None, do not downsample.
+    calibration_source : {"measured", "assumed", "unspecified"}
+        Provenance for the spatial calibration. ``"measured"`` means the value
+        came from microscope calibration, ``"assumed"`` means unit calibration
+        was explicitly requested, and ``"unspecified"`` preserves compatibility
+        with older API calls and checkpoints that did not record this choice.
     """
 
     pixels_per_micron: float = 1
     n_angular_samples: int | None = 120
+    calibration_source: str = "unspecified"
 
     def __post_init__(self) -> None:
         """Validate and normalize edge-extraction configuration."""
@@ -39,6 +48,12 @@ class EdgeExtractionConfig:
             "pixels_per_micron",
         )
         object.__setattr__(self, "pixels_per_micron", pixels_per_micron)
+
+        if self.calibration_source not in _CALIBRATION_SOURCES:
+            allowed = ", ".join(sorted(_CALIBRATION_SOURCES))
+            raise ValueError(
+                f"calibration_source must be one of: {allowed}."
+            )
 
         if self.n_angular_samples is None:
             return
