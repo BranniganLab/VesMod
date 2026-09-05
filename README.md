@@ -151,7 +151,7 @@ results/qc_standard/
 └── qc_summary.csv
 ```
 
-`vesedge_qc.json` records the exact QC configuration and input selection. `qc_summary.csv` reports extraction failures, curvature rejections, area-deviation rejections, optional internal-vesicle mis-selection results, accepted-frame counts, and accepted fractions for each checkpoint. Internal-vesicle QC is disabled by default; enable it with `--internal-vesicle-qc`. It first skips traced contours occupying at least half the image, then checks smaller contours for persistent evidence of a larger enclosing membrane. When area QC produces `qc_result.area`, each checkpoint also receives an `*.area_qc.csv` file containing its per-frame area measurements and an `*.area_qc.png` area-versus-frame diagnostic plot. These two files are not generated when area QC is disabled with `--no-area-qc`.
+`vesedge_qc.json` records the exact QC configuration and input selection. `qc_summary.csv` reports extraction failures, curvature rejections, area-deviation rejections, optional internal-vesicle mis-selection results, accepted-frame counts, and accepted fractions for each checkpoint. Experimental internal-vesicle QC is disabled by default; enable it with `--internal-vesicle-qc`. It first skips traced contours occupying at least half the image, then lazily samples smaller-contour videos for persistent evidence of a coherent larger enclosing membrane. When area QC produces `qc_result.area`, each checkpoint also receives an `*.area_qc.csv` file containing its per-frame area measurements and an `*.area_qc.png` area-versus-frame diagnostic plot. These two files are not generated when area QC is disabled with `--no-area-qc`.
 
 ### 4. Compare alternate QC configurations
 

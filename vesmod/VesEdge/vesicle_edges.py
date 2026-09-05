@@ -14,6 +14,7 @@ from .area_qc import check_area_deviation
 from .checkpoint_io import load_checkpoint, save_checkpoint
 from .config import EdgeExtractionConfig, EdgeQCConfig
 from .edge_filtering import check_curvature
+from .frame_source import FrameSource
 from .models import (
     AreaQCResult,
     CurvatureQCResult,
@@ -24,7 +25,9 @@ from .models import (
     QCFlag,
     VesicleQCResult,
 )
-from .internal_vesicle_qc import check_internal_vesicle_selection
+from .experimental.internal_vesicle_qc import (
+    check_internal_vesicle_selection,
+)
 
 
 @dataclass
@@ -109,7 +112,7 @@ class VesicleEdges:
     def run_qc(
         self,
         qc_config: EdgeQCConfig | None = None,
-        frames: NDArray[np.number] | None = None,
+        frames: FrameSource | NDArray[np.number] | None = None,
     ) -> None:
         """Run enabled QC checks on stored detections.
 

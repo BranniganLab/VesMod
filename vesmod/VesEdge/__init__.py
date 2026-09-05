@@ -9,6 +9,13 @@ from .animation import (
 from .area_qc import check_area_deviation, contour_area
 from .config import EdgeExtractionConfig, EdgeQCConfig
 from .edge_extractor import extract_edge_from_frame
+from .frame_source import (
+    ArrayFrameSource,
+    FrameSource,
+    ND2FrameSource,
+    as_frame_source,
+    open_frame_source,
+)
 from .models import (
     AreaQCResult,
     CurvatureQCResult,
@@ -25,6 +32,7 @@ from .vesicle_video import VesicleVideo
 
 __all__ = [
     "AnimationPanel",
+    "ArrayFrameSource",
     "AreaQCResult",
     "check_area_deviation",
     "contour_area",
@@ -35,13 +43,17 @@ __all__ = [
     "EdgeQCConfig",
     "EdgeResult",
     "extract_edge_from_frame",
+    "FrameSource",
     "ImageContour",
     "InternalVesicleQCResult",
     "make_gif",
+    "ND2FrameSource",
+    "open_frame_source",
     "QCFlag",
     "TimeSeriesAnimationPanel",
     "VesicleAnimationPanel",
     "VesicleEdges",
     "VesicleQCResult",
     "VesicleVideo",
+    "as_frame_source",
 ]

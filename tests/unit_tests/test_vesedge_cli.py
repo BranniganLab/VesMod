@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 
 from vesmod.VesEdge import (
+    ArrayFrameSource,
     EdgeExtractionConfig,
     EdgeQCConfig,
     VesicleEdges,
@@ -163,9 +164,11 @@ def test_process_extract_file_reports_failure_and_returns(monkeypatch, capsys):
 
     path = Path("failed.nd2")
     monkeypatch.setattr(
-        vesedge_cli.nd2,
-        "imread",
-        lambda input_path: np.zeros((1, 10, 10)),
+        vesedge_cli,
+        "open_frame_source",
+        lambda input_path: ArrayFrameSource(
+            np.zeros((1, 10, 10))
+        ),
     )
     monkeypatch.setattr(
         vesedge_cli,
@@ -207,9 +210,11 @@ def test_process_extract_file_saves_checkpoint_without_running_qc(
 
     path = Path("sample.nd2")
     monkeypatch.setattr(
-        vesedge_cli.nd2,
-        "imread",
-        lambda input_path: np.zeros((1, 10, 10)),
+        vesedge_cli,
+        "open_frame_source",
+        lambda input_path: ArrayFrameSource(
+            np.zeros((1, 10, 10))
+        ),
     )
     monkeypatch.setattr(
         vesedge_cli,
@@ -370,6 +375,8 @@ def test_process_qc_file_returns_load_error_summary(tmp_path, monkeypatch):
         "internal_vesicle_inspected": False,
         "internal_vesicle_area_fraction": "",
         "internal_vesicle_positive_frame_fraction": "",
+        "internal_vesicle_valid_frame_count": "",
+        "internal_vesicle_valid_frame_fraction": "",
         "internal_vesicle_reason": "",
         "accepted": 0,
         "accepted_fraction": 0.0,

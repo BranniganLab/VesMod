@@ -106,7 +106,11 @@ class EdgeQCConfig:
     internal_vesicle_min_radius_ratio: float = 1.15
     internal_vesicle_min_separation_pixels: float = 5.0
     internal_vesicle_gradient_ratio: float = 0.5
+    internal_vesicle_max_radial_deviation_fraction: float = 0.15
     internal_vesicle_min_angular_coverage: float = 0.6
+    internal_vesicle_max_frames: int = 20
+    internal_vesicle_min_valid_frames: int = 3
+    internal_vesicle_min_valid_frame_fraction: float = 0.5
     internal_vesicle_min_frame_fraction: float = 0.5
 
     def __post_init__(self) -> None:
@@ -141,6 +145,28 @@ class EdgeQCConfig:
             self.internal_vesicle_min_frame_fraction,
             "internal_vesicle_min_frame_fraction",
         )
+        internal_vesicle_max_radial_deviation_fraction = require_fraction(
+            self.internal_vesicle_max_radial_deviation_fraction,
+            "internal_vesicle_max_radial_deviation_fraction",
+        )
+        internal_vesicle_min_valid_frame_fraction = require_fraction(
+            self.internal_vesicle_min_valid_frame_fraction,
+            "internal_vesicle_min_valid_frame_fraction",
+        )
+        internal_vesicle_max_frames = require_integer_valued(
+            self.internal_vesicle_max_frames,
+            "internal_vesicle_max_frames",
+        )
+        if internal_vesicle_max_frames <= 0:
+            raise ValueError("internal_vesicle_max_frames must be positive.")
+        internal_vesicle_min_valid_frames = require_integer_valued(
+            self.internal_vesicle_min_valid_frames,
+            "internal_vesicle_min_valid_frames",
+        )
+        if internal_vesicle_min_valid_frames <= 0:
+            raise ValueError(
+                "internal_vesicle_min_valid_frames must be positive."
+            )
         internal_vesicle_min_radius_ratio = require_positive_real(
             self.internal_vesicle_min_radius_ratio,
             "internal_vesicle_min_radius_ratio",
@@ -195,6 +221,26 @@ class EdgeQCConfig:
             self,
             "internal_vesicle_min_angular_coverage",
             internal_vesicle_min_angular_coverage,
+        )
+        object.__setattr__(
+            self,
+            "internal_vesicle_max_radial_deviation_fraction",
+            internal_vesicle_max_radial_deviation_fraction,
+        )
+        object.__setattr__(
+            self,
+            "internal_vesicle_max_frames",
+            internal_vesicle_max_frames,
+        )
+        object.__setattr__(
+            self,
+            "internal_vesicle_min_valid_frames",
+            internal_vesicle_min_valid_frames,
+        )
+        object.__setattr__(
+            self,
+            "internal_vesicle_min_valid_frame_fraction",
+            internal_vesicle_min_valid_frame_fraction,
         )
         object.__setattr__(
             self,

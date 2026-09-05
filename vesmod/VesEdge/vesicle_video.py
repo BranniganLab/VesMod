@@ -14,6 +14,7 @@ from numpy.typing import NDArray
 
 from .animation import VesicleAnimationPanel, make_gif
 from .config import EdgeExtractionConfig
+from .frame_source import FrameSource, as_frame_source
 from .models import (
     EdgeDetection,
     EdgeDetectionFailure,
@@ -30,21 +31,19 @@ class VesicleVideo:
 
     Parameters
     ----------
-    frames : np.ndarray
-        Three-dimensional array containing the source image frames.
+    frames : FrameSource or np.ndarray
+        Random-access source of two-dimensional frames. NumPy arrays are
+        wrapped automatically.
     source_path : str | Path | None
         Path to the original source video, when known.
     """
 
-    frames: np.ndarray
+    frames: FrameSource | NDArray[np.number]
     source_path: str | Path | None = None
 
     def __post_init__(self) -> None:
         """Validate raw image frames and source provenance."""
-        if not isinstance(self.frames, np.ndarray):
-            raise TypeError("frames must be a numpy ndarray.")
-        if self.frames.ndim != 3:
-            raise IndexError("frames must be a 3D array.")
+        self.frames = as_frame_source(self.frames)
         if self.source_path is not None:
             self.source_path = Path(self.source_path)
 

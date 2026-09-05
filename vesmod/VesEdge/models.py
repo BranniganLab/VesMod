@@ -244,7 +244,10 @@ class InternalVesicleQCResult:
 
     inspected: bool
     contour_area_fraction: float
+    sampled_frame_indices: tuple[int, ...]
     scores: tuple[float, ...]
+    valid_frame_count: int
+    valid_frame_fraction: float
     positive_frame_fraction: float
     rejected_count: int
     reason: str

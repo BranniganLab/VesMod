@@ -11,8 +11,6 @@ from dataclasses import asdict
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-import nd2
-import numpy as np
 
 from . import internal_structures_batch_cli as internal_structures_cli
 from .gif_cli import add_gif_parser, run_gif
@@ -28,6 +26,7 @@ from vesmod.VesEdge import (
     QCFlag,
     VesicleEdges,
     VesicleVideo,
+    open_frame_source,
 )
 
 
@@ -226,6 +225,33 @@ def _add_qc_parser(subparsers) -> None:
         ),
     )
     parser.add_argument(
+        "--internal-vesicle-max-frames",
+        type=int,
+        default=20,
+        help=(
+            "Maximum number of frames sampled evenly across the video for "
+            "internal-vesicle QC. Default: 20."
+        ),
+    )
+    parser.add_argument(
+        "--internal-vesicle-min-valid-frames",
+        type=int,
+        default=3,
+        help=(
+            "Minimum valid sampled frames required for a decision, capped by "
+            "the number sampled for short videos. Default: 3."
+        ),
+    )
+    parser.add_argument(
+        "--internal-vesicle-min-valid-frame-fraction",
+        type=float,
+        default=0.5,
+        help=(
+            "Minimum fraction of sampled frames that must yield valid scores. "
+            "Default: 0.5."
+        ),
+    )
+    parser.add_argument(
         "--overwrite",
         action="store_true",
         help="Overwrite existing filtered .npy outputs and QC provenance.",
@@ -306,7 +332,6 @@ def process_extract_file(path: Path, args: argparse.Namespace) -> None:
         extractor_func = load_extractor_from_module(args.extractor)
 
     print(f"Extracting {_display_path(path)}")
-    intensities = nd2.imread(path)
     assumed_unit_calibration = getattr(
         args,
         "assume_one_pixel_per_micron",
@@ -332,12 +357,12 @@ def process_extract_file(path: Path, args: argparse.Namespace) -> None:
             )
         ),
     )
-    video = VesicleVideo(intensities)
-    video.source_path = Path(path)
-
     try:
-        edges = video.extract_edges(extractor_func, extraction_config)
-        edges.save_checkpoint(checkpoint_path)
+        with open_frame_source(path) as frames:
+            video = VesicleVideo(frames)
+            video.source_path = Path(path)
+            edges = video.extract_edges(extractor_func, extraction_config)
+            edges.save_checkpoint(checkpoint_path)
     except (IndexError, ValueError) as error:
         print(f"Failed to extract {_display_path(path)}: {error}")
         return
@@ -360,6 +385,21 @@ def _qc_config_from_args(args: argparse.Namespace) -> EdgeQCConfig:
         ),
         internal_vesicle_min_frame_fraction=(
             getattr(args, "internal_vesicle_min_frame_fraction", 0.5)
+        ),
+        internal_vesicle_max_frames=getattr(
+            args,
+            "internal_vesicle_max_frames",
+            20,
+        ),
+        internal_vesicle_min_valid_frames=getattr(
+            args,
+            "internal_vesicle_min_valid_frames",
+            3,
+        ),
+        internal_vesicle_min_valid_frame_fraction=getattr(
+            args,
+            "internal_vesicle_min_valid_frame_fraction",
+            0.5,
         ),
     )
 
@@ -507,6 +547,16 @@ def _qc_summary(
             if internal_result is not None
             else ""
         ),
+        "internal_vesicle_valid_frame_count": (
+            internal_result.valid_frame_count
+            if internal_result is not None
+            else ""
+        ),
+        "internal_vesicle_valid_frame_fraction": (
+            internal_result.valid_frame_fraction
+            if internal_result is not None
+            else ""
+        ),
         "internal_vesicle_reason": (
             internal_result.reason if internal_result is not None else ""
         ),
@@ -530,6 +580,8 @@ def _load_error_summary(path: Path, input_path: Path, error: str) -> dict:
         "internal_vesicle_inspected": False,
         "internal_vesicle_area_fraction": "",
         "internal_vesicle_positive_frame_fraction": "",
+        "internal_vesicle_valid_frame_count": "",
+        "internal_vesicle_valid_frame_fraction": "",
         "internal_vesicle_reason": "",
         "accepted": 0,
         "accepted_fraction": 0.0,
@@ -574,11 +626,12 @@ def process_qc_file(
                     "Internal-vesicle QC requires a checkpoint with a source "
                     "video path."
                 )
-            frames = nd2.imread(edges.source_path)
+            frames = open_frame_source(edges.source_path)
         if frames is None:
             edges.run_qc(qc_config)
         else:
-            edges.run_qc(qc_config, frames=frames)
+            with frames:
+                edges.run_qc(qc_config, frames=frames)
     except (OSError, ValueError) as error:
         qc_error = str(error)
         if edges.qc_result is None:
@@ -698,17 +751,18 @@ def _write_internal_vesicle_qc_csv(
     result = edges.qc_result.internal_vesicle
     rows = []
     if result.inspected:
-        for detection, score in zip(
-            edges.successful_detections,
+        trajectory_rejected = result.rejected_count > 0
+        for frame_index, score in zip(
+            result.sampled_frame_indices,
             result.scores,
             strict=True,
         ):
             rows.append(
                 {
-                    "frame_index": detection.frame_index,
+                    "frame_index": frame_index,
                     "enclosing_boundary_angular_coverage": score,
                     "internal_vesicle_rejected": (
-                        QCFlag.INTERNAL_VESICLE in detection.qc.flags
+                        trajectory_rejected
                     ),
                 }
             )
@@ -768,6 +822,8 @@ def _write_qc_summary(output_dir: Path, rows: list[dict]) -> None:
         "internal_vesicle_inspected",
         "internal_vesicle_area_fraction",
         "internal_vesicle_positive_frame_fraction",
+        "internal_vesicle_valid_frame_count",
+        "internal_vesicle_valid_frame_fraction",
         "internal_vesicle_reason",
         "accepted",
         "accepted_fraction",

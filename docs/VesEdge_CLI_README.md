@@ -178,6 +178,14 @@ The previous coupled `--downsample --n-samples N` interface has been removed. Se
 
 ## Extraction Algorithm
 
+VesEdge opens ND2 acquisitions through the shared `FrameSource` API and reads
+one frame at a time during extraction; it does not materialize the complete
+video in memory. `ArrayFrameSource` preserves the existing NumPy workflow, and
+`open_frame_source()` memory-maps `.npy` videos. `ND2FrameSource` exposes frame
+count, shape, metadata, indexed reads, and iteration for other frame-local
+analyses. Multidimensional ND2 inputs with more than one position, z-plane, or
+channel require an explicit axis selection rather than silently choosing one.
+
 The default extractor is:
 
 ```text
@@ -306,7 +314,7 @@ vesedge qc "./checkpoints" \
 
 The trajectory median assumes that most successful detections trace the correct object. The threshold is an absolute fractional change rather than a MAD-scaled z-score, so its meaning does not depend on how narrowly normal areas happen to vary. Compare the area diagnostic across representative acquisitions before treating the default as universal.
 
-## Internal-Vesicle Mis-Selection QC
+## Experimental Internal-Vesicle Mis-Selection QC
 
 Area-deviation QC cannot detect a stable mistake in which the edge detector
 traces a small vesicle located inside the intended larger vesicle. Enable the
@@ -320,18 +328,27 @@ vesedge qc "./checkpoints" \
 
 This is an edge-selection QC check, not internal-structure measurement. It
 searches outside the traced contour for radial intensity-gradient evidence of
-a larger enclosing membrane and aggregates that evidence across frames.
+a larger enclosing membrane. Strong outward gradients must occur at spatially
+coherent radii before they count as one enclosing boundary.
 
 The inexpensive size gate runs first. If the median traced contour occupies at
 least half of the image, it is considered too large to plausibly be an internal
-vesicle and no radial image inspection runs. Change that cutoff with
+vesicle and no video frame is loaded for radial inspection. Change that cutoff with
 `--max-internal-vesicle-area-fraction`; change the fraction of positive frames
 required to reject the video with `--internal-vesicle-min-frame-fraction`.
 
+Eligible videos are sampled evenly rather than loaded in full. The default
+maximum is 20 frames; change it with `--internal-vesicle-max-frames`. A decision
+also requires at least three valid scores and at least half of the sampled
+frames to be valid (with the count capped for shorter videos). Configure these
+guards with `--internal-vesicle-min-valid-frames` and
+`--internal-vesicle-min-valid-frame-fraction`.
+
 Each enabled run writes `*.internal_vesicle_qc.csv`, containing the quantitative
 enclosing-boundary angular-coverage score for each inspected frame. The video
-summary records the traced area fraction, positive-frame fraction, rejection
-count, and a human-readable reason. The implementation should be evaluated on
+summary records the traced area fraction, valid-score coverage, positive-frame
+fraction, rejection count, and a human-readable reason. The implementation is
+exposed from `vesmod.VesEdge.experimental` and should be evaluated on
 the documented failure cases `DOPC_C1P_92.5_7.5/ND Acquisition 25_crop` and
 `DOPC_C16_95_5/ND Acquisition 20_crop` when those source acquisitions are
 available.
