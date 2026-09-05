@@ -310,7 +310,7 @@ def test_load_qc_selection_reconstructs_recorded_config(tmp_path):
         [checkpoint],
     )
 
-    assert config.curvature_threshold == 7.0
+    assert config.curvature.threshold == 7.0
     assert provenance_path == (qc_dir / "vesedge_qc.json").resolve()
 
 

@@ -92,9 +92,9 @@ def test_load_qc_config_uses_recorded_provenance(tmp_path):
 
     config = gif_cli._load_qc_config(tmp_path)
 
-    assert config.curvature_threshold == pytest.approx(8.0)
-    assert config.max_relative_area_deviation == pytest.approx(0.4)
-    assert not config.enable_area_qc
+    assert config.curvature.threshold == pytest.approx(8.0)
+    assert config.area.max_relative_deviation == pytest.approx(0.4)
+    assert not config.area.enabled
 
 
 def test_apply_recorded_qc_verifies_paired_array(tmp_path):

@@ -9,7 +9,7 @@ from numpy.typing import NDArray
 from scipy.ndimage import gaussian_filter1d, map_coordinates, median_filter
 
 from ..area_qc import contour_area
-from ..config import EdgeQCConfig
+from ..config import EdgeQCConfig, InternalVesicleQCConfig
 from ..frame_source import FrameSource, as_frame_source
 from ..models import EdgeDetection, InternalVesicleQCResult, QCFlag
 
@@ -34,7 +34,7 @@ def _coherent_outer_edge_coverage(
     outer_radii: NDArray[np.float64],
     outer_strengths: NDArray[np.float64],
     reference_strength: float,
-    config: EdgeQCConfig,
+    config: InternalVesicleQCConfig,
 ) -> float:
     """Return coverage by strong peaks belonging to one smooth outer contour."""
     usable = np.isfinite(outer_radii) & np.isfinite(outer_strengths)
@@ -64,12 +64,12 @@ def _coherent_outer_edge_coverage(
         mode="wrap",
     )
     allowed_deviation = np.maximum(
-        config.internal_vesicle_min_separation_pixels,
-        config.internal_vesicle_max_radial_deviation_fraction * smooth_radii,
+        config.min_separation_pixels,
+        config.max_radial_deviation_fraction * smooth_radii,
     )
     coherent = np.abs(outer_radii - smooth_radii) <= allowed_deviation
     strong = outer_strengths >= (
-        config.internal_vesicle_gradient_ratio * reference_strength
+        config.gradient_ratio * reference_strength
     )
     return float(np.count_nonzero(coherent & strong & usable) / outer_radii.size)
 
@@ -77,7 +77,7 @@ def _coherent_outer_edge_coverage(
 def _frame_enclosing_boundary_score(
     frame: NDArray[np.number],
     detection: EdgeDetection,
-    config: EdgeQCConfig,
+    config: InternalVesicleQCConfig,
 ) -> float:
     """Return coherent angular coverage by gradients beyond the selected edge."""
     image = np.asarray(frame, dtype=float)
@@ -117,9 +117,9 @@ def _frame_enclosing_boundary_score(
             np.ceil(
                 max(
                     selected_radius
-                    * config.internal_vesicle_min_radius_ratio,
+                    * config.min_radius_ratio,
                     selected_radius
-                    + config.internal_vesicle_min_separation_pixels,
+                    + config.min_separation_pixels,
                 )
             )
         )
@@ -174,7 +174,8 @@ def check_internal_vesicle_selection(
     )
     frame_area = float(height * width)
     area_fraction = median_area / frame_area
-    if area_fraction >= config.max_internal_vesicle_area_fraction:
+    internal_config = config.internal_vesicle
+    if area_fraction >= internal_config.max_area_fraction:
         return InternalVesicleQCResult(
             inspected=False,
             contour_area_fraction=area_fraction,
@@ -192,14 +193,14 @@ def check_internal_vesicle_selection(
 
     sampled = _sample_detections(
         detections,
-        config.internal_vesicle_max_frames,
+        internal_config.max_frames,
     )
     sampled_indices = tuple(edge.frame_index for edge in sampled)
     scores = tuple(
         _frame_enclosing_boundary_score(
             frame_source[edge.frame_index],
             edge,
-            config,
+            internal_config,
         )
         for edge in sampled
     )
@@ -213,23 +214,23 @@ def check_internal_vesicle_selection(
         float(
             np.mean(
                 finite_scores
-                >= config.internal_vesicle_min_angular_coverage
+                >= internal_config.min_angular_coverage
             )
         )
         if valid_count
         else 0.0
     )
     required_valid_count = min(
-        config.internal_vesicle_min_valid_frames,
+        internal_config.min_valid_frames,
         len(sampled),
     )
     sufficient_valid_data = (
         valid_count >= required_valid_count
-        and valid_fraction >= config.internal_vesicle_min_valid_frame_fraction
+        and valid_fraction >= internal_config.min_valid_frame_fraction
     )
     reject = (
         sufficient_valid_data
-        and positive_fraction >= config.internal_vesicle_min_frame_fraction
+        and positive_fraction >= internal_config.min_frame_fraction
     )
     if reject:
         for edge in detections:

@@ -448,7 +448,7 @@ def _load_qc_selection(
 
     provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
     try:
-        qc_config = EdgeQCConfig(**provenance["qc_config"])
+        qc_config = EdgeQCConfig.from_dict(provenance["qc_config"])
         manifest = {
             str(Path(path).expanduser().resolve())
             for path in provenance["checkpoint_manifest"]

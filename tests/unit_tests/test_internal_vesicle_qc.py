@@ -105,10 +105,10 @@ def test_incoherent_outer_peaks_do_not_form_enclosing_boundary():
         outer_radii,
         outer_strengths,
         reference_strength=1.0,
-        config=config,
+        config=config.internal_vesicle,
     )
 
-    assert score < config.internal_vesicle_min_angular_coverage
+    assert score < config.internal_vesicle.min_angular_coverage
 
 
 def test_clipped_directions_count_as_missing_outer_boundary_evidence():
@@ -126,10 +126,12 @@ def test_clipped_directions_count_as_missing_outer_boundary_evidence():
         enable_internal_vesicle_qc=True,
     )
 
-    score = _frame_enclosing_boundary_score(frame, detection, config)
+    score = _frame_enclosing_boundary_score(
+        frame, detection, config.internal_vesicle
+    )
 
     assert np.isfinite(score)
-    assert score < config.internal_vesicle_min_angular_coverage
+    assert score < config.internal_vesicle.min_angular_coverage
 
 
 def test_size_gate_does_not_read_lazy_frames():

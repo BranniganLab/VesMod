@@ -429,7 +429,7 @@ def test_write_qc_provenance_records_manifest_and_recursive_setting(tmp_path):
     data = json.loads((tmp_path / "qc" / "vesedge_qc.json").read_text())
     assert data["recursive"] is True
     assert data["checkpoint_manifest"] == [str(first.resolve()), str(second.resolve())]
-    assert data["qc_config"]["curvature_threshold"] == 5.0
+    assert data["qc_config"]["curvature"]["threshold"] == 5.0
 
 
 def test_overwrite_incompatible_provenance_removes_stale_outputs(tmp_path):
@@ -470,7 +470,7 @@ def test_overwrite_incompatible_provenance_removes_stale_outputs(tmp_path):
     assert unrelated.is_file()
     assert not (output_dir / "qc_summary.csv").exists()
     data = json.loads((output_dir / "vesedge_qc.json").read_text())
-    assert data["qc_config"]["curvature_threshold"] == 8.0
+    assert data["qc_config"]["curvature"]["threshold"] == 8.0
 
 
 def test_matching_qc_overwrite_replaces_provenance_after_cleanup(tmp_path):

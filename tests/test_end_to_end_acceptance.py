@@ -194,14 +194,14 @@ def _assert_matches_reference(
         )
         metadata_migrated = True
 
-    # Schema-v1 references also predate optional internal-vesicle QC. Missing
-    # fields inherit the current disabled/default configuration; any explicit
-    # stored value is still compared exactly.
+    # Schema-v1 references use the former flat QC schema and may also predate
+    # optional internal-vesicle QC. Translate them through the same migration
+    # boundary used for runtime provenance.
     expected_qc_config = expected_metadata["qc_config"]
-    for key, value in asdict(QC_CONFIG).items():
-        if key not in expected_qc_config:
-            expected_qc_config[key] = value
-            metadata_migrated = True
+    migrated_qc_config = asdict(EdgeQCConfig.from_dict(expected_qc_config))
+    if expected_qc_config != migrated_qc_config:
+        expected_metadata["qc_config"] = migrated_qc_config
+        metadata_migrated = True
 
     if metadata_migrated:
         expected["metadata_json"] = np.asarray(

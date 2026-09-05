@@ -110,7 +110,7 @@ def _load_qc_config(qc_dir: Path) -> EdgeQCConfig:
         raise ValueError(
             f"QC provenance has no qc_config: {provenance_path}"
         ) from error
-    return EdgeQCConfig(**config_data)
+    return EdgeQCConfig.from_dict(config_data)
 
 
 def _resolve_source_path(edges: VesicleEdges, checkpoint: Path) -> Path:

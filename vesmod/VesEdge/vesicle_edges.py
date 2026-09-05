@@ -142,7 +142,7 @@ class VesicleEdges:
         curvature_result = self._curvature_qc_result(config)
         area_result = self._area_qc_result(config)
         internal_vesicle_result = None
-        if config.enable_internal_vesicle_qc:
+        if config.internal_vesicle.enabled:
             if frames is None:
                 raise ValueError(
                     "Internal-vesicle QC is enabled but source video frames "
@@ -173,10 +173,10 @@ class VesicleEdges:
         config: EdgeQCConfig,
     ) -> None:
         """Apply enabled QC checks that operate on one detection."""
-        if config.enable_curvature_qc:
+        if config.curvature.enabled:
             check_curvature(
                 edge,
-                threshold=config.curvature_threshold,
+                threshold=config.curvature.threshold,
             )
 
     def _curvature_qc_result(
@@ -184,7 +184,7 @@ class VesicleEdges:
         config: EdgeQCConfig,
     ) -> CurvatureQCResult | None:
         """Summarize frame-level curvature QC for the completed run."""
-        if not config.enable_curvature_qc:
+        if not config.curvature.enabled:
             return None
 
         detections = self.successful_detections
@@ -208,11 +208,11 @@ class VesicleEdges:
         config: EdgeQCConfig,
     ) -> AreaQCResult | None:
         """Run and summarize trajectory-level contour-area QC."""
-        if not config.enable_area_qc:
+        if not config.area.enabled:
             return None
         return check_area_deviation(
             self.successful_detections,
-            config.max_relative_area_deviation,
+            config.area.max_relative_deviation,
         )
 
     def _infer_frame_indices(self) -> None:

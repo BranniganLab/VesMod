@@ -202,6 +202,7 @@ The Python API exposes the same separation between extraction, QC, stable physic
 from vesmod.VesEdge import (
     EdgeExtractionConfig,
     EdgeQCConfig,
+    CurvatureQCConfig,
     VesicleEdges,
     VesicleVideo,
     extract_edge_from_frame,
@@ -226,7 +227,7 @@ Reload the checkpoint and apply QC later:
 edges = VesicleEdges.from_checkpoint("sample.npz")
 
 qc_config = EdgeQCConfig(
-    curvature_threshold=0.059,
+    curvature=CurvatureQCConfig(threshold=0.059),
 )
 
 edges.run_qc(qc_config)

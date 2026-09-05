@@ -634,6 +634,7 @@ expect its configuration, result models, and measurements to evolve.
 from vesmod.VesEdge import (
     EdgeExtractionConfig,
     EdgeQCConfig,
+    CurvatureQCConfig,
     VesicleEdges,
     VesicleVideo,
     extract_edge_from_frame,
@@ -657,7 +658,7 @@ Later:
 edges = VesicleEdges.from_checkpoint("sample.npz")
 edges.run_qc(
     EdgeQCConfig(
-        curvature_threshold=0.059,
+        curvature=CurvatureQCConfig(threshold=0.059),
     )
 )
 edges.save_edge_to_npy("sample.npy")

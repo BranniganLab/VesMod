@@ -21,6 +21,8 @@ from .path_utils import (
     remove_manifest_artifacts,
 )
 from vesmod.VesEdge import (
+    AreaQCConfig,
+    CurvatureQCConfig,
     EdgeExtractionConfig,
     EdgeQCConfig,
     QCFlag,
@@ -28,6 +30,7 @@ from vesmod.VesEdge import (
     VesicleVideo,
     open_frame_source,
 )
+from vesmod.VesEdge.experimental import InternalVesicleQCConfig
 
 
 def _parse_angular_samples(value: str) -> int | None:
@@ -371,35 +374,29 @@ def process_extract_file(path: Path, args: argparse.Namespace) -> None:
 def _qc_config_from_args(args: argparse.Namespace) -> EdgeQCConfig:
     """Build the QC configuration requested on the command line."""
     return EdgeQCConfig(
-        curvature_threshold=args.curvature_threshold,
-        enable_curvature_qc=not args.no_curvature_qc,
-        max_relative_area_deviation=args.max_relative_area_deviation,
-        enable_area_qc=not args.no_area_qc,
-        enable_internal_vesicle_qc=getattr(
-            args,
-            "internal_vesicle_qc",
-            False,
+        curvature=CurvatureQCConfig(
+            threshold=args.curvature_threshold,
+            enabled=not args.no_curvature_qc,
         ),
-        max_internal_vesicle_area_fraction=(
-            getattr(args, "max_internal_vesicle_area_fraction", 0.5)
+        area=AreaQCConfig(
+            max_relative_deviation=args.max_relative_area_deviation,
+            enabled=not args.no_area_qc,
         ),
-        internal_vesicle_min_frame_fraction=(
-            getattr(args, "internal_vesicle_min_frame_fraction", 0.5)
-        ),
-        internal_vesicle_max_frames=getattr(
-            args,
-            "internal_vesicle_max_frames",
-            20,
-        ),
-        internal_vesicle_min_valid_frames=getattr(
-            args,
-            "internal_vesicle_min_valid_frames",
-            3,
-        ),
-        internal_vesicle_min_valid_frame_fraction=getattr(
-            args,
-            "internal_vesicle_min_valid_frame_fraction",
-            0.5,
+        internal_vesicle=InternalVesicleQCConfig(
+            enabled=getattr(args, "internal_vesicle_qc", False),
+            max_area_fraction=getattr(
+                args, "max_internal_vesicle_area_fraction", 0.5
+            ),
+            min_frame_fraction=getattr(
+                args, "internal_vesicle_min_frame_fraction", 0.5
+            ),
+            max_frames=getattr(args, "internal_vesicle_max_frames", 20),
+            min_valid_frames=getattr(
+                args, "internal_vesicle_min_valid_frames", 3
+            ),
+            min_valid_frame_fraction=getattr(
+                args, "internal_vesicle_min_valid_frame_fraction", 0.5
+            ),
         ),
     )
 
@@ -620,7 +617,7 @@ def process_qc_file(
     qc_error = ""
     try:
         frames = None
-        if qc_config.enable_internal_vesicle_qc:
+        if qc_config.internal_vesicle.enabled:
             if edges.source_path is None:
                 raise ValueError(
                     "Internal-vesicle QC requires a checkpoint with a source "
@@ -787,7 +784,7 @@ def _save_area_qc_plot(path: Path, edges: VesicleEdges) -> None:
     frame_indices = [edge.frame_index for edge in detections]
     areas = area_result.areas_pixels2
     reference = area_result.reference_area_pixels2
-    deviation = config.max_relative_area_deviation
+    deviation = config.area.max_relative_deviation
     lower_bound = reference * (1 - deviation)
     upper_bound = reference * (1 + deviation)
 

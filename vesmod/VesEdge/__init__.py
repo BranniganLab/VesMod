@@ -7,7 +7,12 @@ from .animation import (
     make_gif,
 )
 from .area_qc import check_area_deviation, contour_area
-from .config import EdgeExtractionConfig, EdgeQCConfig
+from .config import (
+    AreaQCConfig,
+    CurvatureQCConfig,
+    EdgeExtractionConfig,
+    EdgeQCConfig,
+)
 from .edge_extractor import extract_edge_from_frame
 from .frame_source import (
     ArrayFrameSource,
@@ -34,9 +39,11 @@ __all__ = [
     "AnimationPanel",
     "ArrayFrameSource",
     "AreaQCResult",
+    "AreaQCConfig",
     "check_area_deviation",
     "contour_area",
     "CurvatureQCResult",
+    "CurvatureQCConfig",
     "EdgeDetection",
     "EdgeDetectionFailure",
     "EdgeExtractionConfig",

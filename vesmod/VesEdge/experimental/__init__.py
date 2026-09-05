@@ -8,6 +8,7 @@ from .internal_structures import (
     detect_internal_structures,
     summarize_internal_structures,
 )
+from ..config import InternalVesicleQCConfig
 from .internal_vesicle_qc import check_internal_vesicle_selection
 
 __all__ = [
@@ -18,4 +19,5 @@ __all__ = [
     "detect_internal_structures",
     "summarize_internal_structures",
     "check_internal_vesicle_selection",
+    "InternalVesicleQCConfig",
 ]

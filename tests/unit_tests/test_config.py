@@ -3,7 +3,13 @@
 import numpy as np
 import pytest
 
-from vesmod.VesEdge import EdgeExtractionConfig, EdgeQCConfig
+from vesmod.VesEdge import (
+    AreaQCConfig,
+    CurvatureQCConfig,
+    EdgeExtractionConfig,
+    EdgeQCConfig,
+)
+from vesmod.VesEdge.experimental import InternalVesicleQCConfig
 
 
 def test_edge_extraction_config_requires_positive_pixels_per_micron():
@@ -72,64 +78,84 @@ def test_edge_extraction_config_allows_no_downsampling():
 
 
 @pytest.mark.parametrize(
-    ("kwargs", "match"),
+    ("config_type", "kwargs", "match"),
     [
         (
-            {"curvature_threshold": -1.0},
-            "curvature_threshold must be non-negative",
+            CurvatureQCConfig,
+            {"threshold": -1.0},
+            "threshold must be non-negative",
         ),
         (
-            {"max_relative_area_deviation": -0.1},
-            "max_relative_area_deviation must be at least 0",
+            AreaQCConfig,
+            {"max_relative_deviation": -0.1},
+            "max_relative_deviation must be at least 0",
         ),
         (
-            {"max_relative_area_deviation": 1.0},
-            "max_relative_area_deviation must be at least 0",
+            AreaQCConfig,
+            {"max_relative_deviation": 1.0},
+            "max_relative_deviation must be at least 0",
         ),
         (
-            {"max_relative_area_deviation": np.inf},
-            "max_relative_area_deviation must be finite",
+            AreaQCConfig,
+            {"max_relative_deviation": np.inf},
+            "max_relative_deviation must be finite",
         ),
     ],
 )
-def test_edge_qc_config_rejects_invalid_values(kwargs, match):
+def test_edge_qc_config_rejects_invalid_values(config_type, kwargs, match):
     """Test representative invalid QC configuration values."""
-    config_values = {
-        "curvature_threshold": 5.0,
-    }
-    config_values.update(kwargs)
-
     with pytest.raises(ValueError, match=match):
-        EdgeQCConfig(**config_values)
+        config_type(**kwargs)
 
 
 def test_edge_qc_config_normalizes_numeric_thresholds():
     """Successful construction exposes normalized finite threshold values."""
     config = EdgeQCConfig(
-        curvature_threshold=np.float64(5.0),
-        max_relative_area_deviation=np.float64(0.25),
+        curvature=CurvatureQCConfig(threshold=np.float64(5.0)),
+        area=AreaQCConfig(max_relative_deviation=np.float64(0.25)),
     )
 
-    assert isinstance(config.curvature_threshold, float)
-    assert config.curvature_threshold == 5.0
-    assert isinstance(config.max_relative_area_deviation, float)
-    assert config.max_relative_area_deviation == 0.25
+    assert isinstance(config.curvature.threshold, float)
+    assert config.curvature.threshold == 5.0
+    assert isinstance(config.area.max_relative_deviation, float)
+    assert config.area.max_relative_deviation == 0.25
 
 
 @pytest.mark.parametrize(
-    "field",
+    "factory",
     [
-        "enable_curvature_qc",
-        "enable_area_qc",
-        "enable_internal_vesicle_qc",
+        lambda: CurvatureQCConfig(5.0, enabled=1),
+        lambda: AreaQCConfig(enabled=1),
+        lambda: InternalVesicleQCConfig(enabled=1),
     ],
 )
-def test_edge_qc_config_requires_boolean_enable_flags(field):
+def test_edge_qc_config_requires_boolean_enable_flags(factory):
     """QC enable flags are part of the validated config invariant."""
-    kwargs = {
-        "curvature_threshold": 5.0,
-        field: 1,
-    }
+    with pytest.raises(TypeError, match="enabled must be a bool"):
+        factory()
 
-    with pytest.raises(TypeError, match=f"{field} must be a bool"):
-        EdgeQCConfig(**kwargs)
+
+def test_edge_qc_config_migrates_legacy_flat_dictionary():
+    """Old provenance is translated at the deserialization boundary."""
+    config = EdgeQCConfig.from_dict(
+        {
+            "curvature_threshold": 7.0,
+            "enable_area_qc": False,
+        }
+    )
+
+    assert config.curvature.threshold == 7.0
+    assert not config.area.enabled
+
+
+def test_edge_qc_config_contains_independent_check_configs():
+    """Each QC family is represented by its own immutable configuration."""
+    curvature = CurvatureQCConfig(5.0, enabled=False)
+    area = AreaQCConfig(0.4)
+    internal = InternalVesicleQCConfig(enabled=True, max_frames=4)
+
+    config = EdgeQCConfig(curvature, area, internal)
+
+    assert config.curvature is curvature
+    assert config.area is area
+    assert config.internal_vesicle is internal
