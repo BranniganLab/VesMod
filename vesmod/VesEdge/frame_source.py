@@ -36,12 +36,18 @@ class FrameSource(Protocol):
 class ArrayFrameSource:
     """Random-access frames backed by an in-memory or memory-mapped array."""
 
-    def __init__(self, frames: NDArray[np.number]) -> None:
+    def __init__(
+        self,
+        frames: NDArray[np.number],
+        *,
+        owns_frames: bool = False,
+    ) -> None:
         if not isinstance(frames, np.ndarray):
             raise TypeError("frames must be a numpy ndarray or FrameSource.")
         if frames.ndim != 3:
             raise IndexError("frames must be a 3D array.")
         self._frames = frames
+        self._owns_frames = owns_frames
 
     @property
     def shape(self) -> tuple[int, int, int]:
@@ -68,7 +74,10 @@ class ArrayFrameSource:
             yield self[index]
 
     def close(self) -> None:
-        """Close the source; arrays own no external handle."""
+        """Release an array opened and owned by this source."""
+        if self._owns_frames:
+            self._frames = None
+            self._owns_frames = False
 
     def __enter__(self) -> "ArrayFrameSource":
         return self
@@ -222,6 +231,7 @@ def open_frame_source(
         return ND2FrameSource(source_path, axis_selection=axis_selection)
     if suffix == ".npy":
         return ArrayFrameSource(
-            np.load(source_path, allow_pickle=False, mmap_mode="r")
+            np.load(source_path, allow_pickle=False, mmap_mode="r"),
+            owns_frames=True,
         )
     raise ValueError(f"Unsupported video source type: {source_path}")

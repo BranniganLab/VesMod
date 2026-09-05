@@ -33,6 +33,17 @@ def test_open_numpy_source_uses_memory_mapping(tmp_path):
     with open_frame_source(path) as source:
         assert source.shape == (2, 3, 4)
         assert isinstance(source._frames, np.memmap)
+    assert source._frames is None
+
+
+def test_array_source_close_preserves_caller_owned_array():
+    frames = np.zeros((2, 3, 4))
+    source = ArrayFrameSource(frames)
+
+    source.close()
+    source.close()
+
+    assert source._frames is frames
 
 
 def test_array_source_rejects_non_video_shape():

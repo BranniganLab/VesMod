@@ -142,6 +142,7 @@ def _load_frames(source_path: Path) -> FrameSource:
 
 def _apply_recorded_qc(
     edges: VesicleEdges,
+    frames: FrameSource,
     checkpoint: Path,
     input_path: Path,
     qc_dir: Path,
@@ -149,7 +150,7 @@ def _apply_recorded_qc(
 ) -> None:
     """Reconstruct frame-level QC and verify the paired filtered output."""
     try:
-        edges.run_qc(qc_config)
+        edges.run_qc(qc_config, frames)
     except ValueError:
         if edges.qc_result is None:
             raise
@@ -197,6 +198,7 @@ def process_gif_file(
             if args.style == "qc":
                 _apply_recorded_qc(
                     edges,
+                    frames,
                     checkpoint,
                     args.input_path,
                     args.qc_dir,

@@ -6,6 +6,7 @@ import pytest
 from vesmod.VesEdge import EdgeQCConfig
 from vesmod.VesEdge.experimental.internal_vesicle_qc import (
     _coherent_outer_edge_coverage,
+    _frame_enclosing_boundary_score,
     check_internal_vesicle_selection,
 )
 from vesmod.VesEdge.models import EdgeDetection, ImageContour, QCFlag
@@ -107,6 +108,27 @@ def test_incoherent_outer_peaks_do_not_form_enclosing_boundary():
         config=config,
     )
 
+    assert score < config.internal_vesicle_min_angular_coverage
+
+
+def test_clipped_directions_count_as_missing_outer_boundary_evidence():
+    """A partial ring at an image border does not imply full coverage."""
+    y, x = np.indices((100, 100))
+    distance = np.hypot(x, y - 50.0)
+    frame = sum(
+        np.exp(-0.5 * ((distance - radius) / 1.5) ** 2)
+        for radius in (12.0, 32.0)
+    )
+    contour = ImageContour((0.0, 50.0), np.full(120, 12.0))
+    detection = EdgeDetection(contour, contour, frame_index=0)
+    config = EdgeQCConfig(
+        curvature_threshold=1.0,
+        enable_internal_vesicle_qc=True,
+    )
+
+    score = _frame_enclosing_boundary_score(frame, detection, config)
+
+    assert np.isfinite(score)
     assert score < config.internal_vesicle_min_angular_coverage
 
 

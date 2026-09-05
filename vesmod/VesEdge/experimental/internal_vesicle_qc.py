@@ -71,7 +71,7 @@ def _coherent_outer_edge_coverage(
     strong = outer_strengths >= (
         config.internal_vesicle_gradient_ratio * reference_strength
     )
-    return float(np.mean((coherent & strong)[usable]))
+    return float(np.count_nonzero(coherent & strong & usable) / outer_radii.size)
 
 
 def _frame_enclosing_boundary_score(
