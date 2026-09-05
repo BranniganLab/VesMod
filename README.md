@@ -22,7 +22,7 @@ Features include:
 * Trajectory-relative contour-area quality control
 * Rerunnable QC without repeating edge extraction
 * QC provenance and batch-summary outputs
-* Optional angular downsampling
+* Explicit angular sampling
 * NumPy export of accepted contours
 * Annotated GIF generation for visual inspection
 
@@ -93,10 +93,11 @@ Extract each microscopy video once and keep the resulting checkpoint. QC can the
 ```bash
 vesedge extract "./videos" \
     --pixels-per-micron 13.44 \
-    --downsample \
-    --n-samples 120 \
+    --n-angular-samples 120 \
     --output-dir ./checkpoints
 ```
+
+Calibration is required explicitly. For intentionally uncalibrated or dimensionless workflows, use `--assume-one-pixel-per-micron`. Angular sampling defaults to 120, matching the Python API; use `--n-angular-samples native` to retain the extractor's native sampling. See the [extraction-default migration guide](docs/VesEdge_extraction_defaults_migration.md) for older CLI invocations.
 
 This creates one reusable `.npz` checkpoint per input video:
 
@@ -212,6 +213,7 @@ edges = video.extract_edges(
     EdgeExtractionConfig(
         pixels_per_micron=13.44,
         n_angular_samples=120,
+        calibration_source="measured",
     ),
 )
 
@@ -298,6 +300,7 @@ Both successful physical fits remain available in `spectrum.fit_results`. Each `
 | Component | Documentation |
 | --- | --- |
 | VesEdge | [VesEdge CLI guide](docs/VesEdge_CLI_README.md) |
+| VesEdge extraction migration | [Explicit calibration and angular sampling](docs/VesEdge_extraction_defaults_migration.md) |
 | EdgeMod | [EdgeMod CLI guide](docs/EdgeMod_CLI_README.md) |
 
 ---
