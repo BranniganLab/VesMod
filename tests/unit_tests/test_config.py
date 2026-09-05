@@ -159,3 +159,28 @@ def test_edge_qc_config_contains_independent_check_configs():
     assert config.curvature is curvature
     assert config.area is area
     assert config.internal_vesicle is internal
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        {"curvature": {"threshold": 5.0}, "unknown": True},
+        {"curvature": {"threshold": 5.0}, "enable_area_qc": False},
+        {"curvature": {"threshold": 5.0, "unknown": True}},
+    ],
+)
+def test_edge_qc_config_rejects_unknown_or_mixed_nested_fields(values):
+    """Nested provenance cannot silently discard unsupported fields."""
+    with pytest.raises(TypeError):
+        EdgeQCConfig.from_dict(values)
+
+
+def test_edge_qc_config_rejects_legacy_pixel_separation():
+    """A fixed pixel distance cannot be silently mapped to a relative one."""
+    with pytest.raises(ValueError, match="cannot be converted"):
+        EdgeQCConfig.from_dict(
+            {
+                "curvature_threshold": 5.0,
+                "internal_vesicle_min_separation_pixels": 5.0,
+            }
+        )

@@ -394,10 +394,8 @@ This file records:
 - the resolved checkpoint input path;
 - whether recursive discovery was enabled;
 - the resolved manifest of checkpoints selected for the batch;
-- `curvature_threshold`;
-- whether curvature QC was enabled;
-- the maximum relative area deviation;
-- whether area QC was enabled.
+- `curvature.threshold` and `curvature.enabled`;
+- `area.max_relative_deviation` and `area.enabled`;
 - whether internal-vesicle QC was enabled and all of its thresholds.
 
 Consequently, recursive and non-recursive runs, or runs resolving to different checkpoint sets, have different provenance even if their QC thresholds are identical.

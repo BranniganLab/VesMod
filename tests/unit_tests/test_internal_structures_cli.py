@@ -331,7 +331,8 @@ def test_process_checkpoint_does_not_measure_qc_rejected_frame(
         detections = [detection]
         qc_result = None
 
-        def run_qc(self, config):
+        def run_qc(self, config, frames):
+            assert frames.shape == (1, 10, 10)
             detection.qc.flags.add(next(iter(QCFlag)))
             self.qc_result = argparse.Namespace(passed=True)
             raise ValueError("no frames passed quality control")

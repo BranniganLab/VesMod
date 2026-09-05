@@ -352,7 +352,7 @@ def process_checkpoint(
                 f"{frames.shape[0]} != {len(edges.detections)}."
             )
         if qc_config is not None:
-            _apply_qc(edges, qc_config)
+            _apply_qc(edges, qc_config, frames)
     except (OSError, IndexError, TypeError, ValueError) as error:
         message = str(error)
         print(f"Failed to analyze {_display_path(checkpoint_path)}: {message}")
@@ -474,10 +474,14 @@ def _load_qc_selection(
     return qc_config, provenance_path
 
 
-def _apply_qc(edges: VesicleEdges, qc_config: EdgeQCConfig) -> None:
+def _apply_qc(
+    edges: VesicleEdges,
+    qc_config: EdgeQCConfig,
+    frames: np.ndarray,
+) -> None:
     """Apply frame eligibility while allowing a result with zero passing frames."""
     try:
-        edges.run_qc(qc_config)
+        edges.run_qc(qc_config, frames)
     except ValueError:
         if edges.qc_result is None:
             raise

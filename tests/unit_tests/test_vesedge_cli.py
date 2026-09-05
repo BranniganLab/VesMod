@@ -269,6 +269,62 @@ def test_process_qc_file_runs_qc_and_saves_filtered_output(tmp_path, monkeypatch
     assert row["status"] == "ok"
 
 
+def test_process_qc_file_resolves_relative_video_path_for_image_qc(
+    tmp_path,
+    monkeypatch,
+):
+    """Image QC resolves a recorded source relative to its checkpoint."""
+    checkpoint = tmp_path / "checkpoints" / "sample.npz"
+    checkpoint.parent.mkdir()
+    checkpoint.touch()
+    source = checkpoint.parent / "video.npy"
+    np.save(source, np.zeros((1, 10, 10)))
+    observed = {}
+
+    class Detection:
+        qc = argparse.Namespace(flags=set(), passed=True)
+
+    class FakeEdges:
+        source_path = Path("video.npy")
+        detections = [Detection()]
+        successful_detections = detections
+        qc_result = None
+
+        def run_qc(self, config, frames=None):
+            assert frames.shape == (1, 10, 10)
+            self.qc_result = argparse.Namespace(
+                trajectory_flags=frozenset(),
+                internal_vesicle=None,
+            )
+
+        def save_edge_to_npy(self, path):
+            observed["npy"] = path
+
+    monkeypatch.setattr(
+        vesedge_cli.VesicleEdges,
+        "from_checkpoint",
+        lambda path: FakeEdges(),
+    )
+
+    def open_frames(path):
+        observed["source_path"] = path
+        return ArrayFrameSource(np.zeros((1, 10, 10)))
+
+    monkeypatch.setattr(
+        vesedge_cli,
+        "open_frame_source",
+        open_frames,
+    )
+    args = _qc_args(tmp_path / "qc", checkpoint)
+    args.internal_vesicle_qc = True
+    config = vesedge_cli._qc_config_from_args(args)
+
+    row = vesedge_cli.process_qc_file(checkpoint, args, config)
+
+    assert observed["source_path"] == source.resolve()
+    assert row["status"] == "ok"
+
+
 def test_process_qc_file_preserves_relative_output_path(tmp_path, monkeypatch):
     """Test recursive QC outputs preserve checkpoint subdirectories."""
     observed = {}

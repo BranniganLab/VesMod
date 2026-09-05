@@ -222,7 +222,20 @@ class EdgeQCConfig:
     @classmethod
     def from_dict(cls, values: dict) -> "EdgeQCConfig":
         """Deserialize nested configuration or migrate legacy flat values."""
-        if "curvature" in values:
+        if not isinstance(values, dict):
+            raise TypeError("QC configuration must be a dictionary.")
+        nested_fields = {"curvature", "area", "internal_vesicle"}
+        supplied_nested = set(values) & nested_fields
+        if supplied_nested:
+            unexpected = set(values) - nested_fields
+            if unexpected:
+                names = ", ".join(sorted(unexpected))
+                raise TypeError(
+                    "Nested QC configuration cannot contain legacy or unknown "
+                    f"field(s): {names}."
+                )
+            if "curvature" not in values:
+                raise TypeError("curvature configuration is required.")
             return cls(
                 curvature=CurvatureQCConfig(**values["curvature"]),
                 area=AreaQCConfig(**values.get("area", {})),
@@ -256,6 +269,12 @@ class EdgeQCConfig:
         if unknown:
             name = sorted(unknown)[0]
             raise TypeError(f"Unexpected QC configuration field: {name}")
+        if "internal_vesicle_min_separation_pixels" in values:
+            raise ValueError(
+                "Legacy internal_vesicle_min_separation_pixels cannot be "
+                "converted without a contour radius; use "
+                "internal_vesicle_min_separation_fraction."
+            )
         if "curvature_threshold" not in values:
             raise TypeError("curvature configuration is required.")
         return cls(
