@@ -233,6 +233,29 @@ def _assert_matches_reference(
         )
 
 
+def test_legacy_acceptance_calibration_compatibility_is_still_needed():
+    """Fail once all acceptance references contain calibration provenance."""
+    regenerated = []
+    for _, reference_name in ACCEPTANCE_CASES:
+        reference_path = _reference_path(reference_name)
+        with np.load(reference_path, allow_pickle=False) as stored:
+            metadata = json.loads(stored["metadata_json"].item())
+        if "calibration_source" in metadata["extraction_config"]:
+            regenerated.append(reference_path.name)
+
+    if regenerated:
+        pytest.fail(
+            "Acceptance reference calibration provenance has been regenerated "
+            f"for: {', '.join(regenerated)}. The temporary compatibility code "
+            "is now obsolete. Remove the schema-v1 compatibility block in "
+            "_assert_matches_reference() that inserts calibration_source when "
+            "it is missing, then remove this test "
+            "(test_legacy_acceptance_calibration_compatibility_is_still_needed). "
+            "After removing both, rerun the full test suite and commit those "
+            "cleanup changes together with the regenerated acceptance reference."
+        )
+
+
 @pytest.mark.parametrize(
     ("case_name", "reference_name"),
     ACCEPTANCE_CASES,
