@@ -344,7 +344,10 @@ This file is intended to make it easy to compare how aggressive different QC con
 
 If an output `.npy` already exists, VesEdge keeps it unless `--overwrite` is supplied. Reusing an output directory with different provenance is rejected unless `--overwrite` is supplied.
 
-Use a dedicated QC output directory. For an incompatible overwrite, VesEdge recursively removes every `.npy` file under that output directory, along with its QC summary and provenance, before writing the new run. Do not store unrelated NumPy arrays there.
+Use a dedicated QC output directory. For an incompatible overwrite, VesEdge
+removes only the files recorded in the previous run's managed-artifacts manifest,
+along with its QC summary and provenance, before writing the new run. Unrelated
+files in the output directory are preserved.
 
 ## Comparing QC Configurations
 

@@ -164,7 +164,9 @@ vesedge qc "./checkpoints" \
 
 Keeping each QC configuration in its own directory makes the analysis provenance explicit and allows the outputs to be compared directly.
 
-Do not store unrelated `.npy` files in a QC output directory: an incompatible rerun with `--overwrite` clears NumPy arrays beneath that directory before writing the new result.
+QC records its generated files in the output manifest. An incompatible rerun with
+`--overwrite` removes only those recorded files; unrelated arrays and other files
+in the directory are preserved.
 
 ### 5. Analyze each QC result with EdgeMod
 

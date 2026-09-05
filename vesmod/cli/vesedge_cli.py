@@ -17,7 +17,11 @@ import numpy as np
 from . import internal_structures_batch_cli as internal_structures_cli
 from .gif_cli import add_gif_parser, run_gif
 from .input_selection import InputPathsAction, select_input_files
-from .path_utils import _display_path, _relative_input_path
+from .path_utils import (
+    _display_path,
+    _relative_input_path,
+    remove_manifest_artifacts,
+)
 from vesmod.VesEdge import (
     EdgeExtractionConfig,
     EdgeQCConfig,
@@ -291,21 +295,37 @@ def _qc_provenance(
         "recursive": recursive,
         "checkpoint_manifest": [str(path.resolve()) for path in paths],
         "qc_config": asdict(qc_config),
+        "managed_artifacts": [],
     }
     return provenance
 
 
 def _remove_managed_qc_artifacts(output_dir: Path) -> None:
     """Remove filtered arrays and metadata managed by a previous QC batch."""
-    for output_path in output_dir.rglob("*.npy"):
-        output_path.unlink()
-    for pattern in ("*.area_qc.png", "*.area_qc.csv"):
-        for output_path in output_dir.rglob(pattern):
-            output_path.unlink()
-    for filename in ("qc_summary.csv", "vesedge_qc.json"):
-        output_path = output_dir / filename
-        if output_path.exists():
-            output_path.unlink()
+    provenance_path = output_dir / "vesedge_qc.json"
+    try:
+        provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, TypeError) as error:
+        raise ValueError(
+            "Existing VesEdge QC provenance is malformed; refusing to remove "
+            "files."
+        ) from error
+    if not isinstance(provenance, dict) or not {
+        "checkpoint_manifest",
+        "qc_config",
+    }.issubset(provenance):
+        raise ValueError(
+            "Existing VesEdge QC provenance is incomplete; refusing to remove "
+            "files."
+        )
+    remove_manifest_artifacts(
+        output_dir,
+        provenance,
+        manifest_key="managed_artifacts",
+        manifest_name="VesEdge QC provenance",
+        allowed_suffixes={".npy", ".png", ".csv"},
+        metadata_files=("qc_summary.csv", "vesedge_qc.json"),
+    )
 
 
 def _write_qc_provenance(
@@ -328,15 +348,30 @@ def _write_qc_provenance(
 
     if provenance_path.exists():
         existing = json.loads(provenance_path.read_text(encoding="utf-8"))
-        if existing == provenance:
-            return
-        if not overwrite:
-            raise ValueError(
-                "QC output directory already contains results from a different "
-                "input selection or QC configuration. Choose another --output-dir "
-                "or use --overwrite."
-            )
-        _remove_managed_qc_artifacts(output_dir)
+        comparable = dict(existing) if isinstance(existing, dict) else {}
+        comparable["managed_artifacts"] = []
+        if comparable == provenance:
+            if overwrite:
+                _remove_managed_qc_artifacts(output_dir)
+                # The matching-provenance cleanup already removed the old
+                # manifest; continue by writing the replacement below.
+            else:
+                provenance["managed_artifacts"] = existing.get(
+                    "managed_artifacts", []
+                )
+                provenance_path.write_text(
+                    json.dumps(provenance, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+                return
+        else:
+            if not overwrite:
+                raise ValueError(
+                    "QC output directory already contains results from a different "
+                    "input selection or QC configuration. Choose another "
+                    "--output-dir or use --overwrite."
+                )
+            _remove_managed_qc_artifacts(output_dir)
 
     provenance_path.write_text(
         json.dumps(provenance, indent=2) + "\n",
@@ -396,6 +431,7 @@ def process_qc_file(
     path: Path,
     args: argparse.Namespace,
     qc_config: EdgeQCConfig,
+    managed_artifacts: set[Path] | None = None,
 ) -> dict:
     """Apply QC to one checkpoint and return its batch summary row."""
     output_path = (
@@ -451,15 +487,38 @@ def process_qc_file(
     )
     if has_area_result and (args.overwrite or not area_plot_path.exists()):
         _save_area_qc_plot(area_plot_path, edges)
+        if managed_artifacts is not None:
+            managed_artifacts.add(area_plot_path)
     if has_area_result and (args.overwrite or not area_csv_path.exists()):
         _write_area_qc_csv(area_csv_path, edges)
+        if managed_artifacts is not None:
+            managed_artifacts.add(area_csv_path)
     if (
         status == "ok"
         and row["accepted"] > 0
         and (args.overwrite or not output_exists)
     ):
         edges.save_edge_to_npy(output_path)
+        if managed_artifacts is not None:
+            managed_artifacts.add(output_path)
     return row
+
+
+def _record_qc_artifacts(
+    output_dir: Path,
+    managed_artifacts: set[Path],
+) -> None:
+    """Record the filtered arrays and diagnostics created by this batch."""
+    provenance_path = output_dir / "vesedge_qc.json"
+    provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+    provenance["managed_artifacts"] = sorted(
+        str(path.resolve().relative_to(output_dir.resolve()))
+        for path in managed_artifacts
+    )
+    provenance_path.write_text(
+        json.dumps(provenance, indent=2) + "\n",
+        encoding="utf-8",
+    )
 
 
 def _write_area_qc_csv(path: Path, edges: VesicleEdges) -> None:
@@ -573,11 +632,13 @@ def _run_qc(args: argparse.Namespace) -> None:
         paths,
         args.overwrite,
     )
+    managed_artifacts: set[Path] = set()
     rows = [
-        process_qc_file(path, args, qc_config)
+        process_qc_file(path, args, qc_config, managed_artifacts)
         for path in paths
     ]
     _write_qc_summary(args.output_dir, rows)
+    _record_qc_artifacts(args.output_dir, managed_artifacts)
 
 
 def main() -> None:
