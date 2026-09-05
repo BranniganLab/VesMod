@@ -100,6 +100,9 @@ def save_checkpoint(
             n_angular_samples,
             dtype=np.int64,
         ),
+        "calibration_source": np.asarray(
+            extraction_config.calibration_source,
+        ),
         "frame_indices": frame_indices,
         "result_types": result_types,
         "failure_errors": failure_errors,
@@ -192,11 +195,17 @@ def _extraction_config_from_checkpoint(
 ) -> EdgeExtractionConfig:
     """Reconstruct extraction settings stored in a checkpoint."""
     stored_samples = int(checkpoint["n_angular_samples"])
+    calibration_source = (
+        str(checkpoint["calibration_source"].item())
+        if "calibration_source" in checkpoint
+        else "unspecified"
+    )
     return EdgeExtractionConfig(
         pixels_per_micron=float(checkpoint["pixels_per_micron"]),
         n_angular_samples=(
             None if stored_samples == -1 else stored_samples
         ),
+        calibration_source=calibration_source,
     )
 
 
