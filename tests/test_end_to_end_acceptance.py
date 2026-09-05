@@ -156,14 +156,11 @@ def _run_pipeline(case_name: str, tmp_path: Path) -> dict[str, np.ndarray]:
         }
     )
 
-    extraction_metadata = asdict(EXTRACTION_CONFIG)
-    # Provenance-only fields do not alter scientific acceptance outputs.
-    extraction_metadata.pop("calibration_source", None)
     metadata = {
         "schema_version": REFERENCE_SCHEMA_VERSION,
         "input_file": input_path.name,
         "input_sha256": _sha256(input_path),
-        "extraction_config": extraction_metadata,
+        "extraction_config": asdict(EXTRACTION_CONFIG),
         "qc_config": asdict(QC_CONFIG),
         "fit_config": asdict(FIT_CONFIG),
     }
