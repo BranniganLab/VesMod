@@ -36,6 +36,7 @@ REFERENCE_SCHEMA_VERSION = 1
 EXTRACTION_CONFIG = EdgeExtractionConfig(
     pixels_per_micron=13.44,
     n_angular_samples=120,
+    calibration_source="measured",
 )
 QC_CONFIG = EdgeQCConfig(
     curvature_threshold=0.059,
