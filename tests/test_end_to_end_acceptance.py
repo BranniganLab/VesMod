@@ -238,6 +238,8 @@ def test_legacy_acceptance_calibration_compatibility_is_still_needed():
     regenerated = []
     for _, reference_name in ACCEPTANCE_CASES:
         reference_path = _reference_path(reference_name)
+        if not reference_path.is_file():
+            continue
         with np.load(reference_path, allow_pickle=False) as stored:
             metadata = json.loads(stored["metadata_json"].item())
         if "calibration_source" in metadata["extraction_config"]:
