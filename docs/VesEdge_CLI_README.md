@@ -330,6 +330,9 @@ This is an edge-selection QC check, not internal-structure measurement. It
 searches outside the traced contour for radial intensity-gradient evidence of
 a larger enclosing membrane. Strong outward gradients must occur at spatially
 coherent radii before they count as one enclosing boundary.
+The minimum outward separation is relative to the selected contour radius, so
+the criterion scales with image resolution instead of assuming a fixed pixel
+size.
 
 The inexpensive size gate runs first. If the median traced contour occupies at
 least half of the image, it is considered too large to plausibly be an internal
@@ -347,7 +350,9 @@ guards with `--internal-vesicle-min-valid-frames` and
 Each enabled run writes `*.internal_vesicle_qc.csv`, containing the quantitative
 enclosing-boundary angular-coverage score for each inspected frame. The video
 summary records the traced area fraction, valid-score coverage, positive-frame
-fraction, rejection count, and a human-readable reason. The implementation is
+fraction, the trajectory-level rejection decision, and a human-readable
+reason. A rejected trajectory does not mark every sampled frame as a failed
+frame. The implementation is
 exposed from `vesmod.VesEdge.experimental` and should be evaluated on
 the documented failure cases `DOPC_C1P_92.5_7.5/ND Acquisition 25_crop` and
 `DOPC_C16_95_5/ND Acquisition 20_crop` when those source acquisitions are
@@ -406,7 +411,7 @@ The summary contains one row per selected checkpoint with:
 - extraction failures;
 - curvature rejections;
 - area-deviation rejections;
-- internal-vesicle inspection, scores, and rejections;
+- internal-vesicle inspection, scores, and trajectory rejection;
 - accepted frames;
 - accepted fraction;
 - processing status;

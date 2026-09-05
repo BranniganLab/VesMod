@@ -1,5 +1,7 @@
 """Unit tests for vesicle_video.py."""
 
+from types import SimpleNamespace
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
@@ -207,6 +209,7 @@ def test_draw_frame_composes_frame_decorator_with_qc_colors(extraction_config):
 
     class FakeEdges:
         qc_config = object()
+        qc_result = SimpleNamespace(passed=True)
 
         def __init__(self, supplied_detections):
             self.detections = supplied_detections

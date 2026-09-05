@@ -26,6 +26,7 @@ from vesmod.VesEdge import (
     EdgeExtractionConfig,
     EdgeQCConfig,
     QCFlag,
+    TrajectoryQCFlag,
     VesicleEdges,
     VesicleVideo,
     open_frame_source,
@@ -514,7 +515,13 @@ def _qc_summary(
         QCFlag.AREA_DEVIATION in detection.qc.flags
         for detection in successful
     )
-    accepted = sum(detection.qc.passed for detection in successful)
+    trajectory_flags = getattr(edges.qc_result, "trajectory_flags", frozenset())
+    trajectory_rejected = bool(trajectory_flags)
+    accepted = (
+        0
+        if trajectory_rejected
+        else sum(detection.qc.passed for detection in successful)
+    )
     internal_result = getattr(
         edges.qc_result,
         "internal_vesicle",
@@ -527,9 +534,8 @@ def _qc_summary(
         "extraction_failures": len(edges.detections) - len(successful),
         "curvature_rejected": curvature_rejected,
         "area_rejected": area_rejected,
-        "internal_vesicle_rejected": sum(
-            QCFlag.INTERNAL_VESICLE in detection.qc.flags
-            for detection in successful
+        "internal_vesicle_trajectory_rejected": (
+            TrajectoryQCFlag.INTERNAL_VESICLE in trajectory_flags
         ),
         "internal_vesicle_inspected": (
             internal_result.inspected if internal_result is not None else False
@@ -573,7 +579,7 @@ def _load_error_summary(path: Path, input_path: Path, error: str) -> dict:
         "extraction_failures": 0,
         "curvature_rejected": 0,
         "area_rejected": 0,
-        "internal_vesicle_rejected": 0,
+        "internal_vesicle_trajectory_rejected": False,
         "internal_vesicle_inspected": False,
         "internal_vesicle_area_fraction": "",
         "internal_vesicle_positive_frame_fraction": "",
@@ -748,7 +754,7 @@ def _write_internal_vesicle_qc_csv(
     result = edges.qc_result.internal_vesicle
     rows = []
     if result.inspected:
-        trajectory_rejected = result.rejected_count > 0
+        trajectory_rejected = result.persistent_enclosing_boundary
         for frame_index, score in zip(
             result.sampled_frame_indices,
             result.scores,
@@ -758,7 +764,7 @@ def _write_internal_vesicle_qc_csv(
                 {
                     "frame_index": frame_index,
                     "enclosing_boundary_angular_coverage": score,
-                    "internal_vesicle_rejected": (
+                    "internal_vesicle_trajectory_rejected": (
                         trajectory_rejected
                     ),
                 }
@@ -769,7 +775,7 @@ def _write_internal_vesicle_qc_csv(
             fieldnames=[
                 "frame_index",
                 "enclosing_boundary_angular_coverage",
-                "internal_vesicle_rejected",
+                "internal_vesicle_trajectory_rejected",
             ],
         )
         writer.writeheader()
@@ -815,7 +821,7 @@ def _write_qc_summary(output_dir: Path, rows: list[dict]) -> None:
         "extraction_failures",
         "curvature_rejected",
         "area_rejected",
-        "internal_vesicle_rejected",
+        "internal_vesicle_trajectory_rejected",
         "internal_vesicle_inspected",
         "internal_vesicle_area_fraction",
         "internal_vesicle_positive_frame_fraction",

@@ -103,10 +103,15 @@ class ImageContour:
 
 
 class QCFlag(Enum):
-    """Reasons a successfully extracted edge may fail quality control."""
+    """Reasons a successfully extracted frame may fail quality control."""
 
     CURVATURE = auto()
     AREA_DEVIATION = auto()
+
+
+class TrajectoryQCFlag(Enum):
+    """Reasons a complete vesicle trajectory may fail quality control."""
+
     INTERNAL_VESICLE = auto()
 
 
@@ -249,7 +254,7 @@ class InternalVesicleQCResult:
     valid_frame_count: int
     valid_frame_fraction: float
     positive_frame_fraction: float
-    rejected_count: int
+    persistent_enclosing_boundary: bool
     reason: str
 
 
@@ -270,9 +275,18 @@ class VesicleQCResult:
     internal_vesicle : InternalVesicleQCResult | None
         Evidence that the selected edge belongs to a smaller enclosed vesicle.
         None when internal-vesicle QC was disabled.
+    trajectory_flags : frozenset[TrajectoryQCFlag]
+        Failures that apply to the complete video rather than individual
+        detected frames.
     """
 
     config: EdgeQCConfig
     curvature: CurvatureQCResult | None
     area: AreaQCResult | None = None
     internal_vesicle: InternalVesicleQCResult | None = None
+    trajectory_flags: frozenset[TrajectoryQCFlag] = frozenset()
+
+    @property
+    def passed(self) -> bool:
+        """Return whether the trajectory passed trajectory-level QC."""
+        return not self.trajectory_flags

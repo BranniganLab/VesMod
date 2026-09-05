@@ -333,7 +333,7 @@ def test_process_checkpoint_does_not_measure_qc_rejected_frame(
 
         def run_qc(self, config):
             detection.qc.flags.add(next(iter(QCFlag)))
-            self.qc_result = object()
+            self.qc_result = argparse.Namespace(passed=True)
             raise ValueError("no frames passed quality control")
 
     monkeypatch.setattr(

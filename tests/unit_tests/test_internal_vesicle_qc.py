@@ -3,13 +3,17 @@
 import numpy as np
 import pytest
 
-from vesmod.VesEdge import EdgeQCConfig
+from vesmod.VesEdge import EdgeExtractionConfig, EdgeQCConfig, VesicleEdges
 from vesmod.VesEdge.experimental.internal_vesicle_qc import (
     _coherent_outer_edge_coverage,
     _frame_enclosing_boundary_score,
     check_internal_vesicle_selection,
 )
-from vesmod.VesEdge.models import EdgeDetection, ImageContour, QCFlag
+from vesmod.VesEdge.models import (
+    EdgeDetection,
+    ImageContour,
+    TrajectoryQCFlag,
+)
 
 
 def _detection(radius: float, frame_index: int = 0) -> EdgeDetection:
@@ -47,7 +51,7 @@ def test_large_selected_edge_skips_internal_vesicle_inspection():
     assert result.contour_area_fraction >= 0.5
     assert result.sampled_frame_indices == ()
     assert result.scores == ()
-    assert QCFlag.INTERNAL_VESICLE not in detection.qc.flags
+    assert detection.qc.passed
     assert detection.qc.internal_vesicle_score is None
 
 
@@ -64,11 +68,34 @@ def test_persistent_larger_boundary_flags_internal_vesicle_selection():
 
     assert result.inspected is True
     assert result.positive_frame_fraction == 1.0
-    assert result.rejected_count == len(detections)
-    assert all(
-        QCFlag.INTERNAL_VESICLE in detection.qc.flags
-        for detection in detections
+    assert result.persistent_enclosing_boundary
+    assert all(detection.qc.passed for detection in detections)
+
+
+def test_trajectory_rejection_is_not_recorded_as_frame_rejection():
+    """Persistent outer evidence rejects the video, not each sampled edge."""
+    detections = [_detection(radius=12.0, frame_index=index) for index in range(4)]
+    frames = np.stack([_ring_frame(12.0, 32.0) for _ in detections])
+    edges = VesicleEdges(
+        EdgeExtractionConfig(n_angular_samples=120),
+        detections,
     )
+    config = EdgeQCConfig(
+        curvature_threshold=1.0,
+        enable_curvature_qc=False,
+        enable_area_qc=False,
+        enable_internal_vesicle_qc=True,
+    )
+
+    with pytest.raises(ValueError, match="trajectory failed"):
+        edges.run_qc(config, frames)
+
+    assert (
+        TrajectoryQCFlag.INTERNAL_VESICLE
+        in edges.qc_result.trajectory_flags
+    )
+    assert edges.accepted_detections == []
+    assert all(detection.qc.passed for detection in detections)
 
 
 def test_isolated_outer_boundary_does_not_reject_video():
@@ -87,7 +114,7 @@ def test_isolated_outer_boundary_does_not_reject_video():
     result = check_internal_vesicle_selection(frames, detections, config)
 
     assert result.positive_frame_fraction < 0.5
-    assert result.rejected_count == 0
+    assert not result.persistent_enclosing_boundary
     assert all(detection.qc.passed for detection in detections)
 
 
@@ -183,7 +210,7 @@ def test_insufficient_valid_sample_cannot_reject_trajectory():
 
     assert result.valid_frame_count == 1
     assert result.valid_frame_fraction == 0.25
-    assert result.rejected_count == 0
+    assert not result.persistent_enclosing_boundary
     assert result.reason.startswith("Insufficient")
 
 

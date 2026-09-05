@@ -369,7 +369,9 @@ def process_checkpoint(
                 _frame_error_row(frame_index, "extraction_failure", edge_result.error)
             )
             continue
-        if qc_config is not None and not edge_result.qc.passed:
+        if qc_config is not None and (
+            not edges.qc_result.passed or not edge_result.qc.passed
+        ):
             frame_rows.append(
                 _frame_error_row(frame_index, "qc_rejected", "")
             )

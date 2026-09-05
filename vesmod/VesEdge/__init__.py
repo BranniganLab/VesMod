@@ -30,6 +30,7 @@ from .models import (
     ImageContour,
     InternalVesicleQCResult,
     QCFlag,
+    TrajectoryQCFlag,
     VesicleQCResult,
 )
 from .vesicle_edges import VesicleEdges
@@ -57,6 +58,7 @@ __all__ = [
     "ND2FrameSource",
     "open_frame_source",
     "QCFlag",
+    "TrajectoryQCFlag",
     "TimeSeriesAnimationPanel",
     "VesicleAnimationPanel",
     "VesicleEdges",

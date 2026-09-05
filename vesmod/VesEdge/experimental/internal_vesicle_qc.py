@@ -11,7 +11,7 @@ from scipy.ndimage import gaussian_filter1d, map_coordinates, median_filter
 from ..area_qc import contour_area
 from ..config import EdgeQCConfig, InternalVesicleQCConfig
 from ..frame_source import FrameSource, as_frame_source
-from ..models import EdgeDetection, InternalVesicleQCResult, QCFlag
+from ..models import EdgeDetection, InternalVesicleQCResult
 
 
 def _sample_detections(
@@ -63,10 +63,7 @@ def _coherent_outer_edge_coverage(
         size=max(1, smoothing_width),
         mode="wrap",
     )
-    allowed_deviation = np.maximum(
-        config.min_separation_pixels,
-        config.max_radial_deviation_fraction * smooth_radii,
-    )
+    allowed_deviation = config.max_radial_deviation_fraction * smooth_radii
     coherent = np.abs(outer_radii - smooth_radii) <= allowed_deviation
     strong = outer_strengths >= (
         config.gradient_ratio * reference_strength
@@ -118,8 +115,7 @@ def _frame_enclosing_boundary_score(
                 max(
                     selected_radius
                     * config.min_radius_ratio,
-                    selected_radius
-                    + config.min_separation_pixels,
+                    selected_radius * (1 + config.min_separation_fraction),
                 )
             )
         )
@@ -152,7 +148,7 @@ def check_internal_vesicle_selection(
     detections: list[EdgeDetection],
     config: EdgeQCConfig,
 ) -> InternalVesicleQCResult:
-    """Flag persistent selection of a smaller vesicle within a larger one."""
+    """Evaluate persistent selection of a smaller vesicle within a larger one."""
     frame_source = as_frame_source(frames)
     frame_count, height, width = frame_source.shape
     if not detections:
@@ -184,7 +180,7 @@ def check_internal_vesicle_selection(
             valid_frame_count=0,
             valid_frame_fraction=0.0,
             positive_frame_fraction=0.0,
-            rejected_count=0,
+            persistent_enclosing_boundary=False,
             reason=(
                 "Selected contour occupies too much of the frame to plausibly "
                 "be an internal vesicle; enclosing-boundary inspection skipped."
@@ -232,10 +228,6 @@ def check_internal_vesicle_selection(
         sufficient_valid_data
         and positive_fraction >= internal_config.min_frame_fraction
     )
-    if reject:
-        for edge in detections:
-            edge.qc.flags.add(QCFlag.INTERNAL_VESICLE)
-
     if not sufficient_valid_data:
         reason = "Insufficient valid sampled frames for internal-vesicle QC."
     elif reject:
@@ -250,6 +242,6 @@ def check_internal_vesicle_selection(
         valid_frame_count=valid_count,
         valid_frame_fraction=valid_fraction,
         positive_frame_fraction=positive_fraction,
-        rejected_count=len(detections) if reject else 0,
+        persistent_enclosing_boundary=reject,
         reason=reason,
     )

@@ -190,7 +190,9 @@ class VesicleVideo:
             if isinstance(result, EdgeDetection):
                 contour = result.full_contour
                 color = "tab:green"
-                if edges.qc_config is not None and not result.qc.passed:
+                if edges.qc_result is not None and (
+                    not edges.qc_result.passed or not result.qc.passed
+                ):
                     color = "tab:red"
                 ax.plot(contour.x, contour.y, color=color)
         if frame_decorator is not None:

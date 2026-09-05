@@ -106,7 +106,7 @@ class InternalVesicleQCConfig:
     enabled: bool = False
     max_area_fraction: float = 0.5
     min_radius_ratio: float = 1.15
-    min_separation_pixels: float = 5.0
+    min_separation_fraction: float = 0.4
     gradient_ratio: float = 0.5
     max_radial_deviation_fraction: float = 0.15
     min_angular_coverage: float = 0.6
@@ -135,12 +135,19 @@ class InternalVesicleQCConfig:
         if min_radius_ratio <= 1:
             raise ValueError("min_radius_ratio must be greater than 1.")
         object.__setattr__(self, "min_radius_ratio", min_radius_ratio)
-        for name in ("min_separation_pixels", "gradient_ratio"):
-            object.__setattr__(
-                self,
-                name,
-                require_nonnegative_real(getattr(self, name), name),
-            )
+        object.__setattr__(
+            self,
+            "min_separation_fraction",
+            require_fraction(
+                self.min_separation_fraction,
+                "min_separation_fraction",
+            ),
+        )
+        object.__setattr__(
+            self,
+            "gradient_ratio",
+            require_nonnegative_real(self.gradient_ratio, "gradient_ratio"),
+        )
         for name in ("max_frames", "min_valid_frames"):
             value = require_integer_valued(getattr(self, name), name)
             if value <= 0:
@@ -237,6 +244,7 @@ class EdgeQCConfig:
             "max_internal_vesicle_area_fraction",
             "internal_vesicle_min_radius_ratio",
             "internal_vesicle_min_separation_pixels",
+            "internal_vesicle_min_separation_fraction",
             "internal_vesicle_gradient_ratio",
             "internal_vesicle_max_radial_deviation_fraction",
             "internal_vesicle_min_angular_coverage",
@@ -269,8 +277,8 @@ class EdgeQCConfig:
                 min_radius_ratio=values.get(
                     "internal_vesicle_min_radius_ratio", 1.15
                 ),
-                min_separation_pixels=values.get(
-                    "internal_vesicle_min_separation_pixels", 5.0
+                min_separation_fraction=values.get(
+                    "internal_vesicle_min_separation_fraction", 0.4
                 ),
                 gradient_ratio=values.get("internal_vesicle_gradient_ratio", 0.5),
                 max_radial_deviation_fraction=values.get(

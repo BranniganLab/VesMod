@@ -133,6 +133,30 @@ def test_run_qc_requires_frames_for_internal_vesicle_check(edges):
         edges.run_qc(config)
 
 
+def test_run_qc_restores_previous_state_when_a_check_errors(edges, qc_config):
+    """A failed QC attempt cannot leave partially updated edge state."""
+    edges.run_qc(qc_config)
+    previous_result = edges.qc_result
+    previous_edge_qc = [edge.qc for edge in edges.successful_detections]
+    image_config = EdgeQCConfig(
+        curvature_threshold=1.0,
+        enable_internal_vesicle_qc=True,
+    )
+
+    with pytest.raises(ValueError, match="do not match detection indices"):
+        edges.run_qc(image_config, frames=np.zeros((1, 100, 100)))
+
+    assert edges.qc_result is previous_result
+    assert all(
+        edge.qc is expected
+        for edge, expected in zip(
+            edges.successful_detections,
+            previous_edge_qc,
+            strict=True,
+        )
+    )
+
+
 def test_run_qc_preserves_frame_indices(edges, qc_config):
     """Test QC does not alter source-frame identity."""
     original_indices = [result.frame_index for result in edges.detections]

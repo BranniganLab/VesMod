@@ -371,7 +371,7 @@ def test_process_qc_file_returns_load_error_summary(tmp_path, monkeypatch):
         "extraction_failures": 0,
         "curvature_rejected": 0,
         "area_rejected": 0,
-        "internal_vesicle_rejected": 0,
+        "internal_vesicle_trajectory_rejected": False,
         "internal_vesicle_inspected": False,
         "internal_vesicle_area_fraction": "",
         "internal_vesicle_positive_frame_fraction": "",
