@@ -31,6 +31,23 @@ from vesmod.VesEdge import (
 )
 
 
+def _parse_angular_samples(value: str) -> int | None:
+    """Parse an angular sample count or the explicit ``native`` sentinel."""
+    if value.lower() == "native":
+        return None
+    try:
+        samples = int(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError(
+            "n-angular-samples must be a positive integer or 'native'."
+        ) from error
+    if samples <= 0:
+        raise argparse.ArgumentTypeError(
+            "n-angular-samples must be a positive integer or 'native'."
+        )
+    return samples
+
+
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
@@ -74,25 +91,30 @@ def _add_extract_parser(subparsers) -> None:
             "beside each input file."
         ),
     )
-    parser.add_argument(
+    calibration = parser.add_mutually_exclusive_group(required=True)
+    calibration.add_argument(
         "--pixels-per-micron",
         type=float,
-        default=1.0,
-        help="Pixels per micron in the microscope image. Default: 1.",
+        help="Measured pixels per micron in the microscope image.",
     )
-    parser.add_argument(
-        "--downsample",
+    calibration.add_argument(
+        "--assume-one-pixel-per-micron",
         action="store_true",
         help=(
-            "Downsample edge-extraction outputs to --n-samples evenly spaced "
-            "angular values."
+            "Explicitly use unit calibration (1 pixel per micron). This is "
+            "intended for dimensionless/test workflows, not calibrated microscopy."
         ),
     )
     parser.add_argument(
-        "--n-samples",
+        "--n-angular-samples",
         default=120,
-        type=int,
-        help="Angular samples used with --downsample. Default: 120.",
+        type=_parse_angular_samples,
+        metavar="N|native",
+        help=(
+            "Analysis-contour angular sampling. Use a positive integer to "
+            "resample uniformly or 'native' to retain extractor sampling. "
+            "Default: 120."
+        ),
     )
     parser.add_argument(
         "--extractor",
@@ -258,9 +280,30 @@ def process_extract_file(path: Path, args: argparse.Namespace) -> None:
 
     print(f"Extracting {_display_path(path)}")
     intensities = nd2.imread(path)
+    assumed_unit_calibration = getattr(
+        args,
+        "assume_one_pixel_per_micron",
+        False,
+    )
+    pixels_per_micron = (
+        1.0 if assumed_unit_calibration else args.pixels_per_micron
+    )
+    if hasattr(args, "n_angular_samples"):
+        n_angular_samples = args.n_angular_samples
+    else:
+        n_angular_samples = args.n_samples if args.downsample else None
     extraction_config = EdgeExtractionConfig(
-        pixels_per_micron=args.pixels_per_micron,
-        n_angular_samples=(args.n_samples if args.downsample else None),
+        pixels_per_micron=pixels_per_micron,
+        n_angular_samples=n_angular_samples,
+        calibration_source=(
+            "assumed"
+            if assumed_unit_calibration
+            else (
+                "measured"
+                if hasattr(args, "assume_one_pixel_per_micron")
+                else "unspecified"
+            )
+        ),
     )
     video = VesicleVideo(intensities)
     video.source_path = Path(path)
