@@ -3,7 +3,7 @@
 Equivalent CLI workflow::
 
     vesedge extract ./videos --pixels-per-micron 13.44 \
-        --downsample --n-samples 120 --output-dir ./checkpoints
+        --n-angular-samples 120 --output-dir ./checkpoints
 
     vesedge qc ./checkpoints --curvature-threshold 0.059 \
         --output-dir ./results/qc_standard
@@ -31,6 +31,7 @@ pixels_per_micron = 13.44  # Microscope image calibration.
 extraction_config = EdgeExtractionConfig(
     pixels_per_micron=pixels_per_micron,
     n_angular_samples=120,
+    calibration_source="measured",
 )
 
 for file in glob.glob(fpath + "*.nd2", recursive=True):
