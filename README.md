@@ -43,7 +43,7 @@ Stable core features include:
 * JSON export of fit values, q bounds, and physical-fit configuration
 * Batch processing of contour datasets
 
-Experimental EdgeMod features live under `vesmod.EdgeMod.experimental`. These currently include optional q^-3-based dynamic range selection and temporal-RMS screening. Experimental APIs may change as the methods are evaluated and are not part of the stable core EdgeMod interface.
+Experimental EdgeMod features live under `vesmod.EdgeMod.experimental`. These currently include optional q^-3-based dynamic range selection. Experimental APIs may change as the methods are evaluated and are not part of the stable core EdgeMod interface.
 
 See the [EdgeMod CLI guide](docs/EdgeMod_CLI_README.md).
 
@@ -290,9 +290,6 @@ Both successful physical fits remain available in `spectrum.fit_results`. Each `
 | `.spectrum_diagnostic.png` | Measured spectrum, attempted fit, compensated spectrum, and fit residuals |
 | `.json` | EdgeMod fixed-range spectrum/fitting output |
 | `.dynamic.json` | EdgeMod output produced when experimental dynamic selection is requested |
-| `temporal_rms_summary.csv` | Experimental temporal-RMS measurement and inclusion decision for each trajectory |
-| `temporal_rms_histogram.png` | Experimental distribution of temporal-RMS amplitudes |
-| `temporal_rms_qc.json` | Experimental temporal-RMS configuration, input manifest, and export manifest |
 
 ---
 
