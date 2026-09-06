@@ -18,6 +18,7 @@ from pathlib import Path
 import nd2
 
 from vesmod.VesEdge import (
+    CurvatureQCConfig,
     EdgeExtractionConfig,
     EdgeQCConfig,
     VesicleEdges,
@@ -55,7 +56,7 @@ for file in glob.glob(fpath + "*.nd2", recursive=True):
 
 # Later, load the same checkpoint and evaluate it under any QC configuration.
 qc_config = EdgeQCConfig(
-    curvature_threshold=0.059,
+    curvature=CurvatureQCConfig(threshold=0.059),
 )
 
 # edges = VesicleEdges.from_checkpoint("YOUR/PATH/HERE/sample.npz")
@@ -65,7 +66,7 @@ qc_config = EdgeQCConfig(
 
 # Evaluate the same checkpoint again without rerunning extraction.
 # permissive_qc = EdgeQCConfig(
-#     curvature_threshold=0.089,
+#     curvature=CurvatureQCConfig(threshold=0.089),
 # )
 # edges.run_qc(permissive_qc)
 # edges.save_edge_to_npy("YOUR/PATH/HERE/results/qc_permissive/sample.npy")

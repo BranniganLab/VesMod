@@ -14,6 +14,7 @@ from .area_qc import check_area_deviation
 from .checkpoint_io import load_checkpoint, save_checkpoint
 from .config import EdgeExtractionConfig, EdgeQCConfig
 from .edge_filtering import check_curvature
+from .frame_source import FrameSource
 from .models import (
     AreaQCResult,
     CurvatureQCResult,
@@ -22,7 +23,11 @@ from .models import (
     EdgeQC,
     EdgeResult,
     QCFlag,
+    TrajectoryQCFlag,
     VesicleQCResult,
+)
+from .experimental.internal_vesicle_qc import (
+    check_internal_vesicle_selection,
 )
 
 
@@ -84,6 +89,8 @@ class VesicleEdges:
             raise ValueError(
                 "Quality control has not been run on these extracted edges."
             )
+        if not self.qc_result.passed:
+            return []
         return [
             detection
             for detection in self.successful_detections
@@ -108,6 +115,7 @@ class VesicleEdges:
     def run_qc(
         self,
         qc_config: EdgeQCConfig | None = None,
+        frames: FrameSource | NDArray[np.number] | None = None,
     ) -> None:
         """Run enabled QC checks on stored detections.
 
@@ -116,6 +124,8 @@ class VesicleEdges:
         that configuration. If a completed run rejects every detection, this
         method raises ``ValueError`` but retains the newly applied configuration,
         aggregate QC result, and per-detection QC flags for inspection.
+        If a check raises before producing a completed result, the previous
+        aggregate and per-frame QC state are restored.
 
         Raises
         ------
@@ -129,18 +139,49 @@ class VesicleEdges:
             )
 
         self._validate_detection_lengths()
-        self._reset_qc()
+        if config.internal_vesicle.enabled:
+            if frames is None:
+                raise ValueError(
+                    "Internal-vesicle QC is enabled but source video frames "
+                    "were not supplied."
+                )
+        previous_result = self.qc_result
+        previous_edge_qc = [
+            detection.qc for detection in self.successful_detections
+        ]
+        try:
+            self._reset_qc()
+            for detection in self.successful_detections:
+                self._apply_frame_qc(detection, config)
 
-        for detection in self.successful_detections:
-            self._apply_frame_qc(detection, config)
-
-        curvature_result = self._curvature_qc_result(config)
-        area_result = self._area_qc_result(config)
-        self.qc_result = VesicleQCResult(
-            config=config,
-            curvature=curvature_result,
-            area=area_result,
-        )
+            curvature_result = self._curvature_qc_result(config)
+            area_result = self._area_qc_result(config)
+            internal_vesicle_result = None
+            trajectory_flags = set()
+            if config.internal_vesicle.enabled:
+                internal_vesicle_result = check_internal_vesicle_selection(
+                    frames,
+                    self.successful_detections,
+                    config,
+                )
+                if internal_vesicle_result.persistent_enclosing_boundary:
+                    trajectory_flags.add(TrajectoryQCFlag.INTERNAL_VESICLE)
+            self.qc_result = VesicleQCResult(
+                config=config,
+                curvature=curvature_result,
+                area=area_result,
+                internal_vesicle=internal_vesicle_result,
+                trajectory_flags=frozenset(trajectory_flags),
+            )
+        except Exception:
+            self.qc_result = previous_result
+            for detection, edge_qc in zip(
+                self.successful_detections,
+                previous_edge_qc,
+                strict=True,
+            ):
+                detection.qc = edge_qc
+            raise
         self._validate_usable_detections()
 
     def _reset_qc(self) -> None:
@@ -155,10 +196,10 @@ class VesicleEdges:
         config: EdgeQCConfig,
     ) -> None:
         """Apply enabled QC checks that operate on one detection."""
-        if config.enable_curvature_qc:
+        if config.curvature.enabled:
             check_curvature(
                 edge,
-                threshold=config.curvature_threshold,
+                threshold=config.curvature.threshold,
             )
 
     def _curvature_qc_result(
@@ -166,7 +207,7 @@ class VesicleEdges:
         config: EdgeQCConfig,
     ) -> CurvatureQCResult | None:
         """Summarize frame-level curvature QC for the completed run."""
-        if not config.enable_curvature_qc:
+        if not config.curvature.enabled:
             return None
 
         detections = self.successful_detections
@@ -190,11 +231,11 @@ class VesicleEdges:
         config: EdgeQCConfig,
     ) -> AreaQCResult | None:
         """Run and summarize trajectory-level contour-area QC."""
-        if not config.enable_area_qc:
+        if not config.area.enabled:
             return None
         return check_area_deviation(
             self.successful_detections,
-            config.max_relative_area_deviation,
+            config.area.max_relative_deviation,
         )
 
     def _infer_frame_indices(self) -> None:
@@ -235,6 +276,10 @@ class VesicleEdges:
 
     def _validate_usable_detections(self) -> None:
         """Verify at least one successful detection passes current QC."""
+        if self.qc_result is not None and not self.qc_result.passed:
+            raise ValueError(
+                "Vesicle trajectory failed quality control."
+            )
         if not any(
             detection.qc.passed
             for detection in self.successful_detections

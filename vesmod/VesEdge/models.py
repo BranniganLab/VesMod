@@ -103,10 +103,16 @@ class ImageContour:
 
 
 class QCFlag(Enum):
-    """Reasons a successfully extracted edge may fail quality control."""
+    """Reasons a successfully extracted frame may fail quality control."""
 
     CURVATURE = auto()
     AREA_DEVIATION = auto()
+
+
+class TrajectoryQCFlag(Enum):
+    """Reasons a complete vesicle trajectory may fail quality control."""
+
+    INTERNAL_VESICLE = auto()
 
 
 @dataclass
@@ -128,6 +134,9 @@ class EdgeQC:
     relative_area_deviation : float | None
         Absolute fractional deviation from the trajectory median contour area.
         None if area QC has not been run.
+    internal_vesicle_score : float | None
+        Fraction of radial directions containing evidence of a larger outer
+        membrane. None when internal-vesicle QC did not inspect this frame.
     passed : bool
         Whether the edge has passed all QC checks that have been run.
     """
@@ -136,6 +145,7 @@ class EdgeQC:
     curvature_score: float | None = None
     area_pixels2: float | None = None
     relative_area_deviation: float | None = None
+    internal_vesicle_score: float | None = None
 
     @property
     def passed(self) -> bool:
@@ -234,6 +244,21 @@ class AreaQCResult:
 
 
 @dataclass(frozen=True)
+class InternalVesicleQCResult:
+    """Summary of QC for mistakenly traced internal vesicles."""
+
+    inspected: bool
+    contour_area_fraction: float
+    sampled_frame_indices: tuple[int, ...]
+    scores: tuple[float, ...]
+    valid_frame_count: int
+    valid_frame_fraction: float
+    positive_frame_fraction: float
+    persistent_enclosing_boundary: bool
+    reason: str
+
+
+@dataclass(frozen=True)
 class VesicleQCResult:
     """Aggregate results from one completed VesEdge QC run.
 
@@ -247,8 +272,21 @@ class VesicleQCResult:
     area : AreaQCResult | None
         Summary of trajectory-level contour-area QC. None when area QC was
         disabled.
+    internal_vesicle : InternalVesicleQCResult | None
+        Evidence that the selected edge belongs to a smaller enclosed vesicle.
+        None when internal-vesicle QC was disabled.
+    trajectory_flags : frozenset[TrajectoryQCFlag]
+        Failures that apply to the complete video rather than individual
+        detected frames.
     """
 
     config: EdgeQCConfig
     curvature: CurvatureQCResult | None
     area: AreaQCResult | None = None
+    internal_vesicle: InternalVesicleQCResult | None = None
+    trajectory_flags: frozenset[TrajectoryQCFlag] = frozenset()
+
+    @property
+    def passed(self) -> bool:
+        """Return whether the trajectory passed trajectory-level QC."""
+        return not self.trajectory_flags

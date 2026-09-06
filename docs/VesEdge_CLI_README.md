@@ -178,6 +178,14 @@ The previous coupled `--downsample --n-samples N` interface has been removed. Se
 
 ## Extraction Algorithm
 
+VesEdge opens ND2 acquisitions through the shared `FrameSource` API and reads
+one frame at a time during extraction; it does not materialize the complete
+video in memory. `ArrayFrameSource` preserves the existing NumPy workflow, and
+`open_frame_source()` memory-maps `.npy` videos. `ND2FrameSource` exposes frame
+count, shape, metadata, indexed reads, and iteration for other frame-local
+analyses. Multidimensional ND2 inputs with more than one position, z-plane, or
+channel require an explicit axis selection rather than silently choosing one.
+
 The default extractor is:
 
 ```text
@@ -306,6 +314,50 @@ vesedge qc "./checkpoints" \
 
 The trajectory median assumes that most successful detections trace the correct object. The threshold is an absolute fractional change rather than a MAD-scaled z-score, so its meaning does not depend on how narrowly normal areas happen to vary. Compare the area diagnostic across representative acquisitions before treating the default as universal.
 
+## Experimental Internal-Vesicle Mis-Selection QC
+
+Area-deviation QC cannot detect a stable mistake in which the edge detector
+traces a small vesicle located inside the intended larger vesicle. Enable the
+optional image-based check with:
+
+```bash
+vesedge qc "./checkpoints" \
+    --internal-vesicle-qc \
+    --output-dir ./results/qc_internal_vesicles
+```
+
+This is an edge-selection QC check, not internal-structure measurement. It
+searches outside the traced contour for radial intensity-gradient evidence of
+a larger enclosing membrane. Strong outward gradients must occur at spatially
+coherent radii before they count as one enclosing boundary.
+The minimum outward separation is relative to the selected contour radius, so
+the criterion scales with image resolution instead of assuming a fixed pixel
+size.
+
+The inexpensive size gate runs first. If the median traced contour occupies at
+least half of the image, it is considered too large to plausibly be an internal
+vesicle and no video frame is loaded for radial inspection. Change that cutoff with
+`--max-internal-vesicle-area-fraction`; change the fraction of positive frames
+required to reject the video with `--internal-vesicle-min-frame-fraction`.
+
+Eligible videos are sampled evenly rather than loaded in full. The default
+maximum is 20 frames; change it with `--internal-vesicle-max-frames`. A decision
+also requires at least three valid scores and at least half of the sampled
+frames to be valid (with the count capped for shorter videos). Configure these
+guards with `--internal-vesicle-min-valid-frames` and
+`--internal-vesicle-min-valid-frame-fraction`.
+
+Each enabled run writes `*.internal_vesicle_qc.csv`, containing the quantitative
+enclosing-boundary angular-coverage score for each inspected frame. The video
+summary records the traced area fraction, valid-score coverage, positive-frame
+fraction, the trajectory-level rejection decision, and a human-readable
+reason. A rejected trajectory does not mark every sampled frame as a failed
+frame. The implementation is
+exposed from `vesmod.VesEdge.experimental` and should be evaluated on
+the documented failure cases `DOPC_C1P_92.5_7.5/ND Acquisition 25_crop` and
+`DOPC_C16_95_5/ND Acquisition 20_crop` when those source acquisitions are
+available.
+
 
 ## QC Outputs
 
@@ -342,10 +394,9 @@ This file records:
 - the resolved checkpoint input path;
 - whether recursive discovery was enabled;
 - the resolved manifest of checkpoints selected for the batch;
-- `curvature_threshold`;
-- whether curvature QC was enabled;
-- the maximum relative area deviation;
-- whether area QC was enabled.
+- `curvature.threshold` and `curvature.enabled`;
+- `area.max_relative_deviation` and `area.enabled`;
+- whether internal-vesicle QC was enabled and all of its thresholds.
 
 Consequently, recursive and non-recursive runs, or runs resolving to different checkpoint sets, have different provenance even if their QC thresholds are identical.
 
@@ -358,6 +409,7 @@ The summary contains one row per selected checkpoint with:
 - extraction failures;
 - curvature rejections;
 - area-deviation rejections;
+- internal-vesicle inspection, scores, and trajectory rejection;
 - accepted frames;
 - accepted fraction;
 - processing status;
@@ -585,6 +637,7 @@ expect its configuration, result models, and measurements to evolve.
 from vesmod.VesEdge import (
     EdgeExtractionConfig,
     EdgeQCConfig,
+    CurvatureQCConfig,
     VesicleEdges,
     VesicleVideo,
     extract_edge_from_frame,
@@ -608,7 +661,7 @@ Later:
 edges = VesicleEdges.from_checkpoint("sample.npz")
 edges.run_qc(
     EdgeQCConfig(
-        curvature_threshold=0.059,
+        curvature=CurvatureQCConfig(threshold=0.059),
     )
 )
 edges.save_edge_to_npy("sample.npy")

@@ -5,6 +5,7 @@ from pathlib import Path
 
 import numpy as np
 
+from vesmod.VesEdge import ArrayFrameSource
 from vesmod.cli import vesedge_cli
 
 
@@ -27,9 +28,11 @@ def test_process_extract_file_sets_source_path_on_video(tmp_path, monkeypatch):
 
     path = tmp_path / "sample.nd2"
     monkeypatch.setattr(
-        vesedge_cli.nd2,
-        "imread",
-        lambda input_path: np.zeros((1, 10, 10)),
+        vesedge_cli,
+        "open_frame_source",
+        lambda input_path: ArrayFrameSource(
+            np.zeros((1, 10, 10))
+        ),
     )
     monkeypatch.setattr(
         vesedge_cli,

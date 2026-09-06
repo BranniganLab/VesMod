@@ -6,10 +6,15 @@ import argparse
 import json
 from pathlib import Path
 
-import nd2
 import numpy as np
 
-from vesmod.VesEdge import EdgeQCConfig, VesicleEdges, VesicleVideo
+from vesmod.VesEdge import (
+    EdgeQCConfig,
+    FrameSource,
+    VesicleEdges,
+    VesicleVideo,
+    open_frame_source,
+)
 
 from .input_selection import InputPathsAction, select_input_files
 
@@ -105,7 +110,7 @@ def _load_qc_config(qc_dir: Path) -> EdgeQCConfig:
         raise ValueError(
             f"QC provenance has no qc_config: {provenance_path}"
         ) from error
-    return EdgeQCConfig(**config_data)
+    return EdgeQCConfig.from_dict(config_data)
 
 
 def _resolve_source_path(edges: VesicleEdges, checkpoint: Path) -> Path:
@@ -130,27 +135,14 @@ def _resolve_source_path(edges: VesicleEdges, checkpoint: Path) -> Path:
     )
 
 
-def _load_frames(source_path: Path) -> np.ndarray:
-    """Load ND2 or NumPy source frames."""
-    suffix = source_path.suffix.lower()
-    if suffix == ".nd2":
-        frames = nd2.imread(source_path)
-    elif suffix == ".npy":
-        frames = np.load(source_path, allow_pickle=False)
-    else:
-        raise ValueError(
-            f"Unsupported source video type for GIF generation: {source_path}"
-        )
-    frames = np.asarray(frames)
-    if frames.ndim != 3:
-        raise ValueError(
-            f"Source video must contain a 3D frame array: {source_path}"
-        )
-    return frames
+def _load_frames(source_path: Path) -> FrameSource:
+    """Open ND2 or NumPy source frames without eagerly loading the video."""
+    return open_frame_source(source_path)
 
 
 def _apply_recorded_qc(
     edges: VesicleEdges,
+    frames: FrameSource,
     checkpoint: Path,
     input_path: Path,
     qc_dir: Path,
@@ -158,7 +150,7 @@ def _apply_recorded_qc(
 ) -> None:
     """Reconstruct frame-level QC and verify the paired filtered output."""
     try:
-        edges.run_qc(qc_config)
+        edges.run_qc(qc_config, frames)
     except ValueError:
         if edges.qc_result is None:
             raise
@@ -202,21 +194,22 @@ def process_gif_file(
     try:
         edges = VesicleEdges.from_checkpoint(checkpoint)
         source_path = _resolve_source_path(edges, checkpoint)
-        frames = _load_frames(source_path)
-        if args.style == "qc":
-            _apply_recorded_qc(
-                edges,
-                checkpoint,
-                args.input_path,
-                args.qc_dir,
-                qc_config,
+        with _load_frames(source_path) as frames:
+            if args.style == "qc":
+                _apply_recorded_qc(
+                    edges,
+                    frames,
+                    checkpoint,
+                    args.input_path,
+                    args.qc_dir,
+                    qc_config,
+                )
+            overlay = None if args.style == "original" else edges
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            VesicleVideo(frames, source_path=source_path).make_vesicle_gif(
+                output_path,
+                overlay,
             )
-        overlay = None if args.style == "original" else edges
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        VesicleVideo(frames, source_path=source_path).make_vesicle_gif(
-            output_path,
-            overlay,
-        )
     except (FileNotFoundError, IndexError, OSError, ValueError) as error:
         print(f"Failed to make GIF for {checkpoint.resolve()}: {error}")
         return

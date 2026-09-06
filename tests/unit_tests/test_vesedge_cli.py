@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 
 from vesmod.VesEdge import (
+    ArrayFrameSource,
     EdgeExtractionConfig,
     EdgeQCConfig,
     VesicleEdges,
@@ -163,9 +164,11 @@ def test_process_extract_file_reports_failure_and_returns(monkeypatch, capsys):
 
     path = Path("failed.nd2")
     monkeypatch.setattr(
-        vesedge_cli.nd2,
-        "imread",
-        lambda input_path: np.zeros((1, 10, 10)),
+        vesedge_cli,
+        "open_frame_source",
+        lambda input_path: ArrayFrameSource(
+            np.zeros((1, 10, 10))
+        ),
     )
     monkeypatch.setattr(
         vesedge_cli,
@@ -207,9 +210,11 @@ def test_process_extract_file_saves_checkpoint_without_running_qc(
 
     path = Path("sample.nd2")
     monkeypatch.setattr(
-        vesedge_cli.nd2,
-        "imread",
-        lambda input_path: np.zeros((1, 10, 10)),
+        vesedge_cli,
+        "open_frame_source",
+        lambda input_path: ArrayFrameSource(
+            np.zeros((1, 10, 10))
+        ),
     )
     monkeypatch.setattr(
         vesedge_cli,
@@ -261,6 +266,62 @@ def test_process_qc_file_runs_qc_and_saves_filtered_output(tmp_path, monkeypatch
     assert observed["npy"] == tmp_path / "sample.npy"
     assert observed["qc_config"] is config
     assert row["accepted"] == 2
+    assert row["status"] == "ok"
+
+
+def test_process_qc_file_resolves_relative_video_path_for_image_qc(
+    tmp_path,
+    monkeypatch,
+):
+    """Image QC resolves a recorded source relative to its checkpoint."""
+    checkpoint = tmp_path / "checkpoints" / "sample.npz"
+    checkpoint.parent.mkdir()
+    checkpoint.touch()
+    source = checkpoint.parent / "video.npy"
+    np.save(source, np.zeros((1, 10, 10)))
+    observed = {}
+
+    class Detection:
+        qc = argparse.Namespace(flags=set(), passed=True)
+
+    class FakeEdges:
+        source_path = Path("video.npy")
+        detections = [Detection()]
+        successful_detections = detections
+        qc_result = None
+
+        def run_qc(self, config, frames=None):
+            assert frames.shape == (1, 10, 10)
+            self.qc_result = argparse.Namespace(
+                trajectory_flags=frozenset(),
+                internal_vesicle=None,
+            )
+
+        def save_edge_to_npy(self, path):
+            observed["npy"] = path
+
+    monkeypatch.setattr(
+        vesedge_cli.VesicleEdges,
+        "from_checkpoint",
+        lambda path: FakeEdges(),
+    )
+
+    def open_frames(path):
+        observed["source_path"] = path
+        return ArrayFrameSource(np.zeros((1, 10, 10)))
+
+    monkeypatch.setattr(
+        vesedge_cli,
+        "open_frame_source",
+        open_frames,
+    )
+    args = _qc_args(tmp_path / "qc", checkpoint)
+    args.internal_vesicle_qc = True
+    config = vesedge_cli._qc_config_from_args(args)
+
+    row = vesedge_cli.process_qc_file(checkpoint, args, config)
+
+    assert observed["source_path"] == source.resolve()
     assert row["status"] == "ok"
 
 
@@ -366,6 +427,13 @@ def test_process_qc_file_returns_load_error_summary(tmp_path, monkeypatch):
         "extraction_failures": 0,
         "curvature_rejected": 0,
         "area_rejected": 0,
+        "internal_vesicle_trajectory_rejected": False,
+        "internal_vesicle_inspected": False,
+        "internal_vesicle_area_fraction": "",
+        "internal_vesicle_positive_frame_fraction": "",
+        "internal_vesicle_valid_frame_count": "",
+        "internal_vesicle_valid_frame_fraction": "",
+        "internal_vesicle_reason": "",
         "accepted": 0,
         "accepted_fraction": 0.0,
         "status": "load_error",
@@ -417,7 +485,7 @@ def test_write_qc_provenance_records_manifest_and_recursive_setting(tmp_path):
     data = json.loads((tmp_path / "qc" / "vesedge_qc.json").read_text())
     assert data["recursive"] is True
     assert data["checkpoint_manifest"] == [str(first.resolve()), str(second.resolve())]
-    assert data["qc_config"]["curvature_threshold"] == 5.0
+    assert data["qc_config"]["curvature"]["threshold"] == 5.0
 
 
 def test_overwrite_incompatible_provenance_removes_stale_outputs(tmp_path):
@@ -458,7 +526,7 @@ def test_overwrite_incompatible_provenance_removes_stale_outputs(tmp_path):
     assert unrelated.is_file()
     assert not (output_dir / "qc_summary.csv").exists()
     data = json.loads((output_dir / "vesedge_qc.json").read_text())
-    assert data["qc_config"]["curvature_threshold"] == 8.0
+    assert data["qc_config"]["curvature"]["threshold"] == 8.0
 
 
 def test_matching_qc_overwrite_replaces_provenance_after_cleanup(tmp_path):

@@ -151,7 +151,7 @@ results/qc_standard/
 └── qc_summary.csv
 ```
 
-`vesedge_qc.json` records the exact QC configuration and input selection. `qc_summary.csv` reports extraction failures, curvature rejections, area-deviation rejections, accepted-frame counts, and accepted fractions for each checkpoint. When area QC produces `qc_result.area`, each checkpoint also receives an `*.area_qc.csv` file containing its per-frame area measurements and an `*.area_qc.png` area-versus-frame diagnostic plot. These two files are not generated when area QC is disabled with `--no-area-qc`.
+`vesedge_qc.json` records the exact QC configuration and input selection. `qc_summary.csv` reports extraction failures, curvature rejections, area-deviation rejections, optional internal-vesicle trajectory decisions, accepted-frame counts, and accepted fractions for each checkpoint. Experimental internal-vesicle QC is disabled by default; enable it with `--internal-vesicle-qc`. It first skips traced contours occupying at least half the image, then lazily samples smaller-contour videos for persistent evidence of a coherent larger enclosing membrane. A positive result rejects the trajectory without marking every constituent frame as individually defective. When area QC produces `qc_result.area`, each checkpoint also receives an `*.area_qc.csv` file containing its per-frame area measurements and an `*.area_qc.png` area-versus-frame diagnostic plot. These two files are not generated when area QC is disabled with `--no-area-qc`.
 
 ### 4. Compare alternate QC configurations
 
@@ -202,6 +202,7 @@ The Python API exposes the same separation between extraction, QC, stable physic
 from vesmod.VesEdge import (
     EdgeExtractionConfig,
     EdgeQCConfig,
+    CurvatureQCConfig,
     VesicleEdges,
     VesicleVideo,
     extract_edge_from_frame,
@@ -226,7 +227,7 @@ Reload the checkpoint and apply QC later:
 edges = VesicleEdges.from_checkpoint("sample.npz")
 
 qc_config = EdgeQCConfig(
-    curvature_threshold=0.059,
+    curvature=CurvatureQCConfig(threshold=0.059),
 )
 
 edges.run_qc(qc_config)

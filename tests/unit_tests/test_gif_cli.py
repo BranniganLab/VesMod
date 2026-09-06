@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from vesmod.VesEdge import EdgeQCConfig
+from vesmod.VesEdge import ArrayFrameSource, EdgeQCConfig
 from vesmod.cli import gif_cli, vesedge_cli
 
 
@@ -92,9 +92,9 @@ def test_load_qc_config_uses_recorded_provenance(tmp_path):
 
     config = gif_cli._load_qc_config(tmp_path)
 
-    assert config.curvature_threshold == pytest.approx(8.0)
-    assert config.max_relative_area_deviation == pytest.approx(0.4)
-    assert not config.enable_area_qc
+    assert config.curvature.threshold == pytest.approx(8.0)
+    assert config.area.max_relative_deviation == pytest.approx(0.4)
+    assert not config.area.enabled
 
 
 def test_apply_recorded_qc_verifies_paired_array(tmp_path):
@@ -107,6 +107,7 @@ def test_apply_recorded_qc_verifies_paired_array(tmp_path):
     qc_path = qc_dir / "nested" / "sample.npy"
     qc_path.parent.mkdir(parents=True)
     expected = np.ones((2, 4))
+    frames = ArrayFrameSource(np.zeros((2, 3, 4)))
     np.save(qc_path, expected)
     config = EdgeQCConfig(curvature_threshold=5.0)
 
@@ -114,12 +115,14 @@ def test_apply_recorded_qc_verifies_paired_array(tmp_path):
         accepted_radii_microns = expected
         qc_result = None
 
-        def run_qc(self, supplied):
+        def run_qc(self, supplied, supplied_frames):
             assert supplied is config
+            assert supplied_frames is frames
             self.qc_result = object()
 
     gif_cli._apply_recorded_qc(
         FakeEdges(),
+        frames,
         checkpoint,
         checkpoint_root,
         qc_dir,
@@ -134,13 +137,15 @@ def test_apply_recorded_qc_allows_all_rejected_without_array(tmp_path):
     checkpoint_root.mkdir()
     checkpoint.touch()
     config = EdgeQCConfig(curvature_threshold=5.0)
+    frames = ArrayFrameSource(np.zeros((2, 3, 4)))
 
     class AllRejectedEdges:
         accepted_detections = []
         qc_result = None
 
-        def run_qc(self, supplied):
+        def run_qc(self, supplied, supplied_frames):
             assert supplied is config
+            assert supplied_frames is frames
             self.qc_result = object()
             raise ValueError("no frames passed quality control")
 
@@ -150,6 +155,7 @@ def test_apply_recorded_qc_allows_all_rejected_without_array(tmp_path):
 
     gif_cli._apply_recorded_qc(
         AllRejectedEdges(),
+        frames,
         checkpoint,
         checkpoint_root,
         tmp_path / "qc-without-npy",
@@ -178,6 +184,7 @@ def test_process_gif_file_selects_annotation_style(
     class FakeVideo:
         def __init__(self, frames, source_path=None):
             observed["frames"] = frames
+            observed["frame_shape"] = frames.shape
             observed["source_path"] = source_path
 
         def make_vesicle_gif(self, output_path, overlay):
@@ -197,7 +204,7 @@ def test_process_gif_file_selects_annotation_style(
     assert (observed["overlay"] is not None) is expects_overlay
     assert observed["output_path"] == tmp_path / "gifs" / "sample.gif"
     assert observed["source_path"] == source.resolve()
-    assert observed["frames"].shape == (2, 5, 5)
+    assert observed["frame_shape"] == (2, 5, 5)
 
 
 def test_process_gif_file_reports_full_checkpoint_path(tmp_path, monkeypatch, capsys):

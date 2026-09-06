@@ -192,12 +192,12 @@ edges.save_checkpoint("sample.npz")
 Later, reload it and run curvature QC without invoking the extractor again:
 
 ```python
-from vesmod.VesEdge import EdgeQCConfig, VesicleEdges
+from vesmod.VesEdge import CurvatureQCConfig, EdgeQCConfig, VesicleEdges
 
 edges = VesicleEdges.from_checkpoint("sample.npz")
 edges.run_qc(
     EdgeQCConfig(
-        curvature_threshold=0.059,
+        curvature=CurvatureQCConfig(threshold=0.059),
     )
 )
 edges.save_edge_to_npy("sample.npy")
