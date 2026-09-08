@@ -6,8 +6,8 @@ from .models import EdgeDetection, QCFlag
 
 def check_baseline(edge: EdgeDetection, order: int, max_residual_fraction: float) -> None:
     """Reject contours whose largest baseline residual is excessive."""
-    if order < 0 or not np.isfinite(max_residual_fraction) or not 0 <= max_residual_fraction < 1:
-        raise ValueError("invalid baseline QC configuration")
+    if order < 0 or not np.isfinite(max_residual_fraction) or max_residual_fraction < 0:
+        raise ValueError("baseline QC configuration must use finite non-negative values")
     radii = np.asarray(edge.analysis_contour.r, dtype=float)
     median = float(np.median(radii))
     theta = np.linspace(0.0, 2.0 * np.pi, radii.size, endpoint=False)
