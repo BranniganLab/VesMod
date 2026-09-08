@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 
 from vesmod.VesEdge import (
+    ArrayFrameSource,
     EdgeDetection,
     EdgeQCConfig,
     ImageContour,
@@ -145,9 +146,9 @@ def test_process_checkpoint_writes_measurements_in_original_coordinates(
         lambda path: FakeEdges(),
     )
     monkeypatch.setattr(
-        internal_structures_cli.nd2,
-        "imread",
-        lambda path: np.zeros((1, 10, 10)),
+        internal_structures_cli,
+        "open_checkpoint_frames",
+        lambda path: ArrayFrameSource(np.zeros((1, 10, 10))),
     )
     monkeypatch.setattr(
         internal_structures_cli,
@@ -196,8 +197,8 @@ def test_process_checkpoint_reports_unreadable_video(tmp_path, monkeypatch):
         lambda path: FakeEdges(),
     )
     monkeypatch.setattr(
-        internal_structures_cli.nd2,
-        "imread",
+        internal_structures_cli,
+        "open_checkpoint_frames",
         lambda path: (_ for _ in ()).throw(OSError("truncated ND2")),
     )
 
@@ -343,9 +344,9 @@ def test_process_checkpoint_does_not_measure_qc_rejected_frame(
         lambda path: FakeEdges(),
     )
     monkeypatch.setattr(
-        internal_structures_cli.nd2,
-        "imread",
-        lambda path: np.zeros((1, 10, 10)),
+        internal_structures_cli,
+        "open_checkpoint_frames",
+        lambda path: ArrayFrameSource(np.zeros((1, 10, 10))),
     )
     monkeypatch.setattr(
         internal_structures_cli,
