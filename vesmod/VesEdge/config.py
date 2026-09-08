@@ -109,7 +109,14 @@ class MinimumRadiusQCConfig:
     def __post_init__(self) -> None:
         if not isinstance(self.enabled, bool):
             raise TypeError("enabled must be a bool.")
-        object.__setattr__(self, "min_median_radius_pixels", require_nonnegative_real(self.min_median_radius_pixels, "min_median_radius_pixels"))
+        object.__setattr__(
+            self,
+            "min_median_radius_pixels",
+            require_nonnegative_real(
+                self.min_median_radius_pixels,
+                "min_median_radius_pixels",
+            ),
+        )
 
 
 @dataclass(frozen=True)
@@ -204,7 +211,10 @@ class EdgeQCConfig:
                 )
             if area is not None and not isinstance(area, AreaQCConfig):
                 raise TypeError("area must be an AreaQCConfig.")
-            if minimum_radius is not None and not isinstance(minimum_radius, MinimumRadiusQCConfig):
+            if (
+                minimum_radius is not None
+                and not isinstance(minimum_radius, MinimumRadiusQCConfig)
+            ):
                 raise TypeError("minimum_radius must be a MinimumRadiusQCConfig.")
             if internal_vesicle is not None and not isinstance(
                 internal_vesicle, InternalVesicleQCConfig
@@ -216,7 +226,15 @@ class EdgeQCConfig:
             object.__setattr__(
                 self, "area", area if area is not None else AreaQCConfig()
             )
-            object.__setattr__(self, "minimum_radius", minimum_radius if minimum_radius is not None else MinimumRadiusQCConfig())
+            object.__setattr__(
+                self,
+                "minimum_radius",
+                (
+                    minimum_radius
+                    if minimum_radius is not None
+                    else MinimumRadiusQCConfig()
+                ),
+            )
             object.__setattr__(
                 self,
                 "internal_vesicle",
@@ -226,7 +244,11 @@ class EdgeQCConfig:
             )
             return
 
-        if area is not None or minimum_radius is not None or internal_vesicle is not None:
+        if (
+            area is not None
+            or minimum_radius is not None
+            or internal_vesicle is not None
+        ):
             raise TypeError(
                 "Nested and legacy flat QC configuration cannot be mixed."
             )
@@ -258,7 +280,9 @@ class EdgeQCConfig:
             return cls(
                 curvature=CurvatureQCConfig(**values["curvature"]),
                 area=AreaQCConfig(**values.get("area", {})),
-                minimum_radius=MinimumRadiusQCConfig(**values.get("minimum_radius", {})),
+                minimum_radius=MinimumRadiusQCConfig(
+                    **values.get("minimum_radius", {})
+                ),
                 internal_vesicle=InternalVesicleQCConfig(
                     **values.get("internal_vesicle", {})
                 ),
