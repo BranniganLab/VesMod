@@ -56,13 +56,17 @@ class QCCheck(Protocol):
 
 
 class CurvatureCheck:
+    """Apply curvature-score quality control to individual detections."""
+
     name = "curvature"
     requires_frames = False
 
     def enabled(self, config: EdgeQCConfig) -> bool:
+        """Return whether curvature quality control is enabled."""
         return config.curvature.enabled
 
     def run(self, detections, config, frames) -> QCCheckOutcome:
+        """Record curvature scores and flags for each detection."""
         del frames
         for detection in detections:
             check_curvature(detection, threshold=config.curvature.threshold)
@@ -84,13 +88,17 @@ class CurvatureCheck:
 
 
 class MinimumRadiusCheck:
+    """Apply the configured minimum-radius check to each detection."""
+
     name = "minimum_radius"
     requires_frames = False
 
     def enabled(self, config: EdgeQCConfig) -> bool:
+        """Return whether minimum-radius quality control is enabled."""
         return config.minimum_radius.enabled
 
     def run(self, detections, config, frames) -> QCCheckOutcome:
+        """Apply the minimum-radius check to each detection."""
         del frames
         for detection in detections:
             check_minimum_radius(
@@ -103,13 +111,17 @@ class MinimumRadiusCheck:
 
 
 class LocalizedDeviationCheck:
+    """Apply localized-deviation quality control to each detection."""
+
     name = "localized_deviation"
     requires_frames = False
 
     def enabled(self, config: EdgeQCConfig) -> bool:
+        """Return whether localized-deviation quality control is enabled."""
         return config.baseline.enabled
 
     def run(self, detections, config, frames) -> QCCheckOutcome:
+        """Apply the localized-deviation check to each detection."""
         del frames
         for detection in detections:
             check_localized_deviation(
@@ -121,13 +133,17 @@ class LocalizedDeviationCheck:
 
 
 class AreaDeviationCheck:
+    """Apply trajectory-wide area-deviation quality control."""
+
     name = "area"
     requires_frames = False
 
     def enabled(self, config: EdgeQCConfig) -> bool:
+        """Return whether area-deviation quality control is enabled."""
         return config.area.enabled
 
     def run(self, detections, config, frames) -> QCCheckOutcome:
+        """Evaluate area deviation across the detection trajectory."""
         del frames
         return QCCheckOutcome(
             area=check_area_deviation(
@@ -138,13 +154,17 @@ class AreaDeviationCheck:
 
 
 class InternalVesicleCheck:
+    """Apply frame-dependent internal-vesicle quality control."""
+
     name = "internal_vesicle"
     requires_frames = True
 
     def enabled(self, config: EdgeQCConfig) -> bool:
+        """Return whether internal-vesicle quality control is enabled."""
         return config.internal_vesicle.enabled
 
     def run(self, detections, config, frames) -> QCCheckOutcome:
+        """Evaluate internal-vesicle selection using source video frames."""
         if frames is None:
             raise ValueError("Internal-vesicle QC requires source video frames.")
         result = check_internal_vesicle_selection(frames, detections, config)
