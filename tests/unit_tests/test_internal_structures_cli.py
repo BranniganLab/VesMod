@@ -18,6 +18,7 @@ from vesmod.VesEdge import (
 )
 from vesmod.VesEdge.experimental import InternalStructureRegion
 from vesmod.cli import internal_structures_cli, vesedge_cli
+from vesmod.io import resolve_source_path
 
 
 def _args(tmp_path, checkpoint):
@@ -221,10 +222,10 @@ def test_resolve_video_path_can_relocate_recorded_source(tmp_path):
     replacement = video_root / "sample.nd2"
     replacement.touch()
 
-    resolved = internal_structures_cli._resolve_video_path(
+    resolved = resolve_source_path(
         Path("/old/location/sample.nd2"),
-        video_root,
         tmp_path / "checkpoints" / "sample.npz",
+        video_root,
     )
 
     assert resolved == replacement.resolve()
@@ -237,10 +238,10 @@ def test_resolve_video_path_infers_legacy_checkpoint_sibling(tmp_path):
     video = tmp_path / "sample.nd2"
     video.touch()
 
-    resolved = internal_structures_cli._resolve_video_path(
-        None,
+    resolved = resolve_source_path(
         None,
         checkpoint,
+        None,
     )
 
     assert resolved == video.resolve()
@@ -256,10 +257,10 @@ def test_resolve_video_path_infers_legacy_checkpoint_under_video_root(tmp_path):
     video = nested_video_dir / "sample.nd2"
     video.touch()
 
-    resolved = internal_structures_cli._resolve_video_path(
+    resolved = resolve_source_path(
         None,
-        tmp_path / "videos",
         checkpoint,
+        tmp_path / "videos",
     )
 
     assert resolved == video.resolve()
@@ -276,10 +277,10 @@ def test_resolve_video_path_rejects_ambiguous_legacy_matches(tmp_path):
         (directory / "sample.nd2").touch()
 
     with pytest.raises(ValueError, match="Multiple source videos match"):
-        internal_structures_cli._resolve_video_path(
+        resolve_source_path(
             None,
-            video_root,
             checkpoint,
+            video_root,
         )
 
 
