@@ -14,7 +14,7 @@ from vesmod.VesEdge import (
     VesicleVideo,
 )
 
-from .checkpoint_sources import open_checkpoint_frames, resolve_source_path
+from vesmod.io import open_checkpoint_frames, resolve_source_path
 from .input_selection import InputPathsAction, select_input_files
 
 
