@@ -411,3 +411,11 @@ class EdgeQCConfig:
                 ),
             ),
         )
+
+
+# The generic configuration envelope intentionally replaces the former
+# field-per-check aggregate above.  The older implementation remains in this
+# module solely as the explicit legacy-schema migration source until saved
+# provenance no longer needs to support it.
+LegacyEdgeQCConfig = EdgeQCConfig
+from .qc_config import EdgeQCConfig
