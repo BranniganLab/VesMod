@@ -316,13 +316,27 @@ vesedge qc "./checkpoints" \
     --localized-deviation-qc \
     --localized-deviation-order 3 \
     --max-localized-deviation-residual-fraction 0.05 \
+    --localized-deviation-support-residual-fraction 0.03 \
+    --max-localized-deviation-support-samples 4 \
     --output-dir ./results/qc_localized_deviation
 ```
 
 This check is disabled by default. The order, residual score, and threshold
-are retained in QC provenance. It is implemented as an independent component
-so it can be registered by the modular QC orchestration proposed in issue
-#138.
+are retained in QC provenance. Optionally, a secondary residual threshold and
+maximum contiguous support width can be supplied together. A frame is rejected
+when its maximum residual is at least the primary threshold, or when its
+residual reaches the secondary threshold over no more than the configured
+number of contiguous angular samples. Leaving both support-aware options unset
+preserves maximum-residual-only behavior. The support-aware options are:
+
+- `--localized-deviation-support-residual-fraction`: secondary normalized
+  residual threshold.
+- `--max-localized-deviation-support-samples`: maximum contiguous angular
+  support for that secondary threshold.
+
+These options must be supplied together. The measured support width is retained
+in QC results. This check is implemented as an independent component so it can
+be registered by the modular QC orchestration proposed in issue #138.
 
 ## Singleton-deviation QC
 
