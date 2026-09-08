@@ -9,7 +9,7 @@ from numpy.typing import NDArray
 from scipy.ndimage import gaussian_filter1d, map_coordinates, median_filter
 
 from ..area_qc import contour_area
-from ..config import EdgeQCConfig, InternalVesicleQCConfig
+from ..config import InternalVesicleQCConfig
 from ..frame_source import FrameSource, as_frame_source
 from ..models import EdgeDetection, InternalVesicleQCResult
 
@@ -146,7 +146,7 @@ def _frame_enclosing_boundary_score(
 def check_internal_vesicle_selection(
     frames: FrameSource | NDArray[np.number],
     detections: list[EdgeDetection],
-    config: EdgeQCConfig,
+    config: InternalVesicleQCConfig,
 ) -> InternalVesicleQCResult:
     """Evaluate persistent selection of a smaller vesicle within a larger one."""
     frame_source = as_frame_source(frames)
@@ -170,7 +170,7 @@ def check_internal_vesicle_selection(
     )
     frame_area = float(height * width)
     area_fraction = median_area / frame_area
-    internal_config = config.internal_vesicle
+    internal_config = config
     if area_fraction >= internal_config.max_area_fraction:
         return InternalVesicleQCResult(
             inspected=False,
@@ -201,7 +201,7 @@ def check_internal_vesicle_selection(
         for edge in sampled
     )
     for edge, score in zip(sampled, scores, strict=True):
-        edge.qc.internal_vesicle_score = score
+        edge.qc.diagnostics["internal_vesicle_score"] = score
 
     finite_scores = np.asarray(scores)[np.isfinite(scores)]
     valid_count = int(finite_scores.size)
