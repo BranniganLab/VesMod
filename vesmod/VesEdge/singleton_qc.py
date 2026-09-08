@@ -32,6 +32,15 @@ class SingletonDeviationQCConfig:
         object.__setattr__(self, "min_residual_fraction", require_nonnegative_real(self.min_residual_fraction, "min_residual_fraction"))
 
 
+@dataclass(frozen=True)
+class SingletonDeviationQCResult:
+    """Per-trajectory outcome produced by singleton-deviation QC."""
+
+    scores: tuple[float, ...]
+    counts: tuple[int, ...]
+    rejected_count: int
+
+
 def check_singleton_deviation(
     edge: EdgeDetection,
     order: int,
