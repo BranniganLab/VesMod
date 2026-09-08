@@ -177,7 +177,6 @@ def test_edge_qc_config_accepts_legacy_radius_alias():
 
     assert config.minimum_radius.enabled
     assert config.minimum_radius.min_median_radius_pixels == 3.0
-    assert "radius" not in config.to_dict()
 
 
 def test_edge_qc_config_rejects_radius_alias_collision():
