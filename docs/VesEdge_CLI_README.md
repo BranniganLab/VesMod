@@ -324,6 +324,13 @@ are retained in QC provenance. It is implemented as an independent component
 so it can be registered by the modular QC orchestration proposed in issue
 #138.
 
+For lobe-sensitive filtering, the baseline configuration may additionally set
+`support_residual_fraction` and `max_support_samples`. A frame is then rejected
+when its maximum residual exceeds the normal threshold, or when the residual
+exceeds the support threshold while occupying no more than the configured
+number of contiguous angular samples. Leaving these fields unset preserves the
+original maximum-residual-only behavior.
+
 ## Singleton-deviation QC
 
 Singleton-deviation QC detects narrow, isolated radial excursions from a

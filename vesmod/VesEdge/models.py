@@ -154,6 +154,7 @@ class EdgeQC:
     internal_vesicle_score: float | None = None
     median_radius_pixels: float | None = None
     localized_deviation_score: float | None = None
+    localized_deviation_support_samples: int | None = None
     singleton_score: float | None = None
     singleton_count: int | None = None
 

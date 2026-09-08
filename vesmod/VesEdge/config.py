@@ -119,6 +119,8 @@ class LocalizedDeviationQCConfig:
     enabled: bool = False
     order: int = 3
     max_residual_fraction: float = 0.05
+    support_residual_fraction: float | None = None
+    max_support_samples: int | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.enabled, bool):
@@ -128,6 +130,13 @@ class LocalizedDeviationQCConfig:
             raise ValueError("order must be non-negative.")
         object.__setattr__(self, "order", order)
         object.__setattr__(self, "max_residual_fraction", require_nonnegative_real(self.max_residual_fraction, "max_residual_fraction"))
+        if self.support_residual_fraction is not None:
+            object.__setattr__(self, "support_residual_fraction", require_nonnegative_real(self.support_residual_fraction, "support_residual_fraction"))
+        if self.max_support_samples is not None:
+            support = require_integer_valued(self.max_support_samples, "max_support_samples")
+            if support <= 0:
+                raise ValueError("max_support_samples must be positive.")
+            object.__setattr__(self, "max_support_samples", support)
 
 
 @dataclass(frozen=True)
