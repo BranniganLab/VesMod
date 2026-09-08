@@ -305,7 +305,7 @@ def run(args: argparse.Namespace) -> None:
         qc_config,
         qc_provenance_path,
     )
-    video_index = _build_video_filename_index(paths, args.video_root)
+    video_index = build_video_filename_index(paths, args.video_root)
     managed_outputs: set[Path] = set()
     summary_rows = [
         process_checkpoint(
@@ -490,69 +490,6 @@ def _apply_qc(
     except ValueError:
         if edges.qc_result is None:
             raise
-
-
-def _build_video_filename_index(
-    checkpoint_paths: list[Path],
-    video_root: Path | None,
-) -> dict[str, tuple[Path, ...]]:
-    """Compatibility wrapper for the shared source index builder."""
-    return build_video_filename_index(checkpoint_paths, video_root)
-    search_roots = {
-        path.expanduser().resolve().parent
-        for path in checkpoint_paths
-    }
-    if video_root is not None:
-        resolved_root = video_root.expanduser().resolve()
-        if resolved_root.is_dir():
-            search_roots.add(resolved_root)
-
-    index: dict[str, set[Path]] = {}
-    for root in search_roots:
-        for candidate in root.rglob("*"):
-            if candidate.is_file():
-                index.setdefault(candidate.name.lower(), set()).add(
-                    candidate.resolve()
-                )
-    return {
-        filename: tuple(sorted(paths))
-        for filename, paths in index.items()
-    }
-
-
-def _resolve_video_path(
-    stored_path: str | Path | None,
-    video_root: Path | None,
-    checkpoint_path: Path,
-    video_index: dict[str, tuple[Path, ...]] | None = None,
-) -> Path:
-    """Compatibility wrapper for the shared source resolver."""
-    return resolve_source_path(stored_path, checkpoint_path, video_root, video_index)
-
-
-def _find_video_matches(
-    video_name: str,
-    search_roots: list[Path],
-    video_index: dict[str, tuple[Path, ...]] | None = None,
-) -> list[Path]:
-    """Find unique case-insensitive filename matches below selected roots."""
-    lowercase_name = video_name.lower()
-    if video_index is not None:
-        return sorted(
-            candidate
-            for candidate in video_index.get(lowercase_name, ())
-            if any(candidate.is_relative_to(root) for root in search_roots)
-        )
-
-    matches: set[Path] = set()
-    for root in search_roots:
-        for candidate in root.rglob("*"):
-            if (
-                candidate.is_file()
-                and candidate.name.lower() == lowercase_name
-            ):
-                matches.add(candidate.resolve())
-    return sorted(matches)
 
 
 def _frame_row(
