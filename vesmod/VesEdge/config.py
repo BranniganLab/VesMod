@@ -127,7 +127,7 @@ class BaselineQCConfig:
         if order < 0:
             raise ValueError("order must be non-negative.")
         object.__setattr__(self, "order", order)
-        object.__setattr__(self, "max_residual_fraction", require_fraction(self.max_residual_fraction, "max_residual_fraction"))
+        object.__setattr__(self, "max_residual_fraction", require_nonnegative_real(self.max_residual_fraction, "max_residual_fraction"))
 
 
 @dataclass(frozen=True)
