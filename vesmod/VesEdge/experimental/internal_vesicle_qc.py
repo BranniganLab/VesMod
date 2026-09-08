@@ -9,7 +9,7 @@ from numpy.typing import NDArray
 from scipy.ndimage import gaussian_filter1d, map_coordinates, median_filter
 
 from ..area_qc import contour_area
-from ..config import InternalVesicleQCConfig
+from ..config import EdgeQCConfig, InternalVesicleQCConfig
 from ..frame_source import FrameSource, as_frame_source
 from ..models import EdgeDetection, InternalVesicleQCResult
 
@@ -34,7 +34,7 @@ def _coherent_outer_edge_coverage(
     outer_radii: NDArray[np.float64],
     outer_strengths: NDArray[np.float64],
     reference_strength: float,
-    config: InternalVesicleQCConfig,
+    config: EdgeQCConfig | InternalVesicleQCConfig,
 ) -> float:
     """Return coverage by strong peaks belonging to one smooth outer contour."""
     usable = np.isfinite(outer_radii) & np.isfinite(outer_strengths)
@@ -170,7 +170,11 @@ def check_internal_vesicle_selection(
     )
     frame_area = float(height * width)
     area_fraction = median_area / frame_area
-    internal_config = config
+    internal_config = (
+        config.internal_vesicle
+        if isinstance(config, EdgeQCConfig)
+        else config
+    )
     if area_fraction >= internal_config.max_area_fraction:
         return InternalVesicleQCResult(
             inspected=False,
