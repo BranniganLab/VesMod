@@ -26,6 +26,14 @@ class LocalizedDeviationQCConfig:
         object.__setattr__(self, "max_residual_fraction", require_nonnegative_real(self.max_residual_fraction, "max_residual_fraction"))
 
 
+@dataclass(frozen=True)
+class LocalizedDeviationQCResult:
+    """Per-trajectory outcome produced by localized-deviation QC."""
+
+    scores: tuple[float, ...]
+    rejected_count: int
+
+
 def check_localized_deviation(edge: EdgeDetection, order: int, max_residual_fraction: float) -> None:
     """Reject contours whose largest baseline residual is excessive."""
     if order < 0 or not np.isfinite(max_residual_fraction) or max_residual_fraction < 0:
