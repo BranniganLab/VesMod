@@ -30,6 +30,7 @@ from vesmod.cli.path_utils import (
 )
 from vesmod.io import (
     build_video_filename_index,
+    map_output_path,
     open_checkpoint_frames,
     resolve_source_path,
 )
@@ -336,7 +337,9 @@ def process_checkpoint(
 ) -> dict:
     """Measure one checkpoint and write its frame- and region-level outputs."""
     relative_path = _relative_input_path(checkpoint_path, args.input_path)
-    output_base = args.output_dir / relative_path.with_suffix("")
+    output_base = map_output_path(
+        checkpoint_path, args.input_path, args.output_dir
+    ).with_suffix("")
     output_base.parent.mkdir(parents=True, exist_ok=True)
 
     try:

@@ -18,7 +18,8 @@ from vesmod.EdgeMod.experimental import (
 )
 
 from vesmod.cli.input_selection import InputPathsAction, select_input_files
-from vesmod.cli.path_utils import remove_manifest_artifacts
+from vesmod.cli.path_utils import _relative_input_path, remove_manifest_artifacts
+from vesmod.io import map_output_path
 
 
 def parse_args() -> argparse.Namespace:
@@ -217,8 +218,7 @@ def _fit_output_path(path: Path, args: argparse.Namespace) -> Path:
     output_dir = getattr(args, "output_dir", None)
     if output_dir is None:
         return output_path_for(path, args.dynamic_range)
-    relative_path = _relative_input_path(path, args.input_path)
-    output_input = output_dir / relative_path
+    output_input = map_output_path(path, args.input_path, output_dir)
     output_input.parent.mkdir(parents=True, exist_ok=True)
     return output_path_for(output_input, args.dynamic_range)
 
@@ -271,15 +271,6 @@ def process_file(path: Path, args: argparse.Namespace):
     print(f"kc={fit.kC}, sigma={fit.surface_tension}")
     _write_output(spectrum, output_path, selection)
     return fit
-
-
-def _relative_input_path(path: Path, input_path: Path) -> Path:
-    """Return one selected file relative to the user-selected input root."""
-    resolved_path = path.expanduser().resolve()
-    resolved_input = input_path.expanduser().resolve()
-    if resolved_path == resolved_input:
-        return Path(resolved_path.name)
-    return resolved_path.relative_to(resolved_input)
 
 
 def _reject_overlapping_fit_paths(
