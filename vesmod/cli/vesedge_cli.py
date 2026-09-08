@@ -27,7 +27,7 @@ from vesmod.VesEdge import (
     open_frame_source,
 )
 from vesmod.VesEdge.experimental import InternalVesicleQCConfig
-from vesmod.io import open_checkpoint_frames, resolve_source_path
+from vesmod.io import map_output_path, open_checkpoint_frames, resolve_source_path
 from vesmod.cli import internal_structures_batch_cli as internal_structures_cli
 from vesmod.cli.gif_cli import add_gif_parser, run_gif
 from vesmod.cli.input_selection import InputPathsAction, select_input_files
@@ -354,7 +354,7 @@ def _output_base(
     """Return an output path stem while preserving relative input directories."""
     if output_dir is None:
         return path.with_suffix("")
-    output_base = output_dir / _relative_input_path(path, input_path).with_suffix("")
+    output_base = map_output_path(path, input_path, output_dir).with_suffix("")
     output_base.parent.mkdir(parents=True, exist_ok=True)
     return output_base
 
@@ -676,10 +676,7 @@ def process_qc_file(
     managed_artifacts: set[Path] | None = None,
 ) -> dict:
     """Apply QC to one checkpoint and return its batch summary row."""
-    output_path = (
-        args.output_dir
-        / _relative_input_path(path, args.input_path).with_suffix(".npy")
-    )
+    output_path = map_output_path(path, args.input_path, args.output_dir, suffix=".npy")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_exists = output_path.exists()
     if output_exists and not args.overwrite:

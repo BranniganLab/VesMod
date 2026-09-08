@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+from vesmod.io.path_mapping import relative_selected_path
+
 
 def validate_managed_artifacts(
     output_dir: Path,
@@ -74,8 +76,4 @@ def _display_path(path: Path) -> str:
 
 def _relative_input_path(path: Path, input_path: Path) -> Path:
     """Return one selected file relative to the user-selected input root."""
-    resolved_path = path.expanduser().resolve()
-    resolved_input = input_path.expanduser().resolve()
-    if resolved_path == resolved_input:
-        return Path(resolved_path.name)
-    return resolved_path.relative_to(resolved_input)
+    return relative_selected_path(path, input_path)

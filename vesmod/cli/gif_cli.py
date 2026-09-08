@@ -14,7 +14,12 @@ from vesmod.VesEdge import (
     VesicleVideo,
 )
 
-from vesmod.io import open_checkpoint_frames, resolve_source_path
+from vesmod.io import (
+    map_output_path,
+    open_checkpoint_frames,
+    relative_selected_path,
+    resolve_source_path,
+)
 from vesmod.cli.input_selection import InputPathsAction, select_input_files
 
 
@@ -78,11 +83,7 @@ def _checkpoint_paths(
 
 def _relative_checkpoint_path(checkpoint: Path, input_path: Path) -> Path:
     """Return a selected checkpoint path relative to its input root."""
-    checkpoint = checkpoint.resolve()
-    input_path = input_path.expanduser().resolve()
-    if input_path.is_file():
-        return Path(checkpoint.name)
-    return checkpoint.relative_to(input_path)
+    return relative_selected_path(checkpoint, input_path)
 
 
 def _paired_qc_path(
@@ -91,8 +92,7 @@ def _paired_qc_path(
     qc_dir: Path,
 ) -> Path:
     """Map one checkpoint to its QC array by relative path and stem."""
-    relative = _relative_checkpoint_path(checkpoint, input_path)
-    return qc_dir.expanduser().resolve() / relative.with_suffix(".npy")
+    return map_output_path(checkpoint, input_path, qc_dir, suffix=".npy")
 
 
 def _load_qc_config(qc_dir: Path) -> EdgeQCConfig:
@@ -154,10 +154,8 @@ def process_gif_file(
     qc_config: EdgeQCConfig | None,
 ) -> None:
     """Render one checkpoint without aborting the surrounding batch."""
-    relative = _relative_checkpoint_path(checkpoint, args.input_path)
-    output_path = (
-        args.output_dir.expanduser().resolve()
-        / relative.with_suffix(".gif")
+    output_path = map_output_path(
+        checkpoint, args.input_path, args.output_dir, suffix=".gif"
     )
     if output_path.exists() and not args.overwrite:
         print(f"Skipping {checkpoint.resolve()}: GIF already exists: {output_path}")
