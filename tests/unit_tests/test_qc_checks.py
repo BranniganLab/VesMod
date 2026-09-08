@@ -47,7 +47,7 @@ def test_registry_runs_enabled_checks_in_declared_order(monkeypatch):
 
 def test_registry_requires_frames_only_for_enabled_frame_check():
     config = EdgeQCConfig(
-        curvature=CurvatureQCConfig(enabled=False),
+        curvature=CurvatureQCConfig(threshold=0.1, enabled=False),
         internal_vesicle=InternalVesicleQCConfig(enabled=True),
     )
 
