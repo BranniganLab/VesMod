@@ -643,6 +643,7 @@ def test_write_qc_summary_writes_batch_csv(tmp_path):
     assert "sample.npz" in summary
     assert "curvature_rejected" in summary
     assert "area_rejected" in summary
+    assert "singleton_deviation_rejected" in summary
     assert ",7," in summary
 
 
