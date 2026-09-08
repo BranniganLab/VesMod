@@ -166,6 +166,32 @@ def test_edge_qc_config_migrates_legacy_flat_dictionary():
     assert not config.area.enabled
 
 
+def test_edge_qc_config_accepts_legacy_radius_alias():
+    """Legacy nested radius provenance maps to minimum_radius."""
+    config = EdgeQCConfig.from_dict(
+        {
+            "curvature": {"threshold": 5.0},
+            "radius": {"enabled": True, "min_median_radius_pixels": 3.0},
+        }
+    )
+
+    assert config.minimum_radius.enabled
+    assert config.minimum_radius.min_median_radius_pixels == 3.0
+    assert "radius" not in config.to_dict()
+
+
+def test_edge_qc_config_rejects_radius_alias_collision():
+    """Both nested radius spellings cannot be supplied together."""
+    with pytest.raises(TypeError, match="both radius and minimum_radius"):
+        EdgeQCConfig.from_dict(
+            {
+                "curvature": {"threshold": 5.0},
+                "radius": {},
+                "minimum_radius": {},
+            }
+        )
+
+
 def test_edge_qc_config_contains_independent_check_configs():
     """Each QC family is represented by its own immutable configuration."""
     curvature = CurvatureQCConfig(5.0, enabled=False)
