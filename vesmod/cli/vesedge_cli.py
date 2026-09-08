@@ -13,7 +13,8 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 
 from . import internal_structures_batch_cli as internal_structures_cli
-from .gif_cli import _resolve_source_path, add_gif_parser, run_gif
+from vesmod.io import open_checkpoint_frames, resolve_source_path
+from .gif_cli import add_gif_parser, run_gif
 from .input_selection import InputPathsAction, select_input_files
 from .path_utils import (
     _display_path,
@@ -629,8 +630,8 @@ def process_qc_file(
                     "Internal-vesicle QC requires a checkpoint with a source "
                     "video path."
                 )
-            source_path = _resolve_source_path(edges, path)
-            frames = open_frame_source(source_path)
+            source_path = resolve_source_path(edges.source_path, path)
+            frames = open_checkpoint_frames(source_path)
         if frames is None:
             edges.run_qc(qc_config)
         else:
