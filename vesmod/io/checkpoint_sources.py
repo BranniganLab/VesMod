@@ -31,8 +31,11 @@ def resolve_source_path(stored_path: str | Path | None, checkpoint_path: Path, v
         stored = Path(stored_path).expanduser()
         candidates = [stored]
         if not stored.is_absolute():
-            candidates.append(checkpoint.parent / stored)
-        candidates.append(checkpoint.parent / stored.name)
+            candidates = [
+                checkpoint.parent / stored,
+                stored,
+                checkpoint.parent / stored.name,
+            ]
         for candidate in candidates:
             if candidate.is_file():
                 return candidate.resolve()
