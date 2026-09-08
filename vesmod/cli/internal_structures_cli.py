@@ -8,7 +8,6 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
-import nd2
 import numpy as np
 
 from vesmod.VesEdge import (
@@ -28,6 +27,11 @@ from .path_utils import (
     _display_path,
     _relative_input_path,
     remove_manifest_artifacts,
+)
+from .checkpoint_sources import (
+    build_video_filename_index,
+    open_checkpoint_frames,
+    resolve_source_path,
 )
 
 
@@ -337,13 +341,14 @@ def process_checkpoint(
 
     try:
         edges = VesicleEdges.from_checkpoint(checkpoint_path)
-        video_path = _resolve_video_path(
+        video_path = resolve_source_path(
             edges.source_path,
-            args.video_root,
             checkpoint_path,
+            args.video_root,
             video_index,
         )
-        frames = nd2.imread(video_path)
+        with open_checkpoint_frames(video_path) as source:
+            frames = np.asarray(tuple(source))
         if frames.ndim != 3:
             raise ValueError("Source video must contain a 3D frame array.")
         if frames.shape[0] != len(edges.detections):
@@ -491,7 +496,8 @@ def _build_video_filename_index(
     checkpoint_paths: list[Path],
     video_root: Path | None,
 ) -> dict[str, tuple[Path, ...]]:
-    """Index video filenames once for the selected checkpoint batch."""
+    """Compatibility wrapper for the shared source index builder."""
+    return build_video_filename_index(checkpoint_paths, video_root)
     search_roots = {
         path.expanduser().resolve().parent
         for path in checkpoint_paths
@@ -520,43 +526,8 @@ def _resolve_video_path(
     checkpoint_path: Path,
     video_index: dict[str, tuple[Path, ...]] | None = None,
 ) -> Path:
-    """Resolve a source video from provenance or an unambiguous filename."""
-    if stored_path is not None:
-        stored = Path(stored_path).expanduser()
-        if stored.is_file():
-            return stored.resolve()
-        video_name = stored.name
-    else:
-        video_name = checkpoint_path.with_suffix(".nd2").name
-
-    search_roots = [checkpoint_path.expanduser().resolve().parent]
-    if video_root is not None:
-        resolved_root = video_root.expanduser().resolve()
-        if not resolved_root.is_dir():
-            raise FileNotFoundError(
-                f"Video root does not exist or is not a directory: {resolved_root}"
-            )
-        if resolved_root not in search_roots:
-            search_roots.append(resolved_root)
-
-    matches = _find_video_matches(video_name, search_roots, video_index)
-    if len(matches) == 1:
-        return matches[0]
-    if len(matches) > 1:
-        match_list = ", ".join(str(path) for path in matches)
-        raise ValueError(
-            f"Multiple source videos match {video_name}: {match_list}"
-        )
-
-    if stored_path is None:
-        raise FileNotFoundError(
-            "Checkpoint does not record a source video path and no matching "
-            f"{video_name} was found beside it or under --video-root."
-        )
-    raise FileNotFoundError(
-        f"Source video does not exist: {stored_path}. No matching {video_name} "
-        "was found beside the checkpoint or under --video-root."
-    )
+    """Compatibility wrapper for the shared source resolver."""
+    return resolve_source_path(stored_path, checkpoint_path, video_root, video_index)
 
 
 def _find_video_matches(
