@@ -915,6 +915,7 @@ def _write_qc_summary(output_dir: Path, rows: list[dict]) -> None:
         "curvature_rejected",
         "area_rejected",
         "minimum_radius_rejected",
+        "singleton_deviation_rejected",
         "internal_vesicle_trajectory_rejected",
         "internal_vesicle_inspected",
         "internal_vesicle_area_fraction",
