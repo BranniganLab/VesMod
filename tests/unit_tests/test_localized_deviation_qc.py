@@ -13,6 +13,7 @@ from vesmod.VesEdge import (
     LocalizedDeviationQCConfig,
     QCFlag,
     VesicleEdges,
+    check_localized_deviation,
 )
 
 
@@ -73,3 +74,21 @@ def test_support_aware_localized_qc_rejects_narrow_moderate_lobe():
     with pytest.raises(ValueError, match="no frames passed"):
         VesicleEdges(EdgeExtractionConfig(), [detection]).run_qc(config)
     assert detection.qc.localized_deviation_support_samples <= 4
+
+
+
+def test_localized_deviation_qc_rejects_primary_threshold_at_boundary(monkeypatch):
+    """The primary threshold is inclusive, as specified by the QC rule."""
+    detection = edge([10.0] * 32)
+    monkeypatch.setattr(
+        "vesmod.VesEdge.localized_deviation_qc.fit_radial_baseline",
+        lambda radii, order: type("Fit", (), {"values": np.full(32, 9.5)})(),
+    )
+
+    check_localized_deviation(
+        detection,
+        order=3,
+        max_residual_fraction=0.05,
+    )
+
+    assert QCFlag.LOCALIZED_DEVIATION in detection.qc.flags
