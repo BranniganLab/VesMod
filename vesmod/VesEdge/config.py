@@ -113,8 +113,8 @@ class RadiusQCConfig:
 
 
 @dataclass(frozen=True)
-class BaselineQCConfig:
-    """Configuration for low-order geometric baseline QC."""
+class LocalizedDeviationQCConfig:
+    """Configuration for low-order geometric localized-deviation QC."""
 
     enabled: bool = False
     order: int = 3
@@ -205,7 +205,7 @@ class EdgeQCConfig:
         default_factory=InternalVesicleQCConfig
     )
     radius: RadiusQCConfig = field(default_factory=RadiusQCConfig)
-    baseline: BaselineQCConfig = field(default_factory=BaselineQCConfig)
+    baseline: LocalizedDeviationQCConfig = field(default_factory=LocalizedDeviationQCConfig)
 
     def __init__(
         self,
@@ -213,7 +213,7 @@ class EdgeQCConfig:
         area: AreaQCConfig | None = None,
         internal_vesicle: InternalVesicleQCConfig | None = None,
         radius: RadiusQCConfig | None = None,
-        baseline: BaselineQCConfig | None = None,
+        baseline: LocalizedDeviationQCConfig | None = None,
         **legacy_values,
     ) -> None:
         """Create a composed config, translating legacy flat arguments."""
@@ -226,8 +226,8 @@ class EdgeQCConfig:
                 raise TypeError("area must be an AreaQCConfig.")
             if radius is not None and not isinstance(radius, RadiusQCConfig):
                 raise TypeError("radius must be a RadiusQCConfig.")
-            if baseline is not None and not isinstance(baseline, BaselineQCConfig):
-                raise TypeError("baseline must be a BaselineQCConfig.")
+            if baseline is not None and not isinstance(baseline, LocalizedDeviationQCConfig):
+                raise TypeError("baseline must be a LocalizedDeviationQCConfig.")
             if internal_vesicle is not None and not isinstance(
                 internal_vesicle, InternalVesicleQCConfig
             ):
@@ -239,7 +239,7 @@ class EdgeQCConfig:
                 self, "area", area if area is not None else AreaQCConfig()
             )
             object.__setattr__(self, "radius", radius if radius is not None else RadiusQCConfig())
-            object.__setattr__(self, "baseline", baseline if baseline is not None else BaselineQCConfig())
+            object.__setattr__(self, "baseline", baseline if baseline is not None else LocalizedDeviationQCConfig())
             object.__setattr__(
                 self,
                 "internal_vesicle",
@@ -283,7 +283,7 @@ class EdgeQCConfig:
                 curvature=CurvatureQCConfig(**values["curvature"]),
                 area=AreaQCConfig(**values.get("area", {})),
                 radius=RadiusQCConfig(**values.get("radius", {})),
-                baseline=BaselineQCConfig(**values.get("baseline", {})),
+                baseline=LocalizedDeviationQCConfig(**values.get("baseline", {})),
                 internal_vesicle=InternalVesicleQCConfig(
                     **values.get("internal_vesicle", {})
                 ),
@@ -334,7 +334,7 @@ class EdgeQCConfig:
                 enabled=values.get("enable_area_qc", True),
             ),
             radius=RadiusQCConfig(),
-            baseline=BaselineQCConfig(),
+            baseline=LocalizedDeviationQCConfig(),
             internal_vesicle=InternalVesicleQCConfig(
                 enabled=values.get("enable_internal_vesicle_qc", False),
                 max_area_fraction=values.get(
