@@ -265,6 +265,13 @@ def config_from_dict(values: dict) -> EdgeQCConfig:
         legacy = LegacyEdgeQCConfig._from_legacy_dict(values)
         values = {name: getattr(legacy, name) for name in specs}
         return EdgeQCConfig(checks=values)
+    values = dict(values)
+    if "radius" in values:
+        if "minimum_radius" in values:
+            raise TypeError(
+                "QC configuration cannot contain both radius and minimum_radius."
+            )
+        values["minimum_radius"] = values.pop("radius")
     unknown = set(values) - set(specs)
     if unknown:
         raise TypeError(f"Unexpected QC configuration field: {sorted(unknown)[0]}")
