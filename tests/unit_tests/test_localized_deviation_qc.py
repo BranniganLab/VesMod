@@ -7,6 +7,7 @@ from vesmod.VesEdge import (
     AreaQCConfig,
     CurvatureQCConfig,
     EdgeDetection,
+    EdgeExtractionConfig,
     EdgeQCConfig,
     ImageContour,
     LocalizedDeviationQCConfig,
@@ -38,9 +39,7 @@ def test_localized_deviation_qc_accepts_smooth_contour():
     """A low-order contour passes with a small residual score."""
     detection = edge([10.0] * 32)
     edges = VesicleEdges(
-        extraction_config=__import__(
-            "vesmod.VesEdge", fromlist=["EdgeExtractionConfig"]
-        ).EdgeExtractionConfig(),
+        extraction_config=EdgeExtractionConfig(),
         detections=[detection],
     )
 
@@ -56,9 +55,7 @@ def test_localized_deviation_qc_rejects_localized_deviation():
     radii[0] = 20.0
     detection = edge(radii)
     edges = VesicleEdges(
-        extraction_config=__import__(
-            "vesmod.VesEdge", fromlist=["EdgeExtractionConfig"]
-        ).EdgeExtractionConfig(),
+        extraction_config=EdgeExtractionConfig(),
         detections=[detection],
     )
 
