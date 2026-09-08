@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from . import internal_structures_cli
-from .input_selection import select_input_files
+from vesmod.cli import internal_structures_cli
+from vesmod.cli.input_selection import select_input_files
 from vesmod.io import build_video_filename_index
 
 
