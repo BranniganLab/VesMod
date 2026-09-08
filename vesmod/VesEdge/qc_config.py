@@ -31,9 +31,15 @@ class EdgeQCConfig:
             if len(legacy_args) > 3:
                 raise TypeError("At most curvature, area, and internal_vesicle are positional.")
             names = ("curvature", "area", "internal_vesicle")
-            values = dict(zip(names, legacy_args))
             if isinstance(legacy_args[0], (int, float)):
+                if len(legacy_args) != 1:
+                    raise TypeError(
+                        "A numeric legacy curvature threshold must be the only "
+                        "positional QC configuration."
+                    )
                 values = {"curvature_threshold": legacy_args[0]}
+            else:
+                values = dict(zip(names, legacy_args, strict=False))
         if checks is not None and values:
             raise TypeError("checks cannot be combined with named QC configurations.")
         if checks is None and "curvature_threshold" in values:
