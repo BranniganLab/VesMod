@@ -107,6 +107,8 @@ class QCFlag(Enum):
 
     CURVATURE = auto()
     AREA_DEVIATION = auto()
+    RADIUS = auto()
+    BASELINE = auto()
 
 
 class TrajectoryQCFlag(Enum):
@@ -146,6 +148,8 @@ class EdgeQC:
     area_pixels2: float | None = None
     relative_area_deviation: float | None = None
     internal_vesicle_score: float | None = None
+    median_radius_pixels: float | None = None
+    baseline_score: float | None = None
 
     @property
     def passed(self) -> bool:

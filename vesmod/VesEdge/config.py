@@ -100,6 +100,37 @@ class AreaQCConfig:
 
 
 @dataclass(frozen=True)
+class RadiusQCConfig:
+    """Configuration for frame-level contour-radius QC."""
+
+    enabled: bool = False
+    min_median_radius_pixels: float = 5.0
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.enabled, bool):
+            raise TypeError("enabled must be a bool.")
+        object.__setattr__(self, "min_median_radius_pixels", require_nonnegative_real(self.min_median_radius_pixels, "min_median_radius_pixels"))
+
+
+@dataclass(frozen=True)
+class BaselineQCConfig:
+    """Configuration for low-order geometric baseline QC."""
+
+    enabled: bool = False
+    order: int = 3
+    max_residual_fraction: float = 0.05
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.enabled, bool):
+            raise TypeError("enabled must be a bool.")
+        order = require_integer_valued(self.order, "order")
+        if order < 0:
+            raise ValueError("order must be non-negative.")
+        object.__setattr__(self, "order", order)
+        object.__setattr__(self, "max_residual_fraction", require_fraction(self.max_residual_fraction, "max_residual_fraction"))
+
+
+@dataclass(frozen=True)
 class InternalVesicleQCConfig:
     """Configuration for experimental internal-vesicle selection QC."""
 
@@ -173,12 +204,16 @@ class EdgeQCConfig:
     internal_vesicle: InternalVesicleQCConfig = field(
         default_factory=InternalVesicleQCConfig
     )
+    radius: RadiusQCConfig = field(default_factory=RadiusQCConfig)
+    baseline: BaselineQCConfig = field(default_factory=BaselineQCConfig)
 
     def __init__(
         self,
         curvature: CurvatureQCConfig | float | None = None,
         area: AreaQCConfig | None = None,
         internal_vesicle: InternalVesicleQCConfig | None = None,
+        radius: RadiusQCConfig | None = None,
+        baseline: BaselineQCConfig | None = None,
         **legacy_values,
     ) -> None:
         """Create a composed config, translating legacy flat arguments."""
@@ -189,6 +224,10 @@ class EdgeQCConfig:
                 )
             if area is not None and not isinstance(area, AreaQCConfig):
                 raise TypeError("area must be an AreaQCConfig.")
+            if radius is not None and not isinstance(radius, RadiusQCConfig):
+                raise TypeError("radius must be a RadiusQCConfig.")
+            if baseline is not None and not isinstance(baseline, BaselineQCConfig):
+                raise TypeError("baseline must be a BaselineQCConfig.")
             if internal_vesicle is not None and not isinstance(
                 internal_vesicle, InternalVesicleQCConfig
             ):
@@ -199,6 +238,8 @@ class EdgeQCConfig:
             object.__setattr__(
                 self, "area", area if area is not None else AreaQCConfig()
             )
+            object.__setattr__(self, "radius", radius if radius is not None else RadiusQCConfig())
+            object.__setattr__(self, "baseline", baseline if baseline is not None else BaselineQCConfig())
             object.__setattr__(
                 self,
                 "internal_vesicle",
@@ -208,7 +249,7 @@ class EdgeQCConfig:
             )
             return
 
-        if area is not None or internal_vesicle is not None:
+        if area is not None or radius is not None or baseline is not None or internal_vesicle is not None:
             raise TypeError(
                 "Nested and legacy flat QC configuration cannot be mixed."
             )
@@ -217,6 +258,8 @@ class EdgeQCConfig:
         migrated = self._from_legacy_dict(legacy_values)
         object.__setattr__(self, "curvature", migrated.curvature)
         object.__setattr__(self, "area", migrated.area)
+        object.__setattr__(self, "radius", migrated.radius)
+        object.__setattr__(self, "baseline", migrated.baseline)
         object.__setattr__(self, "internal_vesicle", migrated.internal_vesicle)
 
     @classmethod
@@ -224,7 +267,7 @@ class EdgeQCConfig:
         """Deserialize nested configuration or migrate legacy flat values."""
         if not isinstance(values, dict):
             raise TypeError("QC configuration must be a dictionary.")
-        nested_fields = {"curvature", "area", "internal_vesicle"}
+        nested_fields = {"curvature", "area", "radius", "baseline", "internal_vesicle"}
         supplied_nested = set(values) & nested_fields
         if supplied_nested:
             unexpected = set(values) - nested_fields
@@ -239,6 +282,8 @@ class EdgeQCConfig:
             return cls(
                 curvature=CurvatureQCConfig(**values["curvature"]),
                 area=AreaQCConfig(**values.get("area", {})),
+                radius=RadiusQCConfig(**values.get("radius", {})),
+                baseline=BaselineQCConfig(**values.get("baseline", {})),
                 internal_vesicle=InternalVesicleQCConfig(
                     **values.get("internal_vesicle", {})
                 ),
@@ -288,6 +333,8 @@ class EdgeQCConfig:
                 ),
                 enabled=values.get("enable_area_qc", True),
             ),
+            radius=RadiusQCConfig(),
+            baseline=BaselineQCConfig(),
             internal_vesicle=InternalVesicleQCConfig(
                 enabled=values.get("enable_internal_vesicle_qc", False),
                 max_area_fraction=values.get(
