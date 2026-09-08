@@ -18,6 +18,7 @@ def test_builtin_qc_check_order_is_explicit():
         "curvature",
         "minimum_radius",
         "localized_deviation",
+        "singleton_deviation",
         "area",
         "internal_vesicle",
     ]
