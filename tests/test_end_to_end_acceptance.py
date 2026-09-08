@@ -161,7 +161,7 @@ def _run_pipeline(case_name: str, tmp_path: Path) -> dict[str, np.ndarray]:
         "input_file": input_path.name,
         "input_sha256": _sha256(input_path),
         "extraction_config": asdict(EXTRACTION_CONFIG),
-        "qc_config": asdict(QC_CONFIG),
+        "qc_config": QC_CONFIG.to_dict(),
         "fit_config": asdict(FIT_CONFIG),
     }
     results["metadata_json"] = np.asarray(json.dumps(metadata, sort_keys=True))
