@@ -32,7 +32,7 @@ class EdgeQCConfig:
             if len(legacy_args) > 3:
                 raise TypeError("At most curvature, area, and internal_vesicle are positional.")
             names = ("curvature", "area", "internal_vesicle")
-            values = dict(zip(names, legacy_args, strict=True))
+            values = dict(zip(names, legacy_args))
             if isinstance(legacy_args[0], (int, float)):
                 values = {"curvature_threshold": legacy_args[0]}
         if checks is not None and values:
