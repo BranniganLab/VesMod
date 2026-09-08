@@ -8,7 +8,6 @@ results, and quality-control results.
 """
 
 from dataclasses import dataclass, field
-from types import MappingProxyType
 from typing import Mapping
 from enum import Enum, auto
 
@@ -21,7 +20,7 @@ from vesmod.validation import (
     require_numeric_array,
 )
 
-from .config import EdgeQCConfig
+from .qc_config import EdgeQCConfig
 
 
 @dataclass(frozen=True)
@@ -213,62 +212,6 @@ EdgeResult = EdgeDetection | EdgeDetectionFailure
 
 
 @dataclass(frozen=True)
-class CurvatureQCResult:
-    """Trajectory-level summary of frame curvature QC.
-
-    Attributes
-    ----------
-    scores : tuple[float, ...]
-        Dimensionless normalized-curvature score for each successfully
-        extracted detection, in detection order. Non-finite contours are
-        represented by ``nan``.
-    rejected_count : int
-        Number of detections rejected by curvature QC.
-    """
-
-    scores: tuple[float, ...]
-    rejected_count: int
-
-
-@dataclass(frozen=True)
-class AreaQCResult:
-    """Trajectory-level summary of contour-area deviation QC.
-
-    Attributes
-    ----------
-    areas_pixels2 : tuple[float, ...]
-        Enclosed area for each successful detection, in detection order.
-    reference_area_pixels2 : float
-        Median finite positive area among curvature-passing contours. This is
-        nan when no contour passes curvature QC.
-    relative_deviations : tuple[float, ...]
-        Absolute fractional area deviation for each successful detection.
-    rejected_count : int
-        Number of detections rejected by area QC.
-    """
-
-    areas_pixels2: tuple[float, ...]
-    reference_area_pixels2: float
-    relative_deviations: tuple[float, ...]
-    rejected_count: int
-
-
-@dataclass(frozen=True)
-class InternalVesicleQCResult:
-    """Summary of QC for mistakenly traced internal vesicles."""
-
-    inspected: bool
-    contour_area_fraction: float
-    sampled_frame_indices: tuple[int, ...]
-    scores: tuple[float, ...]
-    valid_frame_count: int
-    valid_frame_fraction: float
-    positive_frame_fraction: float
-    persistent_enclosing_boundary: bool
-    reason: str
-
-
-@dataclass(frozen=True)
 class VesicleQCResult:
     """Aggregate results from one completed VesEdge QC run.
 
@@ -276,15 +219,9 @@ class VesicleQCResult:
     ----------
     config : EdgeQCConfig
         Configuration used for the QC run.
-    curvature : CurvatureQCResult | None
-        Summary of frame-level curvature QC. None when curvature QC was
-        disabled.
-    area : AreaQCResult | None
-        Summary of trajectory-level contour-area QC. None when area QC was
-        disabled.
-    internal_vesicle : InternalVesicleQCResult | None
-        Evidence that the selected edge belongs to a smaller enclosed vesicle.
-        None when internal-vesicle QC was disabled.
+    results : Mapping[str, object]
+        Typed results keyed by the registered check name. Each check module
+        owns the result type it places in this mapping.
     trajectory_flags : frozenset[TrajectoryQCFlag]
         Failures that apply to the complete video rather than individual
         detected frames.
@@ -296,7 +233,7 @@ class VesicleQCResult:
 
     def __post_init__(self) -> None:
         """Freeze the check-keyed result collection."""
-        object.__setattr__(self, "results", MappingProxyType(dict(self.results)))
+        object.__setattr__(self, "results", dict(self.results))
 
     def for_check(self, name: str) -> object | None:
         """Return a registered check's result, if that check produced one."""
