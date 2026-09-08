@@ -198,7 +198,7 @@ def _assert_matches_reference(
     # optional internal-vesicle QC. Translate them through the same migration
     # boundary used for runtime provenance.
     expected_qc_config = expected_metadata["qc_config"]
-    migrated_qc_config = asdict(EdgeQCConfig.from_dict(expected_qc_config))
+    migrated_qc_config = EdgeQCConfig.from_dict(expected_qc_config).to_dict()
     if expected_qc_config != migrated_qc_config:
         expected_metadata["qc_config"] = migrated_qc_config
         metadata_migrated = True
