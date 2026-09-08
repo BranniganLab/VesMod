@@ -153,7 +153,7 @@ class EdgeQC:
 
     def __getattr__(self, name: str) -> object:
         """Read a check-owned diagnostic retained in the generic store."""
-        if name.endswith(("_score", "_count", "_pixels", "_pixels2")):
+        if name.endswith(("_score", "_count", "_pixels", "_pixels2", "_samples")):
             return self.diagnostics.get(name)
         raise AttributeError(name)
     @property
