@@ -7,31 +7,19 @@ from typing import Protocol
 
 from numpy.typing import NDArray
 
-from .area_qc import check_area_deviation
-from .config import (
-    AreaQCConfig,
-    CurvatureQCConfig,
-    EdgeQCConfig,
+from .area_qc import AreaQCConfig, check_area_deviation
+from .edge_filtering import CurvatureQCConfig, CurvatureQCResult, check_curvature
+from .experimental.internal_vesicle_qc import (
     InternalVesicleQCConfig,
-    LegacyEdgeQCConfig,
-    LocalizedDeviationQCConfig,
-    MinimumRadiusQCConfig,
-    SingletonDeviationQCConfig,
-)
-from .edge_filtering import check_curvature
-from .experimental.internal_vesicle_qc import check_internal_vesicle_selection
-from .frame_source import FrameSource
-from .localized_deviation_qc import check_localized_deviation
-from .minimum_radius_qc import check_minimum_radius
-from .singleton_qc import check_singleton_deviation
-from .models import (
-    AreaQCResult,
-    CurvatureQCResult,
-    EdgeDetection,
-    QCFlag,
-    TrajectoryQCFlag,
     InternalVesicleQCResult,
+    check_internal_vesicle_selection,
 )
+from .frame_source import FrameSource
+from .localized_deviation_qc import LocalizedDeviationQCConfig, check_localized_deviation
+from .minimum_radius_qc import MinimumRadiusQCConfig, check_minimum_radius
+from .qc_config import EdgeQCConfig
+from .singleton_qc import SingletonDeviationQCConfig, check_singleton_deviation
+from .models import EdgeDetection, QCFlag, TrajectoryQCFlag
 
 
 Frames = FrameSource | NDArray | None
@@ -68,6 +56,9 @@ class QCCheck(Protocol):
         frames: Frames,
     ) -> object | None:
         """Apply the check and return its typed result, when any."""
+
+    def trajectory_flags(self, result: object | None) -> frozenset[TrajectoryQCFlag]:
+        """Return trajectory flags represented by this check's result."""
 
 
 class CurvatureCheck:
@@ -214,6 +205,14 @@ class InternalVesicleCheck:
             raise ValueError("Internal-vesicle QC requires source video frames.")
         return check_internal_vesicle_selection(frames, detections, config)
 
+    def trajectory_flags(
+        self, result: InternalVesicleQCResult | None,
+    ) -> frozenset[TrajectoryQCFlag]:
+        """Map persistent enclosing-boundary evidence to a trajectory flag."""
+        if result is not None and result.persistent_enclosing_boundary:
+            return frozenset({TrajectoryQCFlag.INTERNAL_VESICLE})
+        return frozenset()
+
 
 QC_CHECKS: tuple[QCCheck, ...] = (
     CurvatureCheck(),
@@ -249,12 +248,9 @@ def run_configured_qc_checks(
         result = check.run(detections, check_config, frames)
         if result is not None:
             results[check.name] = result
-        if (
-            check.name == "internal_vesicle"
-            and result is not None
-            and result.persistent_enclosing_boundary
-        ):
-            trajectory_flags.add(TrajectoryQCFlag.INTERNAL_VESICLE)
+        flag_provider = getattr(check, "trajectory_flags", None)
+        if flag_provider is not None:
+            trajectory_flags.update(flag_provider(result))
     return QCCheckOutcome(results, frozenset(trajectory_flags))
 
 
@@ -262,14 +258,53 @@ def config_from_dict(values: dict) -> EdgeQCConfig:
     """Deserialize current nested data or the previous explicit schema."""
     specs = {check.name: check for check in QC_CHECKS}
     if "curvature_threshold" in values:
-        legacy = LegacyEdgeQCConfig._from_legacy_dict(values)
+        legacy_fields = {
+            "curvature_threshold", "enable_curvature_qc",
+            "max_relative_area_deviation", "enable_area_qc",
+            "enable_internal_vesicle_qc", "max_internal_vesicle_area_fraction",
+            "internal_vesicle_min_radius_ratio",
+            "internal_vesicle_min_separation_pixels",
+            "internal_vesicle_min_separation_fraction",
+            "internal_vesicle_gradient_ratio",
+            "internal_vesicle_max_radial_deviation_fraction",
+            "internal_vesicle_min_angular_coverage", "internal_vesicle_max_frames",
+            "internal_vesicle_min_valid_frames",
+            "internal_vesicle_min_valid_frame_fraction",
+            "internal_vesicle_min_frame_fraction",
+        }
+        unknown = set(values) - legacy_fields
+        if unknown:
+            raise TypeError(f"Unexpected QC configuration field: {sorted(unknown)[0]}")
+        if "internal_vesicle_min_separation_pixels" in values:
+            raise ValueError(
+                "Legacy internal_vesicle_min_separation_pixels cannot be converted "
+                "without a contour radius; use internal_vesicle_min_separation_fraction."
+            )
         values = {
-            "curvature": legacy.curvature,
-            "area": legacy.area,
-            "minimum_radius": legacy.minimum_radius,
-            "localized_deviation": legacy.baseline,
-            "singleton_deviation": legacy.singleton,
-            "internal_vesicle": legacy.internal_vesicle,
+            "curvature": CurvatureQCConfig(
+                threshold=values["curvature_threshold"],
+                enabled=values.get("enable_curvature_qc", True),
+            ),
+            "area": AreaQCConfig(
+                max_relative_deviation=values.get("max_relative_area_deviation", 0.25),
+                enabled=values.get("enable_area_qc", True),
+            ),
+            "minimum_radius": MinimumRadiusQCConfig(),
+            "localized_deviation": LocalizedDeviationQCConfig(),
+            "singleton_deviation": SingletonDeviationQCConfig(),
+            "internal_vesicle": InternalVesicleQCConfig(
+                enabled=values.get("enable_internal_vesicle_qc", False),
+                max_area_fraction=values.get("max_internal_vesicle_area_fraction", 0.5),
+                min_radius_ratio=values.get("internal_vesicle_min_radius_ratio", 1.15),
+                min_separation_fraction=values.get("internal_vesicle_min_separation_fraction", 0.4),
+                gradient_ratio=values.get("internal_vesicle_gradient_ratio", 0.5),
+                max_radial_deviation_fraction=values.get("internal_vesicle_max_radial_deviation_fraction", 0.15),
+                min_angular_coverage=values.get("internal_vesicle_min_angular_coverage", 0.6),
+                max_frames=values.get("internal_vesicle_max_frames", 20),
+                min_valid_frames=values.get("internal_vesicle_min_valid_frames", 3),
+                min_valid_frame_fraction=values.get("internal_vesicle_min_valid_frame_fraction", 0.5),
+                min_frame_fraction=values.get("internal_vesicle_min_frame_fraction", 0.5),
+            ),
         }
         return EdgeQCConfig(checks=values)
     values = dict(values)
