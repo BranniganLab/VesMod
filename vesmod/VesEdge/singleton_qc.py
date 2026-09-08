@@ -33,8 +33,8 @@ def check_singleton_deviation(
     widths = [width for start, width in runs if start < radii.size and start + width > radii.size]
     widths.extend(width for start, width in runs if start < radii.size and start + width <= radii.size)
     singleton_count = sum(width <= max_width_samples for width in widths)
-    edge.qc.singleton_count = singleton_count
-    edge.qc.singleton_score = float(np.max(residual)) if residual.size else 0.0
+    edge.qc.diagnostics["singleton_count"] = singleton_count
+    edge.qc.diagnostics["singleton_score"] = float(np.max(residual)) if residual.size else 0.0
     if singleton_count:
         edge.qc.flags.add(QCFlag.SINGLETON_DEVIATION)
     else:
