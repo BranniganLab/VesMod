@@ -440,6 +440,8 @@ This file records:
 - the resolved manifest of checkpoints selected for the batch;
 - `curvature.threshold` and `curvature.enabled`;
 - `area.max_relative_deviation` and `area.enabled`;
+- `minimum_radius.min_median_radius_pixels` and
+  `minimum_radius.enabled`;
 - whether internal-vesicle QC was enabled and all of its thresholds.
 
 Consequently, recursive and non-recursive runs, or runs resolving to different checkpoint sets, have different provenance even if their QC thresholds are identical.
@@ -453,6 +455,7 @@ The summary contains one row per selected checkpoint with:
 - extraction failures;
 - curvature rejections;
 - area-deviation rejections;
+- minimum-radius rejections;
 - internal-vesicle inspection, scores, and trajectory rejection;
 - accepted frames;
 - accepted fraction;
