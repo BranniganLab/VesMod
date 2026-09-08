@@ -453,7 +453,7 @@ def _qc_provenance(
         "input_path": str(input_path.expanduser().resolve()),
         "recursive": recursive,
         "checkpoint_manifest": [str(path.resolve()) for path in paths],
-        "qc_config": asdict(qc_config),
+        "qc_config": qc_config.to_dict(),
         "managed_artifacts": [],
     }
     return provenance
@@ -797,7 +797,9 @@ def _write_minimum_radius_qc_csv(path: Path, edges: VesicleEdges) -> None:
             writer.writerow(
                 {
                     "frame_index": detection.frame_index,
-                    "median_radius_pixels": detection.qc.median_radius_pixels,
+                    "median_radius_pixels": detection.qc.diagnostics.get(
+                        "median_radius_pixels"
+                    ),
                     "minimum_radius_rejected": (
                         QCFlag.MINIMUM_RADIUS in detection.qc.flags
                     ),
