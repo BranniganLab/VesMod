@@ -705,7 +705,7 @@ def test_minimum_radius_qc_diagnostics_preserve_frame_measurements(tmp_path):
         )
 
     class FakeEdges:
-        successful_detections = [Detection()]
+        successful_detections = (Detection(),)
 
     csv_path = tmp_path / "sample.minimum_radius_qc.csv"
     vesedge_cli._write_minimum_radius_qc_csv(csv_path, FakeEdges())
