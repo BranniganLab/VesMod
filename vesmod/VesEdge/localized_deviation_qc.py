@@ -2,6 +2,7 @@
 
 import numpy as np
 from .models import EdgeDetection, QCFlag
+from .contour_geometry import fit_radial_baseline
 
 
 def check_localized_deviation(edge: EdgeDetection, order: int, max_residual_fraction: float) -> None:
@@ -10,12 +11,7 @@ def check_localized_deviation(edge: EdgeDetection, order: int, max_residual_frac
         raise ValueError("localized-deviation QC configuration must use finite non-negative values")
     radii = np.asarray(edge.analysis_contour.r, dtype=float)
     median = float(np.median(radii))
-    theta = np.linspace(0.0, 2.0 * np.pi, radii.size, endpoint=False)
-    columns = [np.ones(radii.size)]
-    for harmonic in range(1, order + 1):
-        columns.extend((np.cos(harmonic * theta), np.sin(harmonic * theta)))
-    design = np.column_stack(columns)
-    fitted = design @ np.linalg.lstsq(design, radii, rcond=None)[0]
+    fitted = fit_radial_baseline(radii, order).values
     score = float(np.max(np.abs(radii - fitted)) / median)
     edge.qc.localized_deviation_score = score
     if score > max_residual_fraction:

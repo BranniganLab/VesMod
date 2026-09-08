@@ -204,3 +204,10 @@ edges.save_edge_to_npy("sample.npy")
 ```
 
 The checkpoint stores pixel-space contours plus the extraction calibration; physical radii are derived when accepted contours are exported. This separation allows extractor development and QC tuning to be evaluated independently.
+
+## Shared radial baseline
+
+VesEdge exposes `fit_radial_baseline` for low-order Fourier baselines of
+uniformly sampled radial contours. Edge extraction and localized-deviation QC
+use this same projection, so downstream geometry checks remain consistent with
+the extraction baseline.

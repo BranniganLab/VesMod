@@ -7,6 +7,7 @@ Created on Mon Dec 22 14:27:50 2025.
 """
 import numpy as np
 import cv2
+from .contour_geometry import fit_radial_baseline
 
 
 def convert_to_cartesian(center_point, r_vals):
@@ -132,16 +133,9 @@ def zero_out_all_but_lowest_n_modes(arr, n):
     """
     if isinstance(arr, list):
         arr = np.array(arr)
-    if not isinstance(n, int):
-        raise TypeError("n must be an int")
-    if n < 0:
-        raise ValueError("n must be a positive integer")
-    if n >= arr.shape[0] // 2:
-        raise IndexError(f"arr does not have enough modes ({arr.shape[0]}) to zero out all but the lowest {n}.")
-    fft = np.fft.fft(arr)
-    fft[n + 1:-1 * n] = 0
-    ifft = np.fft.ifft(fft)
-    return ifft.real
+    if n == 0:
+        return arr.copy()
+    return fit_radial_baseline(arr, n).values
 
 
 def isolate_region_of_array(arr, mask_center, window_fraction, set_bg_to_nan=False):
