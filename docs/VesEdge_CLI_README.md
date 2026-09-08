@@ -315,7 +315,7 @@ radius:
 vesedge qc "./checkpoints" \
     --localized-deviation-qc \
     --localized-deviation-order 3 \
-    --max-localized-deviation-residual-fraction 0.05 \\
+    --max-localized-deviation-residual-fraction 0.05 \
     --localized-deviation-support-residual-fraction 0.03 \\
     --max-localized-deviation-support-samples 4 \
     --output-dir ./results/qc_localized_deviation
