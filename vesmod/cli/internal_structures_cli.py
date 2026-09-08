@@ -23,7 +23,7 @@ from vesmod.VesEdge.experimental import (
     summarize_internal_structures,
 )
 
-from .path_utils import (
+from vesmod.cli.path_utils import (
     _display_path,
     _relative_input_path,
     remove_manifest_artifacts,
