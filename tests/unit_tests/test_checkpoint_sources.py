@@ -29,6 +29,23 @@ def test_resolve_source_path_resolves_recorded_relative_path_from_checkpoint(tmp
     assert resolve_source_path(Path("raw/video.nd2"), checkpoint) == source.resolve()
 
 
+def test_relative_recorded_path_prefers_checkpoint_over_working_directory(
+    tmp_path,
+    monkeypatch,
+):
+    checkpoint = tmp_path / "checkpoints" / "sample.npz"
+    checkpoint.parent.mkdir()
+    checkpoint.touch()
+    checkpoint_source = checkpoint.parent / "video.nd2"
+    checkpoint_source.touch()
+    working_directory = tmp_path / "working"
+    working_directory.mkdir()
+    (working_directory / "video.nd2").touch()
+    monkeypatch.chdir(working_directory)
+
+    assert resolve_source_path(Path("video.nd2"), checkpoint) == checkpoint_source.resolve()
+
+
 def test_resolve_source_path_falls_back_to_video_root_index(tmp_path):
     checkpoint = tmp_path / "checkpoints" / "sample.npz"
     checkpoint.parent.mkdir()
