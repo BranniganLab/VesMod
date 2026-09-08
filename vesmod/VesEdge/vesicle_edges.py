@@ -10,27 +10,17 @@ from pathlib import Path
 import numpy as np
 from numpy.typing import NDArray
 
-from .area_qc import check_area_deviation
 from .checkpoint_io import load_checkpoint, save_checkpoint
 from .config import EdgeExtractionConfig, EdgeQCConfig
-from .edge_filtering import check_curvature
-from .minimum_radius_qc import check_minimum_radius
-from .localized_deviation_qc import check_localized_deviation
 from .frame_source import FrameSource
 from .models import (
-    AreaQCResult,
-    CurvatureQCResult,
     EdgeDetection,
     EdgeDetectionFailure,
     EdgeQC,
     EdgeResult,
-    QCFlag,
-    TrajectoryQCFlag,
     VesicleQCResult,
 )
-from .experimental.internal_vesicle_qc import (
-    check_internal_vesicle_selection,
-)
+from .qc_checks import run_configured_qc_checks
 
 
 @dataclass
@@ -141,39 +131,23 @@ class VesicleEdges:
             )
 
         self._validate_detection_lengths()
-        if config.internal_vesicle.enabled:
-            if frames is None:
-                raise ValueError(
-                    "Internal-vesicle QC is enabled but source video frames "
-                    "were not supplied."
-                )
         previous_result = self.qc_result
         previous_edge_qc = [
             detection.qc for detection in self.successful_detections
         ]
         try:
             self._reset_qc()
-            for detection in self.successful_detections:
-                self._apply_frame_qc(detection, config)
-
-            curvature_result = self._curvature_qc_result(config)
-            area_result = self._area_qc_result(config)
-            internal_vesicle_result = None
-            trajectory_flags = set()
-            if config.internal_vesicle.enabled:
-                internal_vesicle_result = check_internal_vesicle_selection(
-                    frames,
-                    self.successful_detections,
-                    config,
-                )
-                if internal_vesicle_result.persistent_enclosing_boundary:
-                    trajectory_flags.add(TrajectoryQCFlag.INTERNAL_VESICLE)
+            outcome = run_configured_qc_checks(
+                self.successful_detections,
+                config,
+                frames,
+            )
             self.qc_result = VesicleQCResult(
                 config=config,
-                curvature=curvature_result,
-                area=area_result,
-                internal_vesicle=internal_vesicle_result,
-                trajectory_flags=frozenset(trajectory_flags),
+                curvature=outcome.curvature,
+                area=outcome.area,
+                internal_vesicle=outcome.internal_vesicle,
+                trajectory_flags=outcome.trajectory_flags,
             )
         except Exception:
             self.qc_result = previous_result
@@ -191,61 +165,6 @@ class VesicleEdges:
         self.qc_result = None
         for detection in self.successful_detections:
             detection.qc = EdgeQC()
-
-    @staticmethod
-    def _apply_frame_qc(
-        edge: EdgeDetection,
-        config: EdgeQCConfig,
-    ) -> None:
-        """Apply enabled QC checks that operate on one detection."""
-        if config.curvature.enabled:
-            check_curvature(
-                edge,
-                threshold=config.curvature.threshold,
-            )
-        if config.minimum_radius.enabled:
-            check_minimum_radius(
-                edge,
-                min_median_radius_pixels=config.minimum_radius.min_median_radius_pixels,
-            )
-        if config.baseline.enabled:
-            check_localized_deviation(edge, config.baseline.order, config.baseline.max_residual_fraction)
-
-    def _curvature_qc_result(
-        self,
-        config: EdgeQCConfig,
-    ) -> CurvatureQCResult | None:
-        """Summarize frame-level curvature QC for the completed run."""
-        if not config.curvature.enabled:
-            return None
-
-        detections = self.successful_detections
-        scores = tuple(
-            float(detection.qc.curvature_score)
-            if detection.qc.curvature_score is not None
-            else float("nan")
-            for detection in detections
-        )
-        rejected_count = sum(
-            QCFlag.CURVATURE in detection.qc.flags
-            for detection in detections
-        )
-        return CurvatureQCResult(
-            scores=scores,
-            rejected_count=rejected_count,
-        )
-
-    def _area_qc_result(
-        self,
-        config: EdgeQCConfig,
-    ) -> AreaQCResult | None:
-        """Run and summarize trajectory-level contour-area QC."""
-        if not config.area.enabled:
-            return None
-        return check_area_deviation(
-            self.successful_detections,
-            config.area.max_relative_deviation,
-        )
 
     def _infer_frame_indices(self) -> None:
         """Infer missing frame indices and verify stored source-frame identity."""
