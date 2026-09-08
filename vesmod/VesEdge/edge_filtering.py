@@ -37,14 +37,14 @@ def check_curvature(
     )
 
     if not np.all(np.isfinite(finite_second_difference)):
-        edge.qc.curvature_score = np.nan
+        edge.qc.diagnostics["curvature_score"] = np.nan
         edge.qc.flags.add(QCFlag.CURVATURE)
         return
 
     curvature_score = float(
         np.max(np.abs(finite_second_difference))
     )
-    edge.qc.curvature_score = curvature_score
+    edge.qc.diagnostics["curvature_score"] = curvature_score
 
     if curvature_score > threshold:
         edge.qc.flags.add(QCFlag.CURVATURE)
