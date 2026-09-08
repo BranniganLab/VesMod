@@ -3,15 +3,76 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy.ndimage import gaussian_filter1d, map_coordinates, median_filter
 
 from ..area_qc import contour_area
-from ..config import InternalVesicleQCConfig
-from ..frame_source import FrameSource, as_frame_source
-from ..models import EdgeDetection, InternalVesicleQCResult
+from ..models import EdgeDetection
+from vesmod.validation import (
+    require_fraction,
+    require_integer_valued,
+    require_nonnegative_real,
+    require_positive_real,
+)
+
+if TYPE_CHECKING:
+    from ..frame_source import FrameSource
+
+
+@dataclass(frozen=True)
+class InternalVesicleQCConfig:
+    """Configuration owned by the internal-vesicle QC check."""
+
+    enabled: bool = False
+    max_area_fraction: float = 0.5
+    min_radius_ratio: float = 1.15
+    min_separation_fraction: float = 0.4
+    gradient_ratio: float = 0.5
+    max_radial_deviation_fraction: float = 0.15
+    min_angular_coverage: float = 0.6
+    max_frames: int = 20
+    min_valid_frames: int = 3
+    min_valid_frame_fraction: float = 0.5
+    min_frame_fraction: float = 0.5
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.enabled, bool):
+            raise TypeError("enabled must be a bool.")
+        for name in (
+            "max_area_fraction", "max_radial_deviation_fraction",
+            "min_angular_coverage", "min_valid_frame_fraction", "min_frame_fraction",
+        ):
+            object.__setattr__(self, name, require_fraction(getattr(self, name), name))
+        minimum_ratio = require_positive_real(self.min_radius_ratio, "min_radius_ratio")
+        if minimum_ratio <= 1:
+            raise ValueError("min_radius_ratio must be greater than 1.")
+        object.__setattr__(self, "min_radius_ratio", minimum_ratio)
+        object.__setattr__(self, "min_separation_fraction", require_fraction(self.min_separation_fraction, "min_separation_fraction"))
+        object.__setattr__(self, "gradient_ratio", require_nonnegative_real(self.gradient_ratio, "gradient_ratio"))
+        for name in ("max_frames", "min_valid_frames"):
+            value = require_integer_valued(getattr(self, name), name)
+            if value <= 0:
+                raise ValueError(f"{name} must be positive.")
+            object.__setattr__(self, name, value)
+
+
+@dataclass(frozen=True)
+class InternalVesicleQCResult:
+    """Per-trajectory outcome produced by internal-vesicle QC."""
+
+    inspected: bool
+    contour_area_fraction: float
+    sampled_frame_indices: tuple[int, ...]
+    scores: tuple[float, ...]
+    valid_frame_count: int
+    valid_frame_fraction: float
+    positive_frame_fraction: float
+    persistent_enclosing_boundary: bool
+    reason: str
 
 
 def _sample_detections(
@@ -149,6 +210,8 @@ def check_internal_vesicle_selection(
     config: InternalVesicleQCConfig,
 ) -> InternalVesicleQCResult:
     """Evaluate persistent selection of a smaller vesicle within a larger one."""
+    from ..frame_source import as_frame_source
+
     frame_source = as_frame_source(frames)
     frame_count, height, width = frame_source.shape
     if not detections:
