@@ -16,7 +16,7 @@ def check_minimum_radius(edge: EdgeDetection, min_median_radius_pixels: float) -
         raise ValueError("min_median_radius_pixels must be finite and non-negative.")
     radii = np.asarray(edge.full_contour.r, dtype=float)
     median = float(np.median(radii)) if radii.size else float("nan")
-    edge.qc.median_radius_pixels = median
+    edge.qc.diagnostics["median_radius_pixels"] = median
     if not np.all(np.isfinite(radii)) or np.any(radii <= 0):
         edge.qc.flags.add(QCFlag.MINIMUM_RADIUS)
     elif median < min_median_radius_pixels:
