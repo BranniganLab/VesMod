@@ -206,7 +206,10 @@ def _add_qc_parser(subparsers) -> None:
         "--min-median-radius-pixels",
         type=float,
         default=5.0,
-        help="Reject frames whose median native contour radius is below this value. Default: 5.",
+        help=(
+            "Reject frames whose median native contour radius is below this "
+            "value. Default: 5."
+        ),
     )
     parser.add_argument(
         "--minimum-radius-qc",
@@ -707,7 +710,9 @@ def process_qc_file(
         ) is not None
         and edges.qc_result.config.minimum_radius.enabled
     )
-    if has_minimum_radius_result and (args.overwrite or not minimum_radius_csv_path.exists()):
+    if has_minimum_radius_result and (
+        args.overwrite or not minimum_radius_csv_path.exists()
+    ):
         _write_minimum_radius_qc_csv(minimum_radius_csv_path, edges)
         if managed_artifacts is not None:
             managed_artifacts.add(minimum_radius_csv_path)
@@ -766,7 +771,9 @@ def _write_minimum_radius_qc_csv(path: Path, edges: VesicleEdges) -> None:
                 {
                     "frame_index": detection.frame_index,
                     "median_radius_pixels": detection.qc.median_radius_pixels,
-                    "minimum_radius_rejected": QCFlag.MINIMUM_RADIUS in detection.qc.flags,
+                    "minimum_radius_rejected": (
+                        QCFlag.MINIMUM_RADIUS in detection.qc.flags
+                    ),
                 }
             )
 
