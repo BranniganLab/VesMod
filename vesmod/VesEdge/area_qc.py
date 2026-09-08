@@ -103,8 +103,8 @@ def check_area_deviation(
         eligible,
         strict=True,
     ):
-        edge.qc.area_pixels2 = float(area)
-        edge.qc.relative_area_deviation = float(deviation)
+        edge.qc.diagnostics["area_pixels2"] = float(area)
+        edge.qc.diagnostics["relative_area_deviation"] = float(deviation)
         if not is_eligible:
             edge.qc.flags.discard(QCFlag.AREA_DEVIATION)
             continue
