@@ -267,7 +267,14 @@ class EdgeQCConfig:
         """Deserialize nested configuration or migrate legacy flat values."""
         if not isinstance(values, dict):
             raise TypeError("QC configuration must be a dictionary.")
-        nested_fields = {"curvature", "area", "minimum_radius", "baseline", "internal_vesicle"}
+        nested_fields = {
+            "curvature",
+            "area",
+            "minimum_radius",
+            "radius",
+            "baseline",
+            "internal_vesicle",
+        }
         supplied_nested = set(values) & nested_fields
         if supplied_nested:
             unexpected = set(values) - nested_fields
@@ -279,10 +286,18 @@ class EdgeQCConfig:
                 )
             if "curvature" not in values:
                 raise TypeError("curvature configuration is required.")
+            if "radius" in values and "minimum_radius" in values:
+                raise TypeError(
+                    "QC configuration cannot contain both radius and minimum_radius."
+                )
+            minimum_radius_values = values.get(
+                "minimum_radius",
+                values.get("radius", {}),
+            )
             return cls(
                 curvature=CurvatureQCConfig(**values["curvature"]),
                 area=AreaQCConfig(**values.get("area", {})),
-                minimum_radius=MinimumRadiusQCConfig(**values.get("minimum_radius", {})),
+                minimum_radius=MinimumRadiusQCConfig(**minimum_radius_values),
                 baseline=LocalizedDeviationQCConfig(**values.get("baseline", {})),
                 internal_vesicle=InternalVesicleQCConfig(
                     **values.get("internal_vesicle", {})
