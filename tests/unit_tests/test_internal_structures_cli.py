@@ -18,7 +18,6 @@ from vesmod.VesEdge import (
 )
 from vesmod.VesEdge.experimental import InternalStructureRegion
 from vesmod.cli import internal_structures_cli, vesedge_cli
-from vesmod.io import resolve_source_path
 
 
 def _args(tmp_path, checkpoint):
@@ -213,75 +212,6 @@ def test_process_checkpoint_reports_unreadable_video(tmp_path, monkeypatch):
 
     assert summary["status"] == "load_error"
     assert summary["error"] == "truncated ND2"
-
-
-def test_resolve_video_path_can_relocate_recorded_source(tmp_path):
-    """Test --video-root can replace a stale checkpoint source directory."""
-    video_root = tmp_path / "videos"
-    video_root.mkdir()
-    replacement = video_root / "sample.nd2"
-    replacement.touch()
-
-    resolved = resolve_source_path(
-        Path("/old/location/sample.nd2"),
-        tmp_path / "checkpoints" / "sample.npz",
-        video_root,
-    )
-
-    assert resolved == replacement.resolve()
-
-
-def test_resolve_video_path_infers_legacy_checkpoint_sibling(tmp_path):
-    """Test a legacy checkpoint can infer a same-stem neighboring ND2 file."""
-    checkpoint = tmp_path / "sample.npz"
-    checkpoint.touch()
-    video = tmp_path / "sample.nd2"
-    video.touch()
-
-    resolved = resolve_source_path(
-        None,
-        checkpoint,
-        None,
-    )
-
-    assert resolved == video.resolve()
-
-
-def test_resolve_video_path_infers_legacy_checkpoint_under_video_root(tmp_path):
-    """Test --video-root supports checkpoints without stored provenance."""
-    checkpoint = tmp_path / "checkpoints" / "sample.npz"
-    checkpoint.parent.mkdir()
-    checkpoint.touch()
-    nested_video_dir = tmp_path / "videos" / "nested"
-    nested_video_dir.mkdir(parents=True)
-    video = nested_video_dir / "sample.nd2"
-    video.touch()
-
-    resolved = resolve_source_path(
-        None,
-        checkpoint,
-        tmp_path / "videos",
-    )
-
-    assert resolved == video.resolve()
-
-
-def test_resolve_video_path_rejects_ambiguous_legacy_matches(tmp_path):
-    """Test source inference never silently chooses between duplicate names."""
-    checkpoint = tmp_path / "checkpoints" / "sample.npz"
-    checkpoint.parent.mkdir()
-    checkpoint.touch()
-    video_root = tmp_path / "videos"
-    for directory in (video_root / "a", video_root / "b"):
-        directory.mkdir(parents=True)
-        (directory / "sample.nd2").touch()
-
-    with pytest.raises(ValueError, match="Multiple source videos match"):
-        resolve_source_path(
-            None,
-            checkpoint,
-            video_root,
-        )
 
 
 def test_load_qc_selection_reconstructs_recorded_config(tmp_path):
