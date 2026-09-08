@@ -10,14 +10,14 @@ from .area_qc import check_area_deviation, contour_area
 from .config import (
     AreaQCConfig,
     RadiusQCConfig,
-    BaselineQCConfig,
+    LocalizedDeviationQCConfig,
     CurvatureQCConfig,
     EdgeExtractionConfig,
     EdgeQCConfig,
 )
 from .edge_extractor import extract_edge_from_frame
 from .radius_qc import check_radius
-from .baseline_qc import check_baseline
+from .localized_deviation_qc import check_localized_deviation
 from .frame_source import (
     ArrayFrameSource,
     FrameSource,
@@ -47,8 +47,8 @@ __all__ = [
     "AreaQCConfig",
     "RadiusQCConfig",
     "check_radius",
-    "BaselineQCConfig",
-    "check_baseline",
+    "LocalizedDeviationQCConfig",
+    "check_localized_deviation",
     "check_area_deviation",
     "contour_area",
     "CurvatureQCResult",
