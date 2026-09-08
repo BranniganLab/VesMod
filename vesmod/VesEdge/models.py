@@ -108,7 +108,7 @@ class QCFlag(Enum):
     CURVATURE = auto()
     AREA_DEVIATION = auto()
     MINIMUM_RADIUS = auto()
-    BASELINE = auto()
+    LOCALIZED_DEVIATION = auto()
 
 
 class TrajectoryQCFlag(Enum):
@@ -139,6 +139,9 @@ class EdgeQC:
     internal_vesicle_score : float | None
         Fraction of radial directions containing evidence of a larger outer
         membrane. None when internal-vesicle QC did not inspect this frame.
+    localized_deviation_score : float | None
+        Maximum normalized residual from the low-order localized-deviation
+        baseline. None when localized-deviation QC has not been run.
     passed : bool
         Whether the edge has passed all QC checks that have been run.
     """
@@ -149,7 +152,7 @@ class EdgeQC:
     relative_area_deviation: float | None = None
     internal_vesicle_score: float | None = None
     median_radius_pixels: float | None = None
-    baseline_score: float | None = None
+    localized_deviation_score: float | None = None
 
     @property
     def passed(self) -> bool:

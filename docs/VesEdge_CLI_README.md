@@ -316,7 +316,7 @@ vesedge qc "./checkpoints" \
     --localized-deviation-qc \
     --localized-deviation-order 3 \
     --max-localized-deviation-residual-fraction 0.05 \
-    --output-dir ./results/qc_baseline
+    --output-dir ./results/qc_localized_deviation
 ```
 
 This check is disabled by default. The order, residual score, and threshold
@@ -442,6 +442,8 @@ This file records:
 - `area.max_relative_deviation` and `area.enabled`;
 - `minimum_radius.min_median_radius_pixels` and
   `minimum_radius.enabled`;
+- `baseline.order`, `baseline.max_residual_fraction`, and
+  `baseline.enabled`;
 - whether internal-vesicle QC was enabled and all of its thresholds.
 
 Consequently, recursive and non-recursive runs, or runs resolving to different checkpoint sets, have different provenance even if their QC thresholds are identical.
