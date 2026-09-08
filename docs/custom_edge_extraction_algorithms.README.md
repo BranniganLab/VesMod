@@ -204,3 +204,26 @@ edges.save_edge_to_npy("sample.npy")
 ```
 
 The checkpoint stores pixel-space contours plus the extraction calibration; physical radii are derived when accepted contours are exported. This separation allows extractor development and QC tuning to be evaluated independently.
+
+## Shared radial baseline
+
+VesEdge exposes `fit_radial_baseline` for low-order Fourier baselines of
+uniformly sampled radial contours. The `order` argument is the highest
+positive harmonic retained; `order=0` produces the mean-radius baseline.
+Extraction and localized-deviation QC use this same projection, so downstream
+geometry checks remain consistent with the extraction baseline.
+
+The function returns a frozen `RadialBaselineFit` containing the reconstructed
+radial values in `.values` and the requested harmonic order in `.order`:
+
+```python
+from vesmod.VesEdge import fit_radial_baseline
+
+baseline = fit_radial_baseline(r_vals, order=7)
+smooth_r_vals = baseline.values
+```
+
+Inputs must be one-dimensional and sampled at evenly spaced angles from zero
+through (but not including) `2π`. The existing
+`zero_out_all_but_lowest_n_modes` helper remains available for compatibility
+with code using the older extraction-oriented name.

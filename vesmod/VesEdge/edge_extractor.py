@@ -11,7 +11,8 @@ from skimage import filters
 from skimage.measure import regionprops
 import matplotlib.pyplot as plt
 import numpy as np
-from .vesicle_video_utils import wrap_image_to_polar, isolate_region_of_array, zero_out_all_but_lowest_n_modes, convert_to_cartesian
+from .vesicle_video_utils import wrap_image_to_polar, isolate_region_of_array, convert_to_cartesian
+from .contour_geometry import fit_radial_baseline
 
 
 def extract_edge_from_frame(frame, debug_path=None):
@@ -50,7 +51,7 @@ def extract_edge_from_frame(frame, debug_path=None):
     max_of_masked_region = np.argmax(vertically_masked_polar_sobel, axis=1)
 
     # step 3: FFT-informed refinement of edge region
-    approx_edge = zero_out_all_but_lowest_n_modes(max_of_masked_region, n=7)
+    approx_edge = fit_radial_baseline(max_of_masked_region, order=7).values
 
     # wrap original image to polar
     original_frame_polar, _ = wrap_image_to_polar(frame, center_of_mass)
@@ -103,7 +104,7 @@ def _make_debug_image(frame, output_path):
     bad_x, bad_y = convert_to_cartesian((center_of_mass[1], center_of_mass[0]), np.argmax(polar_image, axis=1) / scaling_factor)
     axes[1][1].plot(bad_x, bad_y, color='tab:blue')
 
-    ifft = zero_out_all_but_lowest_n_modes(max_of_masked_region, n=7)
+    ifft = fit_radial_baseline(max_of_masked_region, order=7).values
     axes[0][2].imshow(masked_polar_image_nan, cmap='gray', vmin=0, vmax=.004)
     axes[0][2].plot(max_of_masked_region, np.arange(0, polar_image.shape[0]), color='tab:orange')
 

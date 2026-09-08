@@ -18,6 +18,7 @@ from .config import (
 from .edge_extractor import extract_edge_from_frame
 from .minimum_radius_qc import check_minimum_radius
 from .localized_deviation_qc import check_localized_deviation
+from .contour_geometry import RadialBaselineFit, fit_radial_baseline
 from .frame_source import (
     ArrayFrameSource,
     FrameSource,
@@ -72,5 +73,7 @@ __all__ = [
     "contour_area",
     "extract_edge_from_frame",
     "make_gif",
+    "RadialBaselineFit",
+    "fit_radial_baseline",
     "open_frame_source",
 ]
