@@ -100,7 +100,7 @@ class AreaQCConfig:
 
 
 @dataclass(frozen=True)
-class MinimumRadiusQCConfig:
+class MinimumMinimumRadiusQCConfig:
     """Configuration for frame-level minimum contour-radius QC."""
 
     enabled: bool = False
@@ -186,14 +186,14 @@ class EdgeQCConfig:
     internal_vesicle: InternalVesicleQCConfig = field(
         default_factory=InternalVesicleQCConfig
     )
-    radius: MinimumRadiusQCConfig = field(default_factory=MinimumRadiusQCConfig)
+    radius: MinimumMinimumRadiusQCConfig = field(default_factory=MinimumMinimumRadiusQCConfig)
 
     def __init__(
         self,
         curvature: CurvatureQCConfig | float | None = None,
         area: AreaQCConfig | None = None,
         internal_vesicle: InternalVesicleQCConfig | None = None,
-        radius: MinimumRadiusQCConfig | None = None,
+        radius: MinimumMinimumRadiusQCConfig | None = None,
         **legacy_values,
     ) -> None:
         """Create a composed config, translating legacy flat arguments."""
@@ -204,8 +204,8 @@ class EdgeQCConfig:
                 )
             if area is not None and not isinstance(area, AreaQCConfig):
                 raise TypeError("area must be an AreaQCConfig.")
-            if radius is not None and not isinstance(radius, MinimumRadiusQCConfig):
-                raise TypeError("radius must be a MinimumRadiusQCConfig.")
+            if minimum_radius is not None and not isinstance(radius, MinimumMinimumRadiusQCConfig):
+                raise TypeError("radius must be a MinimumMinimumRadiusQCConfig.")
             if internal_vesicle is not None and not isinstance(
                 internal_vesicle, InternalVesicleQCConfig
             ):
@@ -216,7 +216,7 @@ class EdgeQCConfig:
             object.__setattr__(
                 self, "area", area if area is not None else AreaQCConfig()
             )
-            object.__setattr__(self, "radius", radius if radius is not None else MinimumRadiusQCConfig())
+            object.__setattr__(self, "minimum_radius", radius if minimum_radius is not None else MinimumMinimumRadiusQCConfig())
             object.__setattr__(
                 self,
                 "internal_vesicle",
@@ -226,7 +226,7 @@ class EdgeQCConfig:
             )
             return
 
-        if area is not None or radius is not None or internal_vesicle is not None:
+        if area is not None or minimum_radius is not None or internal_vesicle is not None:
             raise TypeError(
                 "Nested and legacy flat QC configuration cannot be mixed."
             )
@@ -235,7 +235,7 @@ class EdgeQCConfig:
         migrated = self._from_legacy_dict(legacy_values)
         object.__setattr__(self, "curvature", migrated.curvature)
         object.__setattr__(self, "area", migrated.area)
-        object.__setattr__(self, "radius", migrated.radius)
+        object.__setattr__(self, "minimum_radius", migrated.radius)
         object.__setattr__(self, "internal_vesicle", migrated.internal_vesicle)
 
     @classmethod
@@ -243,7 +243,7 @@ class EdgeQCConfig:
         """Deserialize nested configuration or migrate legacy flat values."""
         if not isinstance(values, dict):
             raise TypeError("QC configuration must be a dictionary.")
-        nested_fields = {"curvature", "area", "radius", "internal_vesicle"}
+        nested_fields = {"curvature", "area", "minimum_radius", "internal_vesicle"}
         supplied_nested = set(values) & nested_fields
         if supplied_nested:
             unexpected = set(values) - nested_fields
@@ -258,7 +258,7 @@ class EdgeQCConfig:
             return cls(
                 curvature=CurvatureQCConfig(**values["curvature"]),
                 area=AreaQCConfig(**values.get("area", {})),
-                radius=MinimumRadiusQCConfig(**values.get("radius", {})),
+                radius=MinimumMinimumRadiusQCConfig(**values.get("minimum_radius", {})),
                 internal_vesicle=InternalVesicleQCConfig(
                     **values.get("internal_vesicle", {})
                 ),
@@ -308,7 +308,7 @@ class EdgeQCConfig:
                 ),
                 enabled=values.get("enable_area_qc", True),
             ),
-            radius=MinimumRadiusQCConfig(),
+            radius=MinimumMinimumRadiusQCConfig(),
             internal_vesicle=InternalVesicleQCConfig(
                 enabled=values.get("enable_internal_vesicle_qc", False),
                 max_area_fraction=values.get(
