@@ -15,7 +15,7 @@ from .checkpoint_io import load_checkpoint, save_checkpoint
 from .config import EdgeExtractionConfig, EdgeQCConfig
 from .edge_filtering import check_curvature
 from .radius_qc import check_radius
-from .baseline_qc import check_baseline
+from .localized_deviation_qc import check_localized_deviation
 from .frame_source import FrameSource
 from .models import (
     AreaQCResult,
@@ -209,7 +209,7 @@ class VesicleEdges:
                 min_median_radius_pixels=config.radius.min_median_radius_pixels,
             )
         if config.baseline.enabled:
-            check_baseline(edge, config.baseline.order, config.baseline.max_residual_fraction)
+            check_localized_deviation(edge, config.baseline.order, config.baseline.max_residual_fraction)
 
     def _curvature_qc_result(
         self,
