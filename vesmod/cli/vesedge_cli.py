@@ -12,14 +12,6 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 
-from . import internal_structures_batch_cli as internal_structures_cli
-from .gif_cli import add_gif_parser, run_gif
-from .input_selection import InputPathsAction, select_input_files
-from .path_utils import (
-    _display_path,
-    _relative_input_path,
-    remove_manifest_artifacts,
-)
 from vesmod.VesEdge import (
     AreaQCConfig,
     LocalizedDeviationQCConfig,
@@ -35,6 +27,14 @@ from vesmod.VesEdge import (
 )
 from vesmod.VesEdge.experimental import InternalVesicleQCConfig
 from vesmod.io import open_checkpoint_frames, resolve_source_path
+from vesmod.cli import internal_structures_batch_cli as internal_structures_cli
+from vesmod.cli.gif_cli import add_gif_parser, run_gif
+from vesmod.cli.input_selection import InputPathsAction, select_input_files
+from vesmod.cli.path_utils import (
+    _display_path,
+    _relative_input_path,
+    remove_manifest_artifacts,
+)
 
 
 def _parse_angular_samples(value: str) -> int | None:
