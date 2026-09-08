@@ -15,10 +15,22 @@ from .experimental.internal_vesicle_qc import (
     check_internal_vesicle_selection,
 )
 from .frame_source import FrameSource
-from .localized_deviation_qc import LocalizedDeviationQCConfig, check_localized_deviation
-from .minimum_radius_qc import MinimumRadiusQCConfig, check_minimum_radius
+from .localized_deviation_qc import (
+    LocalizedDeviationQCConfig,
+    LocalizedDeviationQCResult,
+    check_localized_deviation,
+)
+from .minimum_radius_qc import (
+    MinimumRadiusQCConfig,
+    MinimumRadiusQCResult,
+    check_minimum_radius,
+)
 from .qc_config import EdgeQCConfig
-from .singleton_qc import SingletonDeviationQCConfig, check_singleton_deviation
+from .singleton_qc import (
+    SingletonDeviationQCConfig,
+    SingletonDeviationQCResult,
+    check_singleton_deviation,
+)
 from .models import EdgeDetection, QCFlag, TrajectoryQCFlag
 
 
@@ -109,7 +121,7 @@ class MinimumRadiusCheck:
         """Return whether minimum-radius quality control is enabled."""
         return config.enabled
 
-    def run(self, detections, config, frames) -> QCCheckOutcome:
+    def run(self, detections, config, frames) -> MinimumRadiusQCResult:
         """Apply the minimum-radius check to each detection."""
         del frames
         for detection in detections:
@@ -117,7 +129,16 @@ class MinimumRadiusCheck:
                 detection,
                 min_median_radius_pixels=config.min_median_radius_pixels,
             )
-        return None
+        return MinimumRadiusQCResult(
+            median_radii_pixels=tuple(
+                float(detection.qc.diagnostics["median_radius_pixels"])
+                for detection in detections
+            ),
+            rejected_count=sum(
+                QCFlag.MINIMUM_RADIUS in detection.qc.flags
+                for detection in detections
+            ),
+        )
 
 
 class LocalizedDeviationCheck:
@@ -133,7 +154,7 @@ class LocalizedDeviationCheck:
         """Return whether localized-deviation quality control is enabled."""
         return config.enabled
 
-    def run(self, detections, config, frames) -> QCCheckOutcome:
+    def run(self, detections, config, frames) -> LocalizedDeviationQCResult:
         """Apply the localized-deviation check to each detection."""
         del frames
         for detection in detections:
@@ -141,7 +162,16 @@ class LocalizedDeviationCheck:
                 detection,
                 config.order, config.max_residual_fraction,
             )
-        return None
+        return LocalizedDeviationQCResult(
+            scores=tuple(
+                float(detection.qc.diagnostics["localized_deviation_score"])
+                for detection in detections
+            ),
+            rejected_count=sum(
+                QCFlag.LOCALIZED_DEVIATION in detection.qc.flags
+                for detection in detections
+            ),
+        )
 
 
 class SingletonDeviationCheck:
@@ -156,7 +186,7 @@ class SingletonDeviationCheck:
         """Return whether singleton-deviation QC is enabled."""
         return config.enabled
 
-    def run(self, detections, config, frames) -> QCCheckOutcome:
+    def run(self, detections, config, frames) -> SingletonDeviationQCResult:
         """Apply singleton-deviation QC to each detection."""
         del frames
         for detection in detections:
@@ -164,7 +194,20 @@ class SingletonDeviationCheck:
                 detection,
                 config.order, config.min_residual_fraction, config.max_width_samples,
             )
-        return None
+        return SingletonDeviationQCResult(
+            scores=tuple(
+                float(detection.qc.diagnostics["singleton_score"])
+                for detection in detections
+            ),
+            counts=tuple(
+                int(detection.qc.diagnostics["singleton_count"])
+                for detection in detections
+            ),
+            rejected_count=sum(
+                QCFlag.SINGLETON_DEVIATION in detection.qc.flags
+                for detection in detections
+            ),
+        )
 
 
 class AreaDeviationCheck:
