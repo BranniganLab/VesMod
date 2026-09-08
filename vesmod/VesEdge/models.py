@@ -8,6 +8,8 @@ results, and quality-control results.
 """
 
 from dataclasses import dataclass, field
+from types import MappingProxyType
+from typing import Mapping
 from enum import Enum, auto
 
 import numpy as np
@@ -148,15 +150,13 @@ class EdgeQC:
     """
 
     flags: set[QCFlag] = field(default_factory=set)
-    curvature_score: float | None = None
-    area_pixels2: float | None = None
-    relative_area_deviation: float | None = None
-    internal_vesicle_score: float | None = None
-    median_radius_pixels: float | None = None
-    localized_deviation_score: float | None = None
-    singleton_score: float | None = None
-    singleton_count: int | None = None
+    diagnostics: dict[str, object] = field(default_factory=dict)
 
+    def __getattr__(self, name: str) -> object:
+        """Read a check-owned diagnostic retained in the generic store."""
+        if name.endswith(("_score", "_count", "_pixels", "_pixels2")):
+            return self.diagnostics.get(name)
+        raise AttributeError(name)
     @property
     def passed(self) -> bool:
         """Return whether the edge has passed all QC checks run so far."""
@@ -291,10 +291,22 @@ class VesicleQCResult:
     """
 
     config: EdgeQCConfig
-    curvature: CurvatureQCResult | None
-    area: AreaQCResult | None = None
-    internal_vesicle: InternalVesicleQCResult | None = None
+    results: Mapping[str, object] = field(default_factory=dict)
     trajectory_flags: frozenset[TrajectoryQCFlag] = frozenset()
+
+    def __post_init__(self) -> None:
+        """Freeze the check-keyed result collection."""
+        object.__setattr__(self, "results", MappingProxyType(dict(self.results)))
+
+    def for_check(self, name: str) -> object | None:
+        """Return a registered check's result, if that check produced one."""
+        return self.results.get(name)
+
+    def __getattr__(self, name: str) -> object:
+        """Provide read-only access for established built-in result keys."""
+        if name in self.results or name in {"curvature", "area", "internal_vesicle"}:
+            return self.results.get(name)
+        raise AttributeError(name)
 
     @property
     def passed(self) -> bool:
