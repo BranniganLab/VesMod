@@ -23,7 +23,7 @@ from .path_utils import (
 from vesmod.VesEdge import (
     AreaQCConfig,
     CurvatureQCConfig,
-    RadiusQCConfig,
+    MinimumRadiusQCConfig,
     EdgeExtractionConfig,
     EdgeQCConfig,
     QCFlag,
@@ -209,7 +209,7 @@ def _add_qc_parser(subparsers) -> None:
         help="Reject frames whose median native contour radius is below this value. Default: 5.",
     )
     parser.add_argument(
-        "--radius-qc",
+        "--minimum-radius-qc",
         action="store_true",
         help="Enable frame-level nonpositive/collapsed contour-radius QC.",
     )
@@ -395,8 +395,8 @@ def _qc_config_from_args(args: argparse.Namespace) -> EdgeQCConfig:
             max_relative_deviation=args.max_relative_area_deviation,
             enabled=not args.no_area_qc,
         ),
-        radius=RadiusQCConfig(
-            enabled=getattr(args, "radius_qc", False),
+        minimum_radius=MinimumRadiusQCConfig(
+            enabled=getattr(args, "minimum_radius_qc", False),
             min_median_radius_pixels=getattr(args, "min_median_radius_pixels", 5.0),
         ),
         internal_vesicle=InternalVesicleQCConfig(
@@ -531,8 +531,8 @@ def _qc_summary(
         QCFlag.AREA_DEVIATION in detection.qc.flags
         for detection in successful
     )
-    radius_rejected = sum(
-        QCFlag.RADIUS in detection.qc.flags
+    minimum_radius_rejected = sum(
+        QCFlag.MINIMUM_RADIUS in detection.qc.flags
         for detection in successful
     )
     trajectory_flags = getattr(edges.qc_result, "trajectory_flags", frozenset())
@@ -554,7 +554,7 @@ def _qc_summary(
         "extraction_failures": len(edges.detections) - len(successful),
         "curvature_rejected": curvature_rejected,
         "area_rejected": area_rejected,
-        "radius_rejected": radius_rejected,
+        "minimum_radius_rejected": minimum_radius_rejected,
         "internal_vesicle_trajectory_rejected": (
             TrajectoryQCFlag.INTERNAL_VESICLE in trajectory_flags
         ),
@@ -600,7 +600,7 @@ def _load_error_summary(path: Path, input_path: Path, error: str) -> dict:
         "extraction_failures": 0,
         "curvature_rejected": 0,
         "area_rejected": 0,
-        "radius_rejected": 0,
+        "minimum_radius_rejected": 0,
         "internal_vesicle_trajectory_rejected": False,
         "internal_vesicle_inspected": False,
         "internal_vesicle_area_fraction": "",
@@ -682,7 +682,7 @@ def process_qc_file(
     )
     area_plot_path = output_path.with_suffix(".area_qc.png")
     area_csv_path = output_path.with_suffix(".area_qc.csv")
-    radius_csv_path = output_path.with_suffix(".radius_qc.csv")
+    minimum_radius_csv_path = output_path.with_suffix(".minimum_radius_qc.csv")
     internal_vesicle_csv_path = output_path.with_suffix(
         ".internal_vesicle_qc.csv"
     )
@@ -698,19 +698,19 @@ def process_qc_file(
         _write_area_qc_csv(area_csv_path, edges)
         if managed_artifacts is not None:
             managed_artifacts.add(area_csv_path)
-    has_radius_result = (
+    has_minimum_radius_result = (
         edges.qc_result is not None
         and getattr(
             getattr(edges.qc_result, "config", None),
-            "radius",
+            "minimum_radius",
             None,
         ) is not None
-        and edges.qc_result.config.radius.enabled
+        and edges.qc_result.config.minimum_radius.enabled
     )
-    if has_radius_result and (args.overwrite or not radius_csv_path.exists()):
-        _write_radius_qc_csv(radius_csv_path, edges)
+    if has_minimum_radius_result and (args.overwrite or not minimum_radius_csv_path.exists()):
+        _write_minimum_radius_qc_csv(minimum_radius_csv_path, edges)
         if managed_artifacts is not None:
-            managed_artifacts.add(radius_csv_path)
+            managed_artifacts.add(minimum_radius_csv_path)
     has_internal_vesicle_result = (
         edges.qc_result is not None
         and getattr(edges.qc_result, "internal_vesicle", None) is not None
@@ -749,7 +749,7 @@ def _record_qc_artifacts(
     )
 
 
-def _write_radius_qc_csv(path: Path, edges: VesicleEdges) -> None:
+def _write_minimum_radius_qc_csv(path: Path, edges: VesicleEdges) -> None:
     """Write exact per-frame contour-radius QC measurements."""
     with path.open("w", newline="", encoding="utf-8") as output_file:
         writer = csv.DictWriter(
@@ -757,7 +757,7 @@ def _write_radius_qc_csv(path: Path, edges: VesicleEdges) -> None:
             fieldnames=[
                 "frame_index",
                 "median_radius_pixels",
-                "radius_rejected",
+                "minimum_radius_rejected",
             ],
         )
         writer.writeheader()
@@ -766,7 +766,7 @@ def _write_radius_qc_csv(path: Path, edges: VesicleEdges) -> None:
                 {
                     "frame_index": detection.frame_index,
                     "median_radius_pixels": detection.qc.median_radius_pixels,
-                    "radius_rejected": QCFlag.RADIUS in detection.qc.flags,
+                    "minimum_radius_rejected": QCFlag.MINIMUM_RADIUS in detection.qc.flags,
                 }
             )
 
@@ -880,7 +880,7 @@ def _write_qc_summary(output_dir: Path, rows: list[dict]) -> None:
         "extraction_failures",
         "curvature_rejected",
         "area_rejected",
-        "radius_rejected",
+        "minimum_radius_rejected",
         "internal_vesicle_trajectory_rejected",
         "internal_vesicle_inspected",
         "internal_vesicle_area_fraction",
