@@ -16,7 +16,7 @@ def check_localized_deviation(edge: EdgeDetection, order: int, max_residual_frac
     fitted = fit_radial_baseline(radii, order).values
     score = float(np.max(np.abs(radii - fitted)) / median)
     edge.qc.localized_deviation_score = score
-    rejected = score > max_residual_fraction
+    rejected = score >= max_residual_fraction
     support = None
     if support_residual_fraction is not None:
         residual = np.abs(radii - fitted) / median
