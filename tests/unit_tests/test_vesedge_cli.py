@@ -427,6 +427,7 @@ def test_process_qc_file_returns_load_error_summary(tmp_path, monkeypatch):
         "extraction_failures": 0,
         "curvature_rejected": 0,
         "area_rejected": 0,
+        "radius_rejected": 0,
         "internal_vesicle_trajectory_rejected": False,
         "internal_vesicle_inspected": False,
         "internal_vesicle_area_fraction": "",
@@ -691,3 +692,25 @@ def test_area_qc_diagnostics_preserve_frame_measurements(tmp_path):
     csv_text = csv_path.read_text()
     assert "4,25.0,0.75,True" in csv_text
     assert plot_path.is_file()
+
+
+def test_radius_qc_diagnostics_preserve_frame_measurements(tmp_path):
+    """Test radius QC writes exact per-frame measurements and flags."""
+
+    class Detection:
+        frame_index = 4
+        qc = argparse.Namespace(
+            median_radius_pixels=2.5,
+            flags={vesedge_cli.QCFlag.RADIUS},
+        )
+
+    class FakeEdges:
+        successful_detections = [Detection()]
+
+    csv_path = tmp_path / "sample.radius_qc.csv"
+    vesedge_cli._write_radius_qc_csv(csv_path, FakeEdges())
+
+    csv_text = csv_path.read_text()
+    assert "4,2.5,True" in csv_text
+
+
