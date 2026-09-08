@@ -758,7 +758,7 @@ def _write_provenance(
             else {
                 "mode": "qc",
                 "qc_provenance": str(qc_provenance_path),
-                "qc_config": asdict(qc_config),
+                "qc_config": qc_config.to_dict(),
             }
         ),
         "managed_artifacts": [],
