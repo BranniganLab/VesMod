@@ -130,6 +130,10 @@ class LocalizedDeviationQCConfig:
             raise ValueError("order must be non-negative.")
         object.__setattr__(self, "order", order)
         object.__setattr__(self, "max_residual_fraction", require_nonnegative_real(self.max_residual_fraction, "max_residual_fraction"))
+        if (self.support_residual_fraction is None) != (self.max_support_samples is None):
+            raise ValueError(
+                "support residual and maximum support must be configured together."
+            )
         if self.support_residual_fraction is not None:
             object.__setattr__(self, "support_residual_fraction", require_nonnegative_real(self.support_residual_fraction, "support_residual_fraction"))
         if self.max_support_samples is not None:
