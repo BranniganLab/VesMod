@@ -301,18 +301,18 @@ QC configurations remain unchanged. Its configuration is kept as a separate
 QC component to allow it to be registered with the modular QC interface
 described in issue #138.
 
-## Geometric Baseline QC
+## Geometric Localized-deviation QC
 
-Baseline QC evaluates extracted contour geometry without reading source-image
+Localized-deviation QC evaluates extracted contour geometry without reading source-image
 intensities. It fits a low-order Fourier baseline to `r(theta)` and rejects a
 frame when the largest absolute residual exceeds a fraction of the median
 radius:
 
 ```bash
 vesedge qc "./checkpoints" \
-    --baseline-qc \
-    --baseline-order 3 \
-    --max-baseline-residual-fraction 0.05 \
+    --localized-deviation-qc \
+    --localized-deviation-order 3 \
+    --max-localized-deviation-residual-fraction 0.05 \
     --output-dir ./results/qc_baseline
 ```
 
