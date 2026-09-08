@@ -320,7 +320,7 @@ def _successful_detections_from_checkpoint(
     full_values: np.ndarray,
     full_offsets: np.ndarray,
     frame_indices: np.ndarray,
-) -> list[EdgeDetection]:
+) -> list[EdgeResult]:
     """Reconstruct successful detections from checkpoint arrays."""
     detections = []
     for index, origin_values in enumerate(origins):
@@ -330,19 +330,23 @@ def _successful_detections_from_checkpoint(
             float(origin_values[0]),
             float(origin_values[1]),
         )
-        detections.append(
-            EdgeDetection(
-                ImageContour(
-                    origin,
-                    full_values[start:stop].copy(),
-                ),
-                ImageContour(
-                    origin,
-                    analysis_radii[index].copy(),
-                ),
-                frame_index=int(frame_indices[index]),
+        try:
+            detections.append(
+                EdgeDetection(
+                    ImageContour(origin, full_values[start:stop].copy()),
+                    ImageContour(origin, analysis_radii[index].copy()),
+                    frame_index=int(frame_indices[index]),
+                )
             )
-        )
+        except (TypeError, ValueError) as error:
+            # Preserve malformed checkpoint frames in their original order,
+            # while preventing invalid contours from entering QC algorithms.
+            detections.append(
+                EdgeDetectionFailure(
+                    f"Malformed contour in checkpoint: {error}",
+                    frame_index=int(frame_indices[index]),
+                )
+            )
     return detections
 
 

@@ -9,11 +9,13 @@ from .animation import (
 from .area_qc import check_area_deviation, contour_area
 from .config import (
     AreaQCConfig,
+    RadiusQCConfig,
     CurvatureQCConfig,
     EdgeExtractionConfig,
     EdgeQCConfig,
 )
 from .edge_extractor import extract_edge_from_frame
+from .radius_qc import check_radius
 from .frame_source import (
     ArrayFrameSource,
     FrameSource,
@@ -41,6 +43,8 @@ __all__ = [
     "ArrayFrameSource",
     "AreaQCResult",
     "AreaQCConfig",
+    "RadiusQCConfig",
+    "check_radius",
     "check_area_deviation",
     "contour_area",
     "CurvatureQCResult",

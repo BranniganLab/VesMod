@@ -23,6 +23,7 @@ from .path_utils import (
 from vesmod.VesEdge import (
     AreaQCConfig,
     CurvatureQCConfig,
+    RadiusQCConfig,
     EdgeExtractionConfig,
     EdgeQCConfig,
     QCFlag,
@@ -200,6 +201,17 @@ def _add_qc_parser(subparsers) -> None:
         "--no-area-qc",
         action="store_true",
         help="Disable trajectory-level contour-area deviation QC.",
+    )
+    parser.add_argument(
+        "--min-median-radius-pixels",
+        type=float,
+        default=5.0,
+        help="Reject frames whose median native contour radius is below this value. Default: 5.",
+    )
+    parser.add_argument(
+        "--radius-qc",
+        action="store_true",
+        help="Enable frame-level nonpositive/collapsed contour-radius QC.",
     )
     parser.add_argument(
         "--internal-vesicle-qc",
@@ -382,6 +394,10 @@ def _qc_config_from_args(args: argparse.Namespace) -> EdgeQCConfig:
         area=AreaQCConfig(
             max_relative_deviation=args.max_relative_area_deviation,
             enabled=not args.no_area_qc,
+        ),
+        radius=RadiusQCConfig(
+            enabled=getattr(args, "radius_qc", False),
+            min_median_radius_pixels=getattr(args, "min_median_radius_pixels", 5.0),
         ),
         internal_vesicle=InternalVesicleQCConfig(
             enabled=getattr(args, "internal_vesicle_qc", False),
