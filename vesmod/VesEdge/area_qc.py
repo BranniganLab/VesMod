@@ -5,7 +5,33 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
-from .models import AreaQCResult, EdgeDetection, QCFlag
+from dataclasses import dataclass
+
+from .models import EdgeDetection, QCFlag
+from vesmod.validation import require_fraction
+
+
+@dataclass(frozen=True)
+class AreaQCConfig:
+    """Configuration owned by the contour-area QC check."""
+
+    max_relative_deviation: float = 0.25
+    enabled: bool = True
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "max_relative_deviation", require_fraction(self.max_relative_deviation, "max_relative_deviation", include_one=False))
+        if not isinstance(self.enabled, bool):
+            raise TypeError("enabled must be a bool.")
+
+
+@dataclass(frozen=True)
+class AreaQCResult:
+    """Per-trajectory outcome produced by the contour-area QC check."""
+
+    areas_pixels2: tuple[float, ...]
+    reference_area_pixels2: float
+    relative_deviations: tuple[float, ...]
+    rejected_count: int
 
 
 def contour_area(contour_radii: NDArray[np.float64]) -> float:
