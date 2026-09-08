@@ -10,12 +10,11 @@ import numpy as np
 
 from vesmod.VesEdge import (
     EdgeQCConfig,
-    FrameSource,
     VesicleEdges,
     VesicleVideo,
-    open_frame_source,
 )
 
+from vesmod.io import open_checkpoint_frames, resolve_source_path
 from .input_selection import InputPathsAction, select_input_files
 
 
@@ -113,33 +112,6 @@ def _load_qc_config(qc_dir: Path) -> EdgeQCConfig:
     return EdgeQCConfig.from_dict(config_data)
 
 
-def _resolve_source_path(edges: VesicleEdges, checkpoint: Path) -> Path:
-    """Resolve a checkpoint's source video, including local-name fallback."""
-    if edges.source_path is None:
-        raise ValueError("Checkpoint does not record a source video path.")
-
-    recorded = Path(edges.source_path).expanduser()
-    candidates = [recorded]
-    if not recorded.is_absolute():
-        candidates.append(checkpoint.parent / recorded)
-    candidates.append(checkpoint.parent / recorded.name)
-
-    for candidate in candidates:
-        resolved = candidate.resolve()
-        if resolved.is_file():
-            return resolved
-    attempted = ", ".join(str(path.resolve()) for path in candidates)
-    raise FileNotFoundError(
-        f"Source video for {checkpoint.resolve()} was not found. "
-        f"Tried: {attempted}"
-    )
-
-
-def _load_frames(source_path: Path) -> FrameSource:
-    """Open ND2 or NumPy source frames without eagerly loading the video."""
-    return open_frame_source(source_path)
-
-
 def _apply_recorded_qc(
     edges: VesicleEdges,
     frames: FrameSource,
@@ -193,8 +165,8 @@ def process_gif_file(
 
     try:
         edges = VesicleEdges.from_checkpoint(checkpoint)
-        source_path = _resolve_source_path(edges, checkpoint)
-        with _load_frames(source_path) as frames:
+        source_path = resolve_source_path(edges.source_path, checkpoint)
+        with open_checkpoint_frames(source_path) as frames:
             if args.style == "qc":
                 _apply_recorded_qc(
                     edges,

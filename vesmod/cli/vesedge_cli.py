@@ -22,6 +22,7 @@ from .path_utils import (
 )
 from vesmod.VesEdge import (
     AreaQCConfig,
+    LocalizedDeviationQCConfig,
     CurvatureQCConfig,
     MinimumRadiusQCConfig,
     EdgeExtractionConfig,
@@ -216,6 +217,9 @@ def _add_qc_parser(subparsers) -> None:
         action="store_true",
         help="Enable frame-level nonpositive/collapsed contour-radius QC.",
     )
+    parser.add_argument("--localized-deviation-qc", action="store_true", help="Enable low-order geometric localized-deviation QC.")
+    parser.add_argument("--localized-deviation-order", type=int, default=3, help="Fourier baseline order. Default: 3.")
+    parser.add_argument("--max-localized-deviation-residual-fraction", type=float, default=0.05, help="Maximum baseline residual divided by median radius. Default: 0.05.")
     parser.add_argument(
         "--internal-vesicle-qc",
         action="store_true",
@@ -401,6 +405,11 @@ def _qc_config_from_args(args: argparse.Namespace) -> EdgeQCConfig:
         minimum_radius=MinimumRadiusQCConfig(
             enabled=getattr(args, "minimum_radius_qc", False),
             min_median_radius_pixels=getattr(args, "min_median_radius_pixels", 5.0),
+        ),
+        baseline=LocalizedDeviationQCConfig(
+            enabled=getattr(args, "localized_deviation_qc", False),
+            order=getattr(args, "localized_deviation_order", 3),
+            max_residual_fraction=getattr(args, "max_localized_deviation_residual_fraction", 0.05),
         ),
         internal_vesicle=InternalVesicleQCConfig(
             enabled=getattr(args, "internal_vesicle_qc", False),

@@ -6,6 +6,7 @@ from pathlib import Path
 
 from . import internal_structures_cli
 from .input_selection import select_input_files
+from vesmod.io import build_video_filename_index
 
 
 def add_parser(subparsers) -> None:
@@ -44,7 +45,7 @@ def run(args) -> None:
         qc_config,
         qc_provenance_path,
     )
-    video_index = internal_structures_cli._build_video_filename_index(
+    video_index = build_video_filename_index(
         paths,
         args.video_root,
     )

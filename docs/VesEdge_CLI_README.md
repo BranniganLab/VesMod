@@ -304,6 +304,26 @@ configurations remain unchanged. Its configuration is kept as a separate QC
 component to allow it to be registered with the modular QC interface described
 in issue #138.
 
+## Geometric Localized-deviation QC
+
+Localized-deviation QC evaluates extracted contour geometry without reading source-image
+intensities. It fits a low-order Fourier baseline to `r(theta)` and rejects a
+frame when the largest absolute residual exceeds a fraction of the median
+radius:
+
+```bash
+vesedge qc "./checkpoints" \
+    --localized-deviation-qc \
+    --localized-deviation-order 3 \
+    --max-localized-deviation-residual-fraction 0.05 \
+    --output-dir ./results/qc_baseline
+```
+
+This check is disabled by default. The order, residual score, and threshold
+are retained in QC provenance. It is implemented as an independent component
+so it can be registered by the modular QC orchestration proposed in issue
+#138.
+
 VesEdge no longer performs GMM-based population QC. The removed options `--population-bic-threshold`, `--max-minor-population-fraction`, and `--no-population-qc` are invalid and produce an argument error.
 
 ## Contour-Area Deviation QC
