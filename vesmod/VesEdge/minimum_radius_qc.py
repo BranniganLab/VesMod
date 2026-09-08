@@ -21,6 +21,14 @@ class MinimumRadiusQCConfig:
         object.__setattr__(self, "min_median_radius_pixels", require_nonnegative_real(self.min_median_radius_pixels, "min_median_radius_pixels"))
 
 
+@dataclass(frozen=True)
+class MinimumRadiusQCResult:
+    """Per-trajectory outcome produced by the minimum-radius QC check."""
+
+    median_radii_pixels: tuple[float, ...]
+    rejected_count: int
+
+
 def check_minimum_radius(edge: EdgeDetection, min_median_radius_pixels: float) -> None:
     """Reject contours containing invalid or exceptionally small radii.
 
