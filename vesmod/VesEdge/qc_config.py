@@ -7,7 +7,6 @@ envelope only associates those values with the explicit built-in registry.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from types import MappingProxyType
 from typing import Mapping
 
 
@@ -39,7 +38,7 @@ class EdgeQCConfig:
             raise TypeError("checks cannot be combined with named QC configurations.")
         if checks is None and "curvature_threshold" in values:
             migrated = _config_from_dict(values)
-            object.__setattr__(self, "checks", migrated.checks)
+            object.__setattr__(self, "checks", dict(migrated.checks))
             return
         supplied = _canonicalize_keys(dict(checks) if checks is not None else values)
         specs = _specifications()
@@ -55,7 +54,7 @@ class EdgeQCConfig:
                 raise TypeError(
                     f"{name} must be a {specs[name].config_type.__name__}."
                 )
-        object.__setattr__(self, "checks", MappingProxyType(normalized))
+        object.__setattr__(self, "checks", dict(normalized))
 
     def for_check(self, name: str) -> object:
         """Return the typed configuration registered under ``name``."""
