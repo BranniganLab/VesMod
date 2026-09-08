@@ -53,3 +53,12 @@ def test_legacy_baseline_wrapper_uses_shared_projection():
         rtol=0,
         atol=1e-12,
     )
+
+
+def test_legacy_baseline_wrapper_order_zero_preserves_input():
+    """The compatibility wrapper retains its legacy order-zero behavior."""
+    radii = np.array([1.0, 3.0, 5.0, 7.0])
+
+    result = zero_out_all_but_lowest_n_modes(radii, n=0)
+
+    np.testing.assert_array_equal(result, radii)
