@@ -44,7 +44,7 @@ def test_large_selected_edge_skips_internal_vesicle_inspection():
     result = check_internal_vesicle_selection(
         np.stack([_ring_frame(40.0)]),
         [detection],
-        config,
+        config.for_check("internal_vesicle"),
     )
 
     assert result.inspected is False
@@ -64,7 +64,9 @@ def test_persistent_larger_boundary_flags_internal_vesicle_selection():
         enable_internal_vesicle_qc=True,
     )
 
-    result = check_internal_vesicle_selection(frames, detections, config)
+    result = check_internal_vesicle_selection(
+        frames, detections, config.for_check("internal_vesicle")
+    )
 
     assert result.inspected is True
     assert result.positive_frame_fraction == 1.0
@@ -111,7 +113,9 @@ def test_isolated_outer_boundary_does_not_reject_video():
         internal_vesicle_min_frame_fraction=0.5,
     )
 
-    result = check_internal_vesicle_selection(frames, detections, config)
+    result = check_internal_vesicle_selection(
+        frames, detections, config.for_check("internal_vesicle")
+    )
 
     assert result.positive_frame_fraction < 0.5
     assert not result.persistent_enclosing_boundary
@@ -170,7 +174,9 @@ def test_size_gate_does_not_read_lazy_frames():
         enable_internal_vesicle_qc=True,
     )
 
-    result = check_internal_vesicle_selection(source, detections, config)
+    result = check_internal_vesicle_selection(
+        source, detections, config.for_check("internal_vesicle")
+    )
 
     assert result.inspected is False
     assert source.read_indices == []
@@ -186,7 +192,9 @@ def test_sampling_reads_only_evenly_spaced_frames():
         internal_vesicle_max_frames=4,
     )
 
-    result = check_internal_vesicle_selection(source, detections, config)
+    result = check_internal_vesicle_selection(
+        source, detections, config.for_check("internal_vesicle")
+    )
 
     assert result.sampled_frame_indices == (0, 3, 6, 9)
     assert source.read_indices == [0, 3, 6, 9]
@@ -206,7 +214,9 @@ def test_insufficient_valid_sample_cannot_reject_trajectory():
         internal_vesicle_min_valid_frame_fraction=0.5,
     )
 
-    result = check_internal_vesicle_selection(frames, detections, config)
+    result = check_internal_vesicle_selection(
+        frames, detections, config.for_check("internal_vesicle")
+    )
 
     assert result.valid_frame_count == 1
     assert result.valid_frame_fraction == 0.25
@@ -226,7 +236,7 @@ def test_negative_frame_index_is_rejected():
         check_internal_vesicle_selection(
             np.stack([_ring_frame(12.0, 32.0)]),
             [detection],
-            config,
+            config.for_check("internal_vesicle"),
         )
 
 
