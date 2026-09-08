@@ -797,9 +797,15 @@ def _write_minimum_radius_qc_csv(path: Path, edges: VesicleEdges) -> None:
             writer.writerow(
                 {
                     "frame_index": detection.frame_index,
-                    "median_radius_pixels": detection.qc.diagnostics.get(
-                        "median_radius_pixels"
-                    ),
+                    "median_radius_pixels": getattr(
+                        detection.qc,
+                        "diagnostics",
+                        {"median_radius_pixels": getattr(
+                            detection.qc,
+                            "median_radius_pixels",
+                            None,
+                        )},
+                    ).get("median_radius_pixels"),
                     "minimum_radius_rejected": (
                         QCFlag.MINIMUM_RADIUS in detection.qc.flags
                     ),
