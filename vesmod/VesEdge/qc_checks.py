@@ -139,9 +139,11 @@ class SingletonDeviationCheck:
     requires_frames = False
 
     def enabled(self, config: EdgeQCConfig) -> bool:
+        """Return whether singleton-deviation QC is enabled."""
         return config.singleton.enabled
 
     def run(self, detections, config, frames) -> QCCheckOutcome:
+        """Apply singleton-deviation QC to each detection."""
         del frames
         for detection in detections:
             check_singleton_deviation(
