@@ -5,6 +5,7 @@ import pytest
 
 from vesmod.VesEdge import (
     AreaQCConfig,
+    BaselineQCConfig,
     CurvatureQCConfig,
     EdgeExtractionConfig,
     EdgeQCConfig,
@@ -100,12 +101,29 @@ def test_edge_extraction_config_allows_no_downsampling():
             {"max_relative_deviation": np.inf},
             "max_relative_deviation must be finite",
         ),
+        (
+            BaselineQCConfig,
+            {"max_residual_fraction": -0.1},
+            "max_residual_fraction must be non-negative",
+        ),
+        (
+            BaselineQCConfig,
+            {"max_residual_fraction": np.inf},
+            "max_residual_fraction must be finite",
+        ),
     ],
 )
 def test_edge_qc_config_rejects_invalid_values(config_type, kwargs, match):
     """Test representative invalid QC configuration values."""
     with pytest.raises(ValueError, match=match):
         config_type(**kwargs)
+
+
+def test_baseline_qc_config_accepts_threshold_above_one():
+    """Baseline residual thresholds may exceed one median radius."""
+    config = BaselineQCConfig(max_residual_fraction=2.0)
+
+    assert config.max_residual_fraction == 2.0
 
 
 def test_edge_qc_config_normalizes_numeric_thresholds():
