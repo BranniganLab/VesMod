@@ -228,17 +228,14 @@ def _add_qc_parser(subparsers) -> None:
         default=None,
         help=(
             "Secondary residual fraction for support-aware localized-deviation "
-            "QC; must be paired with --max-localized-deviation-support-samples."
+            "QC; requires --max-localized-deviation-support-samples."
         ),
     )
     parser.add_argument(
         "--max-localized-deviation-support-samples",
         type=int,
         default=None,
-        help=(
-            "Maximum contiguous angular support for the secondary localized-"
-            "deviation threshold."
-        ),
+        help="Maximum contiguous angular support at the secondary threshold.",
     )
     parser.add_argument("--singleton-deviation-qc", action="store_true", help="Enable narrow, isolated radial-excursion QC.")
     parser.add_argument("--singleton-deviation-order", type=int, default=3, help="Fourier baseline order for singleton-deviation QC. Default: 3.")
@@ -435,10 +432,14 @@ def _qc_config_from_args(args: argparse.Namespace) -> EdgeQCConfig:
             order=getattr(args, "localized_deviation_order", 3),
             max_residual_fraction=getattr(args, "max_localized_deviation_residual_fraction", 0.05),
             support_residual_fraction=getattr(
-                args, "localized_deviation_support_residual_fraction", None
+                args,
+                "localized_deviation_support_residual_fraction",
+                None,
             ),
             max_support_samples=getattr(
-                args, "max_localized_deviation_support_samples", None
+                args,
+                "max_localized_deviation_support_samples",
+                None,
             ),
         ),
         singleton=SingletonDeviationQCConfig(
@@ -477,7 +478,7 @@ def _qc_provenance(
         "input_path": str(input_path.expanduser().resolve()),
         "recursive": recursive,
         "checkpoint_manifest": [str(path.resolve()) for path in paths],
-        "qc_config": asdict(qc_config),
+        "qc_config": qc_config.to_dict(),
         "managed_artifacts": [],
     }
     return provenance
@@ -821,7 +822,15 @@ def _write_minimum_radius_qc_csv(path: Path, edges: VesicleEdges) -> None:
             writer.writerow(
                 {
                     "frame_index": detection.frame_index,
-                    "median_radius_pixels": detection.qc.median_radius_pixels,
+                    "median_radius_pixels": getattr(
+                        detection.qc,
+                        "diagnostics",
+                        {"median_radius_pixels": getattr(
+                            detection.qc,
+                            "median_radius_pixels",
+                            None,
+                        )},
+                    ).get("median_radius_pixels"),
                     "minimum_radius_rejected": (
                         QCFlag.MINIMUM_RADIUS in detection.qc.flags
                     ),

@@ -6,7 +6,7 @@ from .animation import (
     VesicleAnimationPanel,
     make_gif,
 )
-from .area_qc import check_area_deviation, contour_area
+from .area_qc import AreaQCConfig, AreaQCResult, check_area_deviation, contour_area
 from .config import (
     AreaQCConfig,
     MinimumRadiusQCConfig,
@@ -17,8 +17,11 @@ from .config import (
     EdgeQCConfig,
 )
 from .edge_extractor import extract_edge_from_frame
-from .minimum_radius_qc import check_minimum_radius
-from .localized_deviation_qc import check_localized_deviation
+from .edge_filtering import CurvatureQCConfig, CurvatureQCResult
+from .experimental.internal_vesicle_qc import InternalVesicleQCResult
+from .minimum_radius_qc import MinimumRadiusQCConfig, check_minimum_radius
+from .localized_deviation_qc import LocalizedDeviationQCConfig, check_localized_deviation
+from .singleton_qc import SingletonDeviationQCConfig
 from .contour_geometry import RadialBaselineFit, fit_radial_baseline
 from .frame_source import (
     ArrayFrameSource,
@@ -28,13 +31,10 @@ from .frame_source import (
     open_frame_source,
 )
 from .models import (
-    AreaQCResult,
-    CurvatureQCResult,
     EdgeDetection,
     EdgeDetectionFailure,
     EdgeResult,
     ImageContour,
-    InternalVesicleQCResult,
     QCFlag,
     TrajectoryQCFlag,
     VesicleQCResult,

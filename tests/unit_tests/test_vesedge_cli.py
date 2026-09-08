@@ -132,6 +132,34 @@ def test_qc_parser_accepts_singleton_deviation_options(monkeypatch, tmp_path):
     assert config.singleton.max_width_samples == 3
 
 
+def test_qc_parser_accepts_localized_deviation_support_options(
+    monkeypatch,
+    tmp_path,
+):
+    """Test support-aware localized-deviation settings reach its check config."""
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "vesedge",
+            "qc",
+            "checkpoints",
+            "--output-dir",
+            str(tmp_path),
+            "--localized-deviation-qc",
+            "--localized-deviation-support-residual-fraction",
+            "0.03",
+            "--max-localized-deviation-support-samples",
+            "4",
+        ],
+    )
+
+    config = vesedge_cli._qc_config_from_args(vesedge_cli.parse_args())
+
+    assert config.localized_deviation.support_residual_fraction == pytest.approx(0.03)
+    assert config.localized_deviation.max_support_samples == 4
+
+
 @pytest.mark.parametrize(
     "removed_option",
     [
@@ -752,5 +780,4 @@ def test_minimum_radius_qc_diagnostics_preserve_frame_measurements(tmp_path):
 
     csv_text = csv_path.read_text()
     assert "4,2.5,True" in csv_text
-
 

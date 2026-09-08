@@ -144,9 +144,7 @@ class VesicleEdges:
             )
             self.qc_result = VesicleQCResult(
                 config=config,
-                curvature=outcome.curvature,
-                area=outcome.area,
-                internal_vesicle=outcome.internal_vesicle,
+                results=outcome.results,
                 trajectory_flags=outcome.trajectory_flags,
             )
         except Exception:

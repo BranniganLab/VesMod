@@ -2,10 +2,34 @@
 # -*- coding: utf-8 -*-
 """Quality-control algorithms for VesEdge edge detections."""
 
+from dataclasses import dataclass
+
 import numpy as np
 
 from .models import EdgeDetection, QCFlag
 from .vesicle_video_utils import measure_wrapped_finite_second_difference
+from vesmod.validation import require_nonnegative_real
+
+
+@dataclass(frozen=True)
+class CurvatureQCConfig:
+    """Configuration owned by the curvature QC check."""
+
+    threshold: float
+    enabled: bool = True
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "threshold", require_nonnegative_real(self.threshold, "threshold"))
+        if not isinstance(self.enabled, bool):
+            raise TypeError("enabled must be a bool.")
+
+
+@dataclass(frozen=True)
+class CurvatureQCResult:
+    """Per-trajectory outcome produced by the curvature QC check."""
+
+    scores: tuple[float, ...]
+    rejected_count: int
 
 
 def check_curvature(
@@ -37,14 +61,14 @@ def check_curvature(
     )
 
     if not np.all(np.isfinite(finite_second_difference)):
-        edge.qc.curvature_score = np.nan
+        edge.qc.diagnostics["curvature_score"] = np.nan
         edge.qc.flags.add(QCFlag.CURVATURE)
         return
 
     curvature_score = float(
         np.max(np.abs(finite_second_difference))
     )
-    edge.qc.curvature_score = curvature_score
+    edge.qc.diagnostics["curvature_score"] = curvature_score
 
     if curvature_score > threshold:
         edge.qc.flags.add(QCFlag.CURVATURE)

@@ -1,9 +1,44 @@
 """Geometry-only QC for isolated radial contour excursions."""
 
+from dataclasses import dataclass
+
 import numpy as np
 
 from .contour_geometry import fit_radial_baseline
 from .models import EdgeDetection, QCFlag
+from vesmod.validation import require_integer_valued, require_nonnegative_real
+
+
+@dataclass(frozen=True)
+class SingletonDeviationQCConfig:
+    """Configuration owned by the singleton-deviation QC check."""
+
+    enabled: bool = False
+    order: int = 3
+    min_residual_fraction: float = 0.05
+    max_width_samples: int = 2
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.enabled, bool):
+            raise TypeError("enabled must be a bool.")
+        order = require_integer_valued(self.order, "order")
+        width = require_integer_valued(self.max_width_samples, "max_width_samples")
+        if order < 0:
+            raise ValueError("order must be non-negative.")
+        if width <= 0:
+            raise ValueError("max_width_samples must be positive.")
+        object.__setattr__(self, "order", order)
+        object.__setattr__(self, "max_width_samples", width)
+        object.__setattr__(self, "min_residual_fraction", require_nonnegative_real(self.min_residual_fraction, "min_residual_fraction"))
+
+
+@dataclass(frozen=True)
+class SingletonDeviationQCResult:
+    """Per-trajectory outcome produced by singleton-deviation QC."""
+
+    scores: tuple[float, ...]
+    counts: tuple[int, ...]
+    rejected_count: int
 
 
 def check_singleton_deviation(
@@ -33,8 +68,8 @@ def check_singleton_deviation(
     widths = [width for start, width in runs if start < radii.size and start + width > radii.size]
     widths.extend(width for start, width in runs if start < radii.size and start + width <= radii.size)
     singleton_count = sum(width <= max_width_samples for width in widths)
-    edge.qc.singleton_count = singleton_count
-    edge.qc.singleton_score = float(np.max(residual)) if residual.size else 0.0
+    edge.qc.diagnostics["singleton_count"] = singleton_count
+    edge.qc.diagnostics["singleton_score"] = float(np.max(residual)) if residual.size else 0.0
     if singleton_count:
         edge.qc.flags.add(QCFlag.SINGLETON_DEVIATION)
     else:

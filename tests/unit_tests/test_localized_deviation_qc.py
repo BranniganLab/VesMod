@@ -68,17 +68,29 @@ def test_localized_deviation_qc_rejects_localized_deviation():
 
 
 def test_support_aware_localized_qc_rejects_narrow_moderate_lobe():
-    radii = np.full(32, 10.0); radii[0] = 10.4
+    """A narrow lobe can fail the configured secondary support criterion."""
+    radii = np.full(32, 10.0)
+    radii[0] = 10.4
     detection = edge(radii)
-    config = EdgeQCConfig(curvature=CurvatureQCConfig(0.0, enabled=False), area=AreaQCConfig(enabled=False), baseline=LocalizedDeviationQCConfig(enabled=True, max_residual_fraction=0.05, support_residual_fraction=0.03, max_support_samples=4))
+    config = EdgeQCConfig(
+        curvature=CurvatureQCConfig(0.0, enabled=False),
+        area=AreaQCConfig(enabled=False),
+        baseline=LocalizedDeviationQCConfig(
+            enabled=True,
+            max_residual_fraction=0.05,
+            support_residual_fraction=0.03,
+            max_support_samples=4,
+        ),
+    )
+
     with pytest.raises(ValueError, match="no frames passed"):
         VesicleEdges(EdgeExtractionConfig(), [detection]).run_qc(config)
+
     assert detection.qc.localized_deviation_support_samples <= 4
 
 
-
-def test_localized_deviation_qc_rejects_primary_threshold_at_boundary(monkeypatch):
-    """The primary threshold is inclusive, as specified by the QC rule."""
+def test_localized_deviation_primary_threshold_is_inclusive(monkeypatch):
+    """The primary threshold rejects a score exactly on its boundary."""
     detection = edge([10.0] * 32)
     monkeypatch.setattr(
         "vesmod.VesEdge.localized_deviation_qc.fit_radial_baseline",
