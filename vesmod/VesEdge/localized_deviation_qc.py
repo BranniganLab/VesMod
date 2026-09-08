@@ -13,7 +13,7 @@ def check_localized_deviation(edge: EdgeDetection, order: int, max_residual_frac
     median = float(np.median(radii))
     fitted = fit_radial_baseline(radii, order).values
     score = float(np.max(np.abs(radii - fitted)) / median)
-    edge.qc.localized_deviation_score = score
+    edge.qc.diagnostics["localized_deviation_score"] = score
     if score > max_residual_fraction:
         edge.qc.flags.add(QCFlag.LOCALIZED_DEVIATION)
     else:
