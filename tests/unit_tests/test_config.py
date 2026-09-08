@@ -201,6 +201,23 @@ def test_edge_qc_config_rejects_radius_alias_collision():
         )
 
 
+def test_edge_qc_config_uses_registered_defaults_for_omitted_checks():
+    """Partial nested provenance obtains defaults from each registered check."""
+    config = EdgeQCConfig.from_dict(
+        {"area": {"enabled": False, "max_relative_deviation": 0.4}}
+    )
+
+    assert config.curvature.threshold == pytest.approx(0.1)
+    assert not config.curvature.enabled
+    assert config.area.max_relative_deviation == pytest.approx(0.4)
+
+
+def test_edge_qc_config_rejects_numeric_positional_config_with_extra_values():
+    """Legacy numeric curvature input cannot silently discard positional data."""
+    with pytest.raises(TypeError, match="only positional"):
+        EdgeQCConfig(0.1, AreaQCConfig())
+
+
 def test_edge_qc_config_contains_independent_check_configs():
     """Each QC family is represented by its own immutable configuration."""
     curvature = CurvatureQCConfig(5.0, enabled=False)
