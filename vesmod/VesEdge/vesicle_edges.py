@@ -203,10 +203,10 @@ class VesicleEdges:
                 edge,
                 threshold=config.curvature.threshold,
             )
-        if config.radius.enabled:
+        if config.minimum_radius.enabled:
             check_minimum_radius(
                 edge,
-                min_median_radius_pixels=config.radius.min_median_radius_pixels,
+                min_median_radius_pixels=config.minimum_radius.min_median_radius_pixels,
             )
         if config.baseline.enabled:
             check_localized_deviation(edge, config.baseline.order, config.baseline.max_residual_fraction)
