@@ -15,7 +15,7 @@ from vesmod.VesEdge import (
 )
 
 from vesmod.io import open_checkpoint_frames, resolve_source_path
-from .input_selection import InputPathsAction, select_input_files
+from vesmod.cli.input_selection import InputPathsAction, select_input_files
 
 
 def add_gif_parser(subparsers) -> None:
