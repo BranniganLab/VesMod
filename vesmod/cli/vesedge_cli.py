@@ -531,6 +531,10 @@ def _qc_summary(
         QCFlag.AREA_DEVIATION in detection.qc.flags
         for detection in successful
     )
+    radius_rejected = sum(
+        QCFlag.RADIUS in detection.qc.flags
+        for detection in successful
+    )
     trajectory_flags = getattr(edges.qc_result, "trajectory_flags", frozenset())
     trajectory_rejected = bool(trajectory_flags)
     accepted = (
@@ -550,6 +554,7 @@ def _qc_summary(
         "extraction_failures": len(edges.detections) - len(successful),
         "curvature_rejected": curvature_rejected,
         "area_rejected": area_rejected,
+        "radius_rejected": radius_rejected,
         "internal_vesicle_trajectory_rejected": (
             TrajectoryQCFlag.INTERNAL_VESICLE in trajectory_flags
         ),
@@ -595,6 +600,7 @@ def _load_error_summary(path: Path, input_path: Path, error: str) -> dict:
         "extraction_failures": 0,
         "curvature_rejected": 0,
         "area_rejected": 0,
+        "radius_rejected": 0,
         "internal_vesicle_trajectory_rejected": False,
         "internal_vesicle_inspected": False,
         "internal_vesicle_area_fraction": "",
@@ -676,6 +682,7 @@ def process_qc_file(
     )
     area_plot_path = output_path.with_suffix(".area_qc.png")
     area_csv_path = output_path.with_suffix(".area_qc.csv")
+    radius_csv_path = output_path.with_suffix(".radius_qc.csv")
     internal_vesicle_csv_path = output_path.with_suffix(
         ".internal_vesicle_qc.csv"
     )
@@ -691,6 +698,19 @@ def process_qc_file(
         _write_area_qc_csv(area_csv_path, edges)
         if managed_artifacts is not None:
             managed_artifacts.add(area_csv_path)
+    has_radius_result = (
+        edges.qc_result is not None
+        and getattr(
+            getattr(edges.qc_result, "config", None),
+            "radius",
+            None,
+        ) is not None
+        and edges.qc_result.config.radius.enabled
+    )
+    if has_radius_result and (args.overwrite or not radius_csv_path.exists()):
+        _write_radius_qc_csv(radius_csv_path, edges)
+        if managed_artifacts is not None:
+            managed_artifacts.add(radius_csv_path)
     has_internal_vesicle_result = (
         edges.qc_result is not None
         and getattr(edges.qc_result, "internal_vesicle", None) is not None
@@ -727,6 +747,28 @@ def _record_qc_artifacts(
         json.dumps(provenance, indent=2) + "\n",
         encoding="utf-8",
     )
+
+
+def _write_radius_qc_csv(path: Path, edges: VesicleEdges) -> None:
+    """Write exact per-frame contour-radius QC measurements."""
+    with path.open("w", newline="", encoding="utf-8") as output_file:
+        writer = csv.DictWriter(
+            output_file,
+            fieldnames=[
+                "frame_index",
+                "median_radius_pixels",
+                "radius_rejected",
+            ],
+        )
+        writer.writeheader()
+        for detection in edges.successful_detections:
+            writer.writerow(
+                {
+                    "frame_index": detection.frame_index,
+                    "median_radius_pixels": detection.qc.median_radius_pixels,
+                    "radius_rejected": QCFlag.RADIUS in detection.qc.flags,
+                }
+            )
 
 
 def _write_area_qc_csv(path: Path, edges: VesicleEdges) -> None:
@@ -838,6 +880,7 @@ def _write_qc_summary(output_dir: Path, rows: list[dict]) -> None:
         "extraction_failures",
         "curvature_rejected",
         "area_rejected",
+        "radius_rejected",
         "internal_vesicle_trajectory_rejected",
         "internal_vesicle_inspected",
         "internal_vesicle_area_fraction",
