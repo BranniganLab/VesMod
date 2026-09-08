@@ -1,8 +1,24 @@
 """Frame-level QC for malformed or collapsed extracted contours."""
 
+from dataclasses import dataclass
+
 import numpy as np
 
 from .models import EdgeDetection, QCFlag
+from vesmod.validation import require_nonnegative_real
+
+
+@dataclass(frozen=True)
+class MinimumRadiusQCConfig:
+    """Configuration owned by the minimum-radius QC check."""
+
+    enabled: bool = False
+    min_median_radius_pixels: float = 5.0
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.enabled, bool):
+            raise TypeError("enabled must be a bool.")
+        object.__setattr__(self, "min_median_radius_pixels", require_nonnegative_real(self.min_median_radius_pixels, "min_median_radius_pixels"))
 
 
 def check_minimum_radius(edge: EdgeDetection, min_median_radius_pixels: float) -> None:
