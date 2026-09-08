@@ -263,9 +263,29 @@ def config_from_dict(values: dict) -> EdgeQCConfig:
     specs = {check.name: check for check in QC_CHECKS}
     if "curvature_threshold" in values:
         legacy = LegacyEdgeQCConfig._from_legacy_dict(values)
-        values = {name: getattr(legacy, name) for name in specs}
+        values = {
+            "curvature": legacy.curvature,
+            "area": legacy.area,
+            "minimum_radius": legacy.minimum_radius,
+            "localized_deviation": legacy.baseline,
+            "singleton_deviation": legacy.singleton,
+            "internal_vesicle": legacy.internal_vesicle,
+        }
         return EdgeQCConfig(checks=values)
     values = dict(values)
+    aliases = {
+        "radius": "minimum_radius",
+        "baseline": "localized_deviation",
+        "singleton": "singleton_deviation",
+    }
+    for alias, name in aliases.items():
+        if alias not in values:
+            continue
+        if name in values:
+            raise TypeError(
+                f"QC configuration cannot contain both {alias} and {name}."
+            )
+        values[name] = values.pop(alias)
     if "radius" in values:
         if "minimum_radius" in values:
             raise TypeError(
