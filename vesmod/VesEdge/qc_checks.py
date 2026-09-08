@@ -148,7 +148,14 @@ class LocalizedDeviationCheck:
     config_type = LocalizedDeviationQCConfig
     requires_frames = False
     def default_config(self): return LocalizedDeviationQCConfig()
-    def config_to_dict(self, config): return {"enabled": config.enabled, "order": config.order, "max_residual_fraction": config.max_residual_fraction}
+    def config_to_dict(self, config):
+        return {
+            "enabled": config.enabled,
+            "order": config.order,
+            "max_residual_fraction": config.max_residual_fraction,
+            "support_residual_fraction": config.support_residual_fraction,
+            "max_support_samples": config.max_support_samples,
+        }
 
     def enabled(self, config) -> bool:
         """Return whether localized-deviation quality control is enabled."""
@@ -160,11 +167,18 @@ class LocalizedDeviationCheck:
         for detection in detections:
             check_localized_deviation(
                 detection,
-                config.order, config.max_residual_fraction,
+                config.order,
+                config.max_residual_fraction,
+                config.support_residual_fraction,
+                config.max_support_samples,
             )
         return LocalizedDeviationQCResult(
             scores=tuple(
                 float(detection.qc.diagnostics["localized_deviation_score"])
+                for detection in detections
+            ),
+            support_samples=tuple(
+                detection.qc.diagnostics["localized_deviation_support_samples"]
                 for detection in detections
             ),
             rejected_count=sum(
