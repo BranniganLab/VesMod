@@ -324,6 +324,25 @@ are retained in QC provenance. It is implemented as an independent component
 so it can be registered by the modular QC orchestration proposed in issue
 #138.
 
+## Singleton-deviation QC
+
+Singleton-deviation QC detects narrow, isolated radial excursions from a
+low-order Fourier baseline. It is useful for rejecting a single-pixel or
+otherwise very narrow contour spike while preserving broader shape changes:
+
+```bash
+vesedge qc "./checkpoints" \\
+    --singleton-deviation-qc \\
+    --singleton-deviation-order 3 \\
+    --min-singleton-deviation-residual-fraction 0.05 \\
+    --max-singleton-deviation-width-samples 2 \\
+    --output-dir ./results/qc_singleton_deviation
+```
+
+This check is disabled by default. The baseline order, minimum residual
+fraction, and maximum excursion width are retained in QC provenance, and
+qc_summary.csv reports the number of singleton-deviation-rejected frames.
+
 VesEdge no longer performs GMM-based population QC. The removed options `--population-bic-threshold`, `--max-minor-population-fraction`, and `--no-population-qc` are invalid and produce an argument error.
 
 ## Contour-Area Deviation QC
@@ -444,6 +463,8 @@ This file records:
   `minimum_radius.enabled`;
 - `baseline.order`, `baseline.max_residual_fraction`, and
   `baseline.enabled`;
+- `singleton.order`, `singleton.min_residual_fraction`,
+  `singleton.max_width_samples`, and `singleton.enabled`;
 - whether internal-vesicle QC was enabled and all of its thresholds.
 
 Consequently, recursive and non-recursive runs, or runs resolving to different checkpoint sets, have different provenance even if their QC thresholds are identical.
@@ -458,6 +479,7 @@ The summary contains one row per selected checkpoint with:
 - curvature rejections;
 - area-deviation rejections;
 - minimum-radius rejections;
+- singleton-deviation rejections;
 - internal-vesicle inspection, scores, and trajectory rejection;
 - accepted frames;
 - accepted fraction;

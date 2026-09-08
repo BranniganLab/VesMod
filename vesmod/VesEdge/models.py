@@ -109,6 +109,7 @@ class QCFlag(Enum):
     AREA_DEVIATION = auto()
     MINIMUM_RADIUS = auto()
     LOCALIZED_DEVIATION = auto()
+    SINGLETON_DEVIATION = auto()
 
 
 class TrajectoryQCFlag(Enum):
@@ -153,6 +154,8 @@ class EdgeQC:
     internal_vesicle_score: float | None = None
     median_radius_pixels: float | None = None
     localized_deviation_score: float | None = None
+    singleton_score: float | None = None
+    singleton_count: int | None = None
 
     @property
     def passed(self) -> bool:

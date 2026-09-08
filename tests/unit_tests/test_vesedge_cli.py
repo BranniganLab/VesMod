@@ -44,6 +44,10 @@ def _qc_args(tmp_path, input_path=Path("sample.npz")) -> argparse.Namespace:
         no_curvature_qc=False,
         max_relative_area_deviation=0.25,
         no_area_qc=False,
+        singleton_deviation_qc=False,
+        singleton_deviation_order=3,
+        min_singleton_deviation_residual_fraction=0.05,
+        max_singleton_deviation_width_samples=2,
     )
 
 
@@ -92,6 +96,40 @@ def test_parse_args_selects_qc_subcommand(monkeypatch, tmp_path):
     assert args.curvature_threshold == pytest.approx(0.059)
     assert args.max_relative_area_deviation == pytest.approx(0.25)
     assert not args.no_area_qc
+
+
+def test_qc_parser_accepts_singleton_deviation_options(monkeypatch, tmp_path):
+    """Test singleton-deviation options are exposed by the QC CLI."""
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "vesedge",
+            "qc",
+            "checkpoints",
+            "--output-dir",
+            str(tmp_path),
+            "--singleton-deviation-qc",
+            "--singleton-deviation-order",
+            "4",
+            "--min-singleton-deviation-residual-fraction",
+            "0.08",
+            "--max-singleton-deviation-width-samples",
+            "3",
+        ],
+    )
+
+    args = vesedge_cli.parse_args()
+
+    assert args.singleton_deviation_qc
+    assert args.singleton_deviation_order == 4
+    assert args.min_singleton_deviation_residual_fraction == pytest.approx(0.08)
+    assert args.max_singleton_deviation_width_samples == 3
+    config = vesedge_cli._qc_config_from_args(args)
+    assert config.singleton.enabled
+    assert config.singleton.order == 4
+    assert config.singleton.min_residual_fraction == pytest.approx(0.08)
+    assert config.singleton.max_width_samples == 3
 
 
 @pytest.mark.parametrize(
@@ -428,6 +466,7 @@ def test_process_qc_file_returns_load_error_summary(tmp_path, monkeypatch):
         "curvature_rejected": 0,
         "area_rejected": 0,
         "minimum_radius_rejected": 0,
+        "singleton_deviation_rejected": 0,
         "internal_vesicle_trajectory_rejected": False,
         "internal_vesicle_inspected": False,
         "internal_vesicle_area_fraction": "",
@@ -604,6 +643,7 @@ def test_write_qc_summary_writes_batch_csv(tmp_path):
     assert "sample.npz" in summary
     assert "curvature_rejected" in summary
     assert "area_rejected" in summary
+    assert "singleton_deviation_rejected" in summary
     assert ",7," in summary
 
 

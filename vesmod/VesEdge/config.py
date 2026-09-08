@@ -131,6 +131,29 @@ class LocalizedDeviationQCConfig:
 
 
 @dataclass(frozen=True)
+class SingletonDeviationQCConfig:
+    """Configuration for narrow, isolated radial-deviation QC."""
+
+    enabled: bool = False
+    order: int = 3
+    min_residual_fraction: float = 0.05
+    max_width_samples: int = 2
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.enabled, bool):
+            raise TypeError("enabled must be a bool.")
+        order = require_integer_valued(self.order, "order")
+        width = require_integer_valued(self.max_width_samples, "max_width_samples")
+        if order < 0:
+            raise ValueError("order must be non-negative.")
+        if width <= 0:
+            raise ValueError("max_width_samples must be positive.")
+        object.__setattr__(self, "order", order)
+        object.__setattr__(self, "max_width_samples", width)
+        object.__setattr__(self, "min_residual_fraction", require_nonnegative_real(self.min_residual_fraction, "min_residual_fraction"))
+
+
+@dataclass(frozen=True)
 class InternalVesicleQCConfig:
     """Configuration for experimental internal-vesicle selection QC."""
 
@@ -206,6 +229,7 @@ class EdgeQCConfig:
     )
     minimum_radius: MinimumRadiusQCConfig = field(default_factory=MinimumRadiusQCConfig)
     baseline: LocalizedDeviationQCConfig = field(default_factory=LocalizedDeviationQCConfig)
+    singleton: SingletonDeviationQCConfig = field(default_factory=SingletonDeviationQCConfig)
 
     def __init__(
         self,
@@ -214,6 +238,7 @@ class EdgeQCConfig:
         internal_vesicle: InternalVesicleQCConfig | None = None,
         minimum_radius: MinimumRadiusQCConfig | None = None,
         baseline: LocalizedDeviationQCConfig | None = None,
+        singleton: SingletonDeviationQCConfig | None = None,
         **legacy_values,
     ) -> None:
         """Create a composed config, translating legacy flat arguments."""
@@ -228,6 +253,8 @@ class EdgeQCConfig:
                 raise TypeError("minimum_radius must be a MinimumRadiusQCConfig.")
             if baseline is not None and not isinstance(baseline, LocalizedDeviationQCConfig):
                 raise TypeError("baseline must be a LocalizedDeviationQCConfig.")
+            if singleton is not None and not isinstance(singleton, SingletonDeviationQCConfig):
+                raise TypeError("singleton must be a SingletonDeviationQCConfig.")
             if internal_vesicle is not None and not isinstance(
                 internal_vesicle, InternalVesicleQCConfig
             ):
@@ -240,6 +267,7 @@ class EdgeQCConfig:
             )
             object.__setattr__(self, "minimum_radius", minimum_radius if minimum_radius is not None else MinimumRadiusQCConfig())
             object.__setattr__(self, "baseline", baseline if baseline is not None else LocalizedDeviationQCConfig())
+            object.__setattr__(self, "singleton", singleton if singleton is not None else SingletonDeviationQCConfig())
             object.__setattr__(
                 self,
                 "internal_vesicle",
@@ -249,7 +277,7 @@ class EdgeQCConfig:
             )
             return
 
-        if area is not None or minimum_radius is not None or baseline is not None or internal_vesicle is not None:
+        if area is not None or minimum_radius is not None or baseline is not None or singleton is not None or internal_vesicle is not None:
             raise TypeError(
                 "Nested and legacy flat QC configuration cannot be mixed."
             )
@@ -260,6 +288,7 @@ class EdgeQCConfig:
         object.__setattr__(self, "area", migrated.area)
         object.__setattr__(self, "minimum_radius", migrated.minimum_radius)
         object.__setattr__(self, "baseline", migrated.baseline)
+        object.__setattr__(self, "singleton", migrated.singleton)
         object.__setattr__(self, "internal_vesicle", migrated.internal_vesicle)
 
     @classmethod
@@ -273,6 +302,7 @@ class EdgeQCConfig:
             "minimum_radius",
             "radius",
             "baseline",
+            "singleton",
             "internal_vesicle",
         }
         supplied_nested = set(values) & nested_fields
@@ -299,6 +329,7 @@ class EdgeQCConfig:
                 area=AreaQCConfig(**values.get("area", {})),
                 minimum_radius=MinimumRadiusQCConfig(**minimum_radius_values),
                 baseline=LocalizedDeviationQCConfig(**values.get("baseline", {})),
+                singleton=SingletonDeviationQCConfig(**values.get("singleton", {})),
                 internal_vesicle=InternalVesicleQCConfig(
                     **values.get("internal_vesicle", {})
                 ),

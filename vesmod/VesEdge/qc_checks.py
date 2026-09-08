@@ -14,6 +14,7 @@ from .experimental.internal_vesicle_qc import check_internal_vesicle_selection
 from .frame_source import FrameSource
 from .localized_deviation_qc import check_localized_deviation
 from .minimum_radius_qc import check_minimum_radius
+from .singleton_qc import check_singleton_deviation
 from .models import (
     AreaQCResult,
     CurvatureQCResult,
@@ -132,6 +133,28 @@ class LocalizedDeviationCheck:
         return QCCheckOutcome()
 
 
+class SingletonDeviationCheck:
+    """Apply narrow singleton-deviation QC to each detection."""
+    name = "singleton_deviation"
+    requires_frames = False
+
+    def enabled(self, config: EdgeQCConfig) -> bool:
+        """Return whether singleton-deviation QC is enabled."""
+        return config.singleton.enabled
+
+    def run(self, detections, config, frames) -> QCCheckOutcome:
+        """Apply singleton-deviation QC to each detection."""
+        del frames
+        for detection in detections:
+            check_singleton_deviation(
+                detection,
+                config.singleton.order,
+                config.singleton.min_residual_fraction,
+                config.singleton.max_width_samples,
+            )
+        return QCCheckOutcome()
+
+
 class AreaDeviationCheck:
     """Apply trajectory-wide area-deviation quality control."""
 
@@ -180,6 +203,7 @@ QC_CHECKS: tuple[QCCheck, ...] = (
     CurvatureCheck(),
     MinimumRadiusCheck(),
     LocalizedDeviationCheck(),
+    SingletonDeviationCheck(),
     AreaDeviationCheck(),
     InternalVesicleCheck(),
 )

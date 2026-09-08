@@ -17,6 +17,7 @@ from vesmod.VesEdge import (
     LocalizedDeviationQCConfig,
     CurvatureQCConfig,
     MinimumRadiusQCConfig,
+    SingletonDeviationQCConfig,
     EdgeExtractionConfig,
     EdgeQCConfig,
     QCFlag,
@@ -221,6 +222,10 @@ def _add_qc_parser(subparsers) -> None:
     parser.add_argument("--localized-deviation-qc", action="store_true", help="Enable low-order geometric localized-deviation QC.")
     parser.add_argument("--localized-deviation-order", type=int, default=3, help="Fourier baseline order. Default: 3.")
     parser.add_argument("--max-localized-deviation-residual-fraction", type=float, default=0.05, help="Maximum baseline residual divided by median radius. Default: 0.05.")
+    parser.add_argument("--singleton-deviation-qc", action="store_true", help="Enable narrow, isolated radial-excursion QC.")
+    parser.add_argument("--singleton-deviation-order", type=int, default=3, help="Fourier baseline order for singleton-deviation QC. Default: 3.")
+    parser.add_argument("--min-singleton-deviation-residual-fraction", type=float, default=0.05, help="Minimum residual divided by median radius for singleton-deviation QC. Default: 0.05.")
+    parser.add_argument("--max-singleton-deviation-width-samples", type=int, default=2, help="Maximum contiguous excursion width in angular samples. Default: 2.")
     parser.add_argument(
         "--internal-vesicle-qc",
         action="store_true",
@@ -412,6 +417,12 @@ def _qc_config_from_args(args: argparse.Namespace) -> EdgeQCConfig:
             order=getattr(args, "localized_deviation_order", 3),
             max_residual_fraction=getattr(args, "max_localized_deviation_residual_fraction", 0.05),
         ),
+        singleton=SingletonDeviationQCConfig(
+            enabled=getattr(args, "singleton_deviation_qc", False),
+            order=getattr(args, "singleton_deviation_order", 3),
+            min_residual_fraction=getattr(args, "min_singleton_deviation_residual_fraction", 0.05),
+            max_width_samples=getattr(args, "max_singleton_deviation_width_samples", 2),
+        ),
         internal_vesicle=InternalVesicleQCConfig(
             enabled=getattr(args, "internal_vesicle_qc", False),
             max_area_fraction=getattr(
@@ -548,6 +559,10 @@ def _qc_summary(
         QCFlag.MINIMUM_RADIUS in detection.qc.flags
         for detection in successful
     )
+    singleton_deviation_rejected = sum(
+        QCFlag.SINGLETON_DEVIATION in detection.qc.flags
+        for detection in successful
+    )
     trajectory_flags = getattr(edges.qc_result, "trajectory_flags", frozenset())
     trajectory_rejected = bool(trajectory_flags)
     accepted = (
@@ -568,6 +583,7 @@ def _qc_summary(
         "curvature_rejected": curvature_rejected,
         "area_rejected": area_rejected,
         "minimum_radius_rejected": minimum_radius_rejected,
+        "singleton_deviation_rejected": singleton_deviation_rejected,
         "internal_vesicle_trajectory_rejected": (
             TrajectoryQCFlag.INTERNAL_VESICLE in trajectory_flags
         ),
@@ -614,6 +630,7 @@ def _load_error_summary(path: Path, input_path: Path, error: str) -> dict:
         "curvature_rejected": 0,
         "area_rejected": 0,
         "minimum_radius_rejected": 0,
+        "singleton_deviation_rejected": 0,
         "internal_vesicle_trajectory_rejected": False,
         "internal_vesicle_inspected": False,
         "internal_vesicle_area_fraction": "",
@@ -898,6 +915,7 @@ def _write_qc_summary(output_dir: Path, rows: list[dict]) -> None:
         "curvature_rejected",
         "area_rejected",
         "minimum_radius_rejected",
+        "singleton_deviation_rejected",
         "internal_vesicle_trajectory_rejected",
         "internal_vesicle_inspected",
         "internal_vesicle_area_fraction",
