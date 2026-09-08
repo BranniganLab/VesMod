@@ -13,7 +13,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 
 from . import internal_structures_batch_cli as internal_structures_cli
-from .checkpoint_sources import open_checkpoint_frames, resolve_source_path
+from vesmod.io import open_checkpoint_frames, resolve_source_path
 from .gif_cli import add_gif_parser, run_gif
 from .input_selection import InputPathsAction, select_input_files
 from .path_utils import (
