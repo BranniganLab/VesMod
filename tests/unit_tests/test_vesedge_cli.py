@@ -312,7 +312,7 @@ def test_process_qc_file_resolves_relative_video_path_for_image_qc(
 
     monkeypatch.setattr(
         vesedge_cli,
-        "open_frame_source",
+        "open_checkpoint_frames",
         open_frames,
     )
     args = _qc_args(tmp_path / "qc", checkpoint)
