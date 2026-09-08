@@ -153,9 +153,21 @@ class EdgeQC:
 
     def __getattr__(self, name: str) -> object:
         """Read a check-owned diagnostic retained in the generic store."""
-        if name.endswith(("_score", "_count", "_pixels", "_pixels2", "_samples")):
+        supported_diagnostics = {
+            "curvature_score",
+            "area_pixels2",
+            "relative_area_deviation",
+            "median_radius_pixels",
+            "localized_deviation_score",
+            "localized_deviation_support_samples",
+            "singleton_count",
+            "singleton_score",
+            "internal_vesicle_score",
+        }
+        if name in supported_diagnostics:
             return self.diagnostics.get(name)
         raise AttributeError(name)
+
     @property
     def passed(self) -> bool:
         """Return whether the edge has passed all QC checks run so far."""
