@@ -13,7 +13,7 @@ def relative_selected_path(path: Path, selector_root: Path) -> Path:
     """
     resolved_path = path.expanduser().resolve()
     resolved_root = selector_root.expanduser().resolve()
-    if resolved_root.is_file() or resolved_path == resolved_root:
+    if resolved_path == resolved_root:
         return Path(resolved_path.name)
     try:
         return resolved_path.relative_to(resolved_root)
