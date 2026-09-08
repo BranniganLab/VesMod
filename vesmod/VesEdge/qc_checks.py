@@ -129,6 +129,8 @@ class LocalizedDeviationCheck:
                 detection,
                 config.baseline.order,
                 config.baseline.max_residual_fraction,
+                config.baseline.support_residual_fraction,
+                config.baseline.max_support_samples,
             )
         return QCCheckOutcome()
 

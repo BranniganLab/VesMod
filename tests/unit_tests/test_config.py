@@ -111,6 +111,16 @@ def test_edge_extraction_config_allows_no_downsampling():
             {"max_residual_fraction": np.inf},
             "max_residual_fraction must be finite",
         ),
+        (
+            LocalizedDeviationQCConfig,
+            {"support_residual_fraction": 0.03},
+            "support residual and maximum support must be configured together",
+        ),
+        (
+            LocalizedDeviationQCConfig,
+            {"max_support_samples": 4},
+            "support residual and maximum support must be configured together",
+        ),
     ],
 )
 def test_edge_qc_config_rejects_invalid_values(config_type, kwargs, match):
