@@ -378,17 +378,15 @@ def config_from_dict(values: dict) -> EdgeQCConfig:
                 f"QC configuration cannot contain both {alias} and {name}."
             )
         values[name] = values.pop(alias)
-    if "radius" in values:
-        if "minimum_radius" in values:
-            raise TypeError(
-                "QC configuration cannot contain both radius and minimum_radius."
-            )
-        values["minimum_radius"] = values.pop("radius")
     unknown = set(values) - set(specs)
     if unknown:
         raise TypeError(f"Unexpected QC configuration field: {sorted(unknown)[0]}")
     parsed = {
-        name: spec.config_type(**values.get(name, {}))
+        name: (
+            spec.config_type(**values[name])
+            if name in values
+            else spec.default_config()
+        )
         for name, spec in specs.items()
     }
     return EdgeQCConfig(checks=parsed)
