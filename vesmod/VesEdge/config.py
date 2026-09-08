@@ -100,7 +100,7 @@ class AreaQCConfig:
 
 
 @dataclass(frozen=True)
-class RadiusQCConfig:
+class MinimumRadiusQCConfig:
     """Configuration for frame-level contour-radius QC."""
 
     enabled: bool = False
@@ -204,7 +204,7 @@ class EdgeQCConfig:
     internal_vesicle: InternalVesicleQCConfig = field(
         default_factory=InternalVesicleQCConfig
     )
-    radius: RadiusQCConfig = field(default_factory=RadiusQCConfig)
+    minimum_radius: MinimumRadiusQCConfig = field(default_factory=MinimumRadiusQCConfig)
     baseline: LocalizedDeviationQCConfig = field(default_factory=LocalizedDeviationQCConfig)
 
     def __init__(
@@ -212,7 +212,7 @@ class EdgeQCConfig:
         curvature: CurvatureQCConfig | float | None = None,
         area: AreaQCConfig | None = None,
         internal_vesicle: InternalVesicleQCConfig | None = None,
-        radius: RadiusQCConfig | None = None,
+        minimum_radius: MinimumRadiusQCConfig | None = None,
         baseline: LocalizedDeviationQCConfig | None = None,
         **legacy_values,
     ) -> None:
@@ -224,8 +224,8 @@ class EdgeQCConfig:
                 )
             if area is not None and not isinstance(area, AreaQCConfig):
                 raise TypeError("area must be an AreaQCConfig.")
-            if radius is not None and not isinstance(radius, RadiusQCConfig):
-                raise TypeError("radius must be a RadiusQCConfig.")
+            if minimum_radius is not None and not isinstance(minimum_radius, MinimumRadiusQCConfig):
+                raise TypeError("minimum_radius must be a MinimumRadiusQCConfig.")
             if baseline is not None and not isinstance(baseline, LocalizedDeviationQCConfig):
                 raise TypeError("baseline must be a LocalizedDeviationQCConfig.")
             if internal_vesicle is not None and not isinstance(
@@ -238,7 +238,7 @@ class EdgeQCConfig:
             object.__setattr__(
                 self, "area", area if area is not None else AreaQCConfig()
             )
-            object.__setattr__(self, "radius", radius if radius is not None else RadiusQCConfig())
+            object.__setattr__(self, "minimum_radius", minimum_radius if minimum_radius is not None else MinimumRadiusQCConfig())
             object.__setattr__(self, "baseline", baseline if baseline is not None else LocalizedDeviationQCConfig())
             object.__setattr__(
                 self,
@@ -249,7 +249,7 @@ class EdgeQCConfig:
             )
             return
 
-        if area is not None or radius is not None or baseline is not None or internal_vesicle is not None:
+        if area is not None or minimum_radius is not None or baseline is not None or internal_vesicle is not None:
             raise TypeError(
                 "Nested and legacy flat QC configuration cannot be mixed."
             )
@@ -258,7 +258,7 @@ class EdgeQCConfig:
         migrated = self._from_legacy_dict(legacy_values)
         object.__setattr__(self, "curvature", migrated.curvature)
         object.__setattr__(self, "area", migrated.area)
-        object.__setattr__(self, "radius", migrated.radius)
+        object.__setattr__(self, "minimum_radius", migrated.minimum_radius)
         object.__setattr__(self, "baseline", migrated.baseline)
         object.__setattr__(self, "internal_vesicle", migrated.internal_vesicle)
 
@@ -267,7 +267,14 @@ class EdgeQCConfig:
         """Deserialize nested configuration or migrate legacy flat values."""
         if not isinstance(values, dict):
             raise TypeError("QC configuration must be a dictionary.")
-        nested_fields = {"curvature", "area", "radius", "baseline", "internal_vesicle"}
+        nested_fields = {
+            "curvature",
+            "area",
+            "minimum_radius",
+            "radius",
+            "baseline",
+            "internal_vesicle",
+        }
         supplied_nested = set(values) & nested_fields
         if supplied_nested:
             unexpected = set(values) - nested_fields
@@ -279,10 +286,18 @@ class EdgeQCConfig:
                 )
             if "curvature" not in values:
                 raise TypeError("curvature configuration is required.")
+            if "radius" in values and "minimum_radius" in values:
+                raise TypeError(
+                    "QC configuration cannot contain both radius and minimum_radius."
+                )
+            minimum_radius_values = values.get(
+                "minimum_radius",
+                values.get("radius", {}),
+            )
             return cls(
                 curvature=CurvatureQCConfig(**values["curvature"]),
                 area=AreaQCConfig(**values.get("area", {})),
-                radius=RadiusQCConfig(**values.get("radius", {})),
+                minimum_radius=MinimumRadiusQCConfig(**minimum_radius_values),
                 baseline=LocalizedDeviationQCConfig(**values.get("baseline", {})),
                 internal_vesicle=InternalVesicleQCConfig(
                     **values.get("internal_vesicle", {})
@@ -333,7 +348,7 @@ class EdgeQCConfig:
                 ),
                 enabled=values.get("enable_area_qc", True),
             ),
-            radius=RadiusQCConfig(),
+            minimum_radius=MinimumRadiusQCConfig(),
             baseline=LocalizedDeviationQCConfig(),
             internal_vesicle=InternalVesicleQCConfig(
                 enabled=values.get("enable_internal_vesicle_qc", False),

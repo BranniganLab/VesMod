@@ -26,7 +26,39 @@ def save_checkpoint(
     source_path: str | Path | None = None,
 ) -> None:
     """Save QC-independent extraction results to a ``.npz`` file."""
-    successful, frame_indices = _validate_checkpoint_detections(detections)
+    successful = [
+        result
+        for result in detections
+        if isinstance(result, EdgeDetection)
+    ]
+    if not successful:
+        raise ValueError(
+            "Cannot save a checkpoint with no successful detections."
+        )
+    if any(
+        edge.full_contour.origin != edge.analysis_contour.origin
+        for edge in successful
+    ):
+        raise ValueError(
+            "Cannot save a checkpoint when full and analysis contour origins "
+            "differ."
+        )
+
+    raw_frame_indices = [result.frame_index for result in detections]
+    if any(
+        isinstance(frame_index, (bool, np.bool_))
+        or not isinstance(frame_index, (int, np.integer))
+        for frame_index in raw_frame_indices
+    ):
+        raise ValueError(
+            "Cannot save a checkpoint with missing or inconsistent frame indices."
+        )
+    frame_indices = np.asarray(raw_frame_indices, dtype=np.int64)
+    expected_indices = np.arange(len(detections), dtype=np.int64)
+    if not np.array_equal(frame_indices, expected_indices):
+        raise ValueError(
+            "Cannot save a checkpoint with missing or inconsistent frame indices."
+        )
 
     result_types = np.asarray(
         [
@@ -82,47 +114,10 @@ def save_checkpoint(
     if source_path is not None:
         checkpoint_data["source_path"] = np.asarray(str(source_path))
 
-    np.savez(Path(path).with_suffix(".npz"), **checkpoint_data)
-
-
-def _validate_checkpoint_detections(
-    detections: list[EdgeResult],
-) -> tuple[list[EdgeDetection], NDArray[np.int64]]:
-    """Validate ordered detections and return successful edges and indices."""
-    successful = [
-        result
-        for result in detections
-        if isinstance(result, EdgeDetection)
-    ]
-    if not successful:
-        raise ValueError(
-            "Cannot save a checkpoint with no successful detections."
-        )
-    if any(
-        edge.full_contour.origin != edge.analysis_contour.origin
-        for edge in successful
-    ):
-        raise ValueError(
-            "Cannot save a checkpoint when full and analysis contour origins "
-            "differ."
-        )
-
-    raw_frame_indices = [result.frame_index for result in detections]
-    if any(
-        isinstance(frame_index, (bool, np.bool_))
-        or not isinstance(frame_index, (int, np.integer))
-        for frame_index in raw_frame_indices
-    ):
-        raise ValueError(
-            "Cannot save a checkpoint with missing or inconsistent frame indices."
-        )
-    frame_indices = np.asarray(raw_frame_indices, dtype=np.int64)
-    expected_indices = np.arange(len(detections), dtype=np.int64)
-    if not np.array_equal(frame_indices, expected_indices):
-        raise ValueError(
-            "Cannot save a checkpoint with missing or inconsistent frame indices."
-        )
-    return successful, frame_indices
+    np.savez(
+        Path(path).with_suffix(".npz"),
+        **checkpoint_data,
+    )
 
 
 def load_checkpoint(
@@ -325,7 +320,7 @@ def _successful_detections_from_checkpoint(
     full_values: np.ndarray,
     full_offsets: np.ndarray,
     frame_indices: np.ndarray,
-) -> list[EdgeDetection]:
+) -> list[EdgeResult]:
     """Reconstruct successful detections from checkpoint arrays."""
     detections = []
     for index, origin_values in enumerate(origins):
@@ -335,19 +330,23 @@ def _successful_detections_from_checkpoint(
             float(origin_values[0]),
             float(origin_values[1]),
         )
-        detections.append(
-            EdgeDetection(
-                ImageContour(
-                    origin,
-                    full_values[start:stop].copy(),
-                ),
-                ImageContour(
-                    origin,
-                    analysis_radii[index].copy(),
-                ),
-                frame_index=int(frame_indices[index]),
+        try:
+            detections.append(
+                EdgeDetection(
+                    ImageContour(origin, full_values[start:stop].copy()),
+                    ImageContour(origin, analysis_radii[index].copy()),
+                    frame_index=int(frame_indices[index]),
+                )
             )
-        )
+        except (TypeError, ValueError) as error:
+            # Preserve malformed checkpoint frames in their original order,
+            # while preventing invalid contours from entering QC algorithms.
+            detections.append(
+                EdgeDetectionFailure(
+                    f"Malformed contour in checkpoint: {error}",
+                    frame_index=int(frame_indices[index]),
+                )
+            )
     return detections
 
 

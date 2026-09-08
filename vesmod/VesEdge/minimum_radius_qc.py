@@ -5,7 +5,7 @@ import numpy as np
 from .models import EdgeDetection, QCFlag
 
 
-def check_radius(edge: EdgeDetection, min_median_radius_pixels: float) -> None:
+def check_minimum_radius(edge: EdgeDetection, min_median_radius_pixels: float) -> None:
     """Reject contours containing invalid or exceptionally small radii.
 
     The median native contour radius is recorded for diagnostics. Any
@@ -18,8 +18,8 @@ def check_radius(edge: EdgeDetection, min_median_radius_pixels: float) -> None:
     median = float(np.median(radii)) if radii.size else float("nan")
     edge.qc.median_radius_pixels = median
     if not np.all(np.isfinite(radii)) or np.any(radii <= 0):
-        edge.qc.flags.add(QCFlag.RADIUS)
+        edge.qc.flags.add(QCFlag.MINIMUM_RADIUS)
     elif median < min_median_radius_pixels:
-        edge.qc.flags.add(QCFlag.RADIUS)
+        edge.qc.flags.add(QCFlag.MINIMUM_RADIUS)
     else:
-        edge.qc.flags.discard(QCFlag.RADIUS)
+        edge.qc.flags.discard(QCFlag.MINIMUM_RADIUS)

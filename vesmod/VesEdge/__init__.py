@@ -9,14 +9,14 @@ from .animation import (
 from .area_qc import check_area_deviation, contour_area
 from .config import (
     AreaQCConfig,
-    RadiusQCConfig,
+    MinimumRadiusQCConfig,
     LocalizedDeviationQCConfig,
     CurvatureQCConfig,
     EdgeExtractionConfig,
     EdgeQCConfig,
 )
 from .edge_extractor import extract_edge_from_frame
-from .radius_qc import check_radius
+from .minimum_radius_qc import check_minimum_radius
 from .localized_deviation_qc import check_localized_deviation
 from .frame_source import (
     ArrayFrameSource,
@@ -42,35 +42,35 @@ from .vesicle_video import VesicleVideo
 
 __all__ = [
     "AnimationPanel",
-    "ArrayFrameSource",
-    "AreaQCResult",
     "AreaQCConfig",
-    "RadiusQCConfig",
-    "check_radius",
-    "LocalizedDeviationQCConfig",
-    "check_localized_deviation",
-    "check_area_deviation",
-    "contour_area",
-    "CurvatureQCResult",
+    "AreaQCResult",
+    "ArrayFrameSource",
     "CurvatureQCConfig",
+    "CurvatureQCResult",
     "EdgeDetection",
     "EdgeDetectionFailure",
     "EdgeExtractionConfig",
     "EdgeQCConfig",
     "EdgeResult",
-    "extract_edge_from_frame",
     "FrameSource",
     "ImageContour",
     "InternalVesicleQCResult",
-    "make_gif",
+    "LocalizedDeviationQCConfig",
+    "MinimumRadiusQCConfig",
     "ND2FrameSource",
-    "open_frame_source",
     "QCFlag",
-    "TrajectoryQCFlag",
     "TimeSeriesAnimationPanel",
+    "TrajectoryQCFlag",
     "VesicleAnimationPanel",
     "VesicleEdges",
     "VesicleQCResult",
     "VesicleVideo",
     "as_frame_source",
+    "check_area_deviation",
+    "check_localized_deviation",
+    "check_minimum_radius",
+    "contour_area",
+    "extract_edge_from_frame",
+    "make_gif",
+    "open_frame_source",
 ]

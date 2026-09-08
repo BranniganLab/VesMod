@@ -280,26 +280,29 @@ vesedge qc "./checkpoints" \
 
 With curvature QC disabled, every successfully extracted detection is exported. Extraction failures remain absent because they do not contain contours.
 
-## Contour-Radius Integrity QC
+## Minimum Contour Radius QC
 
-Radius QC rejects malformed or collapsed frame-level contours before other
+Minimum Contour Radius QC rejects malformed or collapsed frame-level contours before other
 analyses use them. A frame fails when any native contour radius is nonfinite or
 nonpositive, or when the median native radius is below the configured pixel
 threshold. Enable it with:
 
 ```bash
 vesedge qc "./checkpoints" \
-    --radius-qc \
+    --minimum-radius-qc \
     --min-median-radius-pixels 5 \
-    --output-dir ./results/qc_radius
+    --output-dir ./results/qc_minimum_radius
 ```
 
 The default minimum median radius is `5` pixels. The measured median radius
-and the rejection flag are retained with the frame QC results. This check is
-disabled by default and is independent of curvature and area QC, so existing
-QC configurations remain unchanged. Its configuration is kept as a separate
-QC component to allow it to be registered with the modular QC interface
-described in issue #138.
+and the rejection flag are retained with the frame QC results. When enabled,
+each checkpoint also produces a managed `.minimum_radius_qc.csv` diagnostic containing
+the frame index, median native radius, and rejection flag; `qc_summary.csv`
+includes the total number of minimum-radius-rejected frames. This check is disabled by
+default and is independent of curvature and area QC, so existing QC
+configurations remain unchanged. Its configuration is kept as a separate QC
+component to allow it to be registered with the modular QC interface described
+in issue #138.
 
 ## Geometric Localized-deviation QC
 
@@ -437,6 +440,8 @@ This file records:
 - the resolved manifest of checkpoints selected for the batch;
 - `curvature.threshold` and `curvature.enabled`;
 - `area.max_relative_deviation` and `area.enabled`;
+- `minimum_radius.min_median_radius_pixels` and
+  `minimum_radius.enabled`;
 - whether internal-vesicle QC was enabled and all of its thresholds.
 
 Consequently, recursive and non-recursive runs, or runs resolving to different checkpoint sets, have different provenance even if their QC thresholds are identical.
@@ -450,6 +455,7 @@ The summary contains one row per selected checkpoint with:
 - extraction failures;
 - curvature rejections;
 - area-deviation rejections;
+- minimum-radius rejections;
 - internal-vesicle inspection, scores, and trajectory rejection;
 - accepted frames;
 - accepted fraction;

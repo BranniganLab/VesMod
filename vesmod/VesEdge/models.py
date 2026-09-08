@@ -107,7 +107,7 @@ class QCFlag(Enum):
 
     CURVATURE = auto()
     AREA_DEVIATION = auto()
-    RADIUS = auto()
+    MINIMUM_RADIUS = auto()
     BASELINE = auto()
 
 
