@@ -28,7 +28,7 @@ from .path_utils import (
     _relative_input_path,
     remove_manifest_artifacts,
 )
-from .checkpoint_sources import (
+from vesmod.io import (
     build_video_filename_index,
     open_checkpoint_frames,
     resolve_source_path,
