@@ -295,11 +295,14 @@ vesedge qc "./checkpoints" \
 ```
 
 The default minimum median radius is `5` pixels. The measured median radius
-and the rejection flag are retained with the frame QC results. This check is
-disabled by default and is independent of curvature and area QC, so existing
-QC configurations remain unchanged. Its configuration is kept as a separate
-QC component to allow it to be registered with the modular QC interface
-described in issue #138.
+and the rejection flag are retained with the frame QC results. When enabled,
+each checkpoint also produces a managed `.radius_qc.csv` diagnostic containing
+the frame index, median native radius, and rejection flag; `qc_summary.csv`
+includes the total number of radius-rejected frames. This check is disabled by
+default and is independent of curvature and area QC, so existing QC
+configurations remain unchanged. Its configuration is kept as a separate QC
+component to allow it to be registered with the modular QC interface described
+in issue #138.
 
 VesEdge no longer performs GMM-based population QC. The removed options `--population-bic-threshold`, `--max-minor-population-fraction`, and `--no-population-qc` are invalid and produce an argument error.
 
