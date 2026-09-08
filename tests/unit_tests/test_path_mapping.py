@@ -36,3 +36,14 @@ def test_mapping_rejects_path_outside_selector_root(tmp_path):
 
     with pytest.raises(ValueError, match="outside selector root"):
         map_output_path(source, root, tmp_path / "output")
+
+def test_mapping_rejects_path_outside_explicit_file_selector(tmp_path):
+    selected = tmp_path / "input" / "selected.npz"
+    outside = tmp_path / "elsewhere" / "other.npz"
+    selected.parent.mkdir(parents=True)
+    outside.parent.mkdir()
+    selected.touch()
+    outside.touch()
+
+    with pytest.raises(ValueError, match="outside selector root"):
+        map_output_path(outside, selected, tmp_path / "output")
