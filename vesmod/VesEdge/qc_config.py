@@ -17,15 +17,31 @@ class EdgeQCConfig:
 
     checks: Mapping[str, object]
 
-    def __init__(self, checks: Mapping[str, object] | None = None, **values) -> None:
+    def __init__(
+        self,
+        *legacy_args: object,
+        checks: Mapping[str, object] | None = None,
+        **values: object,
+    ) -> None:
         """Create a configuration from check-keyed or named check values."""
+        if legacy_args:
+            if checks is not None or values:
+                raise TypeError(
+                    "Positional QC configuration cannot be combined with keywords."
+                )
+            if len(legacy_args) > 3:
+                raise TypeError("At most curvature, area, and internal_vesicle are positional.")
+            names = ("curvature", "area", "internal_vesicle")
+            values = dict(zip(names, legacy_args, strict=True))
+            if isinstance(legacy_args[0], (int, float)):
+                values = {"curvature_threshold": legacy_args[0]}
         if checks is not None and values:
             raise TypeError("checks cannot be combined with named QC configurations.")
         if checks is None and "curvature_threshold" in values:
             migrated = _config_from_dict(values)
             object.__setattr__(self, "checks", migrated.checks)
             return
-        supplied = dict(checks) if checks is not None else values
+        supplied = _canonicalize_keys(dict(checks) if checks is not None else values)
         specs = _specifications()
         unknown = set(supplied) - set(specs)
         if unknown:
@@ -50,6 +66,7 @@ class EdgeQCConfig:
 
     def __getattr__(self, name: str) -> object:
         """Provide read-only named access for established built-in checks."""
+        name = _ALIASES.get(name, name)
         if name in self.checks:
             return self.checks[name]
         raise AttributeError(name)
@@ -79,3 +96,20 @@ def _config_from_dict(values: dict) -> EdgeQCConfig:
     from .qc_checks import config_from_dict
 
     return config_from_dict(values)
+
+
+_ALIASES = {
+    "baseline": "localized_deviation",
+    "singleton": "singleton_deviation",
+    "radius": "minimum_radius",
+}
+
+
+def _canonicalize_keys(values: Mapping[str, object]) -> dict[str, object]:
+    canonical: dict[str, object] = {}
+    for name, value in values.items():
+        target = _ALIASES.get(name, name)
+        if target in canonical:
+            raise TypeError(f"QC configuration cannot contain both aliases for {target}.")
+        canonical[target] = value
+    return canonical
