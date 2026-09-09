@@ -179,7 +179,7 @@ def _add_qc_parser(subparsers) -> None:
     parser.add_argument(
         "--curvature-threshold",
         type=float,
-        default=0.059,
+        default=21.520619405632544,
         help=(
             "Maximum dimensionless angular-resolution-normalized wrapped "
             "finite second difference of the median-radius-normalized "
