@@ -131,8 +131,7 @@ class EdgeQC:
     curvature_score : float | None
         Angular-resolution-normalized maximum absolute wrapped finite second
         difference of the median-radius-normalized analysis contour. The
-        score uses the historical 120-angular-sample convention and is
-        dimensionless.
+        angular spacing is measured in radians, and the score is dimensionless.
         None if curvature QC has not been run.
     area_pixels2 : float | None
         Area enclosed by the native contour in squared pixels. None if area QC
