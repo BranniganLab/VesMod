@@ -1,4 +1,4 @@
-"""Unit tests for EdgeMod fit-diagnostic plotting."""
+"""Unit tests for EdgeMod spectrum plotting."""
 
 from types import SimpleNamespace
 
