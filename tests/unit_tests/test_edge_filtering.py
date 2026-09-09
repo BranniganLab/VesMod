@@ -87,13 +87,11 @@ def test_curvature_score_is_invariant_to_angular_sampling_resolution():
             ImageContour((0.0, 0.0), radii.copy()),
         )
 
-    first = make_contour(120)
-    second = make_contour(360)
+    scores = []
+    for n_samples in (80, 120, 240, 360):
+        edge = make_contour(n_samples)
+        check_curvature(edge, threshold=np.finfo(float).max)
+        scores.append(edge.qc.curvature_score)
 
-    check_curvature(first, threshold=np.finfo(float).max)
-    check_curvature(second, threshold=np.finfo(float).max)
-
-    assert second.qc.curvature_score == pytest.approx(
-        first.qc.curvature_score,
-        rel=2e-2,
-    )
+    for score in scores[1:]:
+        assert score == pytest.approx(scores[0], rel=2e-2)
