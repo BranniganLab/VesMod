@@ -139,7 +139,7 @@ def test_run_validates_output_against_each_selector_root(monkeypatch, tmp_path):
     internal_structures_cli.run(args)
 
     assert observed["selection"] == (
-        args.input_path,
+        [Path("first"), Path("second")],
         ".npz",
         False,
         True,
