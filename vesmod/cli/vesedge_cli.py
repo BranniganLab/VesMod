@@ -181,8 +181,10 @@ def _add_qc_parser(subparsers) -> None:
         type=float,
         default=0.059,
         help=(
-            "Maximum dimensionless wrapped finite second difference of the "
-            "median-radius-normalized contour allowed by curvature QC. "
+            "Maximum dimensionless angular-resolution-normalized wrapped "
+            "finite second difference of the median-radius-normalized "
+            "contour allowed by curvature QC, using the 120-sample "
+            "threshold convention. "
             "Default: 0.059."
         ),
     )
