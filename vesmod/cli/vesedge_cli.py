@@ -30,6 +30,7 @@ from vesmod.VesEdge.experimental import InternalVesicleQCConfig
 from vesmod.io import map_output_path, open_checkpoint_frames, resolve_source_path
 from vesmod.cli import internal_structures_cli
 from vesmod.cli.gif_cli import add_gif_parser, run_gif
+from vesmod.cli.trace_plot_cli import add_trace_plot_parser, run_trace_plot
 from vesmod.cli.batch_policy import (
     add_batch_policy_argument,
     exit_code,
@@ -73,6 +74,7 @@ def parse_args() -> argparse.Namespace:
     _add_qc_parser(subparsers)
     internal_structures_cli.add_parser(subparsers)
     add_gif_parser(subparsers)
+    add_trace_plot_parser(subparsers)
     return parser.parse_args()
 
 
@@ -1040,6 +1042,8 @@ def main() -> int:
         return run_gif(args)
     elif args.command == "internal-structures":
         return internal_structures_cli.run(args)
+    elif args.command == "plot-traces":
+        return run_trace_plot(args)
     else:
         raise ValueError(f"Unknown VesEdge command: {args.command}")
 
