@@ -34,7 +34,7 @@ Apply one QC configuration:
 
 ```bash
 vesedge qc "./checkpoints" \
-    --curvature-threshold 0.059 \
+    --curvature-threshold 21.520619405632544 \
     --max-relative-area-deviation 0.25 \
     --output-dir ./results/qc_standard
 ```
@@ -266,7 +266,7 @@ vesedge qc "./checkpoints" \
     --output-dir ./results/qc_standard
 ```
 
-The curvature threshold is the maximum allowed angular-resolution-normalized absolute wrapped finite second difference of an analysis contour after its radii are divided by their median. The score and threshold are dimensionless, use the historical 120-sample convention, and are invariant to uniform scaling and angular resampling of the contour. A successful detection is rejected when its score is greater than the threshold.
+The curvature threshold is the maximum allowed angular-resolution-normalized absolute wrapped finite second difference of an analysis contour after its radii are divided by their median. The score and threshold are dimensionless, use angular spacing measured in radians, and are invariant to uniform scaling and angular resampling of the contour. A successful detection is rejected when its score is greater than the threshold.
 
 Default: `0.059`.
 
@@ -519,7 +519,7 @@ A typical sensitivity analysis might use:
 
 ```bash
 vesedge qc "./checkpoints" \
-    --curvature-threshold 0.030 \
+    --curvature-threshold 10.94268783354184 \
     --output-dir ./results/qc_strict
 
 vesedge qc "./checkpoints" \
@@ -527,7 +527,7 @@ vesedge qc "./checkpoints" \
     --output-dir ./results/qc_standard
 
 vesedge qc "./checkpoints" \
-    --curvature-threshold 0.089 \
+    --curvature-threshold 32.46298468904425 \
     --output-dir ./results/qc_permissive
 ```
 
