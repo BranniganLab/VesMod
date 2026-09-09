@@ -156,8 +156,9 @@ def process_trace_plot(args: argparse.Namespace) -> tuple[Path, Path]:
     return output, sidecar
 
 
-def run_trace_plot(args: argparse.Namespace) -> None:
+def run_trace_plot(args: argparse.Namespace) -> int:
     """Run the trace-overlay command."""
     output, sidecar = process_trace_plot(args)
     print(f"Saved trace overlay: {output}")
     print(f"Saved trace-overlay metadata: {sidecar}")
+    return 0
