@@ -181,7 +181,9 @@ def test_run_qc_can_recover_previous_curvature_rejection(extraction_config):
         curvature_threshold=1.0,
     )
     permissive = EdgeQCConfig(
-        curvature_threshold=100.0,
+        # The normalized score for this one-bin spike is approximately 1,459
+        # at 120 samples; 100 was the pre-normalization scale.
+        curvature_threshold=2000.0,
     )
 
     with pytest.raises(ValueError, match="no frames passed quality control"):
