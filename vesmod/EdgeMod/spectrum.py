@@ -13,8 +13,11 @@ import json
 import numpy as np
 from vesmod.VesEdge import VesicleEdges
 from vesmod.validation import require_finite_array, require_numeric_array
-from .diagnostic_plotting import (
-    SpectrumDiagnosticData,
+from .spectrum_plotting import (
+    SpectrumPlotData,
+    SpectrumPlotConfig,
+    SpectrumPlotResult,
+    plot_spectrum,
     save_spectrum_fit_diagnostic,
 )
 from .config import SpectrumFitConfig
@@ -223,7 +226,7 @@ class Spectrum:
         if self.fit_result is None:
             raise ValueError("A spectrum fit must be attempted before plotting.")
         save_spectrum_fit_diagnostic(
-            SpectrumDiagnosticData(
+            SpectrumPlotData(
                 modes=self.modes,
                 avg_amps2=self.avg_amps2,
                 fit_result=self.fit_result,
@@ -233,6 +236,41 @@ class Spectrum:
                 validation_error=validation_error,
             ),
             path,
+        )
+
+    def plot(
+        self,
+        *,
+        ax=None,
+        color=None,
+        label=None,
+        fit_config: SpectrumFitConfig | None = None,
+        plot_config: SpectrumPlotConfig | None = None,
+    ) -> SpectrumPlotResult:
+        """Plot this spectrum on a caller-owned or newly created axis.
+
+        A spectrum created from a frame block uses the same method as one
+        created from a complete trajectory. When a successful fit exists, its
+        recorded configuration supplies the fitting interval unless an explicit
+        ``fit_config`` is provided.
+        """
+        if fit_config is None and self.fit_results:
+            fit_config = self.fit_results[-1].config
+        fit_result = self.fit_result
+        data = SpectrumPlotData(
+            modes=self.modes,
+            avg_amps2=self.avg_amps2,
+            fit_result=fit_result,
+            lower_bound=None if fit_config is None else fit_config.lower_bound,
+            upper_bound=None if fit_config is None else fit_config.upper_bound,
+            lmax=None if fit_config is None else fit_config.lmax,
+        )
+        return plot_spectrum(
+            data,
+            ax=ax,
+            color=color,
+            label=label,
+            config=plot_config,
         )
 
     def to_dict(self, include_arrays=True) -> dict:
