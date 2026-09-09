@@ -18,6 +18,11 @@ from vesmod.EdgeMod.experimental import (
 )
 
 from vesmod.cli.input_selection import InputPathsAction, select_input_files
+from vesmod.cli.batch_policy import (
+    add_batch_policy_argument,
+    exit_code,
+    report_batch_summary,
+)
 from vesmod.cli.path_utils import _relative_input_path, remove_manifest_artifacts
 from vesmod.io import map_output_path
 
@@ -124,6 +129,7 @@ def _add_fit_options(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="Replace outputs managed by a prior compatible EdgeMod batch.",
     )
+    add_batch_policy_argument(parser)
 
 
 def iter_npy_files(input_path: Path | list[Path], recursive: bool) -> list[Path]:
@@ -428,7 +434,7 @@ def _write_fit_batch_outputs(
     )
 
 
-def _run_fit(args: argparse.Namespace) -> None:
+def _run_fit(args: argparse.Namespace) -> int:
     """Run core fitting over selected contour trajectories."""
     build_fit_config(args)
     if args.dynamic_range:
@@ -449,15 +455,27 @@ def _run_fit(args: argparse.Namespace) -> None:
         _prepare_fit_output(args, paths)
 
     rows = []
+    legacy_policy = not hasattr(args, "error_policy")
+    error_policy = getattr(
+        args,
+        "error_policy",
+        "keep-going" if getattr(args, "recursive", False) else "fail-fast",
+    )
+    succeeded = skipped = failed = 0
     for path in paths:
         try:
             fit = process_file(path, args)
+            if fit is None:
+                skipped += 1
+            else:
+                succeeded += 1
             if output_dir is not None:
                 status = "kept_existing" if fit is None else "ok"
                 rows.append(
                     _fit_summary_row(path, args.input_path, status, fit=fit)
                 )
         except (OSError, ValueError, FloatingPointError) as exc:
+            failed += 1
             if output_dir is not None:
                 rows.append(
                     _fit_summary_row(
@@ -467,21 +485,27 @@ def _run_fit(args: argparse.Namespace) -> None:
                         error=str(exc),
                     )
                 )
-            if not args.recursive:
+            if error_policy == "keep-going" and not legacy_policy:
+                print(f"Failed to fit {path}: {exc}", file=sys.stderr)
+            else:
+                print(f"Skipping {path}: {exc}", file=sys.stderr)
+            if error_policy == "fail-fast":
                 if output_dir is not None:
                     _write_fit_batch_outputs(args, rows)
                 raise
-            print(f"Skipping {path}: {exc}", file=sys.stderr)
 
     if output_dir is not None:
         _write_fit_batch_outputs(args, rows)
+    processed = succeeded + skipped + failed
+    report_batch_summary(processed, succeeded, skipped, failed)
+    return exit_code(failed, succeeded + skipped)
 
 
-def main() -> None:
+def main() -> int:
     """Run the selected EdgeMod analysis stage."""
     args = parse_args()
-    _run_fit(args)
+    return _run_fit(args)
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -38,6 +38,11 @@ from vesmod.io import (
     open_checkpoint_frames,
     resolve_source_path,
 )
+from vesmod.cli.batch_policy import (
+    add_batch_policy_argument,
+    exit_code,
+    report_batch_summary,
+)
 
 
 def add_parser(subparsers) -> None:
@@ -268,6 +273,7 @@ def add_parser(subparsers) -> None:
         action="store_true",
         help="Replace outputs from a different measurement configuration.",
     )
+    add_batch_policy_argument(parser)
 
 
 def config_from_args(args: argparse.Namespace) -> InternalStructureConfig:
@@ -328,23 +334,24 @@ def run(args: argparse.Namespace) -> None:
     )
     video_index = build_video_filename_index(paths, args.video_root)
     managed_outputs: set[Path] = set()
-    summary_rows = [
-        process_checkpoint(
-            path,
-            args,
-            config,
-            qc_selection,
-            video_index,
-            managed_outputs,
+    summary_rows = []
+    for path in paths:
+        row = process_checkpoint(
+            path, args, config, qc_selection, video_index, managed_outputs
         )
-        for path in paths
-    ]
+        summary_rows.append(row)
+        if row.get("status") == "load_error" and getattr(args, "error_policy", "keep-going") == "fail-fast":
+            break
     _write_csv(
         args.output_dir / "internal_structure_summary.csv",
         summary_rows,
         _SUMMARY_FIELDS,
     )
     _record_managed_outputs(args.output_dir, managed_outputs)
+    failed = sum(row.get("status") == "load_error" for row in summary_rows)
+    succeeded = len(summary_rows) - failed
+    report_batch_summary(len(summary_rows), succeeded, 0, failed)
+    return exit_code(failed, succeeded)
 
 
 def process_checkpoint(

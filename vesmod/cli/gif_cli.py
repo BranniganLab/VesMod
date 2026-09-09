@@ -19,6 +19,7 @@ from vesmod.io import (
     open_checkpoint_frames,
     resolve_source_path,
 )
+from vesmod.cli.batch_policy import add_batch_policy_argument, exit_code, report_batch_summary
 from vesmod.cli.input_selection import InputPathsAction, select_input_files
 
 
@@ -69,6 +70,7 @@ def add_gif_parser(subparsers) -> None:
         action="store_true",
         help="Overwrite existing GIF outputs.",
     )
+    add_batch_policy_argument(parser)
 
 
 def _checkpoint_paths(
@@ -109,7 +111,7 @@ def process_gif_file(
     )
     if output_path.exists() and not args.overwrite:
         print(f"Skipping {checkpoint.resolve()}: GIF already exists: {output_path}")
-        return
+        return False
 
     try:
         edges = VesicleEdges.from_checkpoint(checkpoint)
@@ -134,6 +136,7 @@ def process_gif_file(
         return
 
     print(f"Saved GIF for {checkpoint.resolve()}: {output_path}")
+    return True
 
 
 def run_gif(args: argparse.Namespace) -> None:
@@ -158,5 +161,16 @@ def run_gif(args: argparse.Namespace) -> None:
         if args.style == "qc"
         else None
     )
+    succeeded = skipped = failed = 0
     for checkpoint in checkpoints:
-        process_gif_file(checkpoint, args, qc_selection)
+        result = process_gif_file(checkpoint, args, qc_selection)
+        if result is True:
+            succeeded += 1
+        elif result is False:
+            failed += 1
+        else:
+            skipped += 1
+        if result is False and args.error_policy == "fail-fast":
+            break
+    report_batch_summary(succeeded + skipped + failed, succeeded, skipped, failed)
+    return exit_code(failed, succeeded + skipped)

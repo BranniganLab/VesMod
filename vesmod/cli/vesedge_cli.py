@@ -30,6 +30,11 @@ from vesmod.VesEdge.experimental import InternalVesicleQCConfig
 from vesmod.io import map_output_path, open_checkpoint_frames, resolve_source_path
 from vesmod.cli import internal_structures_cli
 from vesmod.cli.gif_cli import add_gif_parser, run_gif
+from vesmod.cli.batch_policy import (
+    add_batch_policy_argument,
+    exit_code,
+    report_batch_summary,
+)
 from vesmod.cli.input_selection import InputPathsAction, select_input_files
 from vesmod.cli.path_utils import (
     _display_path,
@@ -147,6 +152,7 @@ def _add_extract_parser(subparsers) -> None:
         action="store_true",
         help="Overwrite existing extraction outputs.",
     )
+    add_batch_policy_argument(parser)
 
 
 def _add_qc_parser(subparsers) -> None:
@@ -176,6 +182,7 @@ def _add_qc_parser(subparsers) -> None:
             "qc_summary.csv. Use a separate directory for each QC configuration."
         ),
     )
+    add_batch_policy_argument(parser)
     parser.add_argument(
         "--curvature-threshold",
         type=float,
@@ -407,9 +414,10 @@ def process_extract_file(path: Path, args: argparse.Namespace) -> None:
             video.source_path = Path(path)
             edges = video.extract_edges(extractor_func, extraction_config)
             edges.save_checkpoint(checkpoint_path)
-    except (IndexError, ValueError) as error:
+    except (IndexError, OSError, ValueError) as error:
         print(f"Failed to extract {_display_path(path)}: {error}")
-        return
+        return False
+    return True
 
 
 def _qc_config_from_args(args: argparse.Namespace) -> EdgeQCConfig:
@@ -964,18 +972,28 @@ def _write_qc_summary(output_dir: Path, rows: list[dict]) -> None:
         writer.writerows(rows)
 
 
-def _run_extract(args: argparse.Namespace) -> None:
+def _run_extract(args: argparse.Namespace) -> int:
     """Run extraction over the selected ND2 files."""
     paths, input_root = select_input_files(args.input_path, ".nd2", args.recursive)
     if not paths:
         raise FileNotFoundError(f"No .nd2 files found for {args.input_path}")
     args.input_path = input_root
 
+    failed = succeeded = processed = 0
     for path in paths:
-        process_extract_file(path, args)
+        processed += 1
+        result = process_extract_file(path, args)
+        if result is False:
+            failed += 1
+            if getattr(args, "error_policy", "keep-going") == "fail-fast":
+                break
+        else:
+            succeeded += 1
+    report_batch_summary(processed, succeeded, 0, failed)
+    return exit_code(failed, succeeded)
 
 
-def _run_qc(args: argparse.Namespace) -> None:
+def _run_qc(args: argparse.Namespace) -> int:
     """Run one QC configuration over the selected checkpoints."""
     paths, input_root = select_input_files(args.input_path, ".npz", args.recursive)
     if not paths:
@@ -992,28 +1010,37 @@ def _run_qc(args: argparse.Namespace) -> None:
         args.overwrite,
     )
     managed_artifacts: set[Path] = set()
-    rows = [
-        process_qc_file(path, args, qc_config, managed_artifacts)
-        for path in paths
-    ]
+    rows = []
+    for path in paths:
+        row = process_qc_file(path, args, qc_config, managed_artifacts)
+        rows.append(row)
+        if row["status"] in {"load_error", "qc_error", "no_accepted_frames"} and getattr(args, "error_policy", "keep-going") == "fail-fast":
+            break
     _write_qc_summary(args.output_dir, rows)
     _record_qc_artifacts(args.output_dir, managed_artifacts)
+    failed = sum(
+        row["status"] in {"load_error", "qc_error", "no_accepted_frames"}
+        for row in rows
+    )
+    succeeded = len(rows) - failed
+    report_batch_summary(len(rows), succeeded, 0, failed)
+    return exit_code(failed, succeeded)
 
 
-def main() -> None:
+def main() -> int:
     """Run the selected VesEdge subcommand."""
     args = parse_args()
     if args.command == "extract":
-        _run_extract(args)
+        return _run_extract(args)
     elif args.command == "qc":
-        _run_qc(args)
+        return _run_qc(args)
     elif args.command == "gif":
-        run_gif(args)
+        return run_gif(args)
     elif args.command == "internal-structures":
-        internal_structures_cli.run(args)
+        return internal_structures_cli.run(args)
     else:
         raise ValueError(f"Unknown VesEdge command: {args.command}")
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
