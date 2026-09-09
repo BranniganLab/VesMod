@@ -10,7 +10,7 @@ from vesmod.VesEdge.models import EdgeDetection, ImageContour, QCFlag
 def _make_edge(
     origin=(0.0, 0.0),
     radius=10.0,
-    n_samples=8,
+    n_samples=120,
 ):
     """Return a simple successful edge detection for QC tests."""
     radii = np.full(
@@ -72,3 +72,28 @@ def test_check_curvature_accepts_score_equal_to_threshold():
     check_curvature(edge, threshold=threshold)
 
     assert QCFlag.CURVATURE not in edge.qc.flags
+
+
+def test_curvature_score_is_invariant_to_angular_sampling_resolution():
+    """Equivalent contours have matching scores at different resolutions."""
+    def make_contour(n_samples):
+        theta = np.linspace(0.0, 2.0 * np.pi, n_samples, endpoint=False)
+        radii = 10.0 * (
+            1.0 + 0.02 * np.sin(3.0 * theta)
+            + 0.01 * np.cos(7.0 * theta)
+        )
+        return EdgeDetection(
+            ImageContour((0.0, 0.0), radii.copy()),
+            ImageContour((0.0, 0.0), radii.copy()),
+        )
+
+    first = make_contour(120)
+    second = make_contour(360)
+
+    check_curvature(first, threshold=np.finfo(float).max)
+    check_curvature(second, threshold=np.finfo(float).max)
+
+    assert second.qc.curvature_score == pytest.approx(
+        first.qc.curvature_score,
+        rel=2e-2,
+    )
