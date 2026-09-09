@@ -104,14 +104,14 @@ def process_gif_file(
     checkpoint: Path,
     args: argparse.Namespace,
     qc_selection: RecordedQCSelection | None,
-) -> None:
+) -> bool | None:
     """Render one checkpoint without aborting the surrounding batch."""
     output_path = map_output_path(
         checkpoint, args.input_path, args.output_dir, suffix=".gif"
     )
     if output_path.exists() and not args.overwrite:
         print(f"Skipping {checkpoint.resolve()}: GIF already exists: {output_path}")
-        return False
+        return None
 
     try:
         edges = VesicleEdges.from_checkpoint(checkpoint)
@@ -133,13 +133,13 @@ def process_gif_file(
             )
     except (FileNotFoundError, IndexError, OSError, ValueError) as error:
         print(f"Failed to make GIF for {checkpoint.resolve()}: {error}")
-        return
+        return False
 
     print(f"Saved GIF for {checkpoint.resolve()}: {output_path}")
     return True
 
 
-def run_gif(args: argparse.Namespace) -> None:
+def run_gif(args: argparse.Namespace) -> int:
     """Generate the selected GIF style for every selected checkpoint."""
     if args.style == "qc" and args.qc_dir is None:
         raise ValueError("--qc-dir is required with --style qc.")
