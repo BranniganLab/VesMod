@@ -216,7 +216,7 @@ def _assert_matches_reference(
         )
         expected_metadata["qc_config"] = QC_CONFIG.to_dict()
         metadata_migrated = True
-    if expected_qc_config != migrated_qc_config:
+    elif expected_qc_config != migrated_qc_config:
         expected_metadata["qc_config"] = migrated_qc_config
         metadata_migrated = True
 
