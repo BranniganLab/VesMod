@@ -262,13 +262,13 @@ Directory discovery treats `.npz` suffixes case-insensitively. For recursive dir
 
 ```bash
 vesedge qc "./checkpoints" \
-    --curvature-threshold 0.059 \
+    --curvature-threshold 21.520619405632544 \
     --output-dir ./results/qc_standard
 ```
 
-The curvature threshold is the maximum allowed angular-resolution-normalized absolute wrapped finite second difference of an analysis contour after its radii are divided by their median. The score and threshold are dimensionless, use angular spacing measured in radians, and are invariant to uniform scaling and angular resampling of the contour. A successful detection is rejected when its score is greater than the threshold.
+The curvature threshold is the maximum allowed angular-resolution-normalized absolute wrapped finite second difference of an analysis contour after its radii are divided by their median. The score and threshold are dimensionless, use angular spacing measured in radians, and are invariant to uniform scaling and angular resampling of the contour. A successful detection is rejected when its score is greater than the threshold. The default threshold 21.520619405632544 preserves the historical 0.059 threshold calibrated at 120 angular samples.
 
-Default: `0.059`.
+Default: `21.520619405632544`.
 
 Disable curvature QC with:
 
@@ -523,7 +523,7 @@ vesedge qc "./checkpoints" \
     --output-dir ./results/qc_strict
 
 vesedge qc "./checkpoints" \
-    --curvature-threshold 0.059 \
+    --curvature-threshold 21.520619405632544 \
     --output-dir ./results/qc_standard
 
 vesedge qc "./checkpoints" \
@@ -746,7 +746,7 @@ Later:
 edges = VesicleEdges.from_checkpoint("sample.npz")
 edges.run_qc(
     EdgeQCConfig(
-        curvature=CurvatureQCConfig(threshold=0.059),
+        curvature=CurvatureQCConfig(threshold=21.520619405632544),
     )
 )
 edges.save_edge_to_npy("sample.npy")
