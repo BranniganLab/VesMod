@@ -266,7 +266,7 @@ vesedge qc "./checkpoints" \
     --output-dir ./results/qc_standard
 ```
 
-The curvature threshold is the maximum allowed absolute wrapped finite second difference of an analysis contour after its radii are divided by their median. The score and threshold are dimensionless and invariant to uniform scaling of the contour. A successful detection is rejected when its score is greater than the threshold.
+The curvature threshold is the maximum allowed angular-resolution-normalized absolute wrapped finite second difference of an analysis contour after its radii are divided by their median. The score and threshold are dimensionless, use the historical 120-sample convention, and are invariant to uniform scaling and angular resampling of the contour. A successful detection is rejected when its score is greater than the threshold.
 
 Default: `0.059`.
 
