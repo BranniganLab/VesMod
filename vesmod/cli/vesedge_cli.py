@@ -28,7 +28,7 @@ from vesmod.VesEdge import (
 )
 from vesmod.VesEdge.experimental import InternalVesicleQCConfig
 from vesmod.io import map_output_path, open_checkpoint_frames, resolve_source_path
-from vesmod.cli import internal_structures_batch_cli as internal_structures_cli
+from vesmod.cli import internal_structures_cli
 from vesmod.cli.gif_cli import add_gif_parser, run_gif
 from vesmod.cli.input_selection import InputPathsAction, select_input_files
 from vesmod.cli.path_utils import (
