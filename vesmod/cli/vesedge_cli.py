@@ -363,7 +363,7 @@ def _output_base(
     return output_base
 
 
-def process_extract_file(path: Path, args: argparse.Namespace) -> None:
+def process_extract_file(path: Path, args: argparse.Namespace) -> bool | None:
     """Extract one ND2 video and save a reusable checkpoint."""
     output_base = _output_base(path, args.input_path, args.output_dir)
     checkpoint_path = output_base.with_suffix(".npz")
@@ -979,7 +979,7 @@ def _run_extract(args: argparse.Namespace) -> int:
         raise FileNotFoundError(f"No .nd2 files found for {args.input_path}")
     args.input_path = input_root
 
-    failed = succeeded = processed = 0
+    failed = succeeded = skipped = processed = 0
     for path in paths:
         processed += 1
         result = process_extract_file(path, args)
@@ -987,9 +987,11 @@ def _run_extract(args: argparse.Namespace) -> int:
             failed += 1
             if getattr(args, "error_policy", "keep-going") == "fail-fast":
                 break
+        elif result is None:
+            skipped += 1
         else:
             succeeded += 1
-    report_batch_summary(processed, succeeded, 0, failed)
+    report_batch_summary(processed, succeeded, skipped, failed)
     return exit_code(failed, succeeded)
 
 
