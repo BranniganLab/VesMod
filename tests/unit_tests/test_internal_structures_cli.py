@@ -93,6 +93,7 @@ def test_run_validates_output_against_each_selector_root(monkeypatch, tmp_path):
         input_path=[Path("first"), Path("second")],
         recursive=False,
         output_dir=tmp_path / "output",
+        video_root=None,
     )
     observed = {}
 
