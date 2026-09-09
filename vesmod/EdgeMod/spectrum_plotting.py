@@ -83,6 +83,10 @@ def plot_spectrum(
         color = next(ax._get_lines.prop_cycler)["color"]
 
     has_fit_region = data.lower_bound is not None and data.upper_bound is not None
+    if data.fit_result is not None and not has_fit_region:
+        raise ValueError(
+            "lower_bound and upper_bound are required when fit_result is provided."
+        )
     selected = _fit_mask(data, modes)
     if not has_fit_region:
         measured_artist = ax.loglog(

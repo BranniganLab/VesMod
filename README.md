@@ -276,6 +276,21 @@ if selection.accepted:
 
 Both successful physical fits remain available in `spectrum.fit_results`. Each `SpectrumFit` records the actual q bounds used and the full core `SpectrumFitConfig`. Experimental selection diagnostics remain separate from the core `Spectrum`/`SpectrumFit` state.
 
+Spectra can be plotted on caller-owned Matplotlib axes, which allows spectra from
+different frame blocks to be overlaid or placed into a larger multi-panel figure:
+
+```python
+fig, ax = plt.subplots()
+for block_number, radii_block in enumerate(blocks):
+    block_spectrum = Spectrum.from_radii(radii_block)
+    block_spectrum.extract_kc_from_fit(fixed_config)
+    block_spectrum.plot(ax=ax, label=f"100-frame block {block_number + 1}")
+```
+
+Each spectrum keeps its own color for measured data and its fit. Non-fitting modes
+are shown with open, translucent markers, while the fitting interval is shown as
+a compact colored strip above the plot.
+
 ---
 
 ## Data Products
