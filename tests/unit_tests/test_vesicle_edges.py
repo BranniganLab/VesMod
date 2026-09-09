@@ -168,12 +168,12 @@ def test_run_qc_preserves_frame_indices(edges, qc_config):
 
 def test_run_qc_can_recover_previous_curvature_rejection(extraction_config):
     """Test that rerunning QC can recover a previously rejected detection."""
-    detection = _edge(n_samples=20)
+    detection = _edge(n_samples=120)
     detection.analysis_contour.r[5] = 30.0
     edge_results = VesicleEdges(
         extraction_config=EdgeExtractionConfig(
             pixels_per_micron=1.0,
-            n_angular_samples=20,
+            n_angular_samples=120,
         ),
         detections=[detection],
     )
@@ -225,11 +225,14 @@ def test_save_edge_to_npy_saves_only_accepted_in_microns(
     extraction_config,
 ):
     """Test filtered NumPy export converts accepted radii to microns."""
-    accepted = _edge(radius=10.0)
-    rejected = _edge(radius=10.0)
+    accepted = _edge(radius=10.0, n_samples=120)
+    rejected = _edge(radius=10.0, n_samples=120)
     rejected.analysis_contour.r[3] = 30.0
     edge_results = VesicleEdges(
-        extraction_config=extraction_config,
+        extraction_config=EdgeExtractionConfig(
+            pixels_per_micron=2.0,
+            n_angular_samples=120,
+        ),
         detections=[accepted, rejected],
     )
     config = EdgeQCConfig(
@@ -241,7 +244,7 @@ def test_save_edge_to_npy_saves_only_accepted_in_microns(
     edge_results.save_edge_to_npy(tmp_path / "filtered")
     saved = np.load(tmp_path / "filtered.npy")
 
-    assert saved.shape == (1, 8)
+    assert saved.shape == (1, 120)
     np.testing.assert_array_equal(
         saved[0],
         accepted.analysis_contour.r / 2.0,
