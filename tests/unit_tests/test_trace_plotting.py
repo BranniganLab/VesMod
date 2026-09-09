@@ -1,5 +1,8 @@
 """Tests for VesEdge contour trace overlays."""
 
+import json
+from types import SimpleNamespace
+
 import matplotlib
 
 matplotlib.use("Agg")
@@ -18,6 +21,7 @@ from vesmod.VesEdge import (
     plot_edge_traces,
     select_trace_detections,
 )
+from vesmod.cli import trace_plot_cli
 
 
 def _edges():
@@ -87,3 +91,62 @@ def test_plot_edge_traces_rejects_centered_background():
             background=np.zeros((10, 10)),
             config=EdgeTracePlotConfig(centered=True),
         )
+
+
+def test_process_trace_plot_records_checkpoint_source_path(tmp_path, monkeypatch):
+    """Centered plots retain source provenance in their JSON sidecar."""
+    checkpoint = tmp_path / "sample.npz"
+    checkpoint.touch()
+    qc_dir = tmp_path / "qc"
+    qc_dir.mkdir()
+    output = tmp_path / "figures" / "traces.png"
+    edges = SimpleNamespace(
+        source_path=tmp_path / "sample.nd2",
+        extraction_config=SimpleNamespace(pixels_per_micron=2.0),
+    )
+    selection = SimpleNamespace(requires_frames=False)
+
+    monkeypatch.setattr(
+        trace_plot_cli.VesicleEdges,
+        "from_checkpoint",
+        lambda path: edges,
+    )
+    monkeypatch.setattr(
+        trace_plot_cli,
+        "load_recorded_qc",
+        lambda path, checkpoints: selection,
+    )
+    monkeypatch.setattr(
+        trace_plot_cli,
+        "replay_recorded_qc",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        trace_plot_cli,
+        "plot_edge_traces",
+        lambda *args, **kwargs: _blank_figure(),
+    )
+    args = SimpleNamespace(
+        checkpoint=checkpoint,
+        qc_dir=qc_dir,
+        frames=[0],
+        output=output,
+        background_frame=None,
+        contour="full",
+        cmap="viridis",
+        linewidth=1.5,
+        alpha=1.0,
+        no_colorbar=True,
+        overwrite=False,
+    )
+
+    _, sidecar = trace_plot_cli.process_trace_plot(args)
+
+    assert json.loads(sidecar.read_text())["source_path"] == str(edges.source_path)
+
+
+def _blank_figure():
+    """Return a minimal figure for CLI output tests."""
+    import matplotlib.pyplot as plt
+
+    return plt.subplots()

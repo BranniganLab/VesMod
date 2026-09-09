@@ -76,10 +76,12 @@ def _load_edges_and_qc(
     qc_dir: Path,
     *,
     source_path: Path | None,
-):
+) -> tuple[VesicleEdges, Path | None]:
     """Load a checkpoint and replay its recorded QC configuration."""
     edges = VesicleEdges.from_checkpoint(checkpoint)
     selection = load_recorded_qc(qc_dir, [checkpoint])
+    if source_path is None and edges.source_path is not None:
+        source_path = Path(edges.source_path)
     if selection.requires_frames:
         if source_path is None:
             source_path = resolve_source_path(edges.source_path, checkpoint)
@@ -87,7 +89,7 @@ def _load_edges_and_qc(
             replay_recorded_qc(edges, checkpoint, selection, frames=frames)
     else:
         replay_recorded_qc(edges, checkpoint, selection)
-    return edges
+    return edges, source_path
 
 
 def process_trace_plot(args: argparse.Namespace) -> tuple[Path, Path]:
@@ -106,7 +108,7 @@ def process_trace_plot(args: argparse.Namespace) -> tuple[Path, Path]:
     if args.background_frame is not None:
         provisional_edges = VesicleEdges.from_checkpoint(checkpoint)
         source_path = resolve_source_path(provisional_edges.source_path, checkpoint)
-    edges = _load_edges_and_qc(
+    edges, source_path = _load_edges_and_qc(
         checkpoint,
         args.qc_dir,
         source_path=source_path,
