@@ -133,7 +133,7 @@ Use a dedicated output directory for each QC configuration:
 
 ```bash
 vesedge qc "./checkpoints" \
-    --curvature-threshold 0.059 \
+    --curvature-threshold 21.520619405632544 \
     --output-dir ./results/qc_standard
 ```
 
@@ -159,7 +159,7 @@ For example:
 
 ```bash
 vesedge qc "./checkpoints" \
-    --curvature-threshold 0.089 \
+    --curvature-threshold 32.46298468904425 \
     --output-dir ./results/qc_permissive
 ```
 
