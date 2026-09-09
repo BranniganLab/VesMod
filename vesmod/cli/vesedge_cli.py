@@ -183,9 +183,9 @@ def _add_qc_parser(subparsers) -> None:
         help=(
             "Maximum dimensionless angular-resolution-normalized wrapped "
             "finite second difference of the median-radius-normalized "
-            "contour allowed by curvature QC, using the 120-sample "
-            "threshold convention. "
-            "Default: 0.059."
+            "contour allowed by curvature QC. The default threshold "
+            "21.520619405632544 is calibrated to the historical 120-sample "
+            "score scale."
         ),
     )
     parser.add_argument(
