@@ -39,7 +39,7 @@ EXTRACTION_CONFIG = EdgeExtractionConfig(
     calibration_source="measured",
 )
 QC_CONFIG = EdgeQCConfig(
-    curvature_threshold=0.059,
+    curvature_threshold=21.520619405632544,
     enable_curvature_qc=True,
     max_relative_area_deviation=0.25,
     enable_area_qc=True,
@@ -198,8 +198,25 @@ def _assert_matches_reference(
     # optional internal-vesicle QC. Translate them through the same migration
     # boundary used for runtime provenance.
     expected_qc_config = expected_metadata["qc_config"]
+    legacy_curvature_threshold = expected_qc_config.get("curvature_threshold")
     migrated_qc_config = EdgeQCConfig.from_dict(expected_qc_config).to_dict()
-    if expected_qc_config != migrated_qc_config:
+    if (
+        legacy_curvature_threshold is not None
+        and not np.isclose(
+            legacy_curvature_threshold,
+            QC_CONFIG.curvature.threshold,
+        )
+    ):
+        # Older references stored the unscaled finite difference at the
+        # historical 120-sample threshold scale. Convert their stored scores
+        # while retaining the reference file as a valid migration fixture.
+        expected["qc_curvature_scores"] = (
+            expected["qc_curvature_scores"]
+            * (120.0 / (2.0 * np.pi)) ** 2
+        )
+        expected_metadata["qc_config"] = QC_CONFIG.to_dict()
+        metadata_migrated = True
+    elif expected_qc_config != migrated_qc_config:
         expected_metadata["qc_config"] = migrated_qc_config
         metadata_migrated = True
 

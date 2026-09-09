@@ -34,7 +34,7 @@ Apply one QC configuration:
 
 ```bash
 vesedge qc "./checkpoints" \
-    --curvature-threshold 0.059 \
+    --curvature-threshold 21.520619405632544 \
     --max-relative-area-deviation 0.25 \
     --output-dir ./results/qc_standard
 ```
@@ -299,13 +299,13 @@ Directory discovery treats `.npz` suffixes case-insensitively. For recursive dir
 
 ```bash
 vesedge qc "./checkpoints" \
-    --curvature-threshold 0.059 \
+    --curvature-threshold 21.520619405632544 \
     --output-dir ./results/qc_standard
 ```
 
-The curvature threshold is the maximum allowed absolute wrapped finite second difference of an analysis contour after its radii are divided by their median. The score and threshold are dimensionless and invariant to uniform scaling of the contour. A successful detection is rejected when its score is greater than the threshold.
+The curvature threshold is the maximum allowed angular-resolution-normalized absolute wrapped finite second difference of an analysis contour after its radii are divided by their median. The score and threshold are dimensionless, use angular spacing measured in radians, and are invariant to uniform scaling of the contour. Angular-resampling invariance is approximate because the wrapped finite difference has discretization error, so scores may vary slightly across sample counts; this can change classifications for contours whose scores are near the threshold. A successful detection is rejected when its score is greater than the threshold.
 
-Default: `0.059`.
+Default: `21.520619405632544`.
 
 Disable curvature QC with:
 
@@ -556,15 +556,15 @@ A typical sensitivity analysis might use:
 
 ```bash
 vesedge qc "./checkpoints" \
-    --curvature-threshold 0.030 \
+    --curvature-threshold 10.94268783354184 \
     --output-dir ./results/qc_strict
 
 vesedge qc "./checkpoints" \
-    --curvature-threshold 0.059 \
+    --curvature-threshold 21.520619405632544 \
     --output-dir ./results/qc_standard
 
 vesedge qc "./checkpoints" \
-    --curvature-threshold 0.089 \
+    --curvature-threshold 32.46298468904425 \
     --output-dir ./results/qc_permissive
 ```
 
@@ -783,7 +783,7 @@ Later:
 edges = VesicleEdges.from_checkpoint("sample.npz")
 edges.run_qc(
     EdgeQCConfig(
-        curvature=CurvatureQCConfig(threshold=0.059),
+        curvature=CurvatureQCConfig(threshold=21.520619405632544),
     )
 )
 edges.save_edge_to_npy("sample.npy")

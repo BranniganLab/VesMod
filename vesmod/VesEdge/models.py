@@ -129,8 +129,9 @@ class EdgeQC:
     flags : set[QCFlag]
         QC checks that the edge has failed.
     curvature_score : float | None
-        Maximum absolute wrapped finite second difference of the
-        median-radius-normalized analysis contour. This score is dimensionless.
+        Angular-resolution-normalized maximum absolute wrapped finite second
+        difference of the median-radius-normalized analysis contour. The
+        angular spacing is measured in radians, and the score is dimensionless.
         None if curvature QC has not been run.
     area_pixels2 : float | None
         Area enclosed by the native contour in squared pixels. None if area QC

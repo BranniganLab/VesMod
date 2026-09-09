@@ -80,7 +80,7 @@ def sample_edges(filename, processed_sample_edges):
         n_angular_samples=120,
     )
     qc_config = EdgeQCConfig(
-        curvature_threshold=0.059,
+        curvature_threshold=21.520619405632544,
         enable_curvature_qc=True,
         enable_area_qc=False,
     )

@@ -197,7 +197,7 @@ from vesmod.VesEdge import CurvatureQCConfig, EdgeQCConfig, VesicleEdges
 edges = VesicleEdges.from_checkpoint("sample.npz")
 edges.run_qc(
     EdgeQCConfig(
-        curvature=CurvatureQCConfig(threshold=0.059),
+        curvature=CurvatureQCConfig(threshold=21.520619405632544),
     )
 )
 edges.save_edge_to_npy("sample.npy")

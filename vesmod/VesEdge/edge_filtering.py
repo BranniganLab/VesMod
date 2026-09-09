@@ -11,6 +11,7 @@ from .vesicle_video_utils import measure_wrapped_finite_second_difference
 from vesmod.validation import require_nonnegative_real
 
 
+
 @dataclass(frozen=True)
 class CurvatureQCConfig:
     """Configuration owned by the curvature QC check."""
@@ -40,8 +41,8 @@ def check_curvature(
 
     The edge fails curvature QC when the largest absolute wrapped finite
     second difference of its median-radius-normalized analysis contour exceeds
-    ``threshold``. The resulting dimensionless score is invariant to uniform
-    spatial scaling of the contour.
+    ``threshold`` after angular-spacing normalization. The score is invariant
+    to uniform spatial scaling and angular resampling of the contour.
 
     Raises
     ------
@@ -56,6 +57,7 @@ def check_curvature(
     normalized_radii = (
         edge.analysis_contour.r / np.median(edge.analysis_contour.r)
     )
+    angular_step = 2.0 * np.pi / normalized_radii.size
     finite_second_difference = measure_wrapped_finite_second_difference(
         normalized_radii
     )
@@ -66,7 +68,7 @@ def check_curvature(
         return
 
     curvature_score = float(
-        np.max(np.abs(finite_second_difference))
+        np.max(np.abs(finite_second_difference)) / angular_step**2
     )
     edge.qc.diagnostics["curvature_score"] = curvature_score
 
