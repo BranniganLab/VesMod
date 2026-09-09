@@ -39,7 +39,7 @@ EXTRACTION_CONFIG = EdgeExtractionConfig(
     calibration_source="measured",
 )
 QC_CONFIG = EdgeQCConfig(
-    curvature_threshold=0.059,
+    curvature_threshold=21.520619405632544,
     enable_curvature_qc=True,
     max_relative_area_deviation=0.25,
     enable_area_qc=True,
