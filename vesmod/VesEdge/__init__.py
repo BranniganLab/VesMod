@@ -41,6 +41,12 @@ from .models import (
 )
 from .vesicle_edges import VesicleEdges
 from .vesicle_video import VesicleVideo
+from .qc_replay import (
+    QCReplayResult,
+    RecordedQCSelection,
+    load_recorded_qc,
+    replay_recorded_qc,
+)
 
 __all__ = [
     "AnimationPanel",
@@ -58,10 +64,13 @@ __all__ = [
     "ImageContour",
     "InternalVesicleQCResult",
     "LocalizedDeviationQCConfig",
-    "SingletonDeviationQCConfig",
     "MinimumRadiusQCConfig",
     "ND2FrameSource",
     "QCFlag",
+    "QCReplayResult",
+    "RadialBaselineFit",
+    "RecordedQCSelection",
+    "SingletonDeviationQCConfig",
     "TimeSeriesAnimationPanel",
     "TrajectoryQCFlag",
     "VesicleAnimationPanel",
@@ -74,8 +83,9 @@ __all__ = [
     "check_minimum_radius",
     "contour_area",
     "extract_edge_from_frame",
-    "make_gif",
-    "RadialBaselineFit",
     "fit_radial_baseline",
+    "load_recorded_qc",
+    "make_gif",
     "open_frame_source",
+    "replay_recorded_qc",
 ]

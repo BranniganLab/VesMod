@@ -13,8 +13,11 @@ import numpy as np
 from vesmod.VesEdge import (
     EdgeDetection,
     EdgeQCConfig,
+    RecordedQCSelection,
     VesicleEdges,
     VesicleVideo,
+    load_recorded_qc,
+    replay_recorded_qc,
 )
 from vesmod.VesEdge.experimental import (
     InternalStructureConfig,
@@ -311,7 +314,11 @@ def run(args: argparse.Namespace) -> None:
         _validate_input_output_paths(selector_root, args.output_dir)
 
     config = config_from_args(args)
-    qc_config, qc_provenance_path = _load_qc_selection(args, paths)
+    qc_selection = _load_qc_selection(args, paths)
+    qc_config = None if qc_selection is None else qc_selection.config
+    qc_provenance_path = (
+        None if qc_selection is None else qc_selection.provenance_path
+    )
     _write_provenance(
         args,
         paths,
@@ -326,7 +333,7 @@ def run(args: argparse.Namespace) -> None:
             path,
             args,
             config,
-            qc_config,
+            qc_selection,
             video_index,
             managed_outputs,
         )
@@ -344,7 +351,7 @@ def process_checkpoint(
     checkpoint_path: Path,
     args: argparse.Namespace,
     config: InternalStructureConfig,
-    qc_config: EdgeQCConfig | None,
+    qc_selection: RecordedQCSelection | None,
     video_index: dict[str, tuple[Path, ...]] | None = None,
     managed_outputs: set[Path] | None = None,
 ) -> dict:
@@ -372,8 +379,13 @@ def process_checkpoint(
                 "Source video frame count does not match the checkpoint: "
                 f"{frames.shape[0]} != {len(edges.detections)}."
             )
-        if qc_config is not None:
-            _apply_qc(edges, qc_config, frames)
+        if qc_selection is not None:
+            replay_recorded_qc(
+                edges,
+                checkpoint_path,
+                qc_selection,
+                frames=frames,
+            )
     except (OSError, IndexError, TypeError, ValueError) as error:
         message = str(error)
         print(f"Failed to analyze {_display_path(checkpoint_path)}: {message}")
@@ -390,7 +402,7 @@ def process_checkpoint(
                 _frame_error_row(frame_index, "extraction_failure", edge_result.error)
             )
             continue
-        if qc_config is not None and (
+        if qc_selection is not None and (
             not edges.qc_result.passed or not edge_result.qc.passed
         ):
             frame_rows.append(
@@ -456,56 +468,11 @@ def process_checkpoint(
 def _load_qc_selection(
     args: argparse.Namespace,
     checkpoint_paths: list[Path],
-) -> tuple[EdgeQCConfig | None, Path | None]:
+) -> RecordedQCSelection | None:
     """Load and validate the QC configuration selecting eligible frames."""
     if args.include_unqced:
-        return None, None
-
-    provenance_path = args.qc_results.expanduser().resolve()
-    if provenance_path.is_dir():
-        provenance_path = provenance_path / "vesedge_qc.json"
-    if not provenance_path.is_file():
-        raise FileNotFoundError(
-            f"QC provenance does not exist: {provenance_path}"
-        )
-
-    provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
-    try:
-        qc_config = EdgeQCConfig.from_dict(provenance["qc_config"])
-        manifest = {
-            str(Path(path).expanduser().resolve())
-            for path in provenance["checkpoint_manifest"]
-        }
-    except (KeyError, TypeError, ValueError) as error:
-        raise ValueError(
-            f"Invalid VesEdge QC provenance: {provenance_path}"
-        ) from error
-
-    unselected = [
-        path
-        for path in checkpoint_paths
-        if str(path.resolve()) not in manifest
-    ]
-    if unselected:
-        names = ", ".join(str(path) for path in unselected)
-        raise ValueError(
-            "Selected checkpoint(s) are not present in the QC manifest: "
-            f"{names}"
-        )
-    return qc_config, provenance_path
-
-
-def _apply_qc(
-    edges: VesicleEdges,
-    qc_config: EdgeQCConfig,
-    frames: np.ndarray,
-) -> None:
-    """Apply frame eligibility while allowing a result with zero passing frames."""
-    try:
-        edges.run_qc(qc_config, frames)
-    except ValueError:
-        if edges.qc_result is None:
-            raise
+        return None
+    return load_recorded_qc(args.qc_results, checkpoint_paths)
 
 
 def _frame_row(

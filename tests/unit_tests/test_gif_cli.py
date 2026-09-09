@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from vesmod.VesEdge import ArrayFrameSource, EdgeQCConfig
+from vesmod.VesEdge import ArrayFrameSource, EdgeQCConfig, load_recorded_qc
 from vesmod.cli import gif_cli, vesedge_cli
 
 
@@ -49,8 +49,8 @@ def test_parse_args_selects_gif_subcommand(monkeypatch, tmp_path):
     assert args.output_dir == tmp_path
 
 
-def test_checkpoint_paths_and_qc_pairing_preserve_recursive_structure(tmp_path):
-    """Test equal stems in separate folders map to separate QC arrays."""
+def test_checkpoint_paths_preserve_recursive_structure(tmp_path):
+    """Test recursive checkpoint selection keeps both nested inputs."""
     checkpoints = tmp_path / "checkpoints"
     first = checkpoints / "a" / "sample.npz"
     second = checkpoints / "b" / "sample.npz"
@@ -58,26 +58,16 @@ def test_checkpoint_paths_and_qc_pairing_preserve_recursive_structure(tmp_path):
     second.parent.mkdir(parents=True)
     first.touch()
     second.touch()
-    qc_dir = tmp_path / "qc"
-
     selected = gif_cli._checkpoint_paths(checkpoints, recursive=True)
 
     assert selected == [first, second]
-    assert gif_cli._paired_qc_path(
-        first,
-        checkpoints,
-        qc_dir,
-    ) == qc_dir / "a" / "sample.npy"
-    assert gif_cli._paired_qc_path(
-        second,
-        checkpoints,
-        qc_dir,
-    ) == qc_dir / "b" / "sample.npy"
 
 
-def test_load_qc_config_uses_recorded_provenance(tmp_path):
+def test_load_qc_selection_uses_recorded_provenance(tmp_path):
     """Test QC-colored rendering reuses the saved QC settings."""
+    checkpoint = tmp_path / "sample.npz"
     provenance = {
+        "checkpoint_manifest": [str(checkpoint.resolve())],
         "qc_config": {
             "curvature_threshold": 8.0,
             "enable_curvature_qc": True,
@@ -90,7 +80,8 @@ def test_load_qc_config_uses_recorded_provenance(tmp_path):
         encoding="utf-8",
     )
 
-    config = gif_cli._load_qc_config(tmp_path)
+    selection = load_recorded_qc(tmp_path, [checkpoint])
+    config = selection.config
 
     assert config.curvature.threshold == pytest.approx(8.0)
     assert config.area.max_relative_deviation == pytest.approx(0.4)
@@ -109,15 +100,21 @@ def test_apply_recorded_qc_verifies_paired_array(tmp_path):
     expected = np.ones((2, 4))
     frames = ArrayFrameSource(np.zeros((2, 3, 4)))
     np.save(qc_path, expected)
-    config = EdgeQCConfig(curvature_threshold=5.0)
+    provenance = {
+        "checkpoint_manifest": [str(checkpoint.resolve())],
+        "qc_config": EdgeQCConfig(curvature_threshold=5.0).to_dict(),
+    }
+    (qc_dir / "vesedge_qc.json").write_text(json.dumps(provenance))
+    selection = load_recorded_qc(qc_dir, [checkpoint])
 
     class FakeEdges:
         accepted_radii_microns = expected
         qc_result = None
 
-        def run_qc(self, supplied, supplied_frames):
-            assert supplied is config
-            assert supplied_frames is frames
+        accepted_detections = [object(), object()]
+
+        def run_qc(self, supplied):
+            assert supplied is selection.config
             self.qc_result = object()
 
     gif_cli._apply_recorded_qc(
@@ -125,8 +122,7 @@ def test_apply_recorded_qc_verifies_paired_array(tmp_path):
         frames,
         checkpoint,
         checkpoint_root,
-        qc_dir,
-        config,
+        selection,
     )
 
 
@@ -136,16 +132,21 @@ def test_apply_recorded_qc_allows_all_rejected_without_array(tmp_path):
     checkpoint = checkpoint_root / "sample.npz"
     checkpoint_root.mkdir()
     checkpoint.touch()
-    config = EdgeQCConfig(curvature_threshold=5.0)
+    qc_dir = tmp_path / "qc-without-npy"
+    qc_dir.mkdir()
+    (qc_dir / "vesedge_qc.json").write_text(json.dumps({
+        "checkpoint_manifest": [str(checkpoint.resolve())],
+        "qc_config": EdgeQCConfig(curvature_threshold=5.0).to_dict(),
+    }))
+    selection = load_recorded_qc(qc_dir, [checkpoint])
     frames = ArrayFrameSource(np.zeros((2, 3, 4)))
 
     class AllRejectedEdges:
         accepted_detections = []
         qc_result = None
 
-        def run_qc(self, supplied, supplied_frames):
-            assert supplied is config
-            assert supplied_frames is frames
+        def run_qc(self, supplied):
+            assert supplied is selection.config
             self.qc_result = object()
             raise ValueError("no frames passed quality control")
 
@@ -158,8 +159,7 @@ def test_apply_recorded_qc_allows_all_rejected_without_array(tmp_path):
         frames,
         checkpoint,
         checkpoint_root,
-        tmp_path / "qc-without-npy",
-        config,
+        selection,
     )
 
 
@@ -199,7 +199,7 @@ def test_process_gif_file_selects_annotation_style(
     monkeypatch.setattr(gif_cli, "VesicleVideo", FakeVideo)
     args = _args(tmp_path, checkpoint, style=style)
 
-    gif_cli.process_gif_file(checkpoint, args, qc_config=None)
+    gif_cli.process_gif_file(checkpoint, args, qc_selection=None)
 
     assert (observed["overlay"] is not None) is expects_overlay
     assert observed["output_path"] == tmp_path / "gifs" / "sample.gif"
@@ -225,7 +225,7 @@ def test_process_gif_file_reports_full_checkpoint_path(tmp_path, monkeypatch, ca
     gif_cli.process_gif_file(
         checkpoint,
         _args(tmp_path, checkpoint),
-        qc_config=None,
+        qc_selection=None,
     )
 
     output = capsys.readouterr().out
