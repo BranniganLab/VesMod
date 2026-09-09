@@ -47,6 +47,11 @@ from .qc_replay import (
     load_recorded_qc,
     replay_recorded_qc,
 )
+from .trace_plotting import (
+    EdgeTracePlotConfig,
+    plot_edge_traces,
+    select_trace_detections,
+)
 
 __all__ = [
     "AnimationPanel",
@@ -60,6 +65,7 @@ __all__ = [
     "EdgeExtractionConfig",
     "EdgeQCConfig",
     "EdgeResult",
+    "EdgeTracePlotConfig",
     "FrameSource",
     "ImageContour",
     "InternalVesicleQCResult",
@@ -87,5 +93,7 @@ __all__ = [
     "load_recorded_qc",
     "make_gif",
     "open_frame_source",
+    "plot_edge_traces",
     "replay_recorded_qc",
+    "select_trace_detections",
 ]

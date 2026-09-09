@@ -48,6 +48,43 @@ vesedge gif "./checkpoints" \
     --qc-dir ./results/qc_standard
 ```
 
+Plot selected accepted contours as a time-colored overlay:
+
+```bash
+vesedge plot-traces "./checkpoints/sample.npz" \
+    --qc-dir ./results/qc_standard \
+    --frames 10 20 30 40 \
+    --output ./figures/sample_traces.png
+```
+
+Without a background, traces are centered on their own detected origins and
+the axes are in microns. To align the contours with a source-video image,
+provide a source frame; the figure then uses native image-pixel coordinates:
+
+```bash
+vesedge plot-traces "./checkpoints/sample.npz" \
+    --qc-dir ./results/qc_standard \
+    --frames 10 20 30 40 \
+    --background-frame 20 \
+    --output ./figures/sample_traces_on_image.png
+```
+
+The selected frame indices refer to original source-video frames, not rows in
+the filtered `.npy` file. The command writes a `.json` sidecar next to the
+figure containing the checkpoint, QC provenance, selected frames, calibration,
+and plotting settings. All selected frames must have a successful extraction
+and pass the recorded QC configuration.
+
+## `vesedge plot-traces`
+
+`plot-traces` accepts one `.npz` checkpoint and the QC output directory that
+contains its recorded `vesedge_qc.json`. It intentionally uses the checkpoint
+rather than a filtered `.npy` as its input so that source-frame identity,
+detected origins, native contours, and source-video provenance remain
+available. Contours are colored by their actual source-frame number using a
+continuous colormap; use `--cmap`, `--contour analysis`, `--alpha`, or
+`--no-colorbar` to customize the figure.
+
 Analyze the filtered results:
 
 ```bash
