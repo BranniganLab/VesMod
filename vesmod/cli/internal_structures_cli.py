@@ -23,6 +23,7 @@ from vesmod.VesEdge.experimental import (
     summarize_internal_structures,
 )
 
+from vesmod.cli.input_selection import InputPathsAction, select_input_files
 from vesmod.cli.path_utils import (
     _display_path,
     _relative_input_path,
@@ -45,7 +46,11 @@ def add_parser(subparsers) -> None:
     parser.add_argument(
         "input_path",
         type=Path,
-        help="A VesEdge .npz checkpoint or directory containing checkpoints.",
+        nargs="+",
+        action=InputPathsAction,
+        help=(
+            "One or more VesEdge .npz files, directories, or glob patterns."
+        ),
     )
     parser.add_argument(
         "--recursive",
@@ -292,10 +297,18 @@ def config_from_args(args: argparse.Namespace) -> InternalStructureConfig:
 
 def run(args: argparse.Namespace) -> None:
     """Measure internal structures for the selected checkpoints."""
-    _validate_input_output_paths(args.input_path, args.output_dir)
-    paths = _iter_checkpoints(args.input_path, args.recursive)
+    paths, input_root, selector_roots = select_input_files(
+        args.input_path,
+        ".npz",
+        args.recursive,
+        return_roots=True,
+    )
     if not paths:
-        raise FileNotFoundError(f"No .npz files found in {args.input_path}")
+        raise FileNotFoundError(f"No .npz files found for {args.input_path}")
+    args.input_path = input_root
+
+    for selector_root in selector_roots:
+        _validate_input_output_paths(selector_root, args.output_dir)
 
     config = config_from_args(args)
     qc_config, qc_provenance_path = _load_qc_selection(args, paths)
@@ -839,23 +852,6 @@ def _write_csv(path: Path, rows: list[dict], fieldnames: list[str]) -> None:
         writer = csv.DictWriter(output_file, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
-
-
-def _iter_checkpoints(input_path: Path, recursive: bool) -> list[Path]:
-    """Return selected checkpoint files."""
-    resolved = input_path.expanduser().resolve()
-    if resolved.is_file():
-        if resolved.suffix.lower() != ".npz":
-            raise ValueError(f"Expected a .npz file, got: {resolved}")
-        return [resolved]
-    if not resolved.is_dir():
-        raise FileNotFoundError(f"Input path does not exist: {resolved}")
-    pattern = "**/*" if recursive else "*"
-    return sorted(
-        path
-        for path in resolved.glob(pattern)
-        if path.is_file() and path.suffix.lower() == ".npz"
-    )
 
 
 def _validate_input_output_paths(input_path: Path, output_dir: Path) -> None:

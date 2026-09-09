@@ -87,6 +87,66 @@ def test_parse_args_selects_internal_structures_subcommand(monkeypatch, tmp_path
     )
 
 
+def test_run_validates_output_against_each_selector_root(monkeypatch, tmp_path):
+    """Test output validation covers every selected input root."""
+    args = argparse.Namespace(
+        input_path=[Path("first"), Path("second")],
+        recursive=False,
+        output_dir=tmp_path / "output",
+        video_root=None,
+    )
+    observed = {}
+
+    def fake_select_input_files(input_path, suffix, recursive, *, return_roots=False):
+        observed["selection"] = (input_path, suffix, recursive, return_roots)
+        return (
+            [Path("/tmp/first/sample.npz")],
+            Path("/tmp"),
+            (Path("/tmp/first"), Path("/tmp/second")),
+        )
+
+    validated = []
+    monkeypatch.setattr(internal_structures_cli, "select_input_files", fake_select_input_files)
+    monkeypatch.setattr(
+        internal_structures_cli,
+        "_validate_input_output_paths",
+        lambda input_path, output_dir: validated.append(input_path),
+    )
+    monkeypatch.setattr(internal_structures_cli, "config_from_args", lambda args: object())
+    monkeypatch.setattr(
+        internal_structures_cli,
+        "_load_qc_selection",
+        lambda args, paths: (None, None),
+    )
+    monkeypatch.setattr(internal_structures_cli, "_write_provenance", lambda *args: None)
+    monkeypatch.setattr(
+        internal_structures_cli,
+        "build_video_filename_index",
+        lambda paths, video_root: {},
+    )
+    monkeypatch.setattr(
+        internal_structures_cli,
+        "process_checkpoint",
+        lambda *args: {},
+    )
+    monkeypatch.setattr(internal_structures_cli, "_write_csv", lambda *args: None)
+    monkeypatch.setattr(
+        internal_structures_cli,
+        "_record_managed_outputs",
+        lambda *args: None,
+    )
+
+    internal_structures_cli.run(args)
+
+    assert observed["selection"] == (
+        [Path("first"), Path("second")],
+        ".npz",
+        False,
+        True,
+    )
+    assert validated == [Path("/tmp/first"), Path("/tmp/second")]
+
+
 def test_process_checkpoint_writes_measurements_in_original_coordinates(
     tmp_path,
     monkeypatch,

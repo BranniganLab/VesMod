@@ -112,8 +112,7 @@ def test_vesedge_internal_structures_parser_accepts_multiple_inputs(
 
     args = vesedge_cli.parse_args()
 
-    assert args.input_path == Path("a.npz")
-    assert args.additional_input_paths == [Path("b.npz")]
+    assert args.input_path == [Path("a.npz"), Path("b.npz")]
 
 
 def test_vesedge_gif_parser_accepts_multiple_inputs(monkeypatch, tmp_path):
