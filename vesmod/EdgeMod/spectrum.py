@@ -13,8 +13,8 @@ import json
 import numpy as np
 from vesmod.VesEdge import VesicleEdges
 from vesmod.validation import require_finite_array, require_numeric_array
-from .diagnostic_plotting import (
-    SpectrumDiagnosticData,
+from .spectrum_plotting import (
+    SpectrumPlotData,
     save_spectrum_fit_diagnostic,
 )
 from .config import SpectrumFitConfig
@@ -223,7 +223,7 @@ class Spectrum:
         if self.fit_result is None:
             raise ValueError("A spectrum fit must be attempted before plotting.")
         save_spectrum_fit_diagnostic(
-            SpectrumDiagnosticData(
+            SpectrumPlotData(
                 modes=self.modes,
                 avg_amps2=self.avg_amps2,
                 fit_result=self.fit_result,
