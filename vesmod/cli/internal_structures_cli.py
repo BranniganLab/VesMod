@@ -297,16 +297,18 @@ def config_from_args(args: argparse.Namespace) -> InternalStructureConfig:
 
 def run(args: argparse.Namespace) -> None:
     """Measure internal structures for the selected checkpoints."""
-    paths, input_root = select_input_files(
+    paths, input_root, selector_roots = select_input_files(
         args.input_path,
         ".npz",
         args.recursive,
+        return_roots=True,
     )
     if not paths:
         raise FileNotFoundError(f"No .npz files found for {args.input_path}")
     args.input_path = input_root
 
-    _validate_input_output_paths(args.input_path, args.output_dir)
+    for selector_root in selector_roots:
+        _validate_input_output_paths(selector_root, args.output_dir)
 
     config = config_from_args(args)
     qc_config, qc_provenance_path = _load_qc_selection(args, paths)
