@@ -110,13 +110,18 @@ def replay_recorded_qc(
             f"Recorded QC for {checkpoint} requires source video frames."
         )
 
+    previous_result = edges.qc_result
     try:
         if selection.requires_frames:
             edges.run_qc(selection.config, frames)
         else:
             edges.run_qc(selection.config)
     except ValueError:
-        if edges.qc_result is None or edges.accepted_detections:
+        if (
+            edges.qc_result is previous_result
+            or edges.qc_result is None
+            or edges.accepted_detections
+        ):
             raise
 
     accepted_count = len(edges.accepted_detections)

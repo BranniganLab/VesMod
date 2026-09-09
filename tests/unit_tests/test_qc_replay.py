@@ -102,6 +102,23 @@ def test_replay_preserves_failure_and_all_rejected_distinction(tmp_path):
     assert result.accepted_count == 0
 
 
+def test_replay_does_not_accept_restored_stale_all_rejected_result(tmp_path):
+    """A failed replay cannot reuse a prior all-rejected result as success."""
+    checkpoint = tmp_path / "sample.npz"
+    selection = _selection(tmp_path, checkpoint)
+    previous_result = object()
+
+    class Edges:
+        qc_result = previous_result
+        accepted_detections = []
+
+        def run_qc(self, config):
+            raise ValueError("check failed before producing a result")
+
+    with pytest.raises(ValueError, match="check failed"):
+        replay_recorded_qc(Edges(), checkpoint, selection)
+
+
 def test_paired_verification_requires_output_for_accepted_frames(tmp_path):
     """Strict replay reports a checkpoint-specific missing paired output."""
     checkpoint = tmp_path / "inputs" / "sample.npz"
