@@ -15,6 +15,7 @@ from vesmod.VesEdge import (
     EdgeQCConfig,
     ImageContour,
     QCFlag,
+    RecordedQCSelection,
 )
 from vesmod.VesEdge.experimental import InternalStructureRegion
 from vesmod.cli import internal_structures_cli, vesedge_cli
@@ -116,7 +117,7 @@ def test_run_validates_output_against_each_selector_root(monkeypatch, tmp_path):
     monkeypatch.setattr(
         internal_structures_cli,
         "_load_qc_selection",
-        lambda args, paths: (None, None),
+        lambda args, paths: None,
     )
     monkeypatch.setattr(internal_structures_cli, "_write_provenance", lambda *args: None)
     monkeypatch.setattr(
@@ -297,13 +298,13 @@ def test_load_qc_selection_reconstructs_recorded_config(tmp_path):
     args.qc_results = qc_dir
     args.include_unqced = False
 
-    config, provenance_path = internal_structures_cli._load_qc_selection(
+    selection = internal_structures_cli._load_qc_selection(
         args,
         [checkpoint],
     )
 
-    assert config.curvature.threshold == 7.0
-    assert provenance_path == (qc_dir / "vesedge_qc.json").resolve()
+    assert selection.config.curvature.threshold == 7.0
+    assert selection.provenance_path == (qc_dir / "vesedge_qc.json").resolve()
 
 
 def test_process_checkpoint_does_not_measure_qc_rejected_frame(
@@ -321,10 +322,10 @@ def test_process_checkpoint_does_not_measure_qc_rejected_frame(
     class FakeEdges:
         source_path = video_path
         detections = [detection]
+        accepted_detections = []
         qc_result = None
 
-        def run_qc(self, config, frames):
-            assert frames.shape == (1, 10, 10)
+        def run_qc(self, config):
             detection.qc.flags.add(next(iter(QCFlag)))
             self.qc_result = argparse.Namespace(passed=True)
             raise ValueError("no frames passed quality control")
@@ -354,7 +355,11 @@ def test_process_checkpoint_does_not_measure_qc_rejected_frame(
         checkpoint,
         args,
         internal_structures_cli.config_from_args(args),
-        EdgeQCConfig(curvature_threshold=5.0),
+        RecordedQCSelection(
+            tmp_path / "qc" / "vesedge_qc.json",
+            EdgeQCConfig(curvature_threshold=5.0),
+            frozenset({checkpoint.resolve()}),
+        ),
     )
 
     with (args.output_dir / "sample_frames.csv").open() as frame_file:

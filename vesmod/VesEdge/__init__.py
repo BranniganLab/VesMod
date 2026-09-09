@@ -41,6 +41,12 @@ from .models import (
 )
 from .vesicle_edges import VesicleEdges
 from .vesicle_video import VesicleVideo
+from .qc_replay import (
+    QCReplayResult,
+    RecordedQCSelection,
+    load_recorded_qc,
+    replay_recorded_qc,
+)
 
 __all__ = [
     "AnimationPanel",
@@ -62,6 +68,8 @@ __all__ = [
     "MinimumRadiusQCConfig",
     "ND2FrameSource",
     "QCFlag",
+    "QCReplayResult",
+    "RecordedQCSelection",
     "TimeSeriesAnimationPanel",
     "TrajectoryQCFlag",
     "VesicleAnimationPanel",
@@ -75,6 +83,8 @@ __all__ = [
     "contour_area",
     "extract_edge_from_frame",
     "make_gif",
+    "load_recorded_qc",
+    "replay_recorded_qc",
     "RadialBaselineFit",
     "fit_radial_baseline",
     "open_frame_source",

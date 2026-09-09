@@ -3,21 +3,20 @@
 from __future__ import annotations
 
 import argparse
-import json
 from pathlib import Path
 
-import numpy as np
-
 from vesmod.VesEdge import (
-    EdgeQCConfig,
+    FrameSource,
+    RecordedQCSelection,
     VesicleEdges,
     VesicleVideo,
+    load_recorded_qc,
+    replay_recorded_qc,
 )
 
 from vesmod.io import (
     map_output_path,
     open_checkpoint_frames,
-    relative_selected_path,
     resolve_source_path,
 )
 from vesmod.cli.input_selection import InputPathsAction, select_input_files
@@ -81,77 +80,28 @@ def _checkpoint_paths(
     return checkpoints
 
 
-def _relative_checkpoint_path(checkpoint: Path, input_path: Path) -> Path:
-    """Return a selected checkpoint path relative to its input root."""
-    return relative_selected_path(checkpoint, input_path)
-
-
-def _paired_qc_path(
-    checkpoint: Path,
-    input_path: Path,
-    qc_dir: Path,
-) -> Path:
-    """Map one checkpoint to its QC array by relative path and stem."""
-    return map_output_path(checkpoint, input_path, qc_dir, suffix=".npy")
-
-
-def _load_qc_config(qc_dir: Path) -> EdgeQCConfig:
-    """Load the exact QC configuration recorded for a QC output directory."""
-    provenance_path = qc_dir.expanduser().resolve() / "vesedge_qc.json"
-    if not provenance_path.is_file():
-        raise FileNotFoundError(
-            f"QC provenance does not exist: {provenance_path}"
-        )
-    provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
-    try:
-        config_data = provenance["qc_config"]
-    except KeyError as error:
-        raise ValueError(
-            f"QC provenance has no qc_config: {provenance_path}"
-        ) from error
-    return EdgeQCConfig.from_dict(config_data)
-
-
 def _apply_recorded_qc(
     edges: VesicleEdges,
     frames: FrameSource,
     checkpoint: Path,
     input_path: Path,
-    qc_dir: Path,
-    qc_config: EdgeQCConfig,
+    selection: RecordedQCSelection,
 ) -> None:
     """Reconstruct frame-level QC and verify the paired filtered output."""
-    try:
-        edges.run_qc(qc_config, frames)
-    except ValueError:
-        if edges.qc_result is None:
-            raise
-        if not edges.accepted_detections:
-            return
-        raise
-
-    qc_path = _paired_qc_path(checkpoint, input_path, qc_dir)
-    if not qc_path.is_file():
-        raise FileNotFoundError(
-            f"No paired QC .npy exists for {checkpoint.resolve()}: {qc_path}"
-        )
-
-    saved_radii = np.load(qc_path, allow_pickle=False)
-    reconstructed = edges.accepted_radii_microns
-    if saved_radii.shape != reconstructed.shape or not np.allclose(
-        saved_radii,
-        reconstructed,
-        equal_nan=True,
-    ):
-        raise ValueError(
-            f"Paired QC output does not match {checkpoint.resolve()}: {qc_path}"
-        )
+    replay_recorded_qc(
+        edges,
+        checkpoint,
+        selection,
+        frames=frames,
+        input_root=input_path,
+        verify_paired_output=True,
+    )
 
 
 def process_gif_file(
     checkpoint: Path,
     args: argparse.Namespace,
-    qc_config: EdgeQCConfig | None,
+    qc_selection: RecordedQCSelection | None,
 ) -> None:
     """Render one checkpoint without aborting the surrounding batch."""
     output_path = map_output_path(
@@ -171,8 +121,7 @@ def process_gif_file(
                     frames,
                     checkpoint,
                     args.input_path,
-                    args.qc_dir,
-                    qc_config,
+                    qc_selection,
                 )
             overlay = None if args.style == "original" else edges
             output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -204,10 +153,10 @@ def run_gif(args: argparse.Namespace) -> None:
     args.input_path = input_root
 
     args.output_dir = args.output_dir.expanduser().resolve()
-    qc_config = (
-        _load_qc_config(args.qc_dir)
+    qc_selection = (
+        load_recorded_qc(args.qc_dir, checkpoints)
         if args.style == "qc"
         else None
     )
     for checkpoint in checkpoints:
-        process_gif_file(checkpoint, args, qc_config)
+        process_gif_file(checkpoint, args, qc_selection)
