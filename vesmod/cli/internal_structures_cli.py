@@ -304,7 +304,7 @@ def config_from_args(args: argparse.Namespace) -> InternalStructureConfig:
     )
 
 
-def run(args: argparse.Namespace) -> None:
+def run(args: argparse.Namespace) -> int:
     """Measure internal structures for the selected checkpoints."""
     paths, input_root, selector_roots = select_input_files(
         args.input_path,
