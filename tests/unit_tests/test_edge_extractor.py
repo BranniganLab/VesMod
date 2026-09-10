@@ -49,13 +49,13 @@ def test_extract_edge_from_frame_debug_mode_returns_none(tmp_path):
     assert center is None
 
 
-def test_extract_edge_from_frame_returns_recentered_contour(monkeypatch):
-    """The stored origin and radii come from contour recentering, not the detection seed."""
+def test_extract_edge_from_frame_reextracts_from_refined_origin(monkeypatch):
+    """A shifted contour centroid becomes the origin of a new image extraction."""
     image = np.zeros((80, 80), dtype=float)
-    image[20:60, 20:60] = 1.0
-    expected_radii = np.full(80, 12.5)
-    expected_origin_xy = (31.5, 42.5)
-    calls = []
+    first_radii = np.full(80, 12.0)
+    second_radii = np.full(80, 12.5)
+    extraction_origins = []
+    centroid_calls = []
 
     monkeypatch.setattr(
         edge_extractor,
@@ -63,15 +63,56 @@ def test_extract_edge_from_frame_returns_recentered_contour(monkeypatch):
         lambda frame: (40.0, 40.0),
     )
 
-    def fake_recenter(origin, radii):
-        calls.append((origin, radii.copy()))
-        return expected_origin_xy, expected_radii
+    def fake_extract(frame, origin):
+        extraction_origins.append(origin)
+        if len(extraction_origins) == 1:
+            return first_radii
+        return second_radii
 
-    monkeypatch.setattr(edge_extractor, "recenter_radial_contour", fake_recenter)
+    def fake_centroid(origin, radii):
+        centroid_calls.append((origin, radii.copy()))
+        if len(centroid_calls) == 1:
+            return (42.0, 41.0)
+        return origin
+
+    monkeypatch.setattr(edge_extractor, "_extract_edge_from_origin", fake_extract)
+    monkeypatch.setattr(edge_extractor, "radial_contour_centroid", fake_centroid)
 
     radii, origin = extract_edge_from_frame(image)
 
-    assert calls
-    assert calls[0][0] == (40.0, 40.0)
-    np.testing.assert_array_equal(radii, expected_radii)
-    assert origin == (expected_origin_xy[1], expected_origin_xy[0])
+    assert extraction_origins == [(40.0, 40.0), (41.0, 42.0)]
+    np.testing.assert_array_equal(radii, second_radii)
+    assert origin == (41.0, 42.0)
+
+
+def test_extract_edge_from_frame_returns_radii_measured_from_returned_origin(monkeypatch):
+    """At the refinement limit, final radii are measured from the stored origin."""
+    image = np.zeros((80, 80), dtype=float)
+    extraction_origins = []
+
+    monkeypatch.setattr(
+        edge_extractor,
+        "approximate_vesicle_com",
+        lambda frame: (10.0, 20.0),
+    )
+
+    def fake_extract(frame, origin):
+        extraction_origins.append(origin)
+        return np.full(8, len(extraction_origins), dtype=float)
+
+    def fake_centroid(origin, radii):
+        return (origin[0] + 1.0, origin[1] + 2.0)
+
+    monkeypatch.setattr(edge_extractor, "_extract_edge_from_origin", fake_extract)
+    monkeypatch.setattr(edge_extractor, "radial_contour_centroid", fake_centroid)
+
+    radii, origin = extract_edge_from_frame(image)
+
+    assert extraction_origins == [
+        (10.0, 20.0),
+        (12.0, 21.0),
+        (14.0, 22.0),
+        (16.0, 23.0),
+    ]
+    assert origin == extraction_origins[-1]
+    np.testing.assert_array_equal(radii, np.full(8, 4.0))
