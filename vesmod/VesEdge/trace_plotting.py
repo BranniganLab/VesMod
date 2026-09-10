@@ -11,7 +11,7 @@ from matplotlib.cm import ScalarMappable
 import numpy as np
 from numpy.typing import NDArray
 
-from .models import EdgeDetection
+from .models import EdgeDetection, ImageContour
 from .vesicle_edges import VesicleEdges
 
 
@@ -34,6 +34,29 @@ class EdgeTracePlotConfig:
             raise ValueError("linewidth must be positive.")
         if not 0 < self.alpha <= 1:
             raise ValueError("alpha must be greater than 0 and at most 1.")
+
+
+def centered_contour_coordinates(
+    contour: ImageContour,
+    pixels_per_micron: float,
+    reference_origin: tuple[float, float] | None = None,
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    """Return a contour centered on an origin and scaled to microns.
+
+    ``ImageContour.x`` and ``ImageContour.y`` are expressed in source-image
+    coordinates and therefore include the detected origin. By default, the
+    contour is centered on its own detected origin. ``reference_origin`` can
+    be supplied to express it relative to a shared origin, such as the first
+    frame in a trace series. The returned arrays are closed for direct
+    plotting.
+    """
+    scale = float(pixels_per_micron)
+    if not np.isfinite(scale) or scale <= 0:
+        raise ValueError("pixels_per_micron must be finite and positive.")
+    origin = contour.origin if reference_origin is None else reference_origin
+    x = (contour.x - origin[0]) / scale
+    y = (contour.y - origin[1]) / scale
+    return x, y
 
 
 def select_trace_detections(
@@ -97,13 +120,14 @@ def plot_edge_traces(
     """Plot selected contours with color indicating source-frame time.
 
     With ``centered=True`` contours are centered independently and converted
-    to microns using the checkpoint calibration. With ``centered=False`` they
-    remain in source-image pixel coordinates, which is required for an image
-    background. A supplied background is displayed with ``origin='upper'`` so
-    its pixel coordinates align with the contour coordinates.
+    to microns when no background is supplied. With a background, contours are
+    translated so their origins remain at the first selected contour's origin,
+    while the background remains in native source-image pixel coordinates.
+    With ``centered=False`` contours remain in raw source-image pixel
+    coordinates without stabilization.
     """
     if config is None:
-        config = EdgeTracePlotConfig(centered=background is None)
+        config = EdgeTracePlotConfig()
     overrides = {
         "centered": centered,
         "contour": contour,
@@ -121,9 +145,6 @@ def plot_edge_traces(
                 if value is not None
             },
         )
-    if background is not None and config.centered:
-        raise ValueError("A background requires centered=False.")
-
     detections = select_trace_detections(edges, frame_indices)
     requested_indices = [detection.frame_index for detection in detections]
     if any(index is None for index in requested_indices):
@@ -143,7 +164,11 @@ def plot_edge_traces(
         axis = ax
         figure = axis.figure
 
-    if background is not None:
+    reference_origin = None
+    if background is not None and config.centered:
+        reference_origin = detections[0].full_contour.origin
+        axis.imshow(background, origin="upper", cmap="gray")
+    elif background is not None:
         axis.imshow(background, origin="upper", cmap="gray")
 
     units = "pixels"
@@ -153,19 +178,20 @@ def plot_edge_traces(
             if config.contour == "full"
             else detection.analysis_contour
         )
-        theta = contour.theta
-        x = contour.r * np.cos(theta)
-        y = contour.r * np.sin(theta)
         if config.centered:
-            scale = edges.extraction_config.pixels_per_micron
-            x = x / scale
-            y = y / scale
-            units = "microns"
+            x, y = centered_contour_coordinates(
+                contour,
+                1.0
+                if background is not None
+                else edges.extraction_config.pixels_per_micron,
+            )
+            if reference_origin is not None:
+                x += reference_origin[0]
+                y += reference_origin[1]
+            units = "pixels" if background is not None else "microns"
         else:
-            x = x + contour.origin[0]
-            y = y + contour.origin[1]
-        x = np.append(x, x[0])
-        y = np.append(y, y[0])
+            x = contour.x
+            y = contour.y
         frame_value = float(detection.frame_index)
         axis.plot(
             x,
