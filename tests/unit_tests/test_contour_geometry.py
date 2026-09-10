@@ -4,7 +4,7 @@ import pytest
 
 from vesmod.VesEdge.contour_geometry import (
     fit_radial_baseline,
-    recenter_radial_contour,
+    radial_contour_centroid,
 )
 from vesmod.VesEdge.vesicle_video_utils import zero_out_all_but_lowest_n_modes
 
@@ -44,8 +44,8 @@ def test_shared_baseline_rejects_invalid_order(order):
         fit_radial_baseline(np.ones(16), order=order)
 
 
-def test_recenter_radial_contour_recovers_shifted_circle_center():
-    """A circle measured from an offset origin is recentered on its true center."""
+def test_radial_contour_centroid_recovers_shifted_circle_center():
+    """A circle measured from an offset origin reports its geometric center."""
     n_samples = 720
     theta = np.linspace(0.0, 2.0 * np.pi, n_samples, endpoint=False)
     true_center = np.array([3.25, -1.75])
@@ -57,29 +57,32 @@ def test_recenter_radial_contour_recovers_shifted_circle_center():
         true_radius**2 - center_distance2 + projection**2
     )
 
-    origin, recentered = recenter_radial_contour((0.0, 0.0), radii)
+    centroid = radial_contour_centroid((0.0, 0.0), radii)
 
-    np.testing.assert_allclose(origin, true_center, atol=2e-4)
-    np.testing.assert_allclose(recentered, true_radius, atol=2e-4)
+    np.testing.assert_allclose(centroid, true_center, atol=2e-4)
 
 
-def test_recenter_radial_contour_is_translation_invariant():
-    """Translating a contour and its detection origin does not change its shape."""
+def test_radial_contour_centroid_is_translation_invariant():
+    """Translating the radial origin translates the measured centroid equally."""
     theta = np.linspace(0.0, 2.0 * np.pi, 360, endpoint=False)
     radii = 18.0 + 1.2 * np.cos(2.0 * theta) + 0.4 * np.sin(5.0 * theta)
     translation = np.array([17.5, -9.25])
 
-    origin_a, recentered_a = recenter_radial_contour((0.0, 0.0), radii)
-    origin_b, recentered_b = recenter_radial_contour(tuple(translation), radii)
+    centroid_a = radial_contour_centroid((0.0, 0.0), radii)
+    centroid_b = radial_contour_centroid(tuple(translation), radii)
 
-    np.testing.assert_allclose(np.asarray(origin_b) - np.asarray(origin_a), translation)
-    np.testing.assert_allclose(recentered_b, recentered_a, rtol=0, atol=1e-12)
+    np.testing.assert_allclose(
+        np.asarray(centroid_b) - np.asarray(centroid_a),
+        translation,
+        rtol=0,
+        atol=1e-12,
+    )
 
 
-def test_recenter_radial_contour_rejects_degenerate_contour():
+def test_radial_contour_centroid_rejects_degenerate_contour():
     """A radial representation must contain a polygon with non-zero area."""
     with pytest.raises(ValueError, match="at least three samples"):
-        recenter_radial_contour((0.0, 0.0), np.ones(2))
+        radial_contour_centroid((0.0, 0.0), np.ones(2))
 
 
 def test_legacy_baseline_wrapper_uses_shared_projection():
