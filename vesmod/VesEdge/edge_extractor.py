@@ -193,17 +193,17 @@ def _make_debug_image_centroid(input_tuple, fpath):
 
     _, axes = plt.subplots(1, 4, figsize=(12, 4), layout='constrained')
     axes[0].imshow(original, cmap='gray')
+    axes[0].set_title('Raw image')
+    axes[0].scatter(centroid[1], centroid[0], color='tab:blue')
+
     axes[1].imshow(sobel, cmap='gray')
-    axes[2].imshow(blurred := blur, cmap='gray')
-    axes[3].imshow(threshold, cmap='gray')
-    axes[0].scatter(centroid[1], centroid[0], color='tab:red', marker='+')
-    axes[3].scatter(centroid[1], centroid[0], color='tab:red', marker='+')
-    axes[0].set_title('Original')
-    axes[1].set_title('Sobel')
+    axes[1].set_title('Sobel filter')
+
+    axes[2].imshow(blur, cmap='gray')
     axes[2].set_title('Gaussian blur')
-    axes[3].set_title('Otsu mask')
-    for ax in axes:
-        ax.set_axis_off()
-    plt.savefig(fpath / "centroid_process_debug.pdf")
-    plt.clf()
-    plt.close()
+
+    axes[3].imshow(threshold, cmap='jet')
+    axes[3].scatter(centroid[1], centroid[0], color='tab:blue')
+
+    plt.axis('off')
+    plt.savefig(fpath.joinpath("centroid_process_debug.pdf"))
