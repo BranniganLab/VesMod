@@ -70,9 +70,12 @@ def recenter_radial_contour(origin, radii):
 
     ``radii`` is interpreted on a uniform angular grid about ``origin``. The
     corresponding Cartesian polygon is passed to OpenCV for its spatial
-    moments and area centroid. The same detected boundary is then converted
-    back to polar coordinates about that centroid and interpolated onto a
-    uniform angular grid with the original number of samples.
+    moments and area centroid. Moments are evaluated in coordinates relative
+    to ``origin`` so translating the same contour does not lose precision when
+    OpenCV converts contour coordinates to single precision. The same detected
+    boundary is then converted back to polar coordinates about the centroid and
+    interpolated onto a uniform angular grid with the original number of
+    samples.
 
     Parameters
     ----------
@@ -102,20 +105,23 @@ def recenter_radial_contour(origin, radii):
 
     radii = np.asarray(radii, dtype=float)
     theta = np.linspace(0.0, 2.0 * np.pi, radii.size, endpoint=False)
-    x = origin[0] + radii * np.cos(theta)
-    y = origin[1] + radii * np.sin(theta)
+    x_relative = radii * np.cos(theta)
+    y_relative = radii * np.sin(theta)
 
-    contour = np.column_stack((x, y)).astype(np.float32)
+    contour = np.column_stack((x_relative, y_relative)).astype(np.float32)
     moments = cv2.moments(contour)
     if np.isclose(moments["m00"], 0.0):
         raise ValueError("contour must enclose non-zero area")
 
-    centroid_x = float(moments["m10"] / moments["m00"])
-    centroid_y = float(moments["m01"] / moments["m00"])
-    centroid = (centroid_x, centroid_y)
+    centroid_relative_x = float(moments["m10"] / moments["m00"])
+    centroid_relative_y = float(moments["m01"] / moments["m00"])
+    centroid = (
+        origin[0] + centroid_relative_x,
+        origin[1] + centroid_relative_y,
+    )
 
-    dx = x - centroid_x
-    dy = y - centroid_y
+    dx = x_relative - centroid_relative_x
+    dy = y_relative - centroid_relative_y
     new_theta = np.mod(np.arctan2(dy, dx), 2.0 * np.pi)
     new_radii = np.hypot(dx, dy)
 
