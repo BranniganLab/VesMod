@@ -57,11 +57,11 @@ vesedge plot-traces "./checkpoints/sample.npz" \
     --output ./figures/sample_traces.png
 ```
 
-Without a background, traces are centered on their own detected origins (the
-frame-to-frame detected-origin translation is removed) and the axes are in
+Without a background, traces are centered on the detected edge center of mass
+(the frame-to-frame center-of-mass translation is removed) and the axes are in
 microns. To show the traces over a source-video image, provide a source frame;
 the contours are translated into native image-pixel coordinates while keeping
-the detected origin of the first selected trace frame fixed:
+the detected edge center of mass of the first selected trace frame fixed:
 
 ```bash
 vesedge plot-traces "./checkpoints/sample.npz" \

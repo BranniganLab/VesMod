@@ -50,6 +50,7 @@ from .qc_replay import (
 from .trace_plotting import (
     EdgeTracePlotConfig,
     centered_contour_coordinates,
+    contour_center_of_mass,
     plot_edge_traces,
     select_trace_detections,
 )
@@ -86,6 +87,7 @@ __all__ = [
     "VesicleVideo",
     "as_frame_source",
     "centered_contour_coordinates",
+    "contour_center_of_mass",
     "check_area_deviation",
     "check_localized_deviation",
     "check_minimum_radius",
