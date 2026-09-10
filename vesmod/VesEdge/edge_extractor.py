@@ -12,12 +12,17 @@ from skimage.measure import regionprops
 import matplotlib.pyplot as plt
 import numpy as np
 from .vesicle_video_utils import wrap_image_to_polar, isolate_region_of_array, convert_to_cartesian
-from .contour_geometry import fit_radial_baseline
+from .contour_geometry import fit_radial_baseline, recenter_radial_contour
 
 
 def extract_edge_from_frame(frame, debug_path=None):
     """
     Extract vesicle edge from frame of vesicle video.
+
+    The image-derived center is used only as a detection origin for polar edge
+    extraction. After the edge is detected, the contour is recentered on the
+    geometric centroid of its enclosed area and the returned radial values are
+    re-expressed on a uniform angular grid about that contour origin.
 
     Parameters
     ----------
@@ -29,10 +34,11 @@ def extract_edge_from_frame(frame, debug_path=None):
     Returns
     -------
     r_vals : numpy ndarray
-        1D array of distances from center_of_mass to vesicle edge. Evenly spaced
-        in theta from 0 to 2pi.
-    center_of_mass : tuple
-        The Cartesian coordinates of the approximate vesicle center.
+        1D array of distances from the detected contour centroid to the
+        vesicle edge, evenly spaced in theta from 0 to 2pi.
+    contour_origin : tuple
+        The row, column coordinates of the geometric centroid of the detected
+        contour.
 
     """
     if debug_path is not None:
@@ -41,11 +47,11 @@ def extract_edge_from_frame(frame, debug_path=None):
         _make_debug_image(frame, debug_path)
         return None, None
 
-    # step 1: find internal vesicle point
-    center_of_mass = approximate_vesicle_com(frame)
+    # step 1: find an internal vesicle point for edge detection
+    detection_origin = approximate_vesicle_com(frame)
 
     # step 2: naive refinement of edge region
-    polar_sobel, scaling_factor = wrap_image_to_polar(filters.sobel(frame), center_of_mass)
+    polar_sobel, scaling_factor = wrap_image_to_polar(filters.sobel(frame), detection_origin)
     avg = np.mean(np.argmax(polar_sobel, axis=1))
     vertically_masked_polar_sobel = isolate_region_of_array(polar_sobel, avg, 0.25)
     max_of_masked_region = np.argmax(vertically_masked_polar_sobel, axis=1)
@@ -54,7 +60,7 @@ def extract_edge_from_frame(frame, debug_path=None):
     approx_edge = fit_radial_baseline(max_of_masked_region, order=7).values
 
     # wrap original image to polar
-    original_frame_polar, _ = wrap_image_to_polar(frame, center_of_mass)
+    original_frame_polar, _ = wrap_image_to_polar(frame, detection_origin)
 
     # step 4: horizontal Sobel filter and apply FFT-informed mask
     horizontal_sobel = filters.sobel(original_frame_polar, axis=1)
@@ -62,9 +68,17 @@ def extract_edge_from_frame(frame, debug_path=None):
     fft_masked_horizontal_sobel = isolate_region_of_array(gauss_blur, approx_edge, 0.05, True)
     max_sobel = np.nanargmax(fft_masked_horizontal_sobel, axis=1)
 
-    r_vals = np.array(max_sobel) / scaling_factor
+    detected_radii = np.array(max_sobel) / scaling_factor
 
-    return r_vals, center_of_mass
+    # step 5: define the measured contour about its own geometric centroid
+    detection_origin_xy = (detection_origin[1], detection_origin[0])
+    contour_origin_xy, r_vals = recenter_radial_contour(
+        detection_origin_xy,
+        detected_radii,
+    )
+    contour_origin = (contour_origin_xy[1], contour_origin_xy[0])
+
+    return r_vals, contour_origin
 
 
 def _make_debug_image(frame, output_path):
@@ -76,7 +90,7 @@ def _make_debug_image(frame, output_path):
     frame : numpy ndarray
         The 2D array of intensity values from a vesicle video frame.
     output_path : pathlib Path
-        Output debug images to output_path.
+        Output debug images to output_path directory.
 
     Returns
     -------
@@ -178,20 +192,18 @@ def _make_debug_image_centroid(input_tuple, fpath):
     original, sobel, blur, threshold, centroid = input_tuple
 
     _, axes = plt.subplots(1, 4, figsize=(12, 4), layout='constrained')
-
     axes[0].imshow(original, cmap='gray')
-    axes[0].set_title('Raw image')
-    axes[0].scatter(centroid[1], centroid[0], color='tab:blue')
-
     axes[1].imshow(sobel, cmap='gray')
-    axes[1].set_title('Sobel filter')
-
-    axes[2].imshow(blur, cmap='gray')
+    axes[2].imshow(blurred := blur, cmap='gray')
+    axes[3].imshow(threshold, cmap='gray')
+    axes[0].scatter(centroid[1], centroid[0], color='tab:red', marker='+')
+    axes[3].scatter(centroid[1], centroid[0], color='tab:red', marker='+')
+    axes[0].set_title('Original')
+    axes[1].set_title('Sobel')
     axes[2].set_title('Gaussian blur')
-
-    axes[3].imshow(threshold, cmap='jet')
-    axes[3].set_title('Otsu threshold')
-    axes[3].scatter(centroid[1], centroid[0], color='tab:blue')
-
-    plt.axis('off')
-    plt.savefig(fpath.joinpath("centroid_process_debug.pdf"))
+    axes[3].set_title('Otsu mask')
+    for ax in axes:
+        ax.set_axis_off()
+    plt.savefig(fpath / "centroid_process_debug.pdf")
+    plt.clf()
+    plt.close()
