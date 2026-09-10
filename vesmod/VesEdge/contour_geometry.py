@@ -7,6 +7,8 @@ geometric projection can be reused by each layer.
 """
 
 from dataclasses import dataclass
+
+import cv2
 import numpy as np
 
 
@@ -67,10 +69,10 @@ def recenter_radial_contour(origin, radii):
     """Re-express a radial contour about the centroid of its enclosed area.
 
     ``radii`` is interpreted on a uniform angular grid about ``origin``. The
-    corresponding Cartesian polygon is used to calculate the standard area
-    centroid. The same detected boundary is then converted back to polar
-    coordinates about that centroid and interpolated onto a uniform angular
-    grid with the original number of samples.
+    corresponding Cartesian polygon is passed to OpenCV for its spatial
+    moments and area centroid. The same detected boundary is then converted
+    back to polar coordinates about that centroid and interpolated onto a
+    uniform angular grid with the original number of samples.
 
     Parameters
     ----------
@@ -103,19 +105,13 @@ def recenter_radial_contour(origin, radii):
     x = origin[0] + radii * np.cos(theta)
     y = origin[1] + radii * np.sin(theta)
 
-    next_x = np.roll(x, -1)
-    next_y = np.roll(y, -1)
-    cross = x * next_y - next_x * y
-    signed_area_twice = float(np.sum(cross))
-    if np.isclose(signed_area_twice, 0.0):
+    contour = np.column_stack((x, y)).astype(np.float32)
+    moments = cv2.moments(contour)
+    if np.isclose(moments["m00"], 0.0):
         raise ValueError("contour must enclose non-zero area")
 
-    centroid_x = float(
-        np.sum((x + next_x) * cross) / (3.0 * signed_area_twice)
-    )
-    centroid_y = float(
-        np.sum((y + next_y) * cross) / (3.0 * signed_area_twice)
-    )
+    centroid_x = float(moments["m10"] / moments["m00"])
+    centroid_y = float(moments["m01"] / moments["m00"])
     centroid = (centroid_x, centroid_y)
 
     dx = x - centroid_x
