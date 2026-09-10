@@ -127,7 +127,7 @@ def process_trace_plot(args: argparse.Namespace) -> tuple[Path, Path]:
             background = frames[args.background_frame]
 
     config = EdgeTracePlotConfig(
-        centered=background is None,
+        centered=True,
         contour=args.contour,
         cmap=args.cmap,
         linewidth=args.linewidth,

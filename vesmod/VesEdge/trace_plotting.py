@@ -39,21 +39,24 @@ class EdgeTracePlotConfig:
 def centered_contour_coordinates(
     contour: ImageContour,
     pixels_per_micron: float,
+    reference_origin: tuple[float, float] | None = None,
 ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
-    """Return a contour centered on its detected origin in microns.
+    """Return a contour centered on an origin and scaled to microns.
 
     ``ImageContour.x`` and ``ImageContour.y`` are expressed in source-image
-    coordinates and therefore include the detected origin (the vesicle's
-    frame-to-frame translation).  Trace plots need shape coordinates rather
-    than that translation, so this helper intentionally uses only ``r`` and
-    ``theta``.  The returned arrays are closed for direct plotting.
+    coordinates and therefore include the detected origin. By default, the
+    contour is centered on its own detected origin. ``reference_origin`` can
+    be supplied to express it relative to a shared origin, such as the first
+    frame in a trace series. The returned arrays are closed for direct
+    plotting.
     """
     scale = float(pixels_per_micron)
     if not np.isfinite(scale) or scale <= 0:
         raise ValueError("pixels_per_micron must be finite and positive.")
-    x = contour.r * np.cos(contour.theta) / scale
-    y = contour.r * np.sin(contour.theta) / scale
-    return np.append(x, x[0]), np.append(y, y[0])
+    origin = contour.origin if reference_origin is None else reference_origin
+    x = (contour.x - origin[0]) / scale
+    y = (contour.y - origin[1]) / scale
+    return x, y
 
 
 def select_trace_detections(
@@ -117,13 +120,14 @@ def plot_edge_traces(
     """Plot selected contours with color indicating source-frame time.
 
     With ``centered=True`` contours are centered independently and converted
-    to microns using the checkpoint calibration. With ``centered=False`` they
-    remain in source-image pixel coordinates, which is required for an image
-    background. A supplied background is displayed with ``origin='upper'`` so
-    its pixel coordinates align with the contour coordinates.
+    to microns when no background is supplied. With a background, they are
+    instead expressed in source-image pixels relative to the first selected
+    contour's origin. With ``centered=False`` they remain in raw source-image
+    pixel coordinates. A supplied background is shifted into the same
+    coordinate system as the contours when centered plotting is enabled.
     """
     if config is None:
-        config = EdgeTracePlotConfig(centered=background is None)
+        config = EdgeTracePlotConfig()
     overrides = {
         "centered": centered,
         "contour": contour,
@@ -141,9 +145,6 @@ def plot_edge_traces(
                 if value is not None
             },
         )
-    if background is not None and config.centered:
-        raise ValueError("A background requires centered=False.")
-
     detections = select_trace_detections(edges, frame_indices)
     requested_indices = [detection.frame_index for detection in detections]
     if any(index is None for index in requested_indices):
@@ -163,7 +164,21 @@ def plot_edge_traces(
         axis = ax
         figure = axis.figure
 
-    if background is not None:
+    reference_origin = None
+    if background is not None and config.centered:
+        reference_origin = detections[0].full_contour.origin
+        axis.imshow(
+            background,
+            origin="upper",
+            cmap="gray",
+            extent=(
+                -reference_origin[0],
+                background.shape[1] - reference_origin[0],
+                background.shape[0] - reference_origin[1],
+                -reference_origin[1],
+            ),
+        )
+    elif background is not None:
         axis.imshow(background, origin="upper", cmap="gray")
 
     units = "pixels"
@@ -176,9 +191,12 @@ def plot_edge_traces(
         if config.centered:
             x, y = centered_contour_coordinates(
                 contour,
-                edges.extraction_config.pixels_per_micron,
+                1.0
+                if background is not None
+                else edges.extraction_config.pixels_per_micron,
+                reference_origin=reference_origin,
             )
-            units = "microns"
+            units = "pixels" if background is not None else "microns"
         else:
             x = contour.x
             y = contour.y
@@ -192,8 +210,18 @@ def plot_edge_traces(
         )
 
     if background is not None:
-        axis.set_xlim(0, background.shape[1])
-        axis.set_ylim(background.shape[0], 0)
+        if reference_origin is None:
+            axis.set_xlim(0, background.shape[1])
+            axis.set_ylim(background.shape[0], 0)
+        else:
+            axis.set_xlim(
+                -reference_origin[0],
+                background.shape[1] - reference_origin[0],
+            )
+            axis.set_ylim(
+                background.shape[0] - reference_origin[1],
+                -reference_origin[1],
+            )
         axis.set_aspect("equal")
         axis.set_xlabel("x (pixels)")
         axis.set_ylabel("y (pixels)")

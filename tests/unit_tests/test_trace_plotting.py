@@ -66,7 +66,7 @@ def test_plot_edge_traces_centers_and_scales_contours():
 
 
 def test_centered_contour_coordinates_remove_frame_to_frame_translation():
-    """Rigid origin translations do not alter centered trace coordinates."""
+    """Independent centering removes rigid origin translations."""
     radii = np.linspace(4.0, 6.0, 8)
     first = ImageContour((10, 20), radii)
     translated = ImageContour((410, -180), radii)
@@ -74,8 +74,26 @@ def test_centered_contour_coordinates_remove_frame_to_frame_translation():
     first_xy = centered_contour_coordinates(first, 2.0)
     translated_xy = centered_contour_coordinates(translated, 2.0)
 
-    np.testing.assert_allclose(first_xy[0], translated_xy[0])
-    np.testing.assert_allclose(first_xy[1], translated_xy[1])
+    np.testing.assert_allclose(first_xy[0], translated_xy[0], atol=1e-12)
+    np.testing.assert_allclose(first_xy[1], translated_xy[1], atol=1e-12)
+
+
+def test_plot_edge_traces_with_background_uses_first_origin_as_reference():
+    """Background mode removes translation relative to the first trace frame."""
+    background = np.zeros((40, 50))
+    figure, axis = plot_edge_traces(
+        _edges(),
+        [0, 1],
+        background=background,
+        config=EdgeTracePlotConfig(centered=True, show_colorbar=False),
+    )
+
+    first_line, second_line = axis.lines
+    assert first_line.get_xdata()[0] == pytest.approx(4)
+    assert second_line.get_xdata()[0] == pytest.approx(6)
+    assert axis.get_xlim() == pytest.approx((-10, 40))
+    assert axis.get_ylim() == pytest.approx((20, -20))
+    figure.clf()
 
 
 def test_plot_edge_traces_aligns_background_in_pixel_coordinates():
@@ -94,17 +112,6 @@ def test_plot_edge_traces_aligns_background_in_pixel_coordinates():
     assert axis.get_xlim() == (0, 50)
     assert axis.get_ylim() == (40, 0)
     figure.clf()
-
-
-def test_plot_edge_traces_rejects_centered_background():
-    """A centered contour cannot be overlaid on native image coordinates."""
-    with pytest.raises(ValueError, match="centered=False"):
-        plot_edge_traces(
-            _edges(),
-            [0],
-            background=np.zeros((10, 10)),
-            config=EdgeTracePlotConfig(centered=True),
-        )
 
 
 def test_process_trace_plot_records_checkpoint_source_path(tmp_path, monkeypatch):
