@@ -65,30 +65,26 @@ def fit_radial_baseline(radii, order):
     return RadialBaselineFit(np.fft.ifft(spectrum).real, order)
 
 
-def recenter_radial_contour(origin, radii):
-    """Re-express a radial contour about the centroid of its enclosed area.
+def radial_contour_centroid(origin, radii):
+    """Return the area centroid of a uniformly sampled radial contour.
 
     ``radii`` is interpreted on a uniform angular grid about ``origin``. The
     corresponding Cartesian polygon is passed to OpenCV for its spatial
-    moments and area centroid. Moments are evaluated in coordinates relative
-    to ``origin`` so translating the same contour does not lose precision when
-    OpenCV converts contour coordinates to single precision. The same detected
-    boundary is then converted back to polar coordinates about the centroid and
-    interpolated onto a uniform angular grid with the original number of
-    samples.
+    moments. Moments are evaluated in coordinates relative to ``origin`` so a
+    rigid translation of the same contour does not lose precision when OpenCV
+    converts contour coordinates to single precision.
 
     Parameters
     ----------
     origin : tuple[float, float]
-        Cartesian ``(x, y)`` origin used by the input radial representation.
+        Cartesian ``(x, y)`` origin used by the radial representation.
     radii : numpy.ndarray
         Positive radial distances sampled uniformly over ``[0, 2π)``.
 
     Returns
     -------
-    tuple[tuple[float, float], numpy.ndarray]
-        The contour-area centroid in Cartesian ``(x, y)`` coordinates and the
-        radial values re-expressed about that centroid.
+    tuple[float, float]
+        Area centroid of the contour in Cartesian ``(x, y)`` coordinates.
 
     Raises
     ------
@@ -115,23 +111,7 @@ def recenter_radial_contour(origin, radii):
 
     centroid_relative_x = float(moments["m10"] / moments["m00"])
     centroid_relative_y = float(moments["m01"] / moments["m00"])
-    centroid = (
+    return (
         origin[0] + centroid_relative_x,
         origin[1] + centroid_relative_y,
     )
-
-    dx = x_relative - centroid_relative_x
-    dy = y_relative - centroid_relative_y
-    new_theta = np.mod(np.arctan2(dy, dx), 2.0 * np.pi)
-    new_radii = np.hypot(dx, dy)
-
-    order = np.argsort(new_theta)
-    target_theta = np.linspace(0.0, 2.0 * np.pi, radii.size, endpoint=False)
-    uniform_radii = np.interp(
-        target_theta,
-        new_theta[order],
-        new_radii[order],
-        period=2.0 * np.pi,
-    )
-
-    return centroid, uniform_radii
