@@ -19,6 +19,7 @@ from vesmod.VesEdge import (
     VesicleEdges,
     VesicleQCResult,
     centered_contour_coordinates,
+    contour_center_of_mass,
     plot_edge_traces,
     select_trace_detections,
 )
@@ -78,7 +79,16 @@ def test_centered_contour_coordinates_remove_frame_to_frame_translation():
     np.testing.assert_allclose(first_xy[1], translated_xy[1], atol=1e-12)
 
 
-def test_plot_edge_traces_with_background_anchors_to_first_origin():
+def test_contour_center_of_mass_is_independent_of_supplied_origin():
+    """The detected contour, not its polar origin, determines its center."""
+    contour = ImageContour((100, 200), np.array([10.0, 12.0, 10.0, 8.0]))
+
+    center = contour_center_of_mass(contour)
+
+    assert center == pytest.approx((100.0, 201.3333333333333))
+
+
+def test_plot_edge_traces_with_background_anchors_to_first_center():
     """Background mode preserves native coordinates while removing translation."""
     background = np.zeros((40, 50))
     figure, axis = plot_edge_traces(

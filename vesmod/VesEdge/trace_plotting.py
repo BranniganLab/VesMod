@@ -39,24 +39,47 @@ class EdgeTracePlotConfig:
 def centered_contour_coordinates(
     contour: ImageContour,
     pixels_per_micron: float,
-    reference_origin: tuple[float, float] | None = None,
+    reference_center: tuple[float, float] | None = None,
 ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
-    """Return a contour centered on an origin and scaled to microns.
+    """Return a contour centered on a reference point and scaled to microns.
 
     ``ImageContour.x`` and ``ImageContour.y`` are expressed in source-image
-    coordinates and therefore include the detected origin. By default, the
-    contour is centered on its own detected origin. ``reference_origin`` can
-    be supplied to express it relative to a shared origin, such as the first
-    frame in a trace series. The returned arrays are closed for direct
-    plotting.
+    coordinates and therefore include the supplied polar origin. By default,
+    the contour is centered on its detected-edge center of mass.
+    ``reference_center`` can be supplied to express it relative to a shared
+    center, such as the first frame in a trace series. The returned arrays are
+    closed for direct plotting.
     """
     scale = float(pixels_per_micron)
     if not np.isfinite(scale) or scale <= 0:
         raise ValueError("pixels_per_micron must be finite and positive.")
-    origin = contour.origin if reference_origin is None else reference_origin
-    x = (contour.x - origin[0]) / scale
-    y = (contour.y - origin[1]) / scale
+    center = (
+        contour_center_of_mass(contour)
+        if reference_center is None
+        else reference_center
+    )
+    x = (contour.x - center[0]) / scale
+    y = (contour.y - center[1]) / scale
     return x, y
+
+
+def contour_center_of_mass(contour: ImageContour) -> tuple[float, float]:
+    """Return the uniform-area center of mass enclosed by a contour.
+
+    The calculation uses the polygon formed by the detected edge, rather than
+    the origin used to construct its polar representation.
+    """
+    x = contour.x[:-1]
+    y = contour.y[:-1]
+    next_x = np.roll(x, -1)
+    next_y = np.roll(y, -1)
+    cross = x * next_y - next_x * y
+    twice_area = float(np.sum(cross))
+    if np.isclose(twice_area, 0.0):
+        raise ValueError("The contour must enclose a nonzero area.")
+    center_x = float(np.sum((x + next_x) * cross) / (3.0 * twice_area))
+    center_y = float(np.sum((y + next_y) * cross) / (3.0 * twice_area))
+    return center_x, center_y
 
 
 def select_trace_detections(
@@ -119,10 +142,12 @@ def plot_edge_traces(
 ) -> tuple[plt.Figure, plt.Axes]:
     """Plot selected contours with color indicating source-frame time.
 
-    With ``centered=True`` contours are centered independently and converted
-    to microns when no background is supplied. With a background, contours are
-    translated so their origins remain at the first selected contour's origin,
-    while the background remains in native source-image pixel coordinates.
+    With ``centered=True`` contours are centered independently on their
+    detected-edge centers of mass and converted to microns when no background
+    is supplied. With a background, contours are translated so their
+    detected-edge centers of mass remain at the first selected contour's
+    center, while the background remains in native source-image pixel
+    coordinates.
     With ``centered=False`` contours remain in raw source-image pixel
     coordinates without stabilization.
     """
@@ -164,9 +189,21 @@ def plot_edge_traces(
         axis = ax
         figure = axis.figure
 
-    reference_origin = None
+    contour_centers = (
+        {
+            id(detection): contour_center_of_mass(
+                detection.full_contour
+                if config.contour == "full"
+                else detection.analysis_contour
+            )
+            for detection in detections
+        }
+        if config.centered
+        else {}
+    )
+    reference_center = None
     if background is not None and config.centered:
-        reference_origin = detections[0].full_contour.origin
+        reference_center = contour_centers[id(detections[0])]
         axis.imshow(background, origin="upper", cmap="gray")
     elif background is not None:
         axis.imshow(background, origin="upper", cmap="gray")
@@ -179,15 +216,17 @@ def plot_edge_traces(
             else detection.analysis_contour
         )
         if config.centered:
+            detected_center = contour_centers[id(detection)]
             x, y = centered_contour_coordinates(
                 contour,
                 1.0
                 if background is not None
                 else edges.extraction_config.pixels_per_micron,
+                reference_center=detected_center,
             )
-            if reference_origin is not None:
-                x += reference_origin[0]
-                y += reference_origin[1]
+            if reference_center is not None:
+                x += reference_center[0]
+                y += reference_center[1]
             units = "pixels" if background is not None else "microns"
         else:
             x = contour.x
