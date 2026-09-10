@@ -61,3 +61,75 @@ def fit_radial_baseline(radii, order):
     else:
         spectrum[order + 1 : -order] = 0
     return RadialBaselineFit(np.fft.ifft(spectrum).real, order)
+
+
+def recenter_radial_contour(origin, radii):
+    """Re-express a radial contour about the centroid of its enclosed area.
+
+    ``radii`` is interpreted on a uniform angular grid about ``origin``. The
+    corresponding Cartesian polygon is used to calculate the standard area
+    centroid. The same detected boundary is then converted back to polar
+    coordinates about that centroid and interpolated onto a uniform angular
+    grid with the original number of samples.
+
+    Parameters
+    ----------
+    origin : tuple[float, float]
+        Cartesian ``(x, y)`` origin used by the input radial representation.
+    radii : numpy.ndarray
+        Positive radial distances sampled uniformly over ``[0, 2π)``.
+
+    Returns
+    -------
+    tuple[tuple[float, float], numpy.ndarray]
+        The contour-area centroid in Cartesian ``(x, y)`` coordinates and the
+        radial values re-expressed about that centroid.
+
+    Raises
+    ------
+    TypeError
+        If ``radii`` is not a one-dimensional NumPy array.
+    ValueError
+        If fewer than three samples are provided or the contour encloses zero
+        area.
+    """
+    if not isinstance(radii, np.ndarray) or radii.ndim != 1:
+        raise TypeError("radii must be a 1D numpy array")
+    if radii.size < 3:
+        raise ValueError("radii must contain at least three samples")
+
+    radii = np.asarray(radii, dtype=float)
+    theta = np.linspace(0.0, 2.0 * np.pi, radii.size, endpoint=False)
+    x = origin[0] + radii * np.cos(theta)
+    y = origin[1] + radii * np.sin(theta)
+
+    next_x = np.roll(x, -1)
+    next_y = np.roll(y, -1)
+    cross = x * next_y - next_x * y
+    signed_area_twice = float(np.sum(cross))
+    if np.isclose(signed_area_twice, 0.0):
+        raise ValueError("contour must enclose non-zero area")
+
+    centroid_x = float(
+        np.sum((x + next_x) * cross) / (3.0 * signed_area_twice)
+    )
+    centroid_y = float(
+        np.sum((y + next_y) * cross) / (3.0 * signed_area_twice)
+    )
+    centroid = (centroid_x, centroid_y)
+
+    dx = x - centroid_x
+    dy = y - centroid_y
+    new_theta = np.mod(np.arctan2(dy, dx), 2.0 * np.pi)
+    new_radii = np.hypot(dx, dy)
+
+    order = np.argsort(new_theta)
+    target_theta = np.linspace(0.0, 2.0 * np.pi, radii.size, endpoint=False)
+    uniform_radii = np.interp(
+        target_theta,
+        new_theta[order],
+        new_radii[order],
+        period=2.0 * np.pi,
+    )
+
+    return centroid, uniform_radii
