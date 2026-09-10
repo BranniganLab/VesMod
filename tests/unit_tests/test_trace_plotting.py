@@ -78,8 +78,8 @@ def test_centered_contour_coordinates_remove_frame_to_frame_translation():
     np.testing.assert_allclose(first_xy[1], translated_xy[1], atol=1e-12)
 
 
-def test_plot_edge_traces_with_background_uses_first_origin_as_reference():
-    """Background mode removes translation relative to the first trace frame."""
+def test_plot_edge_traces_with_background_anchors_to_first_origin():
+    """Background mode preserves native coordinates while removing translation."""
     background = np.zeros((40, 50))
     figure, axis = plot_edge_traces(
         _edges(),
@@ -89,10 +89,10 @@ def test_plot_edge_traces_with_background_uses_first_origin_as_reference():
     )
 
     first_line, second_line = axis.lines
-    assert first_line.get_xdata()[0] == pytest.approx(4)
-    assert second_line.get_xdata()[0] == pytest.approx(6)
-    assert axis.get_xlim() == pytest.approx((-10, 40))
-    assert axis.get_ylim() == pytest.approx((20, -20))
+    assert first_line.get_xdata()[0] == pytest.approx(14)
+    assert second_line.get_xdata()[0] == pytest.approx(15)
+    assert axis.get_xlim() == pytest.approx((0, 50))
+    assert axis.get_ylim() == pytest.approx((40, 0))
     figure.clf()
 
 
