@@ -12,34 +12,40 @@ from skimage.measure import regionprops
 import matplotlib.pyplot as plt
 import numpy as np
 from .vesicle_video_utils import wrap_image_to_polar, isolate_region_of_array, convert_to_cartesian
-from .contour_geometry import fit_radial_baseline, recenter_radial_contour
+from .contour_geometry import fit_radial_baseline, radial_contour_centroid
+
+
+_ORIGIN_REFINEMENT_TOLERANCE_PIXELS = 0.05
+_MAX_ORIGIN_REFINEMENTS = 3
 
 
 def extract_edge_from_frame(frame, debug_path=None):
-    """
-    Extract vesicle edge from frame of vesicle video.
+    """Extract a vesicle edge from one image frame.
 
-    The image-derived center is used only as a detection origin for polar edge
-    extraction. After the edge is detected, the contour is recentered on the
-    geometric centroid of its enclosed area and the returned radial values are
-    re-expressed on a uniform angular grid about that contour origin.
+    The image-derived center is used as the initial polar-extraction origin.
+    After each extraction, the centroid of the detected contour is calculated.
+    If that centroid differs appreciably from the origin used for extraction,
+    the edge is extracted again directly from the image using the updated
+    origin. The returned radii are therefore always measurements made about the
+    returned origin; they are never geometrically reparameterized from a
+    contour measured about a different origin.
 
     Parameters
     ----------
     frame : numpy ndarray
         The 2D array of intensity values from a vesicle video frame.
-    debug_path : pathlib Path, optional
-        If not None, output debug images to debug_path directory. The default is None.
+    debug_path : pathlib.Path, optional
+        If not None, output debug images to ``debug_path`` and skip normal edge
+        extraction.
 
     Returns
     -------
-    r_vals : numpy ndarray
-        1D array of distances from the detected contour centroid to the
+    r_vals : numpy.ndarray
+        One-dimensional distances from ``contour_origin`` to the detected
         vesicle edge, evenly spaced in theta from 0 to 2pi.
     contour_origin : tuple
-        The row, column coordinates of the geometric centroid of the detected
-        contour.
-
+        Row, column coordinates of the origin actually used to measure
+        ``r_vals``.
     """
     if debug_path is not None:
         debug_path = Path(debug_path)
@@ -47,38 +53,56 @@ def extract_edge_from_frame(frame, debug_path=None):
         _make_debug_image(frame, debug_path)
         return None, None
 
-    # step 1: find an internal vesicle point for edge detection
-    detection_origin = approximate_vesicle_com(frame)
+    origin = approximate_vesicle_com(frame)
 
-    # step 2: naive refinement of edge region
-    polar_sobel, scaling_factor = wrap_image_to_polar(filters.sobel(frame), detection_origin)
+    for _ in range(_MAX_ORIGIN_REFINEMENTS):
+        r_vals = _extract_edge_from_origin(frame, origin)
+        centroid_xy = radial_contour_centroid(
+            (origin[1], origin[0]),
+            r_vals,
+        )
+        centroid = (centroid_xy[1], centroid_xy[0])
+
+        shift = np.hypot(
+            centroid[0] - origin[0],
+            centroid[1] - origin[1],
+        )
+        if shift <= _ORIGIN_REFINEMENT_TOLERANCE_PIXELS:
+            return r_vals, origin
+
+        origin = centroid
+
+    # Measure once more from the final refined origin so the stored radii and
+    # stored origin always describe the same direct image extraction.
+    return _extract_edge_from_origin(frame, origin), origin
+
+
+def _extract_edge_from_origin(frame, origin):
+    """Measure radial edge distances directly from ``frame`` about ``origin``."""
+    # step 1: naive refinement of edge region
+    polar_sobel, scaling_factor = wrap_image_to_polar(filters.sobel(frame), origin)
     avg = np.mean(np.argmax(polar_sobel, axis=1))
     vertically_masked_polar_sobel = isolate_region_of_array(polar_sobel, avg, 0.25)
     max_of_masked_region = np.argmax(vertically_masked_polar_sobel, axis=1)
 
-    # step 3: FFT-informed refinement of edge region
+    # step 2: FFT-informed refinement of edge region
     approx_edge = fit_radial_baseline(max_of_masked_region, order=7).values
 
-    # wrap original image to polar
-    original_frame_polar, _ = wrap_image_to_polar(frame, detection_origin)
+    # step 3: wrap the original image to polar about the requested origin
+    original_frame_polar, _ = wrap_image_to_polar(frame, origin)
 
     # step 4: horizontal Sobel filter and apply FFT-informed mask
     horizontal_sobel = filters.sobel(original_frame_polar, axis=1)
     gauss_blur = ndimage.gaussian_filter(horizontal_sobel, sigma=2)
-    fft_masked_horizontal_sobel = isolate_region_of_array(gauss_blur, approx_edge, 0.05, True)
+    fft_masked_horizontal_sobel = isolate_region_of_array(
+        gauss_blur,
+        approx_edge,
+        0.05,
+        True,
+    )
     max_sobel = np.nanargmax(fft_masked_horizontal_sobel, axis=1)
 
-    detected_radii = np.array(max_sobel) / scaling_factor
-
-    # step 5: define the measured contour about its own geometric centroid
-    detection_origin_xy = (detection_origin[1], detection_origin[0])
-    contour_origin_xy, r_vals = recenter_radial_contour(
-        detection_origin_xy,
-        detected_radii,
-    )
-    contour_origin = (contour_origin_xy[1], contour_origin_xy[0])
-
-    return r_vals, contour_origin
+    return np.array(max_sobel) / scaling_factor
 
 
 def _make_debug_image(frame, output_path):
