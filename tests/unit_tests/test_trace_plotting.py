@@ -18,6 +18,7 @@ from vesmod.VesEdge import (
     ImageContour,
     VesicleEdges,
     VesicleQCResult,
+    centered_contour_coordinates,
     plot_edge_traces,
     select_trace_detections,
 )
@@ -62,6 +63,19 @@ def test_plot_edge_traces_centers_and_scales_contours():
     assert np.max(np.abs(line.get_ydata())) == pytest.approx(2)
     assert axis.get_xlabel() == "x (microns)"
     figure.clf()
+
+
+def test_centered_contour_coordinates_remove_frame_to_frame_translation():
+    """Rigid origin translations do not alter centered trace coordinates."""
+    radii = np.linspace(4.0, 6.0, 8)
+    first = ImageContour((10, 20), radii)
+    translated = ImageContour((410, -180), radii)
+
+    first_xy = centered_contour_coordinates(first, 2.0)
+    translated_xy = centered_contour_coordinates(translated, 2.0)
+
+    np.testing.assert_allclose(first_xy[0], translated_xy[0])
+    np.testing.assert_allclose(first_xy[1], translated_xy[1])
 
 
 def test_plot_edge_traces_aligns_background_in_pixel_coordinates():

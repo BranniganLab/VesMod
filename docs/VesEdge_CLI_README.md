@@ -57,7 +57,8 @@ vesedge plot-traces "./checkpoints/sample.npz" \
     --output ./figures/sample_traces.png
 ```
 
-Without a background, traces are centered on their own detected origins and
+Without a background, traces are centered on their own detected origins (the
+frame-to-frame center-of-mass translation is removed) and
 the axes are in microns. To align the contours with a source-video image,
 provide a source frame; the figure then uses native image-pixel coordinates:
 

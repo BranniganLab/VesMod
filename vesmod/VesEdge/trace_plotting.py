@@ -11,7 +11,7 @@ from matplotlib.cm import ScalarMappable
 import numpy as np
 from numpy.typing import NDArray
 
-from .models import EdgeDetection
+from .models import EdgeDetection, ImageContour
 from .vesicle_edges import VesicleEdges
 
 
@@ -34,6 +34,26 @@ class EdgeTracePlotConfig:
             raise ValueError("linewidth must be positive.")
         if not 0 < self.alpha <= 1:
             raise ValueError("alpha must be greater than 0 and at most 1.")
+
+
+def centered_contour_coordinates(
+    contour: ImageContour,
+    pixels_per_micron: float,
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    """Return a contour centered on its detected origin in microns.
+
+    ``ImageContour.x`` and ``ImageContour.y`` are expressed in source-image
+    coordinates and therefore include the detected origin (the vesicle's
+    frame-to-frame translation).  Trace plots need shape coordinates rather
+    than that translation, so this helper intentionally uses only ``r`` and
+    ``theta``.  The returned arrays are closed for direct plotting.
+    """
+    scale = float(pixels_per_micron)
+    if not np.isfinite(scale) or scale <= 0:
+        raise ValueError("pixels_per_micron must be finite and positive.")
+    x = contour.r * np.cos(contour.theta) / scale
+    y = contour.r * np.sin(contour.theta) / scale
+    return np.append(x, x[0]), np.append(y, y[0])
 
 
 def select_trace_detections(
@@ -153,19 +173,15 @@ def plot_edge_traces(
             if config.contour == "full"
             else detection.analysis_contour
         )
-        theta = contour.theta
-        x = contour.r * np.cos(theta)
-        y = contour.r * np.sin(theta)
         if config.centered:
-            scale = edges.extraction_config.pixels_per_micron
-            x = x / scale
-            y = y / scale
+            x, y = centered_contour_coordinates(
+                contour,
+                edges.extraction_config.pixels_per_micron,
+            )
             units = "microns"
         else:
-            x = x + contour.origin[0]
-            y = y + contour.origin[1]
-        x = np.append(x, x[0])
-        y = np.append(y, y[0])
+            x = contour.x
+            y = contour.y
         frame_value = float(detection.frame_index)
         axis.plot(
             x,
