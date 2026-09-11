@@ -183,6 +183,7 @@ def test_process_gif_file_selects_annotation_style(
 
     class FakeVideo:
         def __init__(self, frames, source_path=None):
+            self.source_path = source_path
             observed["frames"] = frames
             observed["frame_shape"] = frames.shape
             observed["source_path"] = source_path
