@@ -11,6 +11,9 @@ import numpy as np
 from numpy.typing import NDArray
 
 
+_ND2_READER_MEMORY_BUDGET_BYTES = 100 * 1024**2
+
+
 @runtime_checkable
 class FrameSource(Protocol):
     """A bounded-memory, random-access sequence of two-dimensional frames."""
@@ -107,6 +110,7 @@ class ND2FrameSource:
     ) -> None:
         self.path = Path(path).expanduser().resolve()
         self._file = nd2.ND2File(self.path)
+        self._bytes_since_reopen = 0
         self._selection = {
             str(axis).upper(): int(index)
             for axis, index in (axis_selection or {}).items()
@@ -158,6 +162,12 @@ class ND2FrameSource:
             )
         )
 
+    def _reopen(self) -> None:
+        """Recycle the ND2 reader so accessed file-backed pages can be released."""
+        self._file.close()
+        self._file = nd2.ND2File(self.path)
+        self._bytes_since_reopen = 0
+
     @property
     def shape(self) -> tuple[int, int, int]:
         """Return selected ``(frames, height, width)`` dimensions."""
@@ -183,7 +193,13 @@ class ND2FrameSource:
     def __getitem__(self, index: int) -> NDArray[np.number]:
         if index < 0 or index >= len(self):
             raise IndexError(f"frame index must be between 0 and {len(self) - 1}.")
-        frame = np.asarray(self._file.read_frame(self._sequence_indices[index]))
+        if self._bytes_since_reopen >= _ND2_READER_MEMORY_BUDGET_BYTES:
+            self._reopen()
+
+        raw_frame = np.asarray(self._file.read_frame(self._sequence_indices[index]))
+        frame = np.array(raw_frame, copy=True)
+        self._bytes_since_reopen += raw_frame.nbytes
+
         channel_count = int(self._file.sizes.get("C", 1))
         if channel_count > 1:
             channel = self._selection["C"]
