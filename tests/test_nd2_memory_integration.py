@@ -18,6 +18,7 @@ import pytest
 
 
 _ND2_MEMORY_TEST_ENV = "VESMOD_ND2_MEMORY_TEST"
+_ND2_MEMORY_TEST_AXIS_SELECTION_ENV = "VESMOD_ND2_MEMORY_TEST_AXIS_SELECTION"
 
 
 @pytest.mark.skipif(sys.platform != "linux", reason="requires Linux /proc RSS accounting")
@@ -25,10 +26,10 @@ def test_real_nd2_sequential_reads_have_bounded_file_backed_rss():
     """Touching many real ND2 frames must not produce linear RssFile growth.
 
     Set ``VESMOD_ND2_MEMORY_TEST`` to a representative ND2 acquisition. The
+    optional ``VESMOD_ND2_MEMORY_TEST_AXIS_SELECTION`` is a JSON object mapping
+    non-time axes such as ``P``, ``Z``, or ``C`` to selected indices. The
     workload runs in a fresh Python process, touches every pixel, and spans five
-    reader-memory-budget windows. Comparing the first and last windows avoids
-    making the assertion depend on the parent pytest process or its allocator
-    state.
+    reader-memory-budget windows.
     """
     configured_path = os.environ.get(_ND2_MEMORY_TEST_ENV)
     if configured_path is None:
@@ -41,12 +42,31 @@ def test_real_nd2_sequential_reads_have_bounded_file_backed_rss():
     if not nd2_path.is_file():
         pytest.fail(f"{_ND2_MEMORY_TEST_ENV} does not exist: {nd2_path}")
 
+    configured_selection = os.environ.get(
+        _ND2_MEMORY_TEST_AXIS_SELECTION_ENV,
+        "{}",
+    )
+    try:
+        parsed_selection = json.loads(configured_selection)
+        if not isinstance(parsed_selection, dict):
+            raise TypeError("axis selection must be a JSON object")
+        axis_selection = {
+            str(axis).upper(): int(index)
+            for axis, index in parsed_selection.items()
+        }
+    except (TypeError, ValueError, json.JSONDecodeError) as exc:
+        pytest.fail(
+            f"{_ND2_MEMORY_TEST_AXIS_SELECTION_ENV} must be a JSON object "
+            f"mapping axis names to integer indices: {exc}"
+        )
+
     worker = textwrap.dedent(
         """
         import json
         import math
         import sys
 
+        import nd2
         import numpy as np
 
         from vesmod.VesEdge.frame_source import (
@@ -64,7 +84,29 @@ def test_real_nd2_sequential_reads_have_bounded_file_backed_rss():
 
 
         path = sys.argv[1]
-        with ND2FrameSource(path) as probe:
+        axis_selection = json.loads(sys.argv[2])
+
+        with nd2.ND2File(path) as nd2_file:
+            ambiguous_axes = [
+                axis
+                for axis, size in nd2_file.sizes.items()
+                if axis not in {"T", "Y", "X"}
+                and size > 1
+                and axis not in axis_selection
+            ]
+        if ambiguous_axes:
+            print(
+                json.dumps(
+                    {
+                        "skip": True,
+                        "reason": "ambiguous_axes",
+                        "axes": ambiguous_axes,
+                    }
+                )
+            )
+            raise SystemExit(0)
+
+        with ND2FrameSource(path, axis_selection=axis_selection) as probe:
             first = probe[0]
             np.sum(first)
             bytes_per_read = probe._bytes_since_reopen
@@ -80,6 +122,7 @@ def test_real_nd2_sequential_reads_have_bounded_file_backed_rss():
                 json.dumps(
                     {
                         "skip": True,
+                        "reason": "too_short",
                         "available_frames": available_frames,
                         "required_frames": required_frames,
                         "frames_per_window": frames_per_window,
@@ -88,7 +131,7 @@ def test_real_nd2_sequential_reads_have_bounded_file_backed_rss():
             )
             raise SystemExit(0)
 
-        with ND2FrameSource(path) as source:
+        with ND2FrameSource(path, axis_selection=axis_selection) as source:
             window_peaks = []
             for window in range(5):
                 peak = 0
@@ -115,7 +158,13 @@ def test_real_nd2_sequential_reads_have_bounded_file_backed_rss():
     )
 
     completed = subprocess.run(
-        [sys.executable, "-c", worker, str(nd2_path)],
+        [
+            sys.executable,
+            "-c",
+            worker,
+            str(nd2_path),
+            json.dumps(axis_selection),
+        ],
         check=True,
         capture_output=True,
         text=True,
@@ -123,6 +172,13 @@ def test_real_nd2_sequential_reads_have_bounded_file_backed_rss():
     result = json.loads(completed.stdout.strip().splitlines()[-1])
 
     if result["skip"]:
+        if result["reason"] == "ambiguous_axes":
+            axes = ", ".join(result["axes"])
+            pytest.skip(
+                "ND2 acquisition has unsupported ambiguous non-time axes "
+                f"({axes}); set {_ND2_MEMORY_TEST_AXIS_SELECTION_ENV} to a "
+                "JSON selection such as '{\"Z\": 0, \"C\": 0}'"
+            )
         pytest.skip(
             "ND2 acquisition is too short to exercise five reader-memory "
             f"windows: {result['available_frames']} frames available, "
