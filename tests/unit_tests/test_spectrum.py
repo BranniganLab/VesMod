@@ -13,9 +13,9 @@ from vesmod.VesEdge import (
     EdgeDetection,
     EdgeDetectionFailure,
     EdgeExtractionConfig,
-    EdgeQCConfig,
     QCFlag,
     VesicleEdges,
+    VesicleQCConfig,
 )
 from vesmod.VesEdge.models import ImageContour
 
@@ -55,7 +55,7 @@ def test_init_from_vesicle_edges_uses_only_accepted_detections():
         pixels_per_micron=2.0,
         n_angular_samples=4,
     )
-    qc_config = EdgeQCConfig(
+    qc_config = VesicleQCConfig(
         curvature_threshold=10.0,
         enable_curvature_qc=False,
         enable_area_qc=False,
