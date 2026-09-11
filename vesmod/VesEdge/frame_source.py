@@ -197,15 +197,15 @@ class ND2FrameSource:
             self._reopen()
 
         raw_frame = np.asarray(self._file.read_frame(self._sequence_indices[index]))
-        frame = np.array(raw_frame, copy=True)
         self._bytes_since_reopen += raw_frame.nbytes
 
         channel_count = int(self._file.sizes.get("C", 1))
         if channel_count > 1:
             channel = self._selection["C"]
-            if frame.shape[0] != channel_count:
+            if raw_frame.shape[0] != channel_count:
                 raise ValueError("Unexpected channel layout returned by ND2 reader.")
-            frame = frame[channel]
+            raw_frame = raw_frame[channel]
+        frame = np.array(raw_frame, copy=True)
         if frame.ndim != 2:
             raise ValueError("Selected ND2 frame is not two-dimensional.")
         return frame
