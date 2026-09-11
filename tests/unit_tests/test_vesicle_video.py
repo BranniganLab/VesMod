@@ -1,4 +1,4 @@
-"""Unit tests for vesicle_video.py."""
+"""Unit tests for vesicle video extraction and visualization helpers."""
 
 from types import SimpleNamespace
 
@@ -6,7 +6,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
-from vesmod.VesEdge import EdgeExtractionConfig, VesicleEdges, VesicleVideo
+from vesmod.VesEdge import (
+    EdgeExtractionConfig,
+    VesicleEdges,
+    VesicleVideo,
+    draw_vesicle_frame,
+    make_vesicle_gif,
+)
 from vesmod.VesEdge.models import EdgeDetection, EdgeDetectionFailure, QCFlag
 
 
@@ -178,12 +184,12 @@ def test_downsample_r_vals_rejects_more_samples_than_input():
         VesicleVideo._downsample_r_vals(np.ones(10), 20)
 
 
-def test_draw_frame_uses_supplied_axes():
+def test_draw_vesicle_frame_uses_supplied_axes():
     """Test frame rendering composes into a caller-owned Matplotlib figure."""
     video = VesicleVideo(np.stack([np.zeros((20, 20)), np.ones((20, 20))]))
     fig, axes = plt.subplots(1, 2)
 
-    video.draw_frame(axes[0], 1)
+    draw_vesicle_frame(video, axes[0], 1)
     axes[1].plot([0, 1], [0, 1])
 
     assert len(fig.axes) == 2
@@ -193,7 +199,7 @@ def test_draw_frame_uses_supplied_axes():
     plt.close(fig)
 
 
-def test_draw_frame_composes_frame_decorator_with_qc_colors(extraction_config):
+def test_draw_vesicle_frame_composes_decorator_with_qc_colors(extraction_config):
     """Test axes rendering retains standard accepted/rejected edge colors."""
     video = VesicleVideo(np.zeros((2, 20, 20)))
     detections = [
@@ -227,7 +233,8 @@ def test_draw_frame_composes_frame_decorator_with_qc_colors(extraction_config):
     fig, ax = plt.subplots()
     edges = FakeEdges(detections)
     for frame_index in range(2):
-        video.draw_frame(
+        draw_vesicle_frame(
+            video,
             ax,
             frame_index,
             edges,
@@ -252,7 +259,7 @@ def test_make_vesicle_gif_rejects_mismatched_edges(tmp_path, extraction_config):
     edges = VesicleEdges(extraction_config=extraction_config, detections=[edge])
 
     with pytest.raises(ValueError, match="1 detections and 2 frames"):
-        video.make_vesicle_gif(tmp_path / "video.gif", edges)
+        make_vesicle_gif(video, tmp_path / "video.gif", edges)
 
 
 def test_make_vesicle_gif_delegates_to_composable_api(tmp_path, monkeypatch):
@@ -263,10 +270,10 @@ def test_make_vesicle_gif_delegates_to_composable_api(tmp_path, monkeypatch):
     def fake_make_gif(path, panels):
         observed.append((path, panels))
 
-    monkeypatch.setattr("vesmod.VesEdge.vesicle_video.make_gif", fake_make_gif)
+    monkeypatch.setattr("vesmod.VesEdge.animation.make_gif", fake_make_gif)
 
     output_path = tmp_path / "video.gif"
-    video.make_vesicle_gif(output_path)
+    make_vesicle_gif(video, output_path)
 
     assert len(observed) == 1
     assert observed[0][0] == output_path
