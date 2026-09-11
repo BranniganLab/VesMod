@@ -14,9 +14,9 @@ from vesmod.VesEdge import (
     EdgeDetection,
     EdgeExtractionConfig,
     EdgeTracePlotConfig,
-    EdgeQCConfig,
     ImageContour,
     VesicleEdges,
+    VesicleQCConfig,
     VesicleQCResult,
     centered_contour_coordinates,
     contour_center_of_mass,
@@ -36,7 +36,7 @@ def _edges():
         for index in range(3)
     ]
     edges = VesicleEdges(EdgeExtractionConfig(pixels_per_micron=2), detections)
-    edges.qc_result = VesicleQCResult(config=EdgeQCConfig(curvature_threshold=1))
+    edges.qc_result = VesicleQCResult(config=VesicleQCConfig(curvature_threshold=1))
     return edges
 
 
