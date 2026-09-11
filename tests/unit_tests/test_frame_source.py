@@ -74,6 +74,56 @@ def test_nd2_source_reads_only_selected_sequence_frames(tmp_path, monkeypatch):
         assert source._file.read_indices == [1, 3]
 
 
+def test_nd2_source_recycles_reader_after_memory_budget(tmp_path, monkeypatch):
+    _TrackingND2File.instances = []
+    monkeypatch.setattr(frame_source.nd2, "ND2File", _TrackingND2File)
+    monkeypatch.setattr(frame_source, "_ND2_READER_MEMORY_BUDGET_BYTES", 95)
+
+    with open_frame_source(
+        tmp_path / "video.nd2",
+        axis_selection={"Z": 1},
+    ) as source:
+        first = source[0]
+        first_reader = _TrackingND2File.instances[0]
+        second = source[1]
+        second_reader = _TrackingND2File.instances[1]
+
+        assert first.flags.owndata
+        np.testing.assert_array_equal(first, np.full((3, 4), 1))
+        np.testing.assert_array_equal(second, np.full((3, 4), 3))
+        assert first_reader.closed
+        assert first_reader.read_indices == [1]
+        assert second_reader.read_indices == [3]
+
+
+def test_nd2_source_returns_frames_independent_of_reader(tmp_path, monkeypatch):
+    monkeypatch.setattr(frame_source.nd2, "ND2File", _FakeND2File)
+
+    with open_frame_source(
+        tmp_path / "video.nd2",
+        axis_selection={"Z": 1},
+    ) as source:
+        frame = source[0]
+        assert frame.flags.owndata
+
+    np.testing.assert_array_equal(frame, np.full((3, 4), 1))
+
+
+def test_nd2_source_copies_only_selected_channel(tmp_path, monkeypatch):
+    monkeypatch.setattr(frame_source.nd2, "ND2File", _FakeMultiChannelND2File)
+
+    with open_frame_source(
+        tmp_path / "video.nd2",
+        axis_selection={"C": 1},
+    ) as source:
+        frame = source[0]
+
+        np.testing.assert_array_equal(frame, np.full((3, 4), 1))
+        assert frame.flags.owndata
+        assert frame.base is None
+        assert source._bytes_since_reopen == 2 * frame.nbytes
+
+
 class _FakeND2File:
     sizes = {"T": 2, "Z": 2, "Y": 3, "X": 4}
     loop_indices = [
@@ -91,6 +141,34 @@ class _FakeND2File:
     def read_frame(self, index):
         self.read_indices.append(index)
         return np.full((3, 4), index)
+
+    def close(self):
+        self.closed = True
+
+
+class _TrackingND2File(_FakeND2File):
+    instances = []
+
+    def __init__(self, path):
+        super().__init__(path)
+        self.instances.append(self)
+
+
+class _FakeMultiChannelND2File:
+    sizes = {"T": 2, "C": 2, "Y": 3, "X": 4}
+    loop_indices = [{"T": 0}, {"T": 1}]
+
+    def __init__(self, path):
+        self.path = path
+        self.closed = False
+
+    def read_frame(self, index):
+        return np.stack(
+            [
+                np.full((3, 4), index * 10),
+                np.full((3, 4), index * 10 + 1),
+            ]
+        )
 
     def close(self):
         self.closed = True
