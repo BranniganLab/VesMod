@@ -16,7 +16,7 @@ import pytest
 
 from vesmod.VesEdge import (
     EdgeExtractionConfig,
-    EdgeQCConfig,
+    VesicleQCConfig,
     VesicleVideo,
     extract_edge_from_frame,
 )
@@ -79,7 +79,7 @@ def sample_edges(filename, processed_sample_edges):
         pixels_per_micron=1.0,
         n_angular_samples=120,
     )
-    qc_config = EdgeQCConfig(
+    qc_config = VesicleQCConfig(
         curvature_threshold=21.520619405632544,
         enable_curvature_qc=True,
         enable_area_qc=False,

@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from vesmod.VesEdge import ArrayFrameSource, EdgeQCConfig, load_recorded_qc
+from vesmod.VesEdge import ArrayFrameSource, VesicleQCConfig, load_recorded_qc
 from vesmod.cli import gif_cli, vesedge_cli
 
 
@@ -102,7 +102,7 @@ def test_apply_recorded_qc_verifies_paired_array(tmp_path):
     np.save(qc_path, expected)
     provenance = {
         "checkpoint_manifest": [str(checkpoint.resolve())],
-        "qc_config": EdgeQCConfig(curvature_threshold=5.0).to_dict(),
+        "qc_config": VesicleQCConfig(curvature_threshold=5.0).to_dict(),
     }
     (qc_dir / "vesedge_qc.json").write_text(json.dumps(provenance))
     selection = load_recorded_qc(qc_dir, [checkpoint])
@@ -136,7 +136,7 @@ def test_apply_recorded_qc_allows_all_rejected_without_array(tmp_path):
     qc_dir.mkdir()
     (qc_dir / "vesedge_qc.json").write_text(json.dumps({
         "checkpoint_manifest": [str(checkpoint.resolve())],
-        "qc_config": EdgeQCConfig(curvature_threshold=5.0).to_dict(),
+        "qc_config": VesicleQCConfig(curvature_threshold=5.0).to_dict(),
     }))
     selection = load_recorded_qc(qc_dir, [checkpoint])
     frames = ArrayFrameSource(np.zeros((2, 3, 4)))
@@ -183,13 +183,15 @@ def test_process_gif_file_selects_annotation_style(
 
     class FakeVideo:
         def __init__(self, frames, source_path=None):
+            self.source_path = source_path
             observed["frames"] = frames
             observed["frame_shape"] = frames.shape
             observed["source_path"] = source_path
 
-        def make_vesicle_gif(self, output_path, overlay):
-            observed["output_path"] = output_path
-            observed["overlay"] = overlay
+    def fake_make_vesicle_gif(video, output_path, overlay):
+        observed["video"] = video
+        observed["output_path"] = output_path
+        observed["overlay"] = overlay
 
     monkeypatch.setattr(
         gif_cli.VesicleEdges,
@@ -197,12 +199,14 @@ def test_process_gif_file_selects_annotation_style(
         lambda path: fake_edges,
     )
     monkeypatch.setattr(gif_cli, "VesicleVideo", FakeVideo)
+    monkeypatch.setattr(gif_cli, "make_vesicle_gif", fake_make_vesicle_gif)
     args = _args(tmp_path, checkpoint, style=style)
 
     gif_cli.process_gif_file(checkpoint, args, qc_selection=None)
 
     assert (observed["overlay"] is not None) is expects_overlay
     assert observed["output_path"] == tmp_path / "gifs" / "sample.gif"
+    assert observed["video"].source_path == source.resolve()
     assert observed["source_path"] == source.resolve()
     assert observed["frame_shape"] == (2, 5, 5)
 

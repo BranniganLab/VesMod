@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from vesmod.VesEdge import EdgeExtractionConfig, EdgeQCConfig, VesicleEdges
+from vesmod.VesEdge import EdgeExtractionConfig, VesicleEdges, VesicleQCConfig
 from vesmod.VesEdge.experimental.internal_vesicle_qc import (
     _coherent_outer_edge_coverage,
     _frame_enclosing_boundary_score,
@@ -36,7 +36,7 @@ def _ring_frame(*radii: float) -> np.ndarray:
 def test_large_selected_edge_skips_internal_vesicle_inspection():
     """A contour occupying at least half the image cannot be internal."""
     detection = _detection(radius=40.0)
-    config = EdgeQCConfig(
+    config = VesicleQCConfig(
         curvature_threshold=1.0,
         enable_internal_vesicle_qc=True,
     )
@@ -59,7 +59,7 @@ def test_persistent_larger_boundary_flags_internal_vesicle_selection():
     """A stable small trace inside a larger membrane rejects the trajectory."""
     detections = [_detection(radius=12.0, frame_index=index) for index in range(4)]
     frames = np.stack([_ring_frame(12.0, 32.0) for _ in detections])
-    config = EdgeQCConfig(
+    config = VesicleQCConfig(
         curvature_threshold=1.0,
         enable_internal_vesicle_qc=True,
     )
@@ -82,7 +82,7 @@ def test_trajectory_rejection_is_not_recorded_as_frame_rejection():
         EdgeExtractionConfig(n_angular_samples=120),
         detections,
     )
-    config = EdgeQCConfig(
+    config = VesicleQCConfig(
         curvature_threshold=1.0,
         enable_curvature_qc=False,
         enable_area_qc=False,
@@ -107,7 +107,7 @@ def test_isolated_outer_boundary_does_not_reject_video():
         [_ring_frame(12.0, 32.0)]
         + [_ring_frame(12.0) for _ in range(3)]
     )
-    config = EdgeQCConfig(
+    config = VesicleQCConfig(
         curvature_threshold=1.0,
         enable_internal_vesicle_qc=True,
         internal_vesicle_min_frame_fraction=0.5,
@@ -127,7 +127,7 @@ def test_incoherent_outer_peaks_do_not_form_enclosing_boundary():
     rng = np.random.default_rng(1234)
     outer_radii = rng.uniform(20.0, 60.0, size=120)
     outer_strengths = np.ones(120)
-    config = EdgeQCConfig(
+    config = VesicleQCConfig(
         curvature_threshold=1.0,
         enable_internal_vesicle_qc=True,
     )
@@ -152,7 +152,7 @@ def test_clipped_directions_count_as_missing_outer_boundary_evidence():
     )
     contour = ImageContour((0.0, 50.0), np.full(120, 12.0))
     detection = EdgeDetection(contour, contour, frame_index=0)
-    config = EdgeQCConfig(
+    config = VesicleQCConfig(
         curvature_threshold=1.0,
         enable_internal_vesicle_qc=True,
     )
@@ -169,7 +169,7 @@ def test_size_gate_does_not_read_lazy_frames():
     """Large contours are dismissed using metadata before any frame read."""
     source = _CountingFrameSource(np.stack([_ring_frame(40.0)] * 5))
     detections = [_detection(40.0, index) for index in range(5)]
-    config = EdgeQCConfig(
+    config = VesicleQCConfig(
         curvature_threshold=1.0,
         enable_internal_vesicle_qc=True,
     )
@@ -186,7 +186,7 @@ def test_sampling_reads_only_evenly_spaced_frames():
     """Inspection stays bounded by the configured frame sample."""
     source = _CountingFrameSource(np.stack([_ring_frame(12.0)] * 10))
     detections = [_detection(12.0, index) for index in range(10)]
-    config = EdgeQCConfig(
+    config = VesicleQCConfig(
         curvature_threshold=1.0,
         enable_internal_vesicle_qc=True,
         internal_vesicle_max_frames=4,
@@ -207,7 +207,7 @@ def test_insufficient_valid_sample_cannot_reject_trajectory():
         + [np.full((100, 100), np.nan) for _ in range(3)]
     )
     detections = [_detection(12.0, index) for index in range(4)]
-    config = EdgeQCConfig(
+    config = VesicleQCConfig(
         curvature_threshold=1.0,
         enable_internal_vesicle_qc=True,
         internal_vesicle_min_valid_frames=3,
@@ -227,7 +227,7 @@ def test_insufficient_valid_sample_cannot_reject_trajectory():
 def test_negative_frame_index_is_rejected():
     """Negative indices must not silently select frames from the video end."""
     detection = _detection(radius=12.0, frame_index=-1)
-    config = EdgeQCConfig(
+    config = VesicleQCConfig(
         curvature_threshold=1.0,
         enable_internal_vesicle_qc=True,
     )

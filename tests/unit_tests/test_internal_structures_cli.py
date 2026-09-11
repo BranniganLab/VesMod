@@ -12,10 +12,10 @@ import pytest
 from vesmod.VesEdge import (
     ArrayFrameSource,
     EdgeDetection,
-    EdgeQCConfig,
     ImageContour,
     QCFlag,
     RecordedQCSelection,
+    VesicleQCConfig,
 )
 from vesmod.VesEdge.experimental import InternalStructureRegion
 from vesmod.cli import internal_structures_cli, vesedge_cli
@@ -178,6 +178,8 @@ def test_process_checkpoint_writes_measurements_in_original_coordinates(
         regions = (
             InternalStructureRegion(
                 label=1,
+                structure_type="unclassified",
+                evidence_types=("dark_region",),
                 area_px=4,
                 centroid_yx=(6.5, 7.5),
                 bbox_yx=(5, 6, 8, 9),
@@ -357,7 +359,7 @@ def test_process_checkpoint_does_not_measure_qc_rejected_frame(
         internal_structures_cli.config_from_args(args),
         RecordedQCSelection(
             tmp_path / "qc" / "vesedge_qc.json",
-            EdgeQCConfig(curvature_threshold=5.0),
+            VesicleQCConfig(curvature_threshold=5.0),
             frozenset({checkpoint.resolve()}),
         ),
     )
@@ -371,7 +373,7 @@ def test_process_checkpoint_does_not_measure_qc_rejected_frame(
 
 
 def test_save_overlay_gif_uses_shared_qc_aware_renderer(tmp_path, monkeypatch):
-    """Test internal-structure GIFs delegate rendering to VesicleVideo."""
+    """Test internal-structure GIFs delegate rendering to the shared animator."""
     frames = np.zeros((1, 10, 10))
     edges = argparse.Namespace(source_path=tmp_path / "sample.nd2")
     result = argparse.Namespace(
@@ -391,19 +393,25 @@ def test_save_overlay_gif_uses_shared_qc_aware_renderer(tmp_path, monkeypatch):
             observed["frames"] = supplied_frames
             observed["source_path"] = source_path
 
-        def make_vesicle_gif(
-            self,
-            path,
-            supplied_edges,
-            frame_decorator=None,
-            title_provider=None,
-        ):
-            observed["path"] = path
-            observed["edges"] = supplied_edges
-            observed["decorator_result"] = frame_decorator(FakeAxis(), 0)
-            observed["title"] = title_provider(0)
+    def fake_make_vesicle_gif(
+        video,
+        path,
+        supplied_edges,
+        frame_decorator=None,
+        title_provider=None,
+    ):
+        observed["video"] = video
+        observed["path"] = path
+        observed["edges"] = supplied_edges
+        observed["decorator_result"] = frame_decorator(FakeAxis(), 0)
+        observed["title"] = title_provider(0)
 
     monkeypatch.setattr(internal_structures_cli, "VesicleVideo", FakeVideo)
+    monkeypatch.setattr(
+        internal_structures_cli,
+        "make_vesicle_gif",
+        fake_make_vesicle_gif,
+    )
 
     internal_structures_cli._save_overlay_gif(
         tmp_path / "sample",

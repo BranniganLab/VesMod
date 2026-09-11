@@ -20,7 +20,7 @@ from vesmod.validation import (
     require_numeric_array,
 )
 
-from .qc_config import EdgeQCConfig
+from .qc_config import VesicleQCConfig
 
 
 @dataclass(frozen=True)
@@ -230,7 +230,7 @@ class VesicleQCResult:
 
     Attributes
     ----------
-    config : EdgeQCConfig
+    config : VesicleQCConfig
         Configuration used for the QC run.
     results : Mapping[str, object]
         Typed results keyed by the registered check name. Each check module
@@ -240,7 +240,7 @@ class VesicleQCResult:
         detected frames.
     """
 
-    config: EdgeQCConfig
+    config: VesicleQCConfig
     results: Mapping[str, object] = field(default_factory=dict)
     trajectory_flags: frozenset[TrajectoryQCFlag] = frozenset()
 
