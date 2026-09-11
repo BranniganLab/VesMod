@@ -8,11 +8,9 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from matplotlib.axes import Axes
 import numpy as np
 from numpy.typing import NDArray
 
-from .animation import VesicleAnimationPanel, make_gif
 from .config import EdgeExtractionConfig
 from .frame_source import FrameSource, as_frame_source
 from .models import (
@@ -139,98 +137,6 @@ class VesicleVideo:
             detections=detections,
             source_path=self.source_path,
         )
-
-    def draw_frame(
-        self,
-        ax: Axes,
-        index: int,
-        edges: VesicleEdges | None = None,
-        frame_decorator: Callable[[Axes, int], None] | None = None,
-        title_provider: Callable[[int], str] | None = None,
-    ) -> None:
-        """Draw one video frame and its optional overlays on an existing axes.
-
-        This method owns only the supplied axes. It does not create, save, or
-        close a figure, so callers can compose vesicle frames with other
-        animated panels in the same Matplotlib figure.
-
-        Parameters
-        ----------
-        ax : matplotlib.axes.Axes
-            Axes on which to draw the requested frame.
-        index : int
-            Zero-based source-frame index.
-        edges : VesicleEdges | None
-            Optional detections to draw with standard QC-aware coloring.
-        frame_decorator : Callable[[matplotlib.axes.Axes, int], None] | None
-            Optional callback that decorates the axes with analysis-specific
-            artists after the image and detected edge are drawn.
-        title_provider : Callable[[int], str] | None
-            Optional callback that returns the title for the frame. Without
-            one, the renderer uses the default frame-number title.
-
-        Raises
-        ------
-        ValueError
-            If supplied extraction results do not match the frame count.
-        IndexError
-            If ``index`` is outside the video frame range.
-        """
-        self._validate_gif_edges(edges)
-        if index < 0 or index >= self.frames.shape[0]:
-            raise IndexError(
-                f"Frame index {index} is outside the range "
-                f"0..{self.frames.shape[0] - 1}."
-            )
-
-        ax.clear()
-        ax.imshow(self.frames[index], cmap="gray", animated=True)
-        if edges is not None:
-            result = edges.detections[index]
-            if isinstance(result, EdgeDetection):
-                contour = result.full_contour
-                color = "tab:green"
-                if edges.qc_result is not None and (
-                    not edges.qc_result.passed or not result.qc.passed
-                ):
-                    color = "tab:red"
-                ax.plot(contour.x, contour.y, color=color)
-        if frame_decorator is not None:
-            frame_decorator(ax, index)
-        frame_title = f"frame {index} / {self.frames.shape[0]}"
-        if title_provider is not None:
-            frame_title = title_provider(index)
-        ax.set_title(frame_title)
-
-    def make_vesicle_gif(
-        self,
-        path: str | Path,
-        edges: VesicleEdges | None = None,
-        frame_decorator: Callable[[Axes, int], None] | None = None,
-        title_provider: Callable[[int], str] | None = None,
-    ) -> None:
-        """Save a single-panel vesicle GIF.
-
-        This convenience method delegates to the generic composable animation
-        API. Use :func:`vesmod.VesEdge.make_gif` directly when combining the
-        vesicle with time series or other synchronized panels.
-        """
-        self._validate_gif_edges(edges)
-        panel = VesicleAnimationPanel(
-            self,
-            edges=edges,
-            frame_decorator=frame_decorator,
-            title_provider=title_provider,
-        )
-        make_gif(path, [panel])
-
-    def _validate_gif_edges(self, edges: VesicleEdges | None) -> None:
-        """Verify optional edge results correspond one-to-one with frames."""
-        if edges is not None and len(edges.detections) != self.frames.shape[0]:
-            raise ValueError(
-                f"There are {len(edges.detections)} detections and "
-                f"{self.frames.shape[0]} frames."
-            )
 
     @staticmethod
     def _validate_extractor_results(
