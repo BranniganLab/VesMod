@@ -19,7 +19,7 @@ from vesmod.VesEdge import (
     MinimumRadiusQCConfig,
     SingletonDeviationQCConfig,
     EdgeExtractionConfig,
-    EdgeQCConfig,
+    VesicleQCConfig,
     QCFlag,
     TrajectoryQCFlag,
     VesicleEdges,
@@ -424,9 +424,9 @@ def process_extract_file(path: Path, args: argparse.Namespace) -> bool | None:
     return True
 
 
-def _qc_config_from_args(args: argparse.Namespace) -> EdgeQCConfig:
+def _qc_config_from_args(args: argparse.Namespace) -> VesicleQCConfig:
     """Build the QC configuration requested on the command line."""
-    return EdgeQCConfig(
+    return VesicleQCConfig(
         curvature=CurvatureQCConfig(
             threshold=args.curvature_threshold,
             enabled=not args.no_curvature_qc,
@@ -480,7 +480,7 @@ def _qc_config_from_args(args: argparse.Namespace) -> EdgeQCConfig:
 
 
 def _qc_provenance(
-    qc_config: EdgeQCConfig,
+    qc_config: VesicleQCConfig,
     input_path: Path,
     recursive: bool,
     paths: list[Path],
@@ -526,7 +526,7 @@ def _remove_managed_qc_artifacts(output_dir: Path) -> None:
 
 def _write_qc_provenance(
     output_dir: Path,
-    qc_config: EdgeQCConfig,
+    qc_config: VesicleQCConfig,
     input_path: Path,
     recursive: bool,
     paths: list[Path],
@@ -685,7 +685,7 @@ def _load_error_summary(path: Path, input_path: Path, error: str) -> dict:
 def process_qc_file(
     path: Path,
     args: argparse.Namespace,
-    qc_config: EdgeQCConfig,
+    qc_config: VesicleQCConfig,
     managed_artifacts: set[Path] | None = None,
 ) -> dict:
     """Apply QC to one checkpoint and return its batch summary row."""
@@ -792,7 +792,7 @@ def process_qc_file(
         and row["accepted"] > 0
         and (args.overwrite or not output_exists)
     ):
-        edges.save_edge_to_npy(output_path)
+        edges.export_accepted_radii(output_path)
         if managed_artifacts is not None:
             managed_artifacts.add(output_path)
     return row
