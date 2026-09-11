@@ -64,28 +64,31 @@ def test_real_nd2_sequential_reads_have_bounded_file_backed_rss():
 
 
         path = sys.argv[1]
-        with ND2FrameSource(path) as source:
-            first = source[0]
+        with ND2FrameSource(path) as probe:
+            first = probe[0]
             np.sum(first)
-            frame_bytes = first.nbytes
-            frames_per_window = max(
-                1,
-                math.ceil(_ND2_READER_MEMORY_BUDGET_BYTES / frame_bytes),
-            )
-            required_frames = 5 * frames_per_window
-            if len(source) < required_frames:
-                print(
-                    json.dumps(
-                        {
-                            "skip": True,
-                            "available_frames": len(source),
-                            "required_frames": required_frames,
-                            "frames_per_window": frames_per_window,
-                        }
-                    )
-                )
-                raise SystemExit(0)
+            bytes_per_read = probe._bytes_since_reopen
+            available_frames = len(probe)
 
+        frames_per_window = max(
+            1,
+            math.ceil(_ND2_READER_MEMORY_BUDGET_BYTES / bytes_per_read),
+        )
+        required_frames = 5 * frames_per_window
+        if available_frames < required_frames:
+            print(
+                json.dumps(
+                    {
+                        "skip": True,
+                        "available_frames": available_frames,
+                        "required_frames": required_frames,
+                        "frames_per_window": frames_per_window,
+                    }
+                )
+            )
+            raise SystemExit(0)
+
+        with ND2FrameSource(path) as source:
             window_peaks = []
             for window in range(5):
                 peak = 0
@@ -101,7 +104,7 @@ def test_real_nd2_sequential_reads_have_bounded_file_backed_rss():
             json.dumps(
                 {
                     "skip": False,
-                    "frame_bytes": frame_bytes,
+                    "bytes_per_read": bytes_per_read,
                     "frames_per_window": frames_per_window,
                     "window_peaks": window_peaks,
                     "budget_bytes": _ND2_READER_MEMORY_BUDGET_BYTES,
