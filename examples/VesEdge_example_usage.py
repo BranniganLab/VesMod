@@ -20,10 +20,11 @@ import nd2
 from vesmod.VesEdge import (
     CurvatureQCConfig,
     EdgeExtractionConfig,
-    EdgeQCConfig,
     VesicleEdges,
+    VesicleQCConfig,
     VesicleVideo,
     extract_edge_from_frame,
+    make_vesicle_gif,
 )
 
 fpath = "YOUR/PATH/HERE/"  # Directory containing your .nd2 file(s).
@@ -50,23 +51,24 @@ for file in glob.glob(fpath + "*.nd2", recursive=True):
     # successful detections and extraction failures, but no QC decisions.
     edges.save_checkpoint(path)
 
-    # A GIF can be generated only while the original image frames are present.
-    video.make_vesicle_gif(path, edges)
+    # Rendering is separate from the video model and can combine frames with
+    # the extracted edge results while the image data are available.
+    make_vesicle_gif(video, path, edges)
 
 
 # Later, load the same checkpoint and evaluate it under any QC configuration.
-qc_config = EdgeQCConfig(
+qc_config = VesicleQCConfig(
     curvature=CurvatureQCConfig(threshold=0.059),
 )
 
 # edges = VesicleEdges.from_checkpoint("YOUR/PATH/HERE/sample.npz")
 # edges.run_qc(qc_config)
 # print(edges.qc_result.curvature)
-# edges.save_edge_to_npy("YOUR/PATH/HERE/results/qc_standard/sample.npy")
+# edges.export_accepted_radii("YOUR/PATH/HERE/results/qc_standard/sample.npy")
 
 # Evaluate the same checkpoint again without rerunning extraction.
-# permissive_qc = EdgeQCConfig(
+# permissive_qc = VesicleQCConfig(
 #     curvature=CurvatureQCConfig(threshold=0.089),
 # )
 # edges.run_qc(permissive_qc)
-# edges.save_edge_to_npy("YOUR/PATH/HERE/results/qc_permissive/sample.npy")
+# edges.export_accepted_radii("YOUR/PATH/HERE/results/qc_permissive/sample.npy")
