@@ -180,7 +180,6 @@ def test_process_checkpoint_writes_measurements_in_original_coordinates(
                 label=1,
                 structure_type="unclassified",
                 evidence_types=("dark_region",),
-                polarity="dark",
                 area_px=4,
                 centroid_yx=(6.5, 7.5),
                 bbox_yx=(5, 6, 8, 9),
