@@ -5,9 +5,9 @@ import pytest
 
 from vesmod.VesEdge import (
     EdgeExtractionConfig,
-    EdgeQCConfig,
     QCFlag,
     VesicleEdges,
+    VesicleQCConfig,
 )
 from vesmod.VesEdge.models import (
     EdgeDetection,
@@ -39,7 +39,7 @@ def extraction_config():
 @pytest.fixture
 def qc_config():
     """Return permissive frame-level QC settings."""
-    return EdgeQCConfig(
+    return VesicleQCConfig(
         curvature_threshold=100.0,
     )
 
@@ -124,7 +124,7 @@ def test_run_qc_records_aggregate_results(edges, qc_config):
 
 def test_run_qc_requires_frames_for_internal_vesicle_check(edges):
     """Image-based QC cannot run from contours alone."""
-    config = EdgeQCConfig(
+    config = VesicleQCConfig(
         curvature_threshold=100.0,
         enable_internal_vesicle_qc=True,
     )
@@ -138,7 +138,7 @@ def test_run_qc_restores_previous_state_when_a_check_errors(edges, qc_config):
     edges.run_qc(qc_config)
     previous_result = edges.qc_result
     previous_edge_qc = [edge.qc for edge in edges.successful_detections]
-    image_config = EdgeQCConfig(
+    image_config = VesicleQCConfig(
         curvature_threshold=1.0,
         enable_internal_vesicle_qc=True,
     )
@@ -177,10 +177,10 @@ def test_run_qc_can_recover_previous_curvature_rejection(extraction_config):
         ),
         detections=[detection],
     )
-    strict = EdgeQCConfig(
+    strict = VesicleQCConfig(
         curvature_threshold=1.0,
     )
-    permissive = EdgeQCConfig(
+    permissive = VesicleQCConfig(
         # The normalized score for this one-bin spike is approximately 1,459
         # at 120 samples; 100 was the pre-normalization scale.
         curvature_threshold=2000.0,
@@ -216,13 +216,13 @@ def test_run_qc_clears_stale_qc_state(edges, qc_config):
     assert QCFlag.CURVATURE not in first.qc.flags
 
 
-def test_save_edge_to_npy_requires_qc(tmp_path, edges):
+def test_export_accepted_radii_requires_qc(tmp_path, edges):
     """Test that un-QCed extraction results cannot be exported as accepted."""
     with pytest.raises(ValueError, match="Quality control has not been run"):
-        edges.save_edge_to_npy(tmp_path / "edges.npy")
+        edges.export_accepted_radii(tmp_path / "edges.npy")
 
 
-def test_save_edge_to_npy_saves_only_accepted_in_microns(
+def test_export_accepted_radii_saves_only_accepted_in_microns(
     tmp_path,
     extraction_config,
 ):
@@ -237,13 +237,13 @@ def test_save_edge_to_npy_saves_only_accepted_in_microns(
         ),
         detections=[accepted, rejected],
     )
-    config = EdgeQCConfig(
+    config = VesicleQCConfig(
         curvature_threshold=1.0,
         enable_area_qc=False,
     )
     edge_results.run_qc(config)
 
-    edge_results.save_edge_to_npy(tmp_path / "filtered")
+    edge_results.export_accepted_radii(tmp_path / "filtered")
     saved = np.load(tmp_path / "filtered.npy")
 
     assert saved.shape == (1, 120)
@@ -386,7 +386,7 @@ def test_from_checkpoint_can_be_re_qced_with_new_settings(
     edge_results.save_checkpoint(tmp_path / "sample.npz")
 
     loaded = VesicleEdges.from_checkpoint(tmp_path / "sample.npz")
-    new_config = EdgeQCConfig(
+    new_config = VesicleQCConfig(
         curvature_threshold=100.0,
     )
     loaded.run_qc(new_config)
@@ -408,7 +408,7 @@ def test_run_qc_applies_area_deviation_and_records_summary(extraction_config):
     )
 
     edge_results.run_qc(
-        EdgeQCConfig(
+        VesicleQCConfig(
             curvature_threshold=100.0,
             max_relative_area_deviation=0.25,
         )
@@ -435,7 +435,7 @@ def test_run_qc_can_disable_area_deviation(extraction_config):
     )
 
     edge_results.run_qc(
-        EdgeQCConfig(
+        VesicleQCConfig(
             curvature_threshold=100.0,
             enable_area_qc=False,
         )
