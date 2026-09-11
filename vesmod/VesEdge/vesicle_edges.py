@@ -11,7 +11,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from .checkpoint_io import load_checkpoint, save_checkpoint
-from .config import EdgeExtractionConfig, EdgeQCConfig
+from .config import EdgeExtractionConfig, VesicleQCConfig
 from .frame_source import FrameSource
 from .models import (
     EdgeDetection,
@@ -53,7 +53,7 @@ class VesicleEdges:
         self._validate_detection_lengths()
 
     @property
-    def qc_config(self) -> EdgeQCConfig | None:
+    def qc_config(self) -> VesicleQCConfig | None:
         """Return the configuration used for the most recent completed QC run."""
         if self.qc_result is None:
             return None
@@ -106,7 +106,7 @@ class VesicleEdges:
 
     def run_qc(
         self,
-        qc_config: EdgeQCConfig | None = None,
+        qc_config: VesicleQCConfig | None = None,
         frames: FrameSource | NDArray[np.number] | None = None,
     ) -> None:
         """Run enabled QC checks on stored detections.
@@ -215,8 +215,8 @@ class VesicleEdges:
                 "quality control."
             )
 
-    def save_edge_to_npy(self, path: str | Path) -> None:
-        """Save accepted analysis-contour radii in microns to ``.npy``."""
+    def export_accepted_radii(self, path: str | Path) -> None:
+        """Export all QC-accepted analysis-contour radii in microns to ``.npy``."""
         np.save(
             Path(path).with_suffix(".npy"),
             self.accepted_radii_microns,
