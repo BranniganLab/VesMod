@@ -12,15 +12,18 @@ from vesmod.VesEdge import (
 )
 
 
-def test_vesicle_animation_panel_delegates_to_video_draw_frame(monkeypatch):
-    """Test vesicle panels render through the video axes primitive."""
+def test_vesicle_animation_panel_delegates_to_frame_renderer(monkeypatch):
+    """Test vesicle panels render through the standalone axes primitive."""
     video = VesicleVideo(np.zeros((3, 10, 10)))
     observed = []
 
-    def fake_draw_frame(axis, frame_index, edges=None, **kwargs):
-        observed.append((axis, frame_index, edges, kwargs))
+    def fake_draw_vesicle_frame(video_arg, axis, frame_index, edges=None, **kwargs):
+        observed.append((video_arg, axis, frame_index, edges, kwargs))
 
-    monkeypatch.setattr(video, "draw_frame", fake_draw_frame)
+    monkeypatch.setattr(
+        "vesmod.VesEdge.animation.draw_vesicle_frame",
+        fake_draw_vesicle_frame,
+    )
     panel = VesicleAnimationPanel(video)
     fig, ax = plt.subplots()
 
@@ -29,6 +32,7 @@ def test_vesicle_animation_panel_delegates_to_video_draw_frame(monkeypatch):
     assert panel.n_frames == 3
     assert observed == [
         (
+            video,
             ax,
             2,
             None,
