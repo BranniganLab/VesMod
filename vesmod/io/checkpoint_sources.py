@@ -1,4 +1,4 @@
-"""Locate checkpoint source videos and open their frames lazily.
+"""Locate checkpoint source videos and open their frames on demand.
 
 This module deliberately knows no checkpoint schema, QC configuration, or CLI
 arguments. Domain code supplies the recorded source path and any search roots.
@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from vesmod.VesEdge import FrameSource, open_frame_source
+from vesmod.VesEdge import OnDemandFrameSequence, open_frame_sequence
 
 
 def build_video_filename_index(checkpoint_paths: list[Path], video_root: Path | None) -> dict[str, tuple[Path, ...]]:
@@ -59,6 +59,6 @@ def resolve_source_path(stored_path: str | Path | None, checkpoint_path: Path, v
     raise FileNotFoundError(f"Source video does not exist: {stored_path}. No matching {name} was found beside the checkpoint or under --video-root.")
 
 
-def open_checkpoint_frames(source_path: Path) -> FrameSource:
-    """Open source frames lazily for a checkpoint-backed workflow."""
-    return open_frame_source(source_path)
+def open_checkpoint_frames(source_path: Path) -> OnDemandFrameSequence:
+    """Open source frames on demand for a checkpoint-backed workflow."""
+    return open_frame_sequence(source_path)
