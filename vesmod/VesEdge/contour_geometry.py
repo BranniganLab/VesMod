@@ -7,6 +7,8 @@ geometric projection can be reused by each layer.
 """
 
 from dataclasses import dataclass
+
+import cv2
 import numpy as np
 
 
@@ -61,3 +63,55 @@ def fit_radial_baseline(radii, order):
     else:
         spectrum[order + 1 : -order] = 0
     return RadialBaselineFit(np.fft.ifft(spectrum).real, order)
+
+
+def radial_contour_centroid(origin, radii):
+    """Return the area centroid of a uniformly sampled radial contour.
+
+    ``radii`` is interpreted on a uniform angular grid about ``origin``. The
+    corresponding Cartesian polygon is passed to OpenCV for its spatial
+    moments. Moments are evaluated in coordinates relative to ``origin`` so a
+    rigid translation of the same contour does not lose precision when OpenCV
+    converts contour coordinates to single precision.
+
+    Parameters
+    ----------
+    origin : tuple[float, float]
+        Cartesian ``(x, y)`` origin used by the radial representation.
+    radii : numpy.ndarray
+        Positive radial distances sampled uniformly over ``[0, 2π)``.
+
+    Returns
+    -------
+    tuple[float, float]
+        Area centroid of the contour in Cartesian ``(x, y)`` coordinates.
+
+    Raises
+    ------
+    TypeError
+        If ``radii`` is not a one-dimensional NumPy array.
+    ValueError
+        If fewer than three samples are provided or the contour encloses zero
+        area.
+    """
+    if not isinstance(radii, np.ndarray) or radii.ndim != 1:
+        raise TypeError("radii must be a 1D numpy array")
+    if radii.size < 3:
+        raise ValueError("radii must contain at least three samples")
+
+    radii = np.asarray(radii, dtype=float)
+    theta = np.linspace(0.0, 2.0 * np.pi, radii.size, endpoint=False)
+    x_relative = radii * np.cos(theta)
+    y_relative = radii * np.sin(theta)
+
+    contour = np.column_stack((x_relative, y_relative)).astype(np.float32)
+    moments = cv2.moments(contour)
+    if np.isclose(moments["m00"], 0.0):
+        raise ValueError("contour must enclose non-zero area")
+
+    centroid_relative_x = float(moments["m10"] / moments["m00"])
+    centroid_relative_y = float(moments["m01"] / moments["m00"])
+    return (
+        origin[0] + centroid_relative_x,
+        origin[1] + centroid_relative_y,
+    )
