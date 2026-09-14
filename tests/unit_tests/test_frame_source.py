@@ -1,10 +1,9 @@
-"""Tests for in-memory and on-demand video frame sequences."""
+"""Tests for resident NumPy frames and on-demand video frame sequences."""
 
 import numpy as np
 import pytest
 
 from vesmod.VesEdge.frame_source import (
-    InMemoryFrameSequence,
     OnDemandFrameSequence,
     as_frame_source,
     open_frame_source,
@@ -12,19 +11,15 @@ from vesmod.VesEdge.frame_source import (
 from vesmod.VesEdge import frame_source
 
 
-def test_in_memory_frame_sequence_supports_indexed_and_iterative_reads():
+def test_as_frame_source_preserves_resident_numpy_array():
     frames = np.arange(24).reshape(3, 4, 2)
-    sequence = InMemoryFrameSequence(frames)
 
-    assert sequence.shape == (3, 4, 2)
-    np.testing.assert_array_equal(sequence[1], frames[1])
-    assert len(list(sequence)) == 3
+    assert as_frame_source(frames) is frames
 
 
-def test_as_frame_source_preserves_existing_sequence():
-    sequence = InMemoryFrameSequence(np.zeros((2, 3, 4)))
-
-    assert as_frame_source(sequence) is sequence
+def test_as_frame_source_rejects_non_video_shape():
+    with pytest.raises(IndexError, match="3D array"):
+        as_frame_source(np.zeros((3, 4)))
 
 
 def test_open_numpy_source_uses_on_demand_memory_mapping(tmp_path):
@@ -36,21 +31,6 @@ def test_open_numpy_source_uses_on_demand_memory_mapping(tmp_path):
         assert sequence.shape == (2, 3, 4)
         assert isinstance(sequence._array, np.memmap)
     assert sequence._array is None
-
-
-def test_in_memory_sequence_close_preserves_caller_owned_array():
-    frames = np.zeros((2, 3, 4))
-    sequence = InMemoryFrameSequence(frames)
-
-    sequence.close()
-    sequence.close()
-
-    assert sequence._frames is frames
-
-
-def test_in_memory_sequence_rejects_non_video_shape():
-    with pytest.raises(IndexError, match="3D array"):
-        InMemoryFrameSequence(np.zeros((3, 4)))
 
 
 def test_on_demand_sequence_requires_explicit_nd2_multidimensional_selection(
