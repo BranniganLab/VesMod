@@ -5,6 +5,7 @@
 import numpy as np
 import pytest
 
+from vesmod.EdgeMod import EnsembleFit, SpectrumFitConfig
 from vesmod.EdgeMod.spectrum_ensemble import SpectrumEnsemble
 
 
@@ -16,6 +17,7 @@ def test_new_spectrum_ensemble_is_empty():
     assert avg.spectra_list == []
     assert avg.kC_list == []
     assert avg.modes is None
+    assert avg.fit_results == []
 
 
 def test_public_edge_mod_import_exposes_spectrum_ensemble():
@@ -153,8 +155,12 @@ def test_isolate_mode_range_returns_selected_modes_and_average_amplitudes():
     """Test that _isolate_mode_range keeps modes >= lower_bound and < upper_bound."""
     avg = SpectrumEnsemble()
 
-    avg.add_spectrum(avg_amps2=[10.0, 20.0, 30.0, 40.0], modes=[1, 2, 3, 4], kC=20.0)
-    avg.add_spectrum(avg_amps2=[20.0, 40.0, 60.0, 80.0], modes=[1, 2, 3, 4], kC=22.0)
+    avg.add_spectrum(
+        avg_amps2=[10.0, 20.0, 30.0, 40.0], modes=[1, 2, 3, 4], kC=20.0
+    )
+    avg.add_spectrum(
+        avg_amps2=[20.0, 40.0, 60.0, 80.0], modes=[1, 2, 3, 4], kC=22.0
+    )
 
     mini_spectrum = avg._isolate_mode_range(lower_bound=2, upper_bound=4)
 
@@ -184,7 +190,7 @@ def test_extract_kC_from_fit_uses_isolated_mode_range_and_returns_first_fit_valu
         calls["fitting_range"] = fitting_range
         calls["lmax"] = lmax
         calls["free_sigma"] = free_sigma
-        return (123.0, "unused value")
+        return (123.0, 0.0)
 
     monkeypatch.setattr(
         "vesmod.EdgeMod.spectrum_ensemble.fit_spectrum_to_theory_lmfit",
@@ -208,3 +214,81 @@ def test_kC_property_returns_value_from_extract_kC_from_fit(monkeypatch):
     monkeypatch.setattr(avg, "_extract_kC_from_fit", lambda: 321.0)
 
     assert avg.kC == 321.0
+
+
+def test_extract_kc_from_fit_accepts_free_sigma_and_records_reduced_tension(monkeypatch):
+    """The public fit API honors the supplied configuration and retains its result."""
+    avg = SpectrumEnsemble()
+    avg.add_spectrum(avg_amps2=[10.0, 20.0, 30.0, 40.0], modes=[1, 2, 3, 4], kC=20.0)
+    avg.add_spectrum(avg_amps2=[20.0, 40.0, 60.0, 80.0], modes=[1, 2, 3, 4], kC=22.0)
+    config = SpectrumFitConfig(lmax=700, free_sigma=True, lower_bound=2, upper_bound=4)
+    calls = {}
+
+    def fake_fit_spectrum_to_theory_lmfit(fitting_range, lmax, free_sigma):
+        calls["fitting_range"] = fitting_range
+        calls["lmax"] = lmax
+        calls["free_sigma"] = free_sigma
+        return (123.0, 4.5)
+
+    monkeypatch.setattr(
+        "vesmod.EdgeMod.spectrum_ensemble.fit_spectrum_to_theory_lmfit",
+        fake_fit_spectrum_to_theory_lmfit,
+    )
+
+    fit = avg.extract_kc_from_fit(config)
+
+    assert isinstance(fit, EnsembleFit)
+    assert fit.kC == 123.0
+    assert fit.reduced_sigma == 4.5
+    assert fit.config is config
+    assert avg.fit_results == [fit]
+    assert calls["lmax"] == 700
+    assert calls["free_sigma"] is True
+    np.testing.assert_array_equal(calls["fitting_range"].modes, np.array([2, 3]))
+
+
+def test_extract_kc_from_fit_defaults_to_legacy_fixed_sigma(monkeypatch):
+    """An omitted configuration preserves historical fixed-sigma fitting."""
+    avg = SpectrumEnsemble()
+    avg.add_spectrum(
+        avg_amps2=[10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0],
+        modes=range(1, 9),
+        kC=20.0,
+    )
+    calls = {}
+
+    def fake_fit_spectrum_to_theory_lmfit(fitting_range, lmax, free_sigma):
+        calls["free_sigma"] = free_sigma
+        return (123.0, 0.0)
+
+    monkeypatch.setattr(
+        "vesmod.EdgeMod.spectrum_ensemble.fit_spectrum_to_theory_lmfit",
+        fake_fit_spectrum_to_theory_lmfit,
+    )
+
+    fit = avg.extract_kc_from_fit()
+
+    assert fit.kC == 123.0
+    assert fit.reduced_sigma == 0.0
+    assert fit.config.free_sigma is False
+    assert calls["free_sigma"] is False
+
+
+def test_extract_kc_from_fit_rejects_non_configuration_value():
+    """The public fit API has the same configuration type contract as Spectrum."""
+    avg = SpectrumEnsemble()
+
+    with pytest.raises(TypeError, match="config must be a SpectrumFitConfig or None"):
+        avg.extract_kc_from_fit("free sigma")
+
+
+def test_ensemble_fit_serializes_reduced_sigma():
+    """Ensemble fits expose reduced tension without claiming SI units."""
+    config = SpectrumFitConfig(free_sigma=True)
+    fit = EnsembleFit(kC=12.0, reduced_sigma=3.5, config=config)
+
+    assert fit.to_dict() == {
+        "kC": 12.0,
+        "reduced_sigma": 3.5,
+        "config": config.to_dict(),
+    }

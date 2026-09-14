@@ -1,7 +1,7 @@
 """Public core EdgeMod API."""
 
 from .config import SpectrumFitConfig
-from .fit_result import SpectrumFit
+from .fit_result import EnsembleFit, SpectrumFit
 from .spectrum import Spectrum
 from .spectrum_ensemble import SpectrumEnsemble
 from .spectrum_plotting import (
@@ -16,6 +16,7 @@ from .spectrum_plotting import (
 __all__ = [
     "SpectrumFitConfig",
     "SpectrumFit",
+    "EnsembleFit",
     "Spectrum",
     "SpectrumEnsemble",
     "SpectrumPlotConfig",

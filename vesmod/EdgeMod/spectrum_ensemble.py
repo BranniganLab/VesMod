@@ -13,6 +13,8 @@ behavior.
 """
 import numpy as np
 from vesmod.EdgeMod.spectrum_utils import fit_spectrum_to_theory_lmfit, MiniSpectrum
+from .config import SpectrumFitConfig
+from .fit_result import EnsembleFit
 
 
 class SpectrumEnsemble:
@@ -39,6 +41,7 @@ class SpectrumEnsemble:
         self.spectra_list: list[np.ndarray] = []
         self.kC_list: list[float] = []
         self.modes: np.ndarray[int] = None
+        self.fit_results: list[EnsembleFit] = []
 
     def __len__(self) -> int:
         """Return the number of replica bending-modulus estimates."""
@@ -61,7 +64,7 @@ class SpectrumEnsemble:
 
     @property
     def kC(self) -> float:
-        """Return kC from the default fixed-range fit of the averaged spectrum."""
+        """Return kC from the legacy fixed-sigma fit of the averaged spectrum."""
         return self._extract_kC_from_fit()
 
     @property
@@ -113,6 +116,42 @@ class SpectrumEnsemble:
         combined_mask = mask1 & mask2
         return MiniSpectrum(self.modes[combined_mask], self.avg_amps2[combined_mask], None)
 
+    def extract_kc_from_fit(
+        self,
+        config: SpectrumFitConfig | None = None,
+    ) -> EnsembleFit:
+        """Fit the averaged spectrum using a physical fit configuration.
+
+        A free-sigma ensemble fit reports the HSS97 reduced surface tension.
+        It cannot report an SI surface tension because an ensemble does not
+        retain a single radius with which to perform that conversion.
+
+        When no configuration is supplied, this method retains the historical
+        fixed-sigma ensemble behavior. Pass ``SpectrumFitConfig(free_sigma=True)``
+        to jointly fit kC and reduced surface tension.
+        """
+        if config is None:
+            config = SpectrumFitConfig(free_sigma=False)
+        if not isinstance(config, SpectrumFitConfig):
+            raise TypeError("config must be a SpectrumFitConfig or None.")
+
+        fitting_range = self._isolate_mode_range(
+            config.lower_bound,
+            config.upper_bound,
+        )
+        kC, reduced_sigma = fit_spectrum_to_theory_lmfit(
+            fitting_range,
+            config.lmax,
+            free_sigma=config.free_sigma,
+        )
+        fit = EnsembleFit(
+            kC=float(kC),
+            reduced_sigma=float(reduced_sigma),
+            config=config,
+        )
+        self.fit_results.append(fit)
+        return fit
+
     def _extract_kC_from_fit(
         self,
         lower_bound: int = 3,
@@ -136,6 +175,11 @@ class SpectrumEnsemble:
             Best-fitting bending modulus for the averaged spectrum with reduced
             surface tension fixed to zero.
         """
-        fitting_range = self._isolate_mode_range(lower_bound, upper_bound)
-        fit = fit_spectrum_to_theory_lmfit(fitting_range, lmax, free_sigma=False)
-        return fit[0]
+        return self.extract_kc_from_fit(
+            SpectrumFitConfig(
+                lower_bound=lower_bound,
+                upper_bound=upper_bound,
+                lmax=lmax,
+                free_sigma=False,
+            )
+        ).kC

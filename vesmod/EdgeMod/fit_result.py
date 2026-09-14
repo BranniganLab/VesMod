@@ -53,3 +53,25 @@ class SpectrumFit:
             "upper_bound": self.upper_bound,
             "config": self.config.to_dict(),
         }
+
+
+@dataclass(frozen=True)
+class EnsembleFit:
+    """Store one fit of an averaged replica spectrum.
+
+    An ensemble does not have one physical mean radius. Its fitted sigma is
+    therefore retained as the dimensionless reduced sigma used by the HSS97
+    model rather than converted to SI surface tension.
+    """
+
+    kC: float
+    reduced_sigma: float
+    config: SpectrumFitConfig
+
+    def to_dict(self) -> dict:
+        """Return the fitted values and configuration in serializable form."""
+        return {
+            "kC": float(self.kC),
+            "reduced_sigma": float(self.reduced_sigma),
+            "config": self.config.to_dict(),
+        }
