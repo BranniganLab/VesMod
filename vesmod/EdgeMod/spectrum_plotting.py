@@ -34,6 +34,7 @@ class SpectrumPlotConfig:
     fitting_region: str = "strip"
     marker: str = "o"
     linewidth: float = 1.5
+    include_q1: bool = False
 
     def __post_init__(self) -> None:
         if not 0 < self.nonfit_alpha <= 1:
@@ -44,6 +45,8 @@ class SpectrumPlotConfig:
             raise ValueError("fitting_region must be 'none', 'shade', or 'strip'.")
         if self.linewidth <= 0:
             raise ValueError("linewidth must be positive.")
+        if not isinstance(self.include_q1, bool):
+            raise TypeError("include_q1 must be a bool.")
 
 
 @dataclass(frozen=True)
@@ -75,7 +78,7 @@ def plot_spectrum(
     """
     if config is None:
         config = SpectrumPlotConfig()
-    modes, measured = _positive_spectrum(data.modes, data.avg_amps2)
+    modes, measured = _positive_spectrum(data.modes, data.avg_amps2, config.include_q1)
     if ax is None:
         _, ax = plt.subplots()
     figure = ax.figure
@@ -176,7 +179,7 @@ def plot_q4_scaled_spectrum(
     """Plot the diagnostic q⁴-scaled spectrum on a caller-owned axis."""
     if config is None:
         config = SpectrumPlotConfig()
-    modes, measured = _positive_spectrum(data.modes, data.avg_amps2)
+    modes, measured = _positive_spectrum(data.modes, data.avg_amps2, config.include_q1)
     if ax is None:
         _, ax = plt.subplots()
     if color is None:
@@ -266,8 +269,8 @@ def save_spectrum_fit_diagnostic(data: SpectrumPlotData, path) -> None:
     plt.close(figure)
 
 
-def _positive_spectrum(modes, avg_amps2):
-    mask = np.asarray(modes) >= 2
+def _positive_spectrum(modes, avg_amps2, include_q1=False):
+    mask = np.asarray(modes) >= (1 if include_q1 else 2)
     return np.asarray(modes)[mask], np.asarray(avg_amps2)[mask]
 
 

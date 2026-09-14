@@ -78,3 +78,25 @@ def test_plot_spectrum_uses_same_color_for_data_and_fit_and_accepts_axis():
     assert result.fit_artist.get_color() == "purple"
     assert result.fitting_region_artist is not None
     plt.close(figure)
+
+
+def test_plot_spectrum_can_include_q1_as_an_opt_in():
+    """q=1 is omitted by default but included when explicitly requested."""
+    import matplotlib.pyplot as plt
+
+    modes = np.arange(1, 6)
+    measured = np.asarray(HSS97(np.maximum(modes, 2), kC=25.0, sigma=2.0, lmax=30))
+    figure, (default_axis, q1_axis) = plt.subplots(1, 2)
+    default = plot_spectrum(
+        SpectrumPlotData(modes=modes, avg_amps2=measured), ax=default_axis,
+        color="black",
+        config=SpectrumPlotConfig(fitting_region="none"),
+    )
+    with_q1 = plot_spectrum(
+        SpectrumPlotData(modes=modes, avg_amps2=measured), ax=q1_axis,
+        color="black",
+        config=SpectrumPlotConfig(fitting_region="none", include_q1=True),
+    )
+    assert default.nonfit_artist.get_xdata()[0] == 2
+    assert with_q1.nonfit_artist.get_xdata()[0] == 1
+    plt.close(figure)
