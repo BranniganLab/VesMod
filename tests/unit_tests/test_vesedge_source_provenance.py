@@ -5,7 +5,6 @@ from pathlib import Path
 
 import numpy as np
 
-from vesmod.VesEdge import InMemoryFrameSequence
 from vesmod.cli import vesedge_cli
 
 
@@ -30,9 +29,7 @@ def test_process_extract_file_sets_source_path_on_video(tmp_path, monkeypatch):
     monkeypatch.setattr(
         vesedge_cli,
         "open_frame_source",
-        lambda input_path: InMemoryFrameSequence(
-            np.zeros((1, 10, 10))
-        ),
+        lambda input_path: np.zeros((1, 10, 10)),
     )
     monkeypatch.setattr(
         vesedge_cli,
