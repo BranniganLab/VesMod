@@ -1,6 +1,7 @@
 """Unit tests for the VesEdge command-line interface."""
 
 import argparse
+from contextlib import nullcontext
 import json
 import sys
 from pathlib import Path
@@ -10,6 +11,7 @@ import pytest
 
 from vesmod.VesEdge import (
     EdgeExtractionConfig,
+    OnDemandFrameSequence,
     VesicleEdges,
     VesicleQCConfig,
 )
@@ -231,7 +233,7 @@ def test_process_extract_file_reports_failure_and_returns(monkeypatch, capsys):
     monkeypatch.setattr(
         vesedge_cli,
         "open_frame_source",
-        lambda input_path: np.zeros((1, 10, 10)),
+        lambda input_path: nullcontext(np.zeros((1, 10, 10))),
     )
     monkeypatch.setattr(
         vesedge_cli,
@@ -275,7 +277,7 @@ def test_process_extract_file_saves_checkpoint_without_running_qc(
     monkeypatch.setattr(
         vesedge_cli,
         "open_frame_source",
-        lambda input_path: np.zeros((1, 10, 10)),
+        lambda input_path: nullcontext(np.zeros((1, 10, 10))),
     )
     monkeypatch.setattr(
         vesedge_cli,
@@ -369,7 +371,7 @@ def test_process_qc_file_resolves_relative_video_path_for_image_qc(
 
     def open_frames(path):
         observed["source_path"] = path
-        return np.zeros((1, 10, 10))
+        return OnDemandFrameSequence(path)
 
     monkeypatch.setattr(
         vesedge_cli,
