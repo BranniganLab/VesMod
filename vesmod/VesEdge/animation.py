@@ -195,8 +195,8 @@ def make_gif(
     path : str | Path
         Output GIF path.
     panels : list[AnimationPanel]
-        Panels drawn side by side and advanced with a shared frame index.
-        Every panel must expose the same number of frames.
+        Panels arranged in row-major order and advanced with a shared frame
+        index. Every panel must expose the same number of frames.
     interval : int
         Delay between frames in milliseconds.
     repeat_delay : int
