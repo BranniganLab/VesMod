@@ -1,6 +1,7 @@
 """Tests for the experimental internal-structure CLI command."""
 
 import argparse
+from contextlib import nullcontext
 import csv
 import json
 from pathlib import Path
@@ -210,7 +211,7 @@ def test_process_checkpoint_writes_measurements_in_original_coordinates(
     monkeypatch.setattr(
         internal_structures_cli,
         "open_checkpoint_frames",
-        lambda path: np.zeros((1, 10, 10)),
+        lambda path: nullcontext(np.zeros((1, 10, 10))),
     )
     monkeypatch.setattr(
         internal_structures_cli,
@@ -336,7 +337,7 @@ def test_process_checkpoint_does_not_measure_qc_rejected_frame(
     monkeypatch.setattr(
         internal_structures_cli,
         "open_checkpoint_frames",
-        lambda path: np.zeros((1, 10, 10)),
+        lambda path: nullcontext(np.zeros((1, 10, 10))),
     )
     monkeypatch.setattr(
         internal_structures_cli,
