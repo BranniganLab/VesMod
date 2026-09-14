@@ -3,7 +3,12 @@
 import numpy as np
 import pytest
 
-from vesmod.VesEdge import EdgeExtractionConfig, VesicleEdges, VesicleQCConfig
+from vesmod.VesEdge import (
+    EdgeExtractionConfig,
+    InMemoryFrameSequence,
+    VesicleEdges,
+    VesicleQCConfig,
+)
 from vesmod.VesEdge.experimental.internal_vesicle_qc import (
     _coherent_outer_edge_coverage,
     _frame_enclosing_boundary_score,
@@ -165,9 +170,9 @@ def test_clipped_directions_count_as_missing_outer_boundary_evidence():
     assert score < config.internal_vesicle.min_angular_coverage
 
 
-def test_size_gate_does_not_read_lazy_frames():
+def test_size_gate_does_not_read_frames():
     """Large contours are dismissed using metadata before any frame read."""
-    source = _CountingFrameSource(np.stack([_ring_frame(40.0)] * 5))
+    sequence = _CountingFrameSequence(np.stack([_ring_frame(40.0)] * 5))
     detections = [_detection(40.0, index) for index in range(5)]
     config = VesicleQCConfig(
         curvature_threshold=1.0,
@@ -175,16 +180,16 @@ def test_size_gate_does_not_read_lazy_frames():
     )
 
     result = check_internal_vesicle_selection(
-        source, detections, config.for_check("internal_vesicle")
+        sequence, detections, config.for_check("internal_vesicle")
     )
 
     assert result.inspected is False
-    assert source.read_indices == []
+    assert sequence.read_indices == []
 
 
 def test_sampling_reads_only_evenly_spaced_frames():
     """Inspection stays bounded by the configured frame sample."""
-    source = _CountingFrameSource(np.stack([_ring_frame(12.0)] * 10))
+    sequence = _CountingFrameSequence(np.stack([_ring_frame(12.0)] * 10))
     detections = [_detection(12.0, index) for index in range(10)]
     config = VesicleQCConfig(
         curvature_threshold=1.0,
@@ -193,11 +198,11 @@ def test_sampling_reads_only_evenly_spaced_frames():
     )
 
     result = check_internal_vesicle_selection(
-        source, detections, config.for_check("internal_vesicle")
+        sequence, detections, config.for_check("internal_vesicle")
     )
 
     assert result.sampled_frame_indices == (0, 3, 6, 9)
-    assert source.read_indices == [0, 3, 6, 9]
+    assert sequence.read_indices == [0, 3, 6, 9]
 
 
 def test_insufficient_valid_sample_cannot_reject_trajectory():
@@ -240,28 +245,13 @@ def test_negative_frame_index_is_rejected():
         )
 
 
-class _CountingFrameSource:
-    """Minimal lazy source that records indexed reads."""
+class _CountingFrameSequence(InMemoryFrameSequence):
+    """In-memory sequence that records indexed reads."""
 
     def __init__(self, frames):
-        self._frames = frames
+        super().__init__(frames)
         self.read_indices = []
-
-    @property
-    def shape(self):
-        return self._frames.shape
-
-    @property
-    def metadata(self):
-        return {"kind": "test"}
-
-    def __len__(self):
-        return self.shape[0]
 
     def __getitem__(self, index):
         self.read_indices.append(index)
-        return self._frames[index]
-
-    def __iter__(self):
-        for index in range(len(self)):
-            yield self[index]
+        return super().__getitem__(index)
