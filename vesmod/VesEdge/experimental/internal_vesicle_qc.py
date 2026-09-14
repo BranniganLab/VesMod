@@ -20,7 +20,7 @@ from vesmod.validation import (
 )
 
 if TYPE_CHECKING:
-    from ..frame_sequence import InMemoryFrameSequence, OnDemandFrameSequence
+    from ..frame_source import InMemoryFrameSequence, OnDemandFrameSequence
 
 
 @dataclass(frozen=True)
@@ -210,9 +210,9 @@ def check_internal_vesicle_selection(
     config: InternalVesicleQCConfig,
 ) -> InternalVesicleQCResult:
     """Evaluate persistent selection of a smaller vesicle within a larger one."""
-    from ..frame_sequence import as_frame_sequence
+    from ..frame_source import as_frame_source
 
-    frame_sequence = as_frame_sequence(frames)
+    frame_sequence = as_frame_source(frames)
     frame_count, height, width = frame_sequence.shape
     if not detections:
         raise ValueError("Internal-vesicle QC requires successful detections.")
