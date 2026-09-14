@@ -20,7 +20,7 @@ from vesmod.validation import (
 )
 
 if TYPE_CHECKING:
-    from ..frame_source import FrameSource
+    from ..frame_sequence import InMemoryFrameSequence, OnDemandFrameSequence
 
 
 @dataclass(frozen=True)
@@ -205,15 +205,15 @@ def _frame_enclosing_boundary_score(
 
 
 def check_internal_vesicle_selection(
-    frames: FrameSource | NDArray[np.number],
+    frames: InMemoryFrameSequence | OnDemandFrameSequence | NDArray[np.number],
     detections: list[EdgeDetection],
     config: InternalVesicleQCConfig,
 ) -> InternalVesicleQCResult:
     """Evaluate persistent selection of a smaller vesicle within a larger one."""
-    from ..frame_source import as_frame_source
+    from ..frame_sequence import as_frame_sequence
 
-    frame_source = as_frame_source(frames)
-    frame_count, height, width = frame_source.shape
+    frame_sequence = as_frame_sequence(frames)
+    frame_count, height, width = frame_sequence.shape
     if not detections:
         raise ValueError("Internal-vesicle QC requires successful detections.")
     if any(
@@ -257,7 +257,7 @@ def check_internal_vesicle_selection(
     sampled_indices = tuple(edge.frame_index for edge in sampled)
     scores = tuple(
         _frame_enclosing_boundary_score(
-            frame_source[edge.frame_index],
+            frame_sequence[edge.frame_index],
             edge,
             internal_config,
         )
