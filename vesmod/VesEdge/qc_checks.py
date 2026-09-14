@@ -14,7 +14,7 @@ from .experimental.internal_vesicle_qc import (
     InternalVesicleQCResult,
     check_internal_vesicle_selection,
 )
-from .frame_source import InMemoryFrameSequence, OnDemandFrameSequence
+from .frame_source import OnDemandFrameSequence
 from .localized_deviation_qc import (
     LocalizedDeviationQCConfig,
     LocalizedDeviationQCResult,
@@ -34,7 +34,7 @@ from .singleton_qc import (
 from .models import EdgeDetection, QCFlag, TrajectoryQCFlag
 
 
-Frames = InMemoryFrameSequence | OnDemandFrameSequence | NDArray | None
+Frames = OnDemandFrameSequence | NDArray | None
 
 
 @dataclass(frozen=True)
