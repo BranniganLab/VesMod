@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from vesmod.VesEdge import InMemoryFrameSequence, VesicleQCConfig, load_recorded_qc
+from vesmod.VesEdge import VesicleQCConfig, load_recorded_qc
 from vesmod.cli import gif_cli, vesedge_cli
 
 
@@ -25,24 +25,8 @@ def _args(tmp_path, input_path, style="edges"):
 
 
 def test_parse_args_selects_gif_subcommand(monkeypatch, tmp_path):
-    """Test GIF options are registered under vesedge gif."""
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        [
-            "vesedge",
-            "gif",
-            "checkpoints",
-            "--output-dir",
-            str(tmp_path),
-            "--style",
-            "original",
-            "--recursive",
-        ],
-    )
-
+    monkeypatch.setattr(sys, "argv", ["vesedge", "gif", "checkpoints", "--output-dir", str(tmp_path), "--style", "original", "--recursive"])
     args = vesedge_cli.parse_args()
-
     assert args.command == "gif"
     assert args.style == "original"
     assert args.recursive
@@ -50,7 +34,6 @@ def test_parse_args_selects_gif_subcommand(monkeypatch, tmp_path):
 
 
 def test_checkpoint_paths_preserve_recursive_structure(tmp_path):
-    """Test recursive checkpoint selection keeps both nested inputs."""
     checkpoints = tmp_path / "checkpoints"
     first = checkpoints / "a" / "sample.npz"
     second = checkpoints / "b" / "sample.npz"
@@ -58,38 +41,20 @@ def test_checkpoint_paths_preserve_recursive_structure(tmp_path):
     second.parent.mkdir(parents=True)
     first.touch()
     second.touch()
-    selected = gif_cli._checkpoint_paths(checkpoints, recursive=True)
-
-    assert selected == [first, second]
+    assert gif_cli._checkpoint_paths(checkpoints, recursive=True) == [first, second]
 
 
 def test_load_qc_selection_uses_recorded_provenance(tmp_path):
-    """Test QC-colored rendering reuses the saved QC settings."""
     checkpoint = tmp_path / "sample.npz"
-    provenance = {
-        "checkpoint_manifest": [str(checkpoint.resolve())],
-        "qc_config": {
-            "curvature_threshold": 8.0,
-            "enable_curvature_qc": True,
-            "max_relative_area_deviation": 0.4,
-            "enable_area_qc": False,
-        }
-    }
-    (tmp_path / "vesedge_qc.json").write_text(
-        json.dumps(provenance),
-        encoding="utf-8",
-    )
-
-    selection = load_recorded_qc(tmp_path, [checkpoint])
-    config = selection.config
-
+    provenance = {"checkpoint_manifest": [str(checkpoint.resolve())], "qc_config": {"curvature_threshold": 8.0, "enable_curvature_qc": True, "max_relative_area_deviation": 0.4, "enable_area_qc": False}}
+    (tmp_path / "vesedge_qc.json").write_text(json.dumps(provenance), encoding="utf-8")
+    config = load_recorded_qc(tmp_path, [checkpoint]).config
     assert config.curvature.threshold == pytest.approx(8.0)
     assert config.area.max_relative_deviation == pytest.approx(0.4)
     assert not config.area.enabled
 
 
 def test_apply_recorded_qc_verifies_paired_array(tmp_path):
-    """Test QC state is reconstructed and checked against the paired .npy."""
     checkpoint_root = tmp_path / "checkpoints"
     checkpoint = checkpoint_root / "nested" / "sample.npz"
     checkpoint.parent.mkdir(parents=True)
@@ -98,82 +63,50 @@ def test_apply_recorded_qc_verifies_paired_array(tmp_path):
     qc_path = qc_dir / "nested" / "sample.npy"
     qc_path.parent.mkdir(parents=True)
     expected = np.ones((2, 4))
-    frames = InMemoryFrameSequence(np.zeros((2, 3, 4)))
+    frames = np.zeros((2, 3, 4))
     np.save(qc_path, expected)
-    provenance = {
-        "checkpoint_manifest": [str(checkpoint.resolve())],
-        "qc_config": VesicleQCConfig(curvature_threshold=5.0).to_dict(),
-    }
+    provenance = {"checkpoint_manifest": [str(checkpoint.resolve())], "qc_config": VesicleQCConfig(curvature_threshold=5.0).to_dict()}
     (qc_dir / "vesedge_qc.json").write_text(json.dumps(provenance))
     selection = load_recorded_qc(qc_dir, [checkpoint])
 
     class FakeEdges:
         accepted_radii_microns = expected
         qc_result = None
-
         accepted_detections = [object(), object()]
-
         def run_qc(self, supplied):
             assert supplied is selection.config
             self.qc_result = object()
 
-    gif_cli._apply_recorded_qc(
-        FakeEdges(),
-        frames,
-        checkpoint,
-        checkpoint_root,
-        selection,
-    )
+    gif_cli._apply_recorded_qc(FakeEdges(), frames, checkpoint, checkpoint_root, selection)
 
 
 def test_apply_recorded_qc_allows_all_rejected_without_array(tmp_path):
-    """Test completed all-rejected QC can produce a red-only GIF."""
     checkpoint_root = tmp_path / "checkpoints"
     checkpoint = checkpoint_root / "sample.npz"
     checkpoint_root.mkdir()
     checkpoint.touch()
     qc_dir = tmp_path / "qc-without-npy"
     qc_dir.mkdir()
-    (qc_dir / "vesedge_qc.json").write_text(json.dumps({
-        "checkpoint_manifest": [str(checkpoint.resolve())],
-        "qc_config": VesicleQCConfig(curvature_threshold=5.0).to_dict(),
-    }))
+    (qc_dir / "vesedge_qc.json").write_text(json.dumps({"checkpoint_manifest": [str(checkpoint.resolve())], "qc_config": VesicleQCConfig(curvature_threshold=5.0).to_dict()}))
     selection = load_recorded_qc(qc_dir, [checkpoint])
-    frames = InMemoryFrameSequence(np.zeros((2, 3, 4)))
+    frames = np.zeros((2, 3, 4))
 
     class AllRejectedEdges:
         accepted_detections = []
         qc_result = None
-
         def run_qc(self, supplied):
             assert supplied is selection.config
             self.qc_result = object()
             raise ValueError("no frames passed quality control")
-
         @property
         def accepted_radii_microns(self):
             raise AssertionError("No filtered array should be compared")
 
-    gif_cli._apply_recorded_qc(
-        AllRejectedEdges(),
-        frames,
-        checkpoint,
-        checkpoint_root,
-        selection,
-    )
+    gif_cli._apply_recorded_qc(AllRejectedEdges(), frames, checkpoint, checkpoint_root, selection)
 
 
-@pytest.mark.parametrize(
-    ("style", "expects_overlay"),
-    [("original", False), ("edges", True)],
-)
-def test_process_gif_file_selects_annotation_style(
-    tmp_path,
-    monkeypatch,
-    style,
-    expects_overlay,
-):
-    """Test original and edge styles differ only in the supplied overlay."""
+@pytest.mark.parametrize(("style", "expects_overlay"), [("original", False), ("edges", True)])
+def test_process_gif_file_selects_annotation_style(tmp_path, monkeypatch, style, expects_overlay):
     checkpoint = tmp_path / "sample.npz"
     checkpoint.touch()
     source = tmp_path / "sample.npy"
@@ -193,17 +126,10 @@ def test_process_gif_file_selects_annotation_style(
         observed["output_path"] = output_path
         observed["overlay"] = overlay
 
-    monkeypatch.setattr(
-        gif_cli.VesicleEdges,
-        "from_checkpoint",
-        lambda path: fake_edges,
-    )
+    monkeypatch.setattr(gif_cli.VesicleEdges, "from_checkpoint", lambda path: fake_edges)
     monkeypatch.setattr(gif_cli, "VesicleVideo", FakeVideo)
     monkeypatch.setattr(gif_cli, "make_vesicle_gif", fake_make_vesicle_gif)
-    args = _args(tmp_path, checkpoint, style=style)
-
-    gif_cli.process_gif_file(checkpoint, args, qc_selection=None)
-
+    gif_cli.process_gif_file(checkpoint, _args(tmp_path, checkpoint, style=style), qc_selection=None)
     assert (observed["overlay"] is not None) is expects_overlay
     assert observed["output_path"] == tmp_path / "gifs" / "sample.gif"
     assert observed["video"].source_path == source.resolve()
@@ -212,34 +138,18 @@ def test_process_gif_file_selects_annotation_style(
 
 
 def test_process_gif_file_reports_full_checkpoint_path(tmp_path, monkeypatch, capsys):
-    """Test one failed rendering reports its exact checkpoint and returns."""
     checkpoint = tmp_path / "nested" / "sample.npz"
     checkpoint.parent.mkdir()
     checkpoint.touch()
-
     class MissingSource:
         source_path = None
-
-    monkeypatch.setattr(
-        gif_cli.VesicleEdges,
-        "from_checkpoint",
-        lambda path: MissingSource(),
-    )
-
-    gif_cli.process_gif_file(
-        checkpoint,
-        _args(tmp_path, checkpoint),
-        qc_selection=None,
-    )
-
+    monkeypatch.setattr(gif_cli.VesicleEdges, "from_checkpoint", lambda path: MissingSource())
+    gif_cli.process_gif_file(checkpoint, _args(tmp_path, checkpoint), qc_selection=None)
     output = capsys.readouterr().out
     assert f"Failed to make GIF for {checkpoint.resolve()}" in output
     assert "Checkpoint does not record a source video path" in output
 
 
 def test_run_gif_requires_qc_directory_for_qc_style(tmp_path):
-    """Test QC-colored rendering cannot silently omit QC provenance."""
-    args = _args(tmp_path, tmp_path / "sample.npz", style="qc")
-
     with pytest.raises(ValueError, match="--qc-dir is required"):
-        gif_cli.run_gif(args)
+        gif_cli.run_gif(_args(tmp_path, tmp_path / "sample.npz", style="qc"))
