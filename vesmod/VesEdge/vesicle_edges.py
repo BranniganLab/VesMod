@@ -12,7 +12,7 @@ from numpy.typing import NDArray
 
 from .checkpoint_io import load_checkpoint, save_checkpoint
 from .config import EdgeExtractionConfig, VesicleQCConfig
-from .frame_source import InMemoryFrameSequence, OnDemandFrameSequence
+from .frame_source import OnDemandFrameSequence
 from .models import (
     EdgeDetection,
     EdgeDetectionFailure,
@@ -40,10 +40,7 @@ class VesicleEdges:
     extraction_config: EdgeExtractionConfig
     detections: list[EdgeResult]
     source_path: str | Path | None = None
-    qc_result: VesicleQCResult | None = field(
-        default=None,
-        init=False,
-    )
+    qc_result: VesicleQCResult | None = field(default=None, init=False)
 
     def __post_init__(self) -> None:
         """Validate extraction results stored on the object."""
@@ -62,25 +59,13 @@ class VesicleEdges:
     @property
     def successful_detections(self) -> list[EdgeDetection]:
         """Return all successfully extracted edge detections."""
-        return [
-            result
-            for result in self.detections
-            if isinstance(result, EdgeDetection)
-        ]
+        return [result for result in self.detections if isinstance(result, EdgeDetection)]
 
     @property
     def accepted_detections(self) -> list[EdgeDetection]:
-        """Return detections accepted by the most recent completed QC run.
-
-        Raises
-        ------
-        ValueError
-            If quality control has not yet completed on this object.
-        """
+        """Return detections accepted by the most recent completed QC run."""
         if self.qc_result is None:
-            raise ValueError(
-                "Quality control has not been run on these extracted edges."
-            )
+            raise ValueError("Quality control has not been run on these extracted edges.")
         if not self.qc_result.passed:
             return []
         return [
@@ -94,36 +79,17 @@ class VesicleEdges:
         """Return accepted analysis contours converted from pixels to microns."""
         accepted = self.accepted_detections
         if not accepted:
-            raise ValueError(
-                "No accepted edge detections are available."
-            )
+            raise ValueError("No accepted edge detections are available.")
         return np.stack(
-            [
-                detection.analysis_contour.r
-                for detection in accepted
-            ]
+            [detection.analysis_contour.r for detection in accepted]
         ) / self.extraction_config.pixels_per_micron
 
     def run_qc(
         self,
         qc_config: VesicleQCConfig | None = None,
-        frames: InMemoryFrameSequence | OnDemandFrameSequence | NDArray[np.number] | None = None,
+        frames: OnDemandFrameSequence | NDArray[np.number] | None = None,
     ) -> None:
-        """Run enabled QC checks on stored detections.
-
-        Existing QC state is cleared before every run. Supplying ``qc_config``
-        replaces the most recently completed configuration; omitting it reuses
-        that configuration. If a completed run rejects every detection, this
-        method raises ``ValueError`` but retains the newly applied configuration,
-        aggregate QC result, and per-detection QC flags for inspection.
-        If a check raises before producing a completed result, the previous
-        aggregate and per-frame QC state are restored.
-
-        Raises
-        ------
-        ValueError
-            If no QC configuration is available or no detection passes QC.
-        """
+        """Run enabled QC checks on stored detections."""
         config = self.qc_config if qc_config is None else qc_config
         if config is None:
             raise ValueError(
@@ -176,12 +142,10 @@ class VesicleEdges:
                         frame_index=expected_index,
                     )
                 continue
-
             if result.frame_index != expected_index:
                 raise ValueError(
                     "Edge result frame_index must match its source-frame "
-                    f"position: expected {expected_index}, got "
-                    f"{result.frame_index}."
+                    f"position: expected {expected_index}, got {result.frame_index}."
                 )
 
     def _validate_detection_lengths(self) -> None:
@@ -203,24 +167,15 @@ class VesicleEdges:
     def _validate_usable_detections(self) -> None:
         """Verify at least one successful detection passes current QC."""
         if self.qc_result is not None and not self.qc_result.passed:
+            raise ValueError("Vesicle trajectory failed quality control.")
+        if not any(detection.qc.passed for detection in self.successful_detections):
             raise ValueError(
-                "Vesicle trajectory failed quality control."
-            )
-        if not any(
-            detection.qc.passed
-            for detection in self.successful_detections
-        ):
-            raise ValueError(
-                "Edge extraction produced detections, but no frames passed "
-                "quality control."
+                "Edge extraction produced detections, but no frames passed quality control."
             )
 
     def export_accepted_radii(self, path: str | Path) -> None:
         """Export all QC-accepted analysis-contour radii in microns to ``.npy``."""
-        np.save(
-            Path(path).with_suffix(".npy"),
-            self.accepted_radii_microns,
-        )
+        np.save(Path(path).with_suffix(".npy"), self.accepted_radii_microns)
 
     def save_checkpoint(self, path: str | Path) -> None:
         """Save reusable QC-independent extraction results to ``.npz``."""
