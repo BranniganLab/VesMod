@@ -12,7 +12,7 @@ from numpy.typing import NDArray
 
 from .checkpoint_io import load_checkpoint, save_checkpoint
 from .config import EdgeExtractionConfig, VesicleQCConfig
-from .frame_sequence import InMemoryFrameSequence, OnDemandFrameSequence
+from .frame_source import InMemoryFrameSequence, OnDemandFrameSequence
 from .models import (
     EdgeDetection,
     EdgeDetectionFailure,
