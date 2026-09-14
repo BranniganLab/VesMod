@@ -12,10 +12,10 @@ import numpy as np
 from numpy.typing import NDArray
 
 from .config import EdgeExtractionConfig
-from .frame_sequence import (
+from .frame_source import (
     InMemoryFrameSequence,
     OnDemandFrameSequence,
-    as_frame_sequence,
+    as_frame_source,
 )
 from .models import (
     EdgeDetection,
@@ -45,7 +45,7 @@ class VesicleVideo:
 
     def __post_init__(self) -> None:
         """Normalize raw image frames and source provenance."""
-        self.frames = as_frame_sequence(self.frames)
+        self.frames = as_frame_source(self.frames)
         if self.source_path is not None:
             self.source_path = Path(self.source_path)
 
