@@ -184,7 +184,7 @@ def test_make_gif_rejects_invalid_layout(tmp_path):
 def test_make_gif_can_draw_a_transformed_custom_panel(monkeypatch, tmp_path):
     """Test custom panels can center contours using the public panel protocol."""
     contour = np.array([[10.0, 12.0], [14.0, 18.0], [18.0, 12.0]])
-    observed = []
+    rendered = []
 
     class CenteredPanel:
         n_frames = 1
@@ -192,7 +192,9 @@ def test_make_gif_can_draw_a_transformed_custom_panel(monkeypatch, tmp_path):
         def draw(self, axis, frame_index):
             centered = contour - contour.mean(axis=0)
             axis.plot(centered[:, 0], centered[:, 1])
-            observed.append(frame_index)
+            rendered.append(
+                (frame_index, axis.lines[0].get_xdata(), axis.lines[0].get_ydata())
+            )
 
     class FakeAnimation:
         def __init__(self, _, animate, frames, **__):
@@ -210,9 +212,11 @@ def test_make_gif_can_draw_a_transformed_custom_panel(monkeypatch, tmp_path):
 
     make_gif(tmp_path / "centered.gif", [CenteredPanel()])
 
-    assert observed == [0]
-    # Drawing occurs in the controller-created axes and preserves the transform.
-    # The panel protocol can therefore implement centered diagnostics directly.
+    assert len(rendered) == 1
+    frame_index, xdata, ydata = rendered[0]
+    assert frame_index == 0
+    assert np.array_equal(xdata, [-4.0, 0.0, 4.0])
+    assert np.array_equal(ydata, [-2.0, 4.0, -2.0])
 
 def test_make_gif_closes_figure_when_save_raises(monkeypatch, tmp_path):
     """Test the animator closes its figure when saving fails."""
