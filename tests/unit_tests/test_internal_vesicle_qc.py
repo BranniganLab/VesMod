@@ -5,7 +5,6 @@ import pytest
 
 from vesmod.VesEdge import (
     EdgeExtractionConfig,
-    InMemoryFrameSequence,
     VesicleEdges,
     VesicleQCConfig,
 )
@@ -39,19 +38,13 @@ def _ring_frame(*radii: float) -> np.ndarray:
 
 
 def test_large_selected_edge_skips_internal_vesicle_inspection():
-    """A contour occupying at least half the image cannot be internal."""
     detection = _detection(radius=40.0)
-    config = VesicleQCConfig(
-        curvature_threshold=1.0,
-        enable_internal_vesicle_qc=True,
-    )
-
+    config = VesicleQCConfig(curvature_threshold=1.0, enable_internal_vesicle_qc=True)
     result = check_internal_vesicle_selection(
         np.stack([_ring_frame(40.0)]),
         [detection],
         config.for_check("internal_vesicle"),
     )
-
     assert result.inspected is False
     assert result.contour_area_fraction >= 0.5
     assert result.sampled_frame_indices == ()
@@ -61,18 +54,12 @@ def test_large_selected_edge_skips_internal_vesicle_inspection():
 
 
 def test_persistent_larger_boundary_flags_internal_vesicle_selection():
-    """A stable small trace inside a larger membrane rejects the trajectory."""
     detections = [_detection(radius=12.0, frame_index=index) for index in range(4)]
     frames = np.stack([_ring_frame(12.0, 32.0) for _ in detections])
-    config = VesicleQCConfig(
-        curvature_threshold=1.0,
-        enable_internal_vesicle_qc=True,
-    )
-
+    config = VesicleQCConfig(curvature_threshold=1.0, enable_internal_vesicle_qc=True)
     result = check_internal_vesicle_selection(
         frames, detections, config.for_check("internal_vesicle")
     )
-
     assert result.inspected is True
     assert result.positive_frame_fraction == 1.0
     assert result.persistent_enclosing_boundary
@@ -80,75 +67,53 @@ def test_persistent_larger_boundary_flags_internal_vesicle_selection():
 
 
 def test_trajectory_rejection_is_not_recorded_as_frame_rejection():
-    """Persistent outer evidence rejects the video, not each sampled edge."""
     detections = [_detection(radius=12.0, frame_index=index) for index in range(4)]
     frames = np.stack([_ring_frame(12.0, 32.0) for _ in detections])
-    edges = VesicleEdges(
-        EdgeExtractionConfig(n_angular_samples=120),
-        detections,
-    )
+    edges = VesicleEdges(EdgeExtractionConfig(n_angular_samples=120), detections)
     config = VesicleQCConfig(
         curvature_threshold=1.0,
         enable_curvature_qc=False,
         enable_area_qc=False,
         enable_internal_vesicle_qc=True,
     )
-
     with pytest.raises(ValueError, match="trajectory failed"):
         edges.run_qc(config, frames)
-
-    assert (
-        TrajectoryQCFlag.INTERNAL_VESICLE
-        in edges.qc_result.trajectory_flags
-    )
+    assert TrajectoryQCFlag.INTERNAL_VESICLE in edges.qc_result.trajectory_flags
     assert edges.accepted_detections == []
     assert all(detection.qc.passed for detection in detections)
 
 
 def test_isolated_outer_boundary_does_not_reject_video():
-    """Frame aggregation prevents one anomalous frame rejecting a video."""
     detections = [_detection(radius=12.0, frame_index=index) for index in range(4)]
-    frames = np.stack(
-        [_ring_frame(12.0, 32.0)]
-        + [_ring_frame(12.0) for _ in range(3)]
-    )
+    frames = np.stack([_ring_frame(12.0, 32.0)] + [_ring_frame(12.0) for _ in range(3)])
     config = VesicleQCConfig(
         curvature_threshold=1.0,
         enable_internal_vesicle_qc=True,
         internal_vesicle_min_frame_fraction=0.5,
     )
-
     result = check_internal_vesicle_selection(
         frames, detections, config.for_check("internal_vesicle")
     )
-
     assert result.positive_frame_fraction < 0.5
     assert not result.persistent_enclosing_boundary
     assert all(detection.qc.passed for detection in detections)
 
 
 def test_incoherent_outer_peaks_do_not_form_enclosing_boundary():
-    """Strong gradients at unrelated radii do not count as one membrane."""
     rng = np.random.default_rng(1234)
     outer_radii = rng.uniform(20.0, 60.0, size=120)
     outer_strengths = np.ones(120)
-    config = VesicleQCConfig(
-        curvature_threshold=1.0,
-        enable_internal_vesicle_qc=True,
-    )
-
+    config = VesicleQCConfig(curvature_threshold=1.0, enable_internal_vesicle_qc=True)
     score = _coherent_outer_edge_coverage(
         outer_radii,
         outer_strengths,
         reference_strength=1.0,
         config=config.internal_vesicle,
     )
-
     assert score < config.internal_vesicle.min_angular_coverage
 
 
 def test_clipped_directions_count_as_missing_outer_boundary_evidence():
-    """A partial ring at an image border does not imply full coverage."""
     y, x = np.indices((100, 100))
     distance = np.hypot(x, y - 50.0)
     frame = sum(
@@ -157,56 +122,39 @@ def test_clipped_directions_count_as_missing_outer_boundary_evidence():
     )
     contour = ImageContour((0.0, 50.0), np.full(120, 12.0))
     detection = EdgeDetection(contour, contour, frame_index=0)
-    config = VesicleQCConfig(
-        curvature_threshold=1.0,
-        enable_internal_vesicle_qc=True,
-    )
-
-    score = _frame_enclosing_boundary_score(
-        frame, detection, config.internal_vesicle
-    )
-
+    config = VesicleQCConfig(curvature_threshold=1.0, enable_internal_vesicle_qc=True)
+    score = _frame_enclosing_boundary_score(frame, detection, config.internal_vesicle)
     assert np.isfinite(score)
     assert score < config.internal_vesicle.min_angular_coverage
 
 
 def test_size_gate_does_not_read_frames():
-    """Large contours are dismissed using metadata before any frame read."""
-    sequence = _CountingFrameSequence(np.stack([_ring_frame(40.0)] * 5))
+    sequence = _CountingArray(np.stack([_ring_frame(40.0)] * 5))
     detections = [_detection(40.0, index) for index in range(5)]
-    config = VesicleQCConfig(
-        curvature_threshold=1.0,
-        enable_internal_vesicle_qc=True,
-    )
-
+    config = VesicleQCConfig(curvature_threshold=1.0, enable_internal_vesicle_qc=True)
     result = check_internal_vesicle_selection(
         sequence, detections, config.for_check("internal_vesicle")
     )
-
     assert result.inspected is False
     assert sequence.read_indices == []
 
 
 def test_sampling_reads_only_evenly_spaced_frames():
-    """Inspection stays bounded by the configured frame sample."""
-    sequence = _CountingFrameSequence(np.stack([_ring_frame(12.0)] * 10))
+    sequence = _CountingArray(np.stack([_ring_frame(12.0)] * 10))
     detections = [_detection(12.0, index) for index in range(10)]
     config = VesicleQCConfig(
         curvature_threshold=1.0,
         enable_internal_vesicle_qc=True,
         internal_vesicle_max_frames=4,
     )
-
     result = check_internal_vesicle_selection(
         sequence, detections, config.for_check("internal_vesicle")
     )
-
     assert result.sampled_frame_indices == (0, 3, 6, 9)
     assert sequence.read_indices == [0, 3, 6, 9]
 
 
 def test_insufficient_valid_sample_cannot_reject_trajectory():
-    """One usable frame cannot decide a trajectory when coverage is poor."""
     frames = np.stack(
         [_ring_frame(12.0, 32.0)]
         + [np.full((100, 100), np.nan) for _ in range(3)]
@@ -218,11 +166,9 @@ def test_insufficient_valid_sample_cannot_reject_trajectory():
         internal_vesicle_min_valid_frames=3,
         internal_vesicle_min_valid_frame_fraction=0.5,
     )
-
     result = check_internal_vesicle_selection(
         frames, detections, config.for_check("internal_vesicle")
     )
-
     assert result.valid_frame_count == 1
     assert result.valid_frame_fraction == 0.25
     assert not result.persistent_enclosing_boundary
@@ -230,13 +176,8 @@ def test_insufficient_valid_sample_cannot_reject_trajectory():
 
 
 def test_negative_frame_index_is_rejected():
-    """Negative indices must not silently select frames from the video end."""
     detection = _detection(radius=12.0, frame_index=-1)
-    config = VesicleQCConfig(
-        curvature_threshold=1.0,
-        enable_internal_vesicle_qc=True,
-    )
-
+    config = VesicleQCConfig(curvature_threshold=1.0, enable_internal_vesicle_qc=True)
     with pytest.raises(ValueError, match="do not match detection indices"):
         check_internal_vesicle_selection(
             np.stack([_ring_frame(12.0, 32.0)]),
@@ -245,13 +186,20 @@ def test_negative_frame_index_is_rejected():
         )
 
 
-class _CountingFrameSequence(InMemoryFrameSequence):
-    """In-memory sequence that records indexed reads."""
+class _CountingArray(np.ndarray):
+    """Resident frame array that records indexed reads."""
 
-    def __init__(self, frames):
-        super().__init__(frames)
-        self.read_indices = []
+    def __new__(cls, frames):
+        instance = np.asarray(frames).view(cls)
+        instance.read_indices = []
+        return instance
+
+    def __array_finalize__(self, obj):
+        if obj is None:
+            return
+        self.read_indices = getattr(obj, "read_indices", [])
 
     def __getitem__(self, index):
-        self.read_indices.append(index)
+        if isinstance(index, (int, np.integer)):
+            self.read_indices.append(int(index))
         return super().__getitem__(index)
