@@ -10,7 +10,6 @@ import numpy as np
 import pytest
 
 from vesmod.VesEdge import (
-    InMemoryFrameSequence,
     EdgeDetection,
     ImageContour,
     QCFlag,
@@ -211,7 +210,7 @@ def test_process_checkpoint_writes_measurements_in_original_coordinates(
     monkeypatch.setattr(
         internal_structures_cli,
         "open_checkpoint_frames",
-        lambda path: InMemoryFrameSequence(np.zeros((1, 10, 10))),
+        lambda path: np.zeros((1, 10, 10)),
     )
     monkeypatch.setattr(
         internal_structures_cli,
@@ -300,10 +299,7 @@ def test_load_qc_selection_reconstructs_recorded_config(tmp_path):
     args.qc_results = qc_dir
     args.include_unqced = False
 
-    selection = internal_structures_cli._load_qc_selection(
-        args,
-        [checkpoint],
-    )
+    selection = internal_structures_cli._load_qc_selection(args, [checkpoint])
 
     assert selection.config.curvature.threshold == 7.0
     assert selection.provenance_path == (qc_dir / "vesedge_qc.json").resolve()
@@ -340,7 +336,7 @@ def test_process_checkpoint_does_not_measure_qc_rejected_frame(
     monkeypatch.setattr(
         internal_structures_cli,
         "open_checkpoint_frames",
-        lambda path: InMemoryFrameSequence(np.zeros((1, 10, 10))),
+        lambda path: np.zeros((1, 10, 10)),
     )
     monkeypatch.setattr(
         internal_structures_cli,
