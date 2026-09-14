@@ -267,7 +267,9 @@ def make_gif(
             for dimension in layout
         )
     ):
-        raise ValueError("layout must be a pair of positive integers (rows, columns).")
+        raise ValueError(
+            "layout must be a pair of positive integers (rows, columns)."
+        )
     else:
         rows, columns = layout
 
