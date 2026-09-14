@@ -14,7 +14,7 @@ from .experimental.internal_vesicle_qc import (
     InternalVesicleQCResult,
     check_internal_vesicle_selection,
 )
-from .frame_sequence import InMemoryFrameSequence, OnDemandFrameSequence
+from .frame_source import InMemoryFrameSequence, OnDemandFrameSequence
 from .localized_deviation_qc import (
     LocalizedDeviationQCConfig,
     LocalizedDeviationQCResult,
