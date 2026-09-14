@@ -25,12 +25,11 @@ from .minimum_radius_qc import MinimumRadiusQCConfig, check_minimum_radius
 from .localized_deviation_qc import LocalizedDeviationQCConfig, check_localized_deviation
 from .singleton_qc import SingletonDeviationQCConfig
 from .contour_geometry import RadialBaselineFit, fit_radial_baseline
-from .frame_source import (
-    ArrayFrameSource,
-    FrameSource,
-    ND2FrameSource,
-    as_frame_source,
-    open_frame_source,
+from .frame_sequence import (
+    InMemoryFrameSequence,
+    OnDemandFrameSequence,
+    as_frame_sequence,
+    open_frame_sequence,
 )
 from .models import (
     EdgeDetection,
@@ -61,7 +60,6 @@ __all__ = [
     "AnimationPanel",
     "AreaQCConfig",
     "AreaQCResult",
-    "ArrayFrameSource",
     "CurvatureQCConfig",
     "CurvatureQCResult",
     "EdgeDetection",
@@ -69,12 +67,12 @@ __all__ = [
     "EdgeExtractionConfig",
     "EdgeResult",
     "EdgeTracePlotConfig",
-    "FrameSource",
     "ImageContour",
+    "InMemoryFrameSequence",
     "InternalVesicleQCResult",
     "LocalizedDeviationQCConfig",
     "MinimumRadiusQCConfig",
-    "ND2FrameSource",
+    "OnDemandFrameSequence",
     "QCFlag",
     "QCReplayResult",
     "RadialBaselineFit",
@@ -87,7 +85,7 @@ __all__ = [
     "VesicleQCConfig",
     "VesicleQCResult",
     "VesicleVideo",
-    "as_frame_source",
+    "as_frame_sequence",
     "centered_contour_coordinates",
     "check_area_deviation",
     "check_localized_deviation",
@@ -100,7 +98,7 @@ __all__ = [
     "load_recorded_qc",
     "make_gif",
     "make_vesicle_gif",
-    "open_frame_source",
+    "open_frame_sequence",
     "plot_edge_traces",
     "replay_recorded_qc",
     "select_trace_detections",
