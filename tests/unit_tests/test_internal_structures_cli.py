@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 
 from vesmod.VesEdge import (
-    ArrayFrameSource,
+    InMemoryFrameSequence,
     EdgeDetection,
     ImageContour,
     QCFlag,
@@ -211,7 +211,7 @@ def test_process_checkpoint_writes_measurements_in_original_coordinates(
     monkeypatch.setattr(
         internal_structures_cli,
         "open_checkpoint_frames",
-        lambda path: ArrayFrameSource(np.zeros((1, 10, 10))),
+        lambda path: InMemoryFrameSequence(np.zeros((1, 10, 10))),
     )
     monkeypatch.setattr(
         internal_structures_cli,
@@ -340,7 +340,7 @@ def test_process_checkpoint_does_not_measure_qc_rejected_frame(
     monkeypatch.setattr(
         internal_structures_cli,
         "open_checkpoint_frames",
-        lambda path: ArrayFrameSource(np.zeros((1, 10, 10))),
+        lambda path: InMemoryFrameSequence(np.zeros((1, 10, 10))),
     )
     monkeypatch.setattr(
         internal_structures_cli,
