@@ -11,7 +11,7 @@ import numpy as np
 
 from vesmod.io import map_output_path
 
-from .frame_sequence import InMemoryFrameSequence, OnDemandFrameSequence
+from .frame_source import InMemoryFrameSequence, OnDemandFrameSequence
 from .qc_checks import QC_CHECKS
 from .qc_config import VesicleQCConfig
 from .vesicle_edges import VesicleEdges
