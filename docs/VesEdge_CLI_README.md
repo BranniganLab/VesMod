@@ -217,13 +217,15 @@ The previous coupled `--downsample --n-samples N` interface has been removed. Se
 
 ## Extraction Algorithm
 
-VesEdge opens ND2 acquisitions through the shared `FrameSource` API and reads
-one frame at a time during extraction; it does not materialize the complete
-video in memory. `ArrayFrameSource` preserves the existing NumPy workflow, and
-`open_frame_source()` memory-maps `.npy` videos. `ND2FrameSource` exposes frame
-count, shape, metadata, indexed reads, and iteration for other frame-local
-analyses. Multidimensional ND2 inputs with more than one position, z-plane, or
-channel require an explicit axis selection rather than silently choosing one.
+VesEdge uses two explicit frame-access strategies. Resident NumPy frame
+stacks are passed directly as arrays. `OnDemandFrameSequence` provides
+file-backed frames on request; it currently supports ND2 acquisitions and
+memory-mapped `.npy` videos. `VesicleVideo` accepts either an ndarray or an
+`OnDemandFrameSequence`, without wrapping arrays in a separate frame-source
+object. ND2 extraction therefore reads frames on demand instead of materializing
+the complete video in memory.
+Multidimensional ND2 inputs with more than one position, z-plane, or channel
+require an explicit axis selection rather than silently choosing one.
 
 The default extractor is:
 

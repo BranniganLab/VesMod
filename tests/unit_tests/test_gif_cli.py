@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from vesmod.VesEdge import ArrayFrameSource, VesicleQCConfig, load_recorded_qc
+from vesmod.VesEdge import VesicleQCConfig, load_recorded_qc
 from vesmod.cli import gif_cli, vesedge_cli
 
 
@@ -98,7 +98,7 @@ def test_apply_recorded_qc_verifies_paired_array(tmp_path):
     qc_path = qc_dir / "nested" / "sample.npy"
     qc_path.parent.mkdir(parents=True)
     expected = np.ones((2, 4))
-    frames = ArrayFrameSource(np.zeros((2, 3, 4)))
+    frames = np.zeros((2, 3, 4))
     np.save(qc_path, expected)
     provenance = {
         "checkpoint_manifest": [str(checkpoint.resolve())],
@@ -139,7 +139,7 @@ def test_apply_recorded_qc_allows_all_rejected_without_array(tmp_path):
         "qc_config": VesicleQCConfig(curvature_threshold=5.0).to_dict(),
     }))
     selection = load_recorded_qc(qc_dir, [checkpoint])
-    frames = ArrayFrameSource(np.zeros((2, 3, 4)))
+    frames = np.zeros((2, 3, 4))
 
     class AllRejectedEdges:
         accepted_detections = []

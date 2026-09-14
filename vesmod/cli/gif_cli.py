@@ -6,7 +6,7 @@ import argparse
 from pathlib import Path
 
 from vesmod.VesEdge import (
-    FrameSource,
+    OnDemandFrameSequence,
     RecordedQCSelection,
     VesicleEdges,
     VesicleVideo,
@@ -85,7 +85,7 @@ def _checkpoint_paths(
 
 def _apply_recorded_qc(
     edges: VesicleEdges,
-    frames: FrameSource,
+    frames: OnDemandFrameSequence,
     checkpoint: Path,
     input_path: Path,
     selection: RecordedQCSelection,

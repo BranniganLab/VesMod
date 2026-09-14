@@ -11,7 +11,7 @@ import numpy as np
 
 from vesmod.io import map_output_path
 
-from .frame_source import FrameSource
+from .frame_source import OnDemandFrameSequence
 from .qc_checks import QC_CHECKS
 from .qc_config import VesicleQCConfig
 from .vesicle_edges import VesicleEdges
@@ -98,7 +98,7 @@ def replay_recorded_qc(
     checkpoint: Path,
     selection: RecordedQCSelection,
     *,
-    frames: FrameSource | np.ndarray | None = None,
+    frames: OnDemandFrameSequence | np.ndarray | None = None,
     input_root: Path | None = None,
     verify_paired_output: bool = False,
 ) -> QCReplayResult:

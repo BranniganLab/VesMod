@@ -26,9 +26,7 @@ from .localized_deviation_qc import LocalizedDeviationQCConfig, check_localized_
 from .singleton_qc import SingletonDeviationQCConfig
 from .contour_geometry import RadialBaselineFit, fit_radial_baseline
 from .frame_source import (
-    ArrayFrameSource,
-    FrameSource,
-    ND2FrameSource,
+    OnDemandFrameSequence,
     as_frame_source,
     open_frame_source,
 )
@@ -61,7 +59,6 @@ __all__ = [
     "AnimationPanel",
     "AreaQCConfig",
     "AreaQCResult",
-    "ArrayFrameSource",
     "CurvatureQCConfig",
     "CurvatureQCResult",
     "EdgeDetection",
@@ -69,12 +66,11 @@ __all__ = [
     "EdgeExtractionConfig",
     "EdgeResult",
     "EdgeTracePlotConfig",
-    "FrameSource",
     "ImageContour",
     "InternalVesicleQCResult",
     "LocalizedDeviationQCConfig",
     "MinimumRadiusQCConfig",
-    "ND2FrameSource",
+    "OnDemandFrameSequence",
     "QCFlag",
     "QCReplayResult",
     "RadialBaselineFit",

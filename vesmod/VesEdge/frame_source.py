@@ -1,10 +1,9 @@
-"""Reusable random-access frame sources for arrays and microscopy videos."""
+"""On-demand frame access for file-backed video sources."""
 
 from __future__ import annotations
 
 from collections.abc import Iterator, Mapping
 from pathlib import Path
-from typing import Protocol, runtime_checkable
 
 import nd2
 import numpy as np
@@ -14,93 +13,22 @@ from numpy.typing import NDArray
 _ND2_READER_MEMORY_BUDGET_BYTES = 100 * 1024**2
 
 
-@runtime_checkable
-class FrameSource(Protocol):
-    """A bounded-memory, random-access sequence of two-dimensional frames."""
+class OnDemandFrameSequence:
+    """Random-access frames loaded from a file-backed source when requested.
 
-    @property
-    def shape(self) -> tuple[int, int, int]:
-        """Return ``(frames, height, width)``."""
-
-    @property
-    def metadata(self) -> Mapping[str, object]:
-        """Return source and selection metadata."""
-
-    def __len__(self) -> int:
-        """Return the number of selected frames."""
-
-    def __getitem__(self, index: int) -> NDArray[np.number]:
-        """Read one selected two-dimensional frame."""
-
-    def __iter__(self) -> Iterator[NDArray[np.number]]:
-        """Iterate without materializing the complete video."""
-
-
-class ArrayFrameSource:
-    """Random-access frames backed by an in-memory or memory-mapped array."""
-
-    def __init__(
-        self,
-        frames: NDArray[np.number],
-        *,
-        owns_frames: bool = False,
-    ) -> None:
-        if not isinstance(frames, np.ndarray):
-            raise TypeError("frames must be a numpy ndarray or FrameSource.")
-        if frames.ndim != 3:
-            raise IndexError("frames must be a 3D array.")
-        self._frames = frames
-        self._owns_frames = owns_frames
-
-    @property
-    def shape(self) -> tuple[int, int, int]:
-        """Return ``(frames, height, width)``."""
-        return self._frames.shape
-
-    @property
-    def metadata(self) -> Mapping[str, object]:
-        """Return metadata describing the array-backed source."""
-        return {"kind": "array", "dtype": str(self._frames.dtype)}
-
-    def __len__(self) -> int:
-        return self.shape[0]
-
-    def __getitem__(self, index: int) -> NDArray[np.number]:
-        return self._frames[index]
-
-    def __setitem__(self, index: int, value) -> None:
-        """Preserve ordinary mutable-array behavior for in-memory sources."""
-        self._frames[index] = value
-
-    def __iter__(self) -> Iterator[NDArray[np.number]]:
-        for index in range(len(self)):
-            yield self[index]
-
-    def close(self) -> None:
-        """Release an array opened and owned by this source."""
-        if self._owns_frames:
-            self._frames = None
-            self._owns_frames = False
-
-    def __enter__(self) -> "ArrayFrameSource":
-        return self
-
-    def __exit__(self, *_exc_info) -> None:
-        self.close()
-
-
-class ND2FrameSource:
-    """Lazy ND2 frames with explicit non-time axis selection.
+    The current implementation supports ND2 acquisitions and memory-mapped
+    NumPy ``.npy`` files. Additional on-demand backends can be incorporated or
+    split into format-specific subclasses when their behavior warrants it.
 
     Parameters
     ----------
     path : str or Path
-        ND2 acquisition to open.
+        File-backed video sequence to open.
     axis_selection : mapping, optional
-        Index selected for every non-spatial, non-time axis whose size exceeds
-        one. Axis names follow ``nd2.ND2File.sizes`` (for example ``P``, ``Z``,
-        or ``C``). Ambiguous acquisitions are rejected rather than silently
-        selecting a position, z-plane, or channel.
+        For ND2 input, the index selected for every non-spatial, non-time axis
+        whose size exceeds one. Axis names follow ``nd2.ND2File.sizes`` (for
+        example ``P``, ``Z``, or ``C``). Ambiguous acquisitions are rejected
+        rather than silently selecting a position, z-plane, or channel.
     """
 
     def __init__(
@@ -109,18 +37,40 @@ class ND2FrameSource:
         axis_selection: Mapping[str, int] | None = None,
     ) -> None:
         self.path = Path(path).expanduser().resolve()
-        self._file = nd2.ND2File(self.path)
+        self._suffix = self.path.suffix.lower()
+        self._file = None
+        self._array = None
         self._bytes_since_reopen = 0
         self._selection = {
             str(axis).upper(): int(index)
             for axis, index in (axis_selection or {}).items()
         }
-        try:
-            self._validate_selection()
-            self._sequence_indices = self._select_sequence_indices()
-        except (KeyError, TypeError, ValueError):
-            self._file.close()
-            raise
+
+        if self._suffix == ".nd2":
+            self._open_nd2()
+            try:
+                self._validate_selection()
+                self._sequence_indices = self._select_sequence_indices()
+            except (KeyError, TypeError, ValueError):
+                self.close()
+                raise
+            return
+
+        if self._suffix == ".npy":
+            if self._selection:
+                raise ValueError("axis_selection is only supported for ND2 input.")
+            array = np.load(self.path, allow_pickle=False, mmap_mode="r")
+            if array.ndim != 3:
+                raise IndexError("frames must be a 3D array.")
+            self._array = array
+            self._sequence_indices = tuple(range(array.shape[0]))
+            return
+
+        raise ValueError(f"Unsupported video source type: {self.path}")
+
+    def _open_nd2(self) -> None:
+        self._file = nd2.ND2File(self.path)
+        self._bytes_since_reopen = 0
 
     def _validate_selection(self) -> None:
         sizes = self._file.sizes
@@ -164,13 +114,16 @@ class ND2FrameSource:
 
     def _reopen(self) -> None:
         """Recycle the ND2 reader so accessed file-backed pages can be released."""
+        if self._suffix != ".nd2":
+            return
         self._file.close()
-        self._file = nd2.ND2File(self.path)
-        self._bytes_since_reopen = 0
+        self._open_nd2()
 
     @property
     def shape(self) -> tuple[int, int, int]:
         """Return selected ``(frames, height, width)`` dimensions."""
+        if self._suffix == ".npy":
+            return self._array.shape
         return (
             len(self),
             int(self._file.sizes["Y"]),
@@ -179,7 +132,13 @@ class ND2FrameSource:
 
     @property
     def metadata(self) -> Mapping[str, object]:
-        """Return source identity, dimensions, and explicit axis selection."""
+        """Return source identity and backend-specific metadata."""
+        if self._suffix == ".npy":
+            return {
+                "kind": "npy",
+                "path": str(self.path),
+                "dtype": str(self._array.dtype),
+            }
         return {
             "kind": "nd2",
             "path": str(self.path),
@@ -193,6 +152,9 @@ class ND2FrameSource:
     def __getitem__(self, index: int) -> NDArray[np.number]:
         if index < 0 or index >= len(self):
             raise IndexError(f"frame index must be between 0 and {len(self) - 1}.")
+        if self._suffix == ".npy":
+            return self._array[index]
+
         if self._bytes_since_reopen >= _ND2_READER_MEMORY_BUDGET_BYTES:
             self._reopen()
 
@@ -215,10 +177,14 @@ class ND2FrameSource:
             yield self[index]
 
     def close(self) -> None:
-        """Close the underlying ND2 file handle."""
-        self._file.close()
+        """Release resources owned by the file-backed sequence."""
+        if self._suffix == ".nd2" and self._file is not None:
+            self._file.close()
+            self._file = None
+        if self._suffix == ".npy":
+            self._array = None
 
-    def __enter__(self) -> "ND2FrameSource":
+    def __enter__(self) -> "OnDemandFrameSequence":
         return self
 
     def __exit__(self, *_exc_info) -> None:
@@ -226,28 +192,28 @@ class ND2FrameSource:
 
 
 def as_frame_source(
-    frames: FrameSource | NDArray[np.number],
-) -> FrameSource:
-    """Normalize an existing frame source or three-dimensional NumPy array."""
+    frames: OnDemandFrameSequence | NDArray[np.number],
+) -> OnDemandFrameSequence | NDArray[np.number]:
+    """Validate supported frame input without wrapping resident NumPy arrays."""
+    if isinstance(frames, np.memmap):
+        raise TypeError(
+            "Pass the backing path to OnDemandFrameSequence rather than a "
+            "bare memory-mapped array."
+        )
     if isinstance(frames, np.ndarray):
-        return ArrayFrameSource(frames)
-    if isinstance(frames, FrameSource):
+        if frames.ndim != 3:
+            raise IndexError("frames must be a 3D array.")
         return frames
-    raise TypeError("frames must be a numpy ndarray or FrameSource.")
+    if isinstance(frames, OnDemandFrameSequence):
+        return frames
+    raise TypeError(
+        "frames must be a numpy ndarray or OnDemandFrameSequence."
+    )
 
 
 def open_frame_source(
     path: str | Path,
     axis_selection: Mapping[str, int] | None = None,
-) -> ArrayFrameSource | ND2FrameSource:
-    """Open an ND2 or memory-mapped NumPy video as a shared frame source."""
-    source_path = Path(path).expanduser().resolve()
-    suffix = source_path.suffix.lower()
-    if suffix == ".nd2":
-        return ND2FrameSource(source_path, axis_selection=axis_selection)
-    if suffix == ".npy":
-        return ArrayFrameSource(
-            np.load(source_path, allow_pickle=False, mmap_mode="r"),
-            owns_frames=True,
-        )
-    raise ValueError(f"Unsupported video source type: {source_path}")
+) -> OnDemandFrameSequence:
+    """Open a supported file-backed video for on-demand frame access."""
+    return OnDemandFrameSequence(path, axis_selection=axis_selection)

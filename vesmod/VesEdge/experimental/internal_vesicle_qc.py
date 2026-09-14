@@ -20,7 +20,7 @@ from vesmod.validation import (
 )
 
 if TYPE_CHECKING:
-    from ..frame_source import FrameSource
+    from ..frame_source import OnDemandFrameSequence
 
 
 @dataclass(frozen=True)
@@ -174,17 +174,14 @@ def _frame_enclosing_boundary_score(
         outer_start = int(
             np.ceil(
                 max(
-                    selected_radius
-                    * config.min_radius_ratio,
+                    selected_radius * config.min_radius_ratio,
                     selected_radius * (1 + config.min_separation_fraction),
                 )
             )
         )
         valid_indices = np.flatnonzero(inside[index] & (radii >= outer_start))
         if valid_indices.size:
-            strongest = valid_indices[
-                np.argmax(gradients[index, valid_indices])
-            ]
+            strongest = valid_indices[np.argmax(gradients[index, valid_indices])]
             outer_strengths[index] = gradients[index, strongest]
             outer_radii[index] = radii[strongest]
 
@@ -205,15 +202,15 @@ def _frame_enclosing_boundary_score(
 
 
 def check_internal_vesicle_selection(
-    frames: FrameSource | NDArray[np.number],
+    frames: OnDemandFrameSequence | NDArray[np.number],
     detections: list[EdgeDetection],
     config: InternalVesicleQCConfig,
 ) -> InternalVesicleQCResult:
     """Evaluate persistent selection of a smaller vesicle within a larger one."""
     from ..frame_source import as_frame_source
 
-    frame_source = as_frame_source(frames)
-    frame_count, height, width = frame_source.shape
+    frame_sequence = as_frame_source(frames)
+    frame_count, height, width = frame_sequence.shape
     if not detections:
         raise ValueError("Internal-vesicle QC requires successful detections.")
     if any(
@@ -227,9 +224,7 @@ def check_internal_vesicle_selection(
         )
 
     median_area = float(
-        np.median(
-            [contour_area(edge.full_contour.r) for edge in detections]
-        )
+        np.median([contour_area(edge.full_contour.r) for edge in detections])
     )
     frame_area = float(height * width)
     area_fraction = median_area / frame_area
@@ -250,14 +245,11 @@ def check_internal_vesicle_selection(
             ),
         )
 
-    sampled = _sample_detections(
-        detections,
-        internal_config.max_frames,
-    )
+    sampled = _sample_detections(detections, internal_config.max_frames)
     sampled_indices = tuple(edge.frame_index for edge in sampled)
     scores = tuple(
         _frame_enclosing_boundary_score(
-            frame_source[edge.frame_index],
+            frame_sequence[edge.frame_index],
             edge,
             internal_config,
         )
@@ -270,19 +262,11 @@ def check_internal_vesicle_selection(
     valid_count = int(finite_scores.size)
     valid_fraction = valid_count / len(sampled)
     positive_fraction = (
-        float(
-            np.mean(
-                finite_scores
-                >= internal_config.min_angular_coverage
-            )
-        )
+        float(np.mean(finite_scores >= internal_config.min_angular_coverage))
         if valid_count
         else 0.0
     )
-    required_valid_count = min(
-        internal_config.min_valid_frames,
-        len(sampled),
-    )
+    required_valid_count = min(internal_config.min_valid_frames, len(sampled))
     sufficient_valid_data = (
         valid_count >= required_valid_count
         and valid_fraction >= internal_config.min_valid_frame_fraction

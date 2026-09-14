@@ -1,57 +1,39 @@
-"""Tests for reusable lazy video frame sources."""
+"""Tests for resident NumPy frames and on-demand video frame sequences."""
 
 import numpy as np
 import pytest
 
 from vesmod.VesEdge.frame_source import (
-    ArrayFrameSource,
+    OnDemandFrameSequence,
     as_frame_source,
     open_frame_source,
 )
 from vesmod.VesEdge import frame_source
 
 
-def test_array_frame_source_supports_indexed_and_iterative_reads():
+def test_as_frame_source_preserves_resident_numpy_array():
     frames = np.arange(24).reshape(3, 4, 2)
-    source = ArrayFrameSource(frames)
 
-    assert source.shape == (3, 4, 2)
-    np.testing.assert_array_equal(source[1], frames[1])
-    assert len(list(source)) == 3
+    assert as_frame_source(frames) is frames
 
 
-def test_as_frame_source_preserves_existing_source():
-    source = ArrayFrameSource(np.zeros((2, 3, 4)))
+def test_as_frame_source_rejects_non_video_shape():
+    with pytest.raises(IndexError, match="3D array"):
+        as_frame_source(np.zeros((3, 4)))
 
-    assert as_frame_source(source) is source
 
-
-def test_open_numpy_source_uses_memory_mapping(tmp_path):
+def test_open_numpy_source_uses_on_demand_memory_mapping(tmp_path):
     path = tmp_path / "video.npy"
     np.save(path, np.zeros((2, 3, 4)))
 
-    with open_frame_source(path) as source:
-        assert source.shape == (2, 3, 4)
-        assert isinstance(source._frames, np.memmap)
-    assert source._frames is None
+    with open_frame_source(path) as sequence:
+        assert isinstance(sequence, OnDemandFrameSequence)
+        assert sequence.shape == (2, 3, 4)
+        assert isinstance(sequence._array, np.memmap)
+    assert sequence._array is None
 
 
-def test_array_source_close_preserves_caller_owned_array():
-    frames = np.zeros((2, 3, 4))
-    source = ArrayFrameSource(frames)
-
-    source.close()
-    source.close()
-
-    assert source._frames is frames
-
-
-def test_array_source_rejects_non_video_shape():
-    with pytest.raises(IndexError, match="3D array"):
-        ArrayFrameSource(np.zeros((3, 4)))
-
-
-def test_nd2_source_requires_explicit_multidimensional_selection(
+def test_on_demand_sequence_requires_explicit_nd2_multidimensional_selection(
     tmp_path,
     monkeypatch,
 ):
@@ -61,20 +43,24 @@ def test_nd2_source_requires_explicit_multidimensional_selection(
         open_frame_source(tmp_path / "video.nd2")
 
 
-def test_nd2_source_reads_only_selected_sequence_frames(tmp_path, monkeypatch):
+def test_on_demand_sequence_reads_only_selected_nd2_frames(tmp_path, monkeypatch):
     monkeypatch.setattr(frame_source.nd2, "ND2File", _FakeND2File)
 
     with open_frame_source(
         tmp_path / "video.nd2",
         axis_selection={"Z": 1},
-    ) as source:
-        assert source.shape == (2, 3, 4)
-        np.testing.assert_array_equal(source[0], np.full((3, 4), 1))
-        np.testing.assert_array_equal(source[1], np.full((3, 4), 3))
-        assert source._file.read_indices == [1, 3]
+    ) as sequence:
+        assert isinstance(sequence, OnDemandFrameSequence)
+        assert sequence.shape == (2, 3, 4)
+        np.testing.assert_array_equal(sequence[0], np.full((3, 4), 1))
+        np.testing.assert_array_equal(sequence[1], np.full((3, 4), 3))
+        assert sequence._file.read_indices == [1, 3]
 
 
-def test_nd2_source_recycles_reader_after_memory_budget(tmp_path, monkeypatch):
+def test_on_demand_nd2_sequence_recycles_reader_after_memory_budget(
+    tmp_path,
+    monkeypatch,
+):
     _TrackingND2File.instances = []
     monkeypatch.setattr(frame_source.nd2, "ND2File", _TrackingND2File)
     monkeypatch.setattr(frame_source, "_ND2_READER_MEMORY_BUDGET_BYTES", 95)
@@ -82,10 +68,10 @@ def test_nd2_source_recycles_reader_after_memory_budget(tmp_path, monkeypatch):
     with open_frame_source(
         tmp_path / "video.nd2",
         axis_selection={"Z": 1},
-    ) as source:
-        first = source[0]
+    ) as sequence:
+        first = sequence[0]
         first_reader = _TrackingND2File.instances[0]
-        second = source[1]
+        second = sequence[1]
         second_reader = _TrackingND2File.instances[1]
 
         assert first.flags.owndata
@@ -96,32 +82,35 @@ def test_nd2_source_recycles_reader_after_memory_budget(tmp_path, monkeypatch):
         assert second_reader.read_indices == [3]
 
 
-def test_nd2_source_returns_frames_independent_of_reader(tmp_path, monkeypatch):
+def test_on_demand_nd2_sequence_returns_frames_independent_of_reader(
+    tmp_path,
+    monkeypatch,
+):
     monkeypatch.setattr(frame_source.nd2, "ND2File", _FakeND2File)
 
     with open_frame_source(
         tmp_path / "video.nd2",
         axis_selection={"Z": 1},
-    ) as source:
-        frame = source[0]
+    ) as sequence:
+        frame = sequence[0]
         assert frame.flags.owndata
 
     np.testing.assert_array_equal(frame, np.full((3, 4), 1))
 
 
-def test_nd2_source_copies_only_selected_channel(tmp_path, monkeypatch):
+def test_on_demand_nd2_sequence_copies_only_selected_channel(tmp_path, monkeypatch):
     monkeypatch.setattr(frame_source.nd2, "ND2File", _FakeMultiChannelND2File)
 
     with open_frame_source(
         tmp_path / "video.nd2",
         axis_selection={"C": 1},
-    ) as source:
-        frame = source[0]
+    ) as sequence:
+        frame = sequence[0]
 
         np.testing.assert_array_equal(frame, np.full((3, 4), 1))
         assert frame.flags.owndata
         assert frame.base is None
-        assert source._bytes_since_reopen == 2 * frame.nbytes
+        assert sequence._bytes_since_reopen == 2 * frame.nbytes
 
 
 class _FakeND2File:
