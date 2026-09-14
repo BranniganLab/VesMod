@@ -1,4 +1,4 @@
-"""Frame sequences with explicit in-memory and on-demand access strategies."""
+"""On-demand frame access for file-backed video sources."""
 
 from __future__ import annotations
 
@@ -11,58 +11,6 @@ from numpy.typing import NDArray
 
 
 _ND2_READER_MEMORY_BUDGET_BYTES = 100 * 1024**2
-
-
-class InMemoryFrameSequence:
-    """Random-access frames already represented by an in-memory NumPy array."""
-
-    def __init__(self, frames: NDArray[np.number]) -> None:
-        if not isinstance(frames, np.ndarray):
-            raise TypeError(
-                "frames must be a numpy ndarray, InMemoryFrameSequence, "
-                "or OnDemandFrameSequence."
-            )
-        if isinstance(frames, np.memmap):
-            raise TypeError(
-                "memory-mapped arrays are on-demand frame sequences; "
-                "use OnDemandFrameSequence instead."
-            )
-        if frames.ndim != 3:
-            raise IndexError("frames must be a 3D array.")
-        self._frames = frames
-
-    @property
-    def shape(self) -> tuple[int, int, int]:
-        """Return ``(frames, height, width)``."""
-        return self._frames.shape
-
-    @property
-    def metadata(self) -> Mapping[str, object]:
-        """Return metadata describing the in-memory sequence."""
-        return {"kind": "memory", "dtype": str(self._frames.dtype)}
-
-    def __len__(self) -> int:
-        return self.shape[0]
-
-    def __getitem__(self, index: int) -> NDArray[np.number]:
-        return self._frames[index]
-
-    def __setitem__(self, index: int, value) -> None:
-        """Preserve ordinary mutable-array behavior for resident frames."""
-        self._frames[index] = value
-
-    def __iter__(self) -> Iterator[NDArray[np.number]]:
-        for index in range(len(self)):
-            yield self[index]
-
-    def close(self) -> None:
-        """Provide the common context-manager lifecycle; no resource is owned."""
-
-    def __enter__(self) -> "InMemoryFrameSequence":
-        return self
-
-    def __exit__(self, *_exc_info) -> None:
-        self.close()
 
 
 class OnDemandFrameSequence:
@@ -244,21 +192,22 @@ class OnDemandFrameSequence:
 
 
 def as_frame_source(
-    frames: InMemoryFrameSequence | OnDemandFrameSequence | NDArray[np.number],
-) -> InMemoryFrameSequence | OnDemandFrameSequence:
-    """Normalize supported input to one of the two frame-access strategies."""
+    frames: OnDemandFrameSequence | NDArray[np.number],
+) -> OnDemandFrameSequence | NDArray[np.number]:
+    """Validate supported frame input without wrapping resident NumPy arrays."""
     if isinstance(frames, np.memmap):
         raise TypeError(
             "Pass the backing path to OnDemandFrameSequence rather than a "
             "bare memory-mapped array."
         )
     if isinstance(frames, np.ndarray):
-        return InMemoryFrameSequence(frames)
-    if isinstance(frames, (InMemoryFrameSequence, OnDemandFrameSequence)):
+        if frames.ndim != 3:
+            raise IndexError("frames must be a 3D array.")
+        return frames
+    if isinstance(frames, OnDemandFrameSequence):
         return frames
     raise TypeError(
-        "frames must be a numpy ndarray, InMemoryFrameSequence, "
-        "or OnDemandFrameSequence."
+        "frames must be a numpy ndarray or OnDemandFrameSequence."
     )
 
 
