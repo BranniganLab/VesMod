@@ -9,7 +9,6 @@ import numpy as np
 import pytest
 
 from vesmod.VesEdge import (
-    InMemoryFrameSequence,
     EdgeExtractionConfig,
     VesicleEdges,
     VesicleQCConfig,
@@ -232,9 +231,7 @@ def test_process_extract_file_reports_failure_and_returns(monkeypatch, capsys):
     monkeypatch.setattr(
         vesedge_cli,
         "open_frame_source",
-        lambda input_path: InMemoryFrameSequence(
-            np.zeros((1, 10, 10))
-        ),
+        lambda input_path: np.zeros((1, 10, 10)),
     )
     monkeypatch.setattr(
         vesedge_cli,
@@ -278,9 +275,7 @@ def test_process_extract_file_saves_checkpoint_without_running_qc(
     monkeypatch.setattr(
         vesedge_cli,
         "open_frame_source",
-        lambda input_path: InMemoryFrameSequence(
-            np.zeros((1, 10, 10))
-        ),
+        lambda input_path: np.zeros((1, 10, 10)),
     )
     monkeypatch.setattr(
         vesedge_cli,
@@ -374,7 +369,7 @@ def test_process_qc_file_resolves_relative_video_path_for_image_qc(
 
     def open_frames(path):
         observed["source_path"] = path
-        return InMemoryFrameSequence(np.zeros((1, 10, 10)))
+        return np.zeros((1, 10, 10))
 
     monkeypatch.setattr(
         vesedge_cli,
