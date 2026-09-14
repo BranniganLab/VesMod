@@ -70,7 +70,7 @@ def test_real_nd2_sequential_reads_have_bounded_file_backed_rss():
         import numpy as np
 
         from vesmod.VesEdge.frame_source import (
-            ND2FrameSource,
+            OnDemandFrameSequence,
             _ND2_READER_MEMORY_BUDGET_BYTES,
         )
 
@@ -106,7 +106,7 @@ def test_real_nd2_sequential_reads_have_bounded_file_backed_rss():
             )
             raise SystemExit(0)
 
-        with ND2FrameSource(path, axis_selection=axis_selection) as probe:
+        with OnDemandFrameSequence(path, axis_selection=axis_selection) as probe:
             first = probe[0]
             np.sum(first)
             bytes_per_read = probe._bytes_since_reopen
@@ -131,7 +131,7 @@ def test_real_nd2_sequential_reads_have_bounded_file_backed_rss():
             )
             raise SystemExit(0)
 
-        with ND2FrameSource(path, axis_selection=axis_selection) as source:
+        with OnDemandFrameSequence(path, axis_selection=axis_selection) as source:
             window_peaks = []
             for window in range(5):
                 peak = 0
