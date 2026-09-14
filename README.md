@@ -23,7 +23,7 @@ Features include:
 * Rerunnable QC without repeating edge extraction
 * QC provenance and batch-summary outputs
 * Explicit angular sampling
-* NumPy export of accepted contours
+* NumPy export of all accepted contour radii
 * Annotated GIF generation for visual inspection
 
 See the [VesEdge CLI guide](docs/VesEdge_CLI_README.md).
@@ -201,7 +201,7 @@ The Python API exposes the same separation between extraction, QC, stable physic
 ```python
 from vesmod.VesEdge import (
     EdgeExtractionConfig,
-    EdgeQCConfig,
+    VesicleQCConfig,
     CurvatureQCConfig,
     VesicleEdges,
     VesicleVideo,
@@ -226,15 +226,15 @@ Reload the checkpoint and apply QC later:
 ```python
 edges = VesicleEdges.from_checkpoint("sample.npz")
 
-qc_config = EdgeQCConfig(
+qc_config = VesicleQCConfig(
     curvature=CurvatureQCConfig(threshold=0.059),
 )
 
 edges.run_qc(qc_config)
-edges.save_edge_to_npy("sample.npy")
+edges.export_accepted_radii("sample.npy")
 ```
 
-After a completed QC run, `edges.qc_result` contains the curvature configuration and aggregate result. Per-detection curvature annotations remain available on each `EdgeDetection.qc`.
+After a completed QC run, `edges.qc_result` contains the aggregate result for the `VesicleQCConfig` that was applied. Per-detection QC annotations remain available on each `EdgeDetection.qc`. `export_accepted_radii()` writes the analysis-contour radii from all accepted detections, converted to microns, as the `.npy` handoff to EdgeMod.
 
 Fit the accepted contours with the stable core EdgeMod API:
 
@@ -284,7 +284,7 @@ Both successful physical fits remain available in `spectrum.fit_results`. Each `
 | --- | --- |
 | `.npz` | Reusable, QC-independent VesEdge extraction checkpoint |
 | `.gif` | Visual inspection created explicitly by `vesedge gif` in original, edge-overlay, or QC-colored style |
-| `.npy` | Accepted contour radii for one QC configuration, ready for EdgeMod |
+| `.npy` | All QC-accepted analysis-contour radii in microns for one QC configuration, ready for EdgeMod |
 | `vesedge_qc.json` | QC configuration and source path for one QC batch |
 | `qc_summary.csv` | Per-video QC counts and accepted fractions for one QC batch |
 | `.spectrum_diagnostic.png` | Measured spectrum, attempted fit, compensated spectrum, and fit residuals |

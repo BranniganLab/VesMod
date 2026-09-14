@@ -41,5 +41,5 @@ from .edge_filtering import CurvatureQCConfig  # noqa: E402
 from .experimental.internal_vesicle_qc import InternalVesicleQCConfig  # noqa: E402
 from .localized_deviation_qc import LocalizedDeviationQCConfig  # noqa: E402
 from .minimum_radius_qc import MinimumRadiusQCConfig  # noqa: E402
-from .qc_config import EdgeQCConfig  # noqa: E402
+from .qc_config import VesicleQCConfig  # noqa: E402
 from .singleton_qc import SingletonDeviationQCConfig  # noqa: E402

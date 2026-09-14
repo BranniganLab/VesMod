@@ -13,6 +13,8 @@ from matplotlib.axes import Axes
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
+from .models import EdgeDetection
+
 if TYPE_CHECKING:
     from .vesicle_edges import VesicleEdges
     from .vesicle_video import VesicleVideo
@@ -27,6 +29,79 @@ class AnimationPanel(Protocol):
 
     def draw(self, ax: Axes, frame_index: int) -> None:
         """Draw one animation frame onto the supplied axes."""
+
+
+def _validate_vesicle_edges(
+    video: VesicleVideo,
+    edges: VesicleEdges | None,
+) -> None:
+    """Verify optional edge results correspond one-to-one with video frames."""
+    if edges is not None and len(edges.detections) != video.frames.shape[0]:
+        raise ValueError(
+            f"There are {len(edges.detections)} detections and "
+            f"{video.frames.shape[0]} frames."
+        )
+
+
+def draw_vesicle_frame(
+    video: VesicleVideo,
+    ax: Axes,
+    frame_index: int,
+    edges: VesicleEdges | None = None,
+    frame_decorator: Callable[[Axes, int], None] | None = None,
+    title_provider: Callable[[int], str] | None = None,
+) -> None:
+    """Draw one vesicle video frame and optional edge/QC overlays.
+
+    Parameters
+    ----------
+    video : VesicleVideo
+        Source video providing the image frame.
+    ax : matplotlib.axes.Axes
+        Axes on which to draw the requested frame.
+    frame_index : int
+        Zero-based source-frame index.
+    edges : VesicleEdges | None
+        Optional detections to draw with standard QC-aware coloring.
+    frame_decorator : Callable[[matplotlib.axes.Axes, int], None] | None
+        Optional callback that decorates the axes after the image and detected
+        edge are drawn.
+    title_provider : Callable[[int], str] | None
+        Optional callback returning the title for the frame. Without one, the
+        renderer uses the default frame-number title.
+
+    Raises
+    ------
+    ValueError
+        If supplied extraction results do not match the frame count.
+    IndexError
+        If ``frame_index`` is outside the video frame range.
+    """
+    _validate_vesicle_edges(video, edges)
+    if frame_index < 0 or frame_index >= video.frames.shape[0]:
+        raise IndexError(
+            f"Frame index {frame_index} is outside the range "
+            f"0..{video.frames.shape[0] - 1}."
+        )
+
+    ax.clear()
+    ax.imshow(video.frames[frame_index], cmap="gray", animated=True)
+    if edges is not None:
+        result = edges.detections[frame_index]
+        if isinstance(result, EdgeDetection):
+            contour = result.full_contour
+            color = "tab:green"
+            if edges.qc_result is not None and (
+                not edges.qc_result.passed or not result.qc.passed
+            ):
+                color = "tab:red"
+            ax.plot(contour.x, contour.y, color=color)
+    if frame_decorator is not None:
+        frame_decorator(ax, frame_index)
+    frame_title = f"frame {frame_index} / {video.frames.shape[0]}"
+    if title_provider is not None:
+        frame_title = title_provider(frame_index)
+    ax.set_title(frame_title)
 
 
 @dataclass
@@ -45,7 +120,8 @@ class VesicleAnimationPanel:
 
     def draw(self, ax: Axes, frame_index: int) -> None:
         """Draw one vesicle frame on the supplied axes."""
-        self.video.draw_frame(
+        draw_vesicle_frame(
+            self.video,
             ax,
             frame_index,
             self.edges,
@@ -179,3 +255,21 @@ def make_gif(
         animation.save(output_path)
     finally:
         plt.close(fig)
+
+
+def make_vesicle_gif(
+    video: VesicleVideo,
+    path: str | Path,
+    edges: VesicleEdges | None = None,
+    frame_decorator: Callable[[Axes, int], None] | None = None,
+    title_provider: Callable[[int], str] | None = None,
+) -> None:
+    """Save a single-panel vesicle GIF using the composable animation API."""
+    _validate_vesicle_edges(video, edges)
+    panel = VesicleAnimationPanel(
+        video,
+        edges=edges,
+        frame_decorator=frame_decorator,
+        title_provider=title_provider,
+    )
+    make_gif(path, [panel])

@@ -4,7 +4,9 @@ from .animation import (
     AnimationPanel,
     TimeSeriesAnimationPanel,
     VesicleAnimationPanel,
+    draw_vesicle_frame,
     make_gif,
+    make_vesicle_gif,
 )
 from .area_qc import AreaQCConfig, AreaQCResult, check_area_deviation, contour_area
 from .config import (
@@ -14,7 +16,7 @@ from .config import (
     SingletonDeviationQCConfig,
     CurvatureQCConfig,
     EdgeExtractionConfig,
-    EdgeQCConfig,
+    VesicleQCConfig,
 )
 from .edge_extractor import extract_edge_from_frame
 from .edge_filtering import CurvatureQCConfig, CurvatureQCResult
@@ -65,7 +67,6 @@ __all__ = [
     "EdgeDetection",
     "EdgeDetectionFailure",
     "EdgeExtractionConfig",
-    "EdgeQCConfig",
     "EdgeResult",
     "EdgeTracePlotConfig",
     "FrameSource",
@@ -83,19 +84,22 @@ __all__ = [
     "TrajectoryQCFlag",
     "VesicleAnimationPanel",
     "VesicleEdges",
+    "VesicleQCConfig",
     "VesicleQCResult",
     "VesicleVideo",
     "as_frame_source",
     "centered_contour_coordinates",
-    "contour_center_of_mass",
     "check_area_deviation",
     "check_localized_deviation",
     "check_minimum_radius",
     "contour_area",
+    "contour_center_of_mass",
+    "draw_vesicle_frame",
     "extract_edge_from_frame",
     "fit_radial_baseline",
     "load_recorded_qc",
     "make_gif",
+    "make_vesicle_gif",
     "open_frame_source",
     "plot_edge_traces",
     "replay_recorded_qc",

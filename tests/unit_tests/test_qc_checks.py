@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from vesmod.VesEdge import EdgeQCConfig
+from vesmod.VesEdge import VesicleQCConfig
 from vesmod.VesEdge.config import (
     AreaQCConfig,
     CurvatureQCConfig,
@@ -48,7 +48,7 @@ def test_registry_runs_enabled_checks_in_declared_order(monkeypatch):
 
 
 def test_registry_requires_frames_only_for_enabled_frame_check():
-    config = EdgeQCConfig(
+    config = VesicleQCConfig(
         curvature=CurvatureQCConfig(threshold=0.1, enabled=False),
         area=AreaQCConfig(max_relative_deviation=0.25, enabled=False),
         internal_vesicle=InternalVesicleQCConfig(enabled=True),

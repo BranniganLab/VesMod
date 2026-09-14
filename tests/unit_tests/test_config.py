@@ -8,7 +8,7 @@ from vesmod.VesEdge import (
     LocalizedDeviationQCConfig,
     CurvatureQCConfig,
     EdgeExtractionConfig,
-    EdgeQCConfig,
+    VesicleQCConfig,
 )
 from vesmod.VesEdge.experimental import InternalVesicleQCConfig
 
@@ -123,7 +123,7 @@ def test_edge_extraction_config_allows_no_downsampling():
         ),
     ],
 )
-def test_edge_qc_config_rejects_invalid_values(config_type, kwargs, match):
+def test_vesicle_qc_config_rejects_invalid_values(config_type, kwargs, match):
     """Test representative invalid QC configuration values."""
     with pytest.raises(ValueError, match=match):
         config_type(**kwargs)
@@ -136,9 +136,9 @@ def test_localized_deviation_qc_config_accepts_threshold_above_one():
     assert config.max_residual_fraction == 2.0
 
 
-def test_edge_qc_config_normalizes_numeric_thresholds():
+def test_vesicle_qc_config_normalizes_numeric_thresholds():
     """Successful construction exposes normalized finite threshold values."""
-    config = EdgeQCConfig(
+    config = VesicleQCConfig(
         curvature=CurvatureQCConfig(threshold=np.float64(5.0)),
         area=AreaQCConfig(max_relative_deviation=np.float64(0.25)),
     )
@@ -157,15 +157,15 @@ def test_edge_qc_config_normalizes_numeric_thresholds():
         lambda: InternalVesicleQCConfig(enabled=1),
     ],
 )
-def test_edge_qc_config_requires_boolean_enable_flags(factory):
+def test_vesicle_qc_config_requires_boolean_enable_flags(factory):
     """QC enable flags are part of the validated config invariant."""
     with pytest.raises(TypeError, match="enabled must be a bool"):
         factory()
 
 
-def test_edge_qc_config_migrates_legacy_flat_dictionary():
+def test_vesicle_qc_config_migrates_legacy_flat_dictionary():
     """Old provenance is translated at the deserialization boundary."""
-    config = EdgeQCConfig.from_dict(
+    config = VesicleQCConfig.from_dict(
         {
             "curvature_threshold": 7.0,
             "enable_area_qc": False,
@@ -176,9 +176,9 @@ def test_edge_qc_config_migrates_legacy_flat_dictionary():
     assert not config.area.enabled
 
 
-def test_edge_qc_config_accepts_legacy_radius_alias():
+def test_vesicle_qc_config_accepts_legacy_radius_alias():
     """Legacy nested radius provenance maps to minimum_radius."""
-    config = EdgeQCConfig.from_dict(
+    config = VesicleQCConfig.from_dict(
         {
             "curvature": {"threshold": 5.0},
             "radius": {"enabled": True, "min_median_radius_pixels": 3.0},
@@ -189,10 +189,10 @@ def test_edge_qc_config_accepts_legacy_radius_alias():
     assert config.minimum_radius.min_median_radius_pixels == 3.0
 
 
-def test_edge_qc_config_rejects_radius_alias_collision():
+def test_vesicle_qc_config_rejects_radius_alias_collision():
     """Both nested radius spellings cannot be supplied together."""
     with pytest.raises(TypeError, match="both radius and minimum_radius"):
-        EdgeQCConfig.from_dict(
+        VesicleQCConfig.from_dict(
             {
                 "curvature": {"threshold": 5.0},
                 "radius": {},
@@ -201,9 +201,9 @@ def test_edge_qc_config_rejects_radius_alias_collision():
         )
 
 
-def test_edge_qc_config_uses_registered_defaults_for_omitted_checks():
+def test_vesicle_qc_config_uses_registered_defaults_for_omitted_checks():
     """Partial nested provenance obtains defaults from each registered check."""
-    config = EdgeQCConfig.from_dict(
+    config = VesicleQCConfig.from_dict(
         {"area": {"enabled": False, "max_relative_deviation": 0.4}}
     )
 
@@ -212,19 +212,19 @@ def test_edge_qc_config_uses_registered_defaults_for_omitted_checks():
     assert config.area.max_relative_deviation == pytest.approx(0.4)
 
 
-def test_edge_qc_config_rejects_numeric_positional_config_with_extra_values():
+def test_vesicle_qc_config_rejects_numeric_positional_config_with_extra_values():
     """Legacy numeric curvature input cannot silently discard positional data."""
     with pytest.raises(TypeError, match="only positional"):
-        EdgeQCConfig(0.1, AreaQCConfig())
+        VesicleQCConfig(0.1, AreaQCConfig())
 
 
-def test_edge_qc_config_contains_independent_check_configs():
+def test_vesicle_qc_config_contains_independent_check_configs():
     """Each QC family is represented by its own immutable configuration."""
     curvature = CurvatureQCConfig(5.0, enabled=False)
     area = AreaQCConfig(0.4)
     internal = InternalVesicleQCConfig(enabled=True, max_frames=4)
 
-    config = EdgeQCConfig(curvature, area, internal)
+    config = VesicleQCConfig(curvature, area, internal)
 
     assert config.curvature is curvature
     assert config.area is area
@@ -239,16 +239,16 @@ def test_edge_qc_config_contains_independent_check_configs():
         {"curvature": {"threshold": 5.0, "unknown": True}},
     ],
 )
-def test_edge_qc_config_rejects_unknown_or_mixed_nested_fields(values):
+def test_vesicle_qc_config_rejects_unknown_or_mixed_nested_fields(values):
     """Nested provenance cannot silently discard unsupported fields."""
     with pytest.raises(TypeError):
-        EdgeQCConfig.from_dict(values)
+        VesicleQCConfig.from_dict(values)
 
 
-def test_edge_qc_config_rejects_legacy_pixel_separation():
+def test_vesicle_qc_config_rejects_legacy_pixel_separation():
     """A fixed pixel distance cannot be silently mapped to a relative one."""
     with pytest.raises(ValueError, match="cannot be converted"):
-        EdgeQCConfig.from_dict(
+        VesicleQCConfig.from_dict(
             {
                 "curvature_threshold": 5.0,
                 "internal_vesicle_min_separation_pixels": 5.0,

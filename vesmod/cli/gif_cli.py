@@ -11,6 +11,7 @@ from vesmod.VesEdge import (
     VesicleEdges,
     VesicleVideo,
     load_recorded_qc,
+    make_vesicle_gif,
     replay_recorded_qc,
 )
 
@@ -127,10 +128,8 @@ def process_gif_file(
                 )
             overlay = None if args.style == "original" else edges
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            VesicleVideo(frames, source_path=source_path).make_vesicle_gif(
-                output_path,
-                overlay,
-            )
+            video = VesicleVideo(frames, source_path=source_path)
+            make_vesicle_gif(video, output_path, overlay)
     except (FileNotFoundError, IndexError, OSError, ValueError) as error:
         print(f"Failed to make GIF for {checkpoint.resolve()}: {error}")
         return False

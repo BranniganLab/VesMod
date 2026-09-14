@@ -12,11 +12,12 @@ import numpy as np
 
 from vesmod.VesEdge import (
     EdgeDetection,
-    EdgeQCConfig,
     RecordedQCSelection,
     VesicleEdges,
+    VesicleQCConfig,
     VesicleVideo,
     load_recorded_qc,
+    make_vesicle_gif,
     replay_recorded_qc,
 )
 from vesmod.VesEdge.experimental import (
@@ -718,7 +719,9 @@ def _save_overlay_gif(
         )
 
     path = output_base.with_name(output_base.name + "_internal_structures.gif")
-    VesicleVideo(frames, source_path=edges.source_path).make_vesicle_gif(
+    video = VesicleVideo(frames, source_path=edges.source_path)
+    make_vesicle_gif(
+        video,
         path,
         edges,
         frame_decorator=add_structure_overlays,
@@ -730,7 +733,7 @@ def _write_provenance(
     args: argparse.Namespace,
     paths: list[Path],
     config: InternalStructureConfig,
-    qc_config: EdgeQCConfig | None,
+    qc_config: VesicleQCConfig | None,
     qc_provenance_path: Path | None,
 ) -> None:
     """Write batch provenance and reject accidental configuration mixing."""

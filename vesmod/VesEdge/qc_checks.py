@@ -25,7 +25,7 @@ from .minimum_radius_qc import (
     MinimumRadiusQCResult,
     check_minimum_radius,
 )
-from .qc_config import EdgeQCConfig
+from .qc_config import VesicleQCConfig
 from .singleton_qc import (
     SingletonDeviationQCConfig,
     SingletonDeviationQCResult,
@@ -283,7 +283,7 @@ QC_CHECKS: tuple[QCCheck, ...] = (
 
 def run_configured_qc_checks(
     detections: list[EdgeDetection],
-    config: EdgeQCConfig,
+    config: VesicleQCConfig,
     frames: Frames = None,
 ) -> QCCheckOutcome:
     """Run the explicit ordered registry and combine aggregate outcomes."""
@@ -311,7 +311,7 @@ def run_configured_qc_checks(
     return QCCheckOutcome(results, frozenset(trajectory_flags))
 
 
-def config_from_dict(values: dict) -> EdgeQCConfig:
+def config_from_dict(values: dict) -> VesicleQCConfig:
     """Deserialize current nested data or the previous explicit schema."""
     specs = {check.name: check for check in QC_CHECKS}
     if "curvature_threshold" in values:
@@ -363,7 +363,7 @@ def config_from_dict(values: dict) -> EdgeQCConfig:
                 min_frame_fraction=values.get("internal_vesicle_min_frame_fraction", 0.5),
             ),
         }
-        return EdgeQCConfig(checks=values)
+        return VesicleQCConfig(checks=values)
     values = dict(values)
     aliases = {
         "radius": "minimum_radius",
@@ -389,4 +389,4 @@ def config_from_dict(values: dict) -> EdgeQCConfig:
         )
         for name, spec in specs.items()
     }
-    return EdgeQCConfig(checks=parsed)
+    return VesicleQCConfig(checks=parsed)

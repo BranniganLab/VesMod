@@ -5,10 +5,10 @@ from vesmod.VesEdge import (
     CurvatureQCConfig,
     EdgeDetection,
     EdgeExtractionConfig,
-    EdgeQCConfig,
     ImageContour,
     MinimumRadiusQCConfig,
     VesicleEdges,
+    VesicleQCConfig,
 )
 from vesmod.VesEdge.edge_filtering import QCFlag
 from vesmod.VesEdge.minimum_radius_qc import check_minimum_radius
@@ -35,7 +35,7 @@ def test_minimum_radius_qc_accepts_threshold_boundary():
 def test_minimum_radius_qc_is_disabled_by_orchestration_config():
     detection = edge([1.0] * 8)
     edges = VesicleEdges(EdgeExtractionConfig(), [detection])
-    config = EdgeQCConfig(
+    config = VesicleQCConfig(
         curvature=CurvatureQCConfig(threshold=5.0),
         minimum_radius=MinimumRadiusQCConfig(enabled=False),
     )

@@ -6,8 +6,8 @@ import numpy as np
 import pytest
 
 from vesmod.VesEdge import (
-    EdgeQCConfig,
     RecordedQCSelection,
+    VesicleQCConfig,
     load_recorded_qc,
     replay_recorded_qc,
 )
@@ -17,7 +17,7 @@ from vesmod.VesEdge.experimental.internal_vesicle_qc import (
 
 
 def _selection(tmp_path, checkpoint, config=None):
-    config = config or EdgeQCConfig(curvature_threshold=5.0)
+    config = config or VesicleQCConfig(curvature_threshold=5.0)
     provenance_path = tmp_path / "qc" / "vesedge_qc.json"
     provenance_path.parent.mkdir()
     provenance_path.write_text(json.dumps({
@@ -59,7 +59,7 @@ def test_replay_does_not_supply_frames_to_image_independent_qc(tmp_path):
 def test_replay_supplies_frames_to_image_dependent_qc(tmp_path):
     """Image-dependent replay receives the caller's already-opened frames."""
     checkpoint = tmp_path / "sample.npz"
-    config = EdgeQCConfig(
+    config = VesicleQCConfig(
         internal_vesicle=InternalVesicleQCConfig(enabled=True)
     )
     selection = _selection(tmp_path, checkpoint, config)

@@ -11,8 +11,8 @@ import pytest
 from vesmod.VesEdge import (
     ArrayFrameSource,
     EdgeExtractionConfig,
-    EdgeQCConfig,
     VesicleEdges,
+    VesicleQCConfig,
 )
 from vesmod.cli import vesedge_cli
 
@@ -314,7 +314,7 @@ def test_process_qc_file_runs_qc_and_saves_filtered_output(tmp_path, monkeypatch
             observed["qc_config"] = config
             self.qc_result = object()
 
-        def save_edge_to_npy(self, path):
+        def export_accepted_radii(self, path):
             observed["npy"] = path
 
     path = Path("sample.npz")
@@ -363,7 +363,7 @@ def test_process_qc_file_resolves_relative_video_path_for_image_qc(
                 internal_vesicle=None,
             )
 
-        def save_edge_to_npy(self, path):
+        def export_accepted_radii(self, path):
             observed["npy"] = path
 
     monkeypatch.setattr(
@@ -407,7 +407,7 @@ def test_process_qc_file_preserves_relative_output_path(tmp_path, monkeypatch):
         def run_qc(self, config):
             pass
 
-        def save_edge_to_npy(self, path):
+        def export_accepted_radii(self, path):
             observed["npy"] = path
 
     input_root = tmp_path / "checkpoints"
@@ -447,7 +447,7 @@ def test_process_qc_file_records_zero_accepted_frames(
             self.qc_result = object()
             raise ValueError("no frames passed quality control")
 
-        def save_edge_to_npy(self, path):
+        def export_accepted_radii(self, path):
             raise AssertionError("No .npy should be saved")
 
     path = Path("sample.npz")
@@ -512,7 +512,7 @@ def test_process_qc_file_returns_load_error_summary(tmp_path, monkeypatch):
 def test_write_qc_provenance_rejects_different_configuration(tmp_path):
     """Test a QC directory cannot silently mix configurations."""
     checkpoint = tmp_path / "sample.npz"
-    config = EdgeQCConfig(5.0)
+    config = VesicleQCConfig(5.0)
     vesedge_cli._write_qc_provenance(
         tmp_path,
         config,
@@ -522,7 +522,7 @@ def test_write_qc_provenance_rejects_different_configuration(tmp_path):
         overwrite=False,
     )
 
-    different = EdgeQCConfig(8.0)
+    different = VesicleQCConfig(8.0)
     with pytest.raises(ValueError, match="different input selection or QC configuration"):
         vesedge_cli._write_qc_provenance(
             tmp_path,
@@ -539,7 +539,7 @@ def test_write_qc_provenance_records_manifest_and_recursive_setting(tmp_path):
     input_root = tmp_path / "checkpoints"
     first = input_root / "a.npz"
     second = input_root / "nested" / "b.npz"
-    config = EdgeQCConfig(5.0)
+    config = VesicleQCConfig(5.0)
 
     vesedge_cli._write_qc_provenance(
         tmp_path / "qc",
@@ -560,7 +560,7 @@ def test_overwrite_incompatible_provenance_removes_stale_outputs(tmp_path):
     """Test incompatible overwrite clears only recorded QC artifacts."""
     output_dir = tmp_path / "qc"
     checkpoint = tmp_path / "sample.npz"
-    config = EdgeQCConfig(5.0)
+    config = VesicleQCConfig(5.0)
     vesedge_cli._write_qc_provenance(
         output_dir,
         config,
@@ -580,7 +580,7 @@ def test_overwrite_incompatible_provenance_removes_stale_outputs(tmp_path):
     provenance["managed_artifacts"] = ["nested/orphan.npy"]
     provenance_path.write_text(json.dumps(provenance), encoding="utf-8")
 
-    different = EdgeQCConfig(8.0)
+    different = VesicleQCConfig(8.0)
     vesedge_cli._write_qc_provenance(
         output_dir,
         different,
@@ -601,7 +601,7 @@ def test_matching_qc_overwrite_replaces_provenance_after_cleanup(tmp_path):
     """Test a matching overwrite cleans once and writes new provenance."""
     output_dir = tmp_path / "qc"
     checkpoint = tmp_path / "sample.npz"
-    config = EdgeQCConfig(5.0)
+    config = VesicleQCConfig(5.0)
     vesedge_cli._write_qc_provenance(
         output_dir, config, checkpoint, False, [checkpoint], overwrite=False
     )
@@ -731,6 +731,8 @@ def test_run_qc_writes_summary_when_every_checkpoint_fails_to_load(
     assert "first.npz" in summary
     assert "second.npz" in summary
     assert summary.count("load_error") == 2
+
+
 def test_area_qc_diagnostics_preserve_frame_measurements(tmp_path):
     """Test area QC writes exact values and a trajectory diagnostic plot."""
 
@@ -746,7 +748,7 @@ def test_area_qc_diagnostics_preserve_frame_measurements(tmp_path):
                 reference_area_pixels2=100.0,
                 relative_deviations=(0.75,),
             ),
-            config=EdgeQCConfig(
+            config=VesicleQCConfig(
                 curvature_threshold=5.0,
                 max_relative_area_deviation=0.25,
             ),
@@ -777,7 +779,5 @@ def test_minimum_radius_qc_diagnostics_preserve_frame_measurements(tmp_path):
 
     csv_path = tmp_path / "sample.minimum_radius_qc.csv"
     vesedge_cli._write_minimum_radius_qc_csv(csv_path, FakeEdges())
-
     csv_text = csv_path.read_text()
     assert "4,2.5,True" in csv_text
-

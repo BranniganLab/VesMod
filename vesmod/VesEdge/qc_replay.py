@@ -13,7 +13,7 @@ from vesmod.io import map_output_path
 
 from .frame_source import FrameSource
 from .qc_checks import QC_CHECKS
-from .qc_config import EdgeQCConfig
+from .qc_config import VesicleQCConfig
 from .vesicle_edges import VesicleEdges
 
 
@@ -22,7 +22,7 @@ class RecordedQCSelection:
     """Validated configuration and checkpoint selection from QC provenance."""
 
     provenance_path: Path
-    config: EdgeQCConfig
+    config: VesicleQCConfig
     checkpoint_manifest: frozenset[Path]
 
     @property
@@ -78,7 +78,7 @@ def load_recorded_qc(
 
     try:
         provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
-        config = EdgeQCConfig.from_dict(provenance["qc_config"])
+        config = VesicleQCConfig.from_dict(provenance["qc_config"])
         manifest = frozenset(
             Path(item).expanduser().resolve()
             for item in provenance["checkpoint_manifest"]

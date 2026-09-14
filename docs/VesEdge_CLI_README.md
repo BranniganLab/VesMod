@@ -12,8 +12,8 @@ The intended workflow is:
 QC-independent .npz checkpoints
         │
         ├── vesedge gif ──────────────────────────────▶ inspection GIFs
-        ├── vesedge qc with configuration A ──▶ filtered .npy files ──▶ EdgeMod
-        ├── vesedge qc with configuration B ──▶ filtered .npy files ──▶ EdgeMod
+        ├── vesedge qc with configuration A ──▶ accepted .npy files ──▶ EdgeMod
+        ├── vesedge qc with configuration B ──▶ accepted .npy files ──▶ EdgeMod
         └── vesedge internal-structures ───────▶ interior measurements
 ```
 
@@ -72,7 +72,7 @@ vesedge plot-traces "./checkpoints/sample.npz" \
 ```
 
 The selected frame indices refer to original source-video frames, not rows in
-the filtered `.npy` file. The command writes a `.json` sidecar next to the
+the accepted `.npy` file. The command writes a `.json` sidecar next to the
 figure containing the checkpoint, QC provenance, selected frames, calibration,
 and plotting settings. All selected frames must have a successful extraction
 and pass the recorded QC configuration.
@@ -81,13 +81,13 @@ and pass the recorded QC configuration.
 
 `plot-traces` accepts one `.npz` checkpoint and the QC output directory that
 contains its recorded `vesedge_qc.json`. It intentionally uses the checkpoint
-rather than a filtered `.npy` as its input so that source-frame identity,
+rather than an accepted-radii `.npy` as its input so that source-frame identity,
 detected origins, native contours, and source-video provenance remain
 available. Contours are colored by their actual source-frame number using a
 continuous colormap; use `--cmap`, `--contour analysis`, `--alpha`, or
 `--no-colorbar` to customize the figure.
 
-Analyze the filtered results:
+Analyze the accepted results:
 
 ```bash
 edgemod "./results/qc_standard"
@@ -254,7 +254,7 @@ See the [custom extractor guide](custom_edge_extraction_algorithms.README.md) fo
 
 # `vesedge qc`
 
-`vesedge qc` loads one or more VesEdge `.npz` checkpoints, applies a single QC configuration, and writes the accepted contours as `.npy` files for EdgeMod.
+`vesedge qc` loads one or more VesEdge `.npz` checkpoints, applies a single QC configuration, and writes all accepted analysis-contour radii as `.npy` files for EdgeMod.
 
 The command requires an output directory:
 
@@ -384,11 +384,11 @@ low-order Fourier baseline. It is useful for rejecting a single-pixel or
 otherwise very narrow contour spike while preserving broader shape changes:
 
 ```bash
-vesedge qc "./checkpoints" \\
-    --singleton-deviation-qc \\
-    --singleton-deviation-order 3 \\
-    --min-singleton-deviation-residual-fraction 0.05 \\
-    --max-singleton-deviation-width-samples 2 \\
+vesedge qc "./checkpoints" \
+    --singleton-deviation-qc \
+    --singleton-deviation-order 3 \
+    --min-singleton-deviation-residual-fraction 0.05 \
+    --max-singleton-deviation-width-samples 2 \
     --output-dir ./results/qc_singleton_deviation
 ```
 
@@ -497,9 +497,9 @@ results/qc_standard/
 └── qc_summary.csv
 ```
 
-### Filtered `.npy` files
+### Accepted-radii `.npy` files
 
-Each `.npy` contains only contours accepted under the current QC configuration, with radial distances converted to microns. These files are directly consumable by EdgeMod.
+Each `.npy` contains the analysis-contour radii from **all detections accepted under the current QC configuration**, with radial distances converted to microns. Rows correspond to accepted detections; these files are directly consumable by EdgeMod.
 
 If a checkpoint completes QC but no frames are accepted, no `.npy` is written for that checkpoint. The outcome is still represented in `qc_summary.csv`.
 
@@ -720,7 +720,7 @@ vesedge internal-structures "./checkpoints" \
     --output-dir ./results/internal_structures
 ```
 
-The fallback searches recursively and requires exactly one matching filename. For a legacy checkpoint without stored source provenance, VesEdge infers the ND2 filename from the checkpoint stem—for example, `sample.npz` maps to `sample.nd2`. It searches beside the checkpoint and then under `--video-root`; multiple matches are reported as an ambiguity rather than selected silently.
+The fallback searches recursively and requires exactly one matching filename. For a checkpoint without stored source provenance, VesEdge infers the ND2 filename from the checkpoint stem—for example, `sample.npz` maps to `sample.nd2`. It searches beside the checkpoint and then under `--video-root`; multiple matches are reported as an ambiguity rather than selected silently.
 
 ## Outputs
 
@@ -734,7 +734,7 @@ sample_regions.csv
 sample_internal_structures.gif
 ```
 
-Use `--save-masks` to additionally write `sample_masks.npz`. It contains `structure_masks` (the authoritative union), plus diagnostic `light_region_masks`, `dark_region_masks`, `dark_filament_masks`, and `bubble_region_masks`, all aligned with the original image coordinates. The legacy channel names are retained for comparison; they describe evidence generators, not mutually exclusive structure classes. `frame_indices` identifies the corresponding source frames.
+Use `--save-masks` to additionally write `sample_masks.npz`. It contains `structure_masks` (the authoritative union), plus diagnostic `light_region_masks`, `dark_region_masks`, `dark_filament_masks`, and `bubble_region_masks`, all aligned with the original image coordinates. The channel names describe evidence generators, not mutually exclusive structure classes. `frame_indices` identifies the corresponding source frames.
 
 `sample_frames.csv` reports union structured area and merged region count, plus diagnostic bright-compact, dark-compact, curvilinear, and enclosed-boundary measurements, noise estimate, and status for every source frame.
 
@@ -760,7 +760,7 @@ expect its configuration, result models, and measurements to evolve.
 ```python
 from vesmod.VesEdge import (
     EdgeExtractionConfig,
-    EdgeQCConfig,
+    VesicleQCConfig,
     CurvatureQCConfig,
     VesicleEdges,
     VesicleVideo,
@@ -784,14 +784,16 @@ Later:
 ```python
 edges = VesicleEdges.from_checkpoint("sample.npz")
 edges.run_qc(
-    EdgeQCConfig(
+    VesicleQCConfig(
         curvature=CurvatureQCConfig(threshold=21.520619405632544),
     )
 )
-edges.save_edge_to_npy("sample.npy")
+edges.export_accepted_radii("sample.npy")
 ```
 
-A completed run is summarized by `edges.qc_result`; individual detections retain their curvature score and pass/fail flag through `EdgeDetection.qc`.
+A completed run is summarized by `edges.qc_result`; individual detections retain their check-specific diagnostics and pass/fail flags through `EdgeDetection.qc`. `export_accepted_radii()` writes all accepted analysis-contour radii in microns as the `.npy` handoff to EdgeMod.
+
+Visualization is kept separate from `VesicleVideo`. Use `draw_vesicle_frame(...)` or `make_vesicle_gif(...)` from `vesmod.VesEdge` when combining source frames with extracted-edge overlays.
 
 Internal-structure measurements use the experimental namespace:
 

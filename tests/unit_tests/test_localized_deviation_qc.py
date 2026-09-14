@@ -8,11 +8,11 @@ from vesmod.VesEdge import (
     CurvatureQCConfig,
     EdgeDetection,
     EdgeExtractionConfig,
-    EdgeQCConfig,
     ImageContour,
     LocalizedDeviationQCConfig,
     QCFlag,
     VesicleEdges,
+    VesicleQCConfig,
     check_localized_deviation,
 )
 
@@ -25,7 +25,7 @@ def edge(radii):
 
 def qc_config():
     """Return a config with only localized-deviation QC enabled."""
-    return EdgeQCConfig(
+    return VesicleQCConfig(
         curvature=CurvatureQCConfig(0.0, enabled=False),
         area=AreaQCConfig(enabled=False),
         baseline=LocalizedDeviationQCConfig(
@@ -72,7 +72,7 @@ def test_support_aware_localized_qc_rejects_narrow_moderate_lobe():
     radii = np.full(32, 10.0)
     radii[0] = 10.4
     detection = edge(radii)
-    config = EdgeQCConfig(
+    config = VesicleQCConfig(
         curvature=CurvatureQCConfig(0.0, enabled=False),
         area=AreaQCConfig(enabled=False),
         baseline=LocalizedDeviationQCConfig(

@@ -11,7 +11,7 @@ from typing import Mapping
 
 
 @dataclass(frozen=True, init=False)
-class EdgeQCConfig:
+class VesicleQCConfig:
     """Validated configurations for the registered VesEdge QC checks."""
 
     checks: Mapping[str, object]
@@ -84,7 +84,7 @@ class EdgeQCConfig:
         }
 
     @classmethod
-    def from_dict(cls, values: dict) -> "EdgeQCConfig":
+    def from_dict(cls, values: dict) -> "VesicleQCConfig":
         """Deserialize current nested configuration or explicit legacy data."""
         if not isinstance(values, dict):
             raise TypeError("QC configuration must be a dictionary.")
@@ -97,7 +97,7 @@ def _specifications():
     return {spec.name: spec for spec in QC_CHECKS}
 
 
-def _config_from_dict(values: dict) -> EdgeQCConfig:
+def _config_from_dict(values: dict) -> VesicleQCConfig:
     from .qc_checks import config_from_dict
 
     return config_from_dict(values)

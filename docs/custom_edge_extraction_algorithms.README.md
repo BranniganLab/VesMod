@@ -192,18 +192,18 @@ edges.save_checkpoint("sample.npz")
 Later, reload it and run curvature QC without invoking the extractor again:
 
 ```python
-from vesmod.VesEdge import CurvatureQCConfig, EdgeQCConfig, VesicleEdges
+from vesmod.VesEdge import CurvatureQCConfig, VesicleEdges, VesicleQCConfig
 
 edges = VesicleEdges.from_checkpoint("sample.npz")
 edges.run_qc(
-    EdgeQCConfig(
+    VesicleQCConfig(
         curvature=CurvatureQCConfig(threshold=21.520619405632544),
     )
 )
-edges.save_edge_to_npy("sample.npy")
+edges.export_accepted_radii("sample.npy")
 ```
 
-The checkpoint stores pixel-space contours plus the extraction calibration; physical radii are derived when accepted contours are exported. This separation allows extractor development and QC tuning to be evaluated independently.
+The checkpoint stores pixel-space contours plus the extraction calibration; physical radii are derived when all QC-accepted analysis contours are exported. This separation allows extractor development and QC tuning to be evaluated independently.
 
 ## Shared radial baseline
 

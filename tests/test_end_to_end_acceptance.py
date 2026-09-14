@@ -20,8 +20,8 @@ from vesmod.EdgeMod import Spectrum, SpectrumFitConfig
 from vesmod.VesEdge import (
     EdgeDetection,
     EdgeExtractionConfig,
-    EdgeQCConfig,
     VesicleEdges,
+    VesicleQCConfig,
     VesicleVideo,
     extract_edge_from_frame,
 )
@@ -38,7 +38,7 @@ EXTRACTION_CONFIG = EdgeExtractionConfig(
     n_angular_samples=120,
     calibration_source="measured",
 )
-QC_CONFIG = EdgeQCConfig(
+QC_CONFIG = VesicleQCConfig(
     curvature_threshold=21.520619405632544,
     enable_curvature_qc=True,
     max_relative_area_deviation=0.25,
@@ -141,7 +141,7 @@ def _run_pipeline(case_name: str, tmp_path: Path) -> dict[str, np.ndarray]:
     )
 
     accepted_path = tmp_path / f"{case_name}.npy"
-    edges.save_edge_to_npy(accepted_path)
+    edges.export_accepted_radii(accepted_path)
     spectrum = Spectrum(accepted_path)
     fit = spectrum.extract_kc_from_fit(FIT_CONFIG)
     results.update(
@@ -199,7 +199,7 @@ def _assert_matches_reference(
     # boundary used for runtime provenance.
     expected_qc_config = expected_metadata["qc_config"]
     legacy_curvature_threshold = expected_qc_config.get("curvature_threshold")
-    migrated_qc_config = EdgeQCConfig.from_dict(expected_qc_config).to_dict()
+    migrated_qc_config = VesicleQCConfig.from_dict(expected_qc_config).to_dict()
     if (
         legacy_curvature_threshold is not None
         and not np.isclose(
