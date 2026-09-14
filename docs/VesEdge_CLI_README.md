@@ -217,13 +217,13 @@ The previous coupled `--downsample --n-samples N` interface has been removed. Se
 
 ## Extraction Algorithm
 
-VesEdge uses two explicit frame-access strategies. `InMemoryFrameSequence`
-represents ordinary NumPy frame stacks that are already resident in memory.
-`OnDemandFrameSequence` represents file-backed frame stacks whose frames are
-retrieved as requested; it currently supports ND2 acquisitions and memory-mapped
-`.npy` videos. `VesicleVideo` consumes either concrete sequence directly rather
-than depending on a separate frame-source protocol. ND2 extraction therefore
-reads frames on demand instead of materializing the complete video in memory.
+VesEdge uses two explicit frame-access strategies. Resident NumPy frame
+stacks are passed directly as arrays. `OnDemandFrameSequence` provides
+file-backed frames on request; it currently supports ND2 acquisitions and
+memory-mapped `.npy` videos. `VesicleVideo` accepts either an ndarray or an
+`OnDemandFrameSequence`, without wrapping arrays in a separate frame-source
+object. ND2 extraction therefore reads frames on demand instead of materializing
+the complete video in memory.
 Multidimensional ND2 inputs with more than one position, z-plane, or channel
 require an explicit axis selection rather than silently choosing one.
 
