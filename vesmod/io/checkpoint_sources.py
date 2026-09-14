@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from vesmod.VesEdge import OnDemandFrameSequence, open_frame_sequence
+from vesmod.VesEdge import OnDemandFrameSequence, open_frame_source
 
 
 def build_video_filename_index(checkpoint_paths: list[Path], video_root: Path | None) -> dict[str, tuple[Path, ...]]:
@@ -61,4 +61,4 @@ def resolve_source_path(stored_path: str | Path | None, checkpoint_path: Path, v
 
 def open_checkpoint_frames(source_path: Path) -> OnDemandFrameSequence:
     """Open source frames on demand for a checkpoint-backed workflow."""
-    return open_frame_sequence(source_path)
+    return open_frame_source(source_path)
