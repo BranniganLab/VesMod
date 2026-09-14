@@ -1,6 +1,7 @@
 """Regression tests for VesEdge source-video provenance in the CLI."""
 
 import argparse
+from contextlib import nullcontext
 from pathlib import Path
 
 import numpy as np
@@ -29,7 +30,7 @@ def test_process_extract_file_sets_source_path_on_video(tmp_path, monkeypatch):
     monkeypatch.setattr(
         vesedge_cli,
         "open_frame_source",
-        lambda input_path: np.zeros((1, 10, 10)),
+        lambda input_path: nullcontext(np.zeros((1, 10, 10))),
     )
     monkeypatch.setattr(
         vesedge_cli,
