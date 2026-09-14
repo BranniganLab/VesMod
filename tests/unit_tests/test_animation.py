@@ -119,6 +119,115 @@ def test_make_gif_draws_synchronized_panels(monkeypatch, tmp_path):
     assert observed[0][1] is not observed[1][1]
 
 
+def test_make_gif_places_four_synchronized_panels_in_two_by_two_layout(
+    monkeypatch, tmp_path
+):
+    """Test controller layout preserves one shared frame index per panel."""
+    observed = []
+
+    class FakePanel:
+        n_frames = 2
+
+        def __init__(self, name):
+            self.name = name
+
+        def draw(self, axis, frame_index):
+            observed.append((self.name, axis, frame_index))
+
+    class FakeAnimation:
+        def __init__(self, _, animate, frames, **__):
+            for frame_index in range(frames):
+                animate(frame_index)
+
+        @staticmethod
+        def save(_):
+            return None
+
+    monkeypatch.setattr(
+        "vesmod.VesEdge.animation.FuncAnimation",
+        FakeAnimation,
+    )
+    panel_names = ("old-a", "new-a", "old-b", "new-b")
+    panels = [FakePanel(name) for name in panel_names]
+
+    make_gif(tmp_path / "comparison.gif", panels, layout=(2, 2))
+
+    assert [(name, index) for name, _, index in observed] == [
+        (name, frame_index)
+        for frame_index in range(2)
+        for name in panel_names
+    ]
+    panel_axes = [axis for _, axis, _ in observed[:4]]
+    assert len({id(axis) for axis in panel_axes}) == 4
+    assert [
+        axis.get_subplotspec().rowspan.start for axis in panel_axes
+    ] == [0, 0, 1, 1]
+    assert [
+        axis.get_subplotspec().colspan.start for axis in panel_axes
+    ] == [0, 1, 0, 1]
+
+
+def test_make_gif_rejects_invalid_layout(tmp_path):
+    """Test layouts must be positive integer pairs with one slot per panel."""
+    class FakePanel:
+        n_frames = 1
+
+        @staticmethod
+        def draw(axis, frame_index):
+            return None
+
+    panels = [FakePanel() for _ in range(4)]
+    invalid_layouts = ((0, 2), (2, -1), (2,), (2, 2, 1), (2.0, 2), [2, 2])
+    for layout in invalid_layouts:
+        with pytest.raises(ValueError, match="layout"):
+            make_gif(tmp_path / "invalid.gif", panels, layout=layout)
+
+    with pytest.raises(ValueError, match="exactly one slot"):
+        make_gif(tmp_path / "invalid.gif", panels[:3], layout=(2, 2))
+
+
+def test_make_gif_can_draw_a_transformed_custom_panel(monkeypatch, tmp_path):
+    """Test custom panels can center contours using the public panel protocol."""
+    contour = np.array([[10.0, 12.0], [14.0, 18.0], [18.0, 12.0]])
+    rendered = []
+
+    class CenteredPanel:
+        n_frames = 1
+
+        def draw(self, axis, frame_index):
+            centered = contour - contour.mean(axis=0)
+            axis.plot(centered[:, 0], centered[:, 1])
+            rendered.append(
+                (
+                    frame_index,
+                    axis.lines[0].get_xdata(),
+                    axis.lines[0].get_ydata(),
+                )
+            )
+
+    class FakeAnimation:
+        def __init__(self, _, animate, frames, **__):
+            for frame_index in range(frames):
+                animate(frame_index)
+
+        @staticmethod
+        def save(_):
+            return None
+
+    monkeypatch.setattr(
+        "vesmod.VesEdge.animation.FuncAnimation",
+        FakeAnimation,
+    )
+
+    make_gif(tmp_path / "centered.gif", [CenteredPanel()])
+
+    assert len(rendered) == 1
+    frame_index, xdata, ydata = rendered[0]
+    assert frame_index == 0
+    assert np.array_equal(xdata, [-4.0, 0.0, 4.0])
+    assert np.array_equal(ydata, [-2.0, 4.0, -2.0])
+
+
 def test_make_gif_closes_figure_when_save_raises(monkeypatch, tmp_path):
     """Test the animator closes its figure when saving fails."""
     observed = {}
