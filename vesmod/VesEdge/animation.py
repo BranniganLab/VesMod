@@ -186,6 +186,7 @@ def make_gif(
     interval: int = 150,
     repeat_delay: int = 1000,
     figsize: tuple[float, float] | None = None,
+    layout: tuple[int, int] | None = None,
 ) -> None:
     """Save synchronized animation panels as a single GIF.
 
@@ -202,12 +203,31 @@ def make_gif(
         Delay before the animation repeats in milliseconds.
     figsize : tuple[float, float] | None
         Optional Matplotlib figure size in inches.
+    layout : tuple[int, int] | None
+        Number of (rows, columns) in the figure. When omitted, use one row
+        with one column per panel. The layout must provide exactly one slot
+        for each panel.
+
+    Example
+    -------
+    Arrange four panels for an old-versus-new extraction comparison::
+
+        panels = [
+            VesicleAnimationPanel(video_a, old_edges_a),
+            VesicleAnimationPanel(video_a, new_edges_a),
+            VesicleAnimationPanel(video_b, old_edges_b),
+            VesicleAnimationPanel(video_b, new_edges_b),
+        ]
+        make_gif("comparison.gif", panels, layout=(2, 2))
+
+    Custom panels can transform contours in their draw method while
+    continuing to use this controller for shared frame indices and layout.
 
     Raises
     ------
     ValueError
-        If no panels are supplied, a panel has fewer than one frame, or panel
-        frame counts differ.
+        If no panels are supplied, the layout is invalid, a panel has fewer
+        than one frame, or panel frame counts differ.
     TypeError
         If an object does not provide ``n_frames`` and ``draw``.
     """
@@ -235,9 +255,31 @@ def make_gif(
             f"received {frame_counts}."
         )
 
+    if layout is None:
+        rows, columns = 1, len(panels)
+    elif (
+        not isinstance(layout, tuple)
+        or len(layout) != 2
+        or any(
+            not isinstance(dimension, int)
+            or isinstance(dimension, bool)
+            or dimension < 1
+            for dimension in layout
+        )
+    ):
+        raise ValueError("layout must be a pair of positive integers (rows, columns).")
+    else:
+        rows, columns = layout
+
+    if rows * columns != len(panels):
+        raise ValueError(
+            "The layout must contain exactly one slot per animation panel; "
+            f"received layout {rows}x{columns} for {len(panels)} panels."
+        )
+
     output_path = Path(path).with_suffix(".gif")
-    fig, axes = plt.subplots(1, len(panels), figsize=figsize, squeeze=False)
-    panel_axes: NDArray[np.object_] = axes[0]
+    fig, axes = plt.subplots(rows, columns, figsize=figsize, squeeze=False)
+    panel_axes: NDArray[np.object_] = axes.reshape(-1)
 
     def animate(frame_index: int) -> None:
         for panel, ax in zip(panels, panel_axes):
