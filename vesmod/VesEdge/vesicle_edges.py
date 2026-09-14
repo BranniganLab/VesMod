@@ -12,7 +12,7 @@ from numpy.typing import NDArray
 
 from .checkpoint_io import load_checkpoint, save_checkpoint
 from .config import EdgeExtractionConfig, VesicleQCConfig
-from .frame_source import FrameSource
+from .frame_sequence import InMemoryFrameSequence, OnDemandFrameSequence
 from .models import (
     EdgeDetection,
     EdgeDetectionFailure,
@@ -107,7 +107,7 @@ class VesicleEdges:
     def run_qc(
         self,
         qc_config: VesicleQCConfig | None = None,
-        frames: FrameSource | NDArray[np.number] | None = None,
+        frames: InMemoryFrameSequence | OnDemandFrameSequence | NDArray[np.number] | None = None,
     ) -> None:
         """Run enabled QC checks on stored detections.
 
