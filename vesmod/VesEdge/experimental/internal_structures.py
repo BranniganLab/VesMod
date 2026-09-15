@@ -537,6 +537,7 @@ def detect_internal_structures(
         hough_circle_mask = _detect_hough_circles(
             crop,
             interior_mask,
+            usable_mask,
             settings,
         )
         (
@@ -1059,6 +1060,7 @@ def _detect_bubbles(
 def _detect_hough_circles(
     image: NDArray[np.float64],
     interior_mask: NDArray[np.bool_],
+    usable_mask: NDArray[np.bool_],
     config: InternalStructureConfig,
 ) -> NDArray[np.bool_]:
     """Return validated circular-bubble evidence without eroding the contour.
@@ -1094,6 +1096,14 @@ def _detect_hough_circles(
     for x, y, initial_radius in np.round(proposals[0]).astype(int):
         if initial_radius > max_radius:
             continue
+        height, width = interior_mask.shape
+        if (
+            x - initial_radius < 0
+            or x + initial_radius >= width
+            or y - initial_radius < 0
+            or y + initial_radius >= height
+        ):
+            continue
         disk_mask = np.zeros(interior_mask.shape, dtype=np.uint8)
         cv2.circle(disk_mask, (x, y), initial_radius, 1, thickness=-1)
         if (
@@ -1125,7 +1135,17 @@ def _detect_hough_circles(
             for other_score, _, other_radius, _ in radial_scores
             if abs(other_radius - radius) >= 3
         ]
-        peak_ratio = score / max(float(np.median(off_peak_scores)), 1.0)
+        if not off_peak_scores:
+            continue
+        score_scale = max(abs(result[0]) for result in radial_scores)
+        denominator_epsilon = max(
+            np.finfo(np.float64).eps * score_scale,
+            np.finfo(np.float64).tiny,
+        )
+        peak_ratio = score / max(
+            float(np.median(off_peak_scores)),
+            denominator_epsilon,
+        )
         if (
             support < config.hough_min_boundary_support
             or peak_ratio < config.hough_min_peak_ratio
@@ -1149,7 +1169,7 @@ def _detect_hough_circles(
     circle_mask = np.zeros(interior_mask.shape, dtype=np.uint8)
     for x, y, radius, _, _ in selected:
         cv2.circle(circle_mask, (x, y), radius, 1, thickness=-1)
-    return circle_mask.astype(bool) & interior_mask
+    return circle_mask.astype(bool) & usable_mask
 
 
 def _hough_annular_evidence(
@@ -1180,8 +1200,16 @@ def _hough_annular_evidence(
         mode="nearest",
     )
     signed_contrast = outer - inner
+    evidence_scale = max(
+        float(np.max(np.abs(inner))),
+        float(np.max(np.abs(outer))),
+    )
+    noise_epsilon = max(
+        np.finfo(np.float64).eps * evidence_scale,
+        np.finfo(np.float64).tiny,
+    )
     local_noise = max(
-        1.0,
+        noise_epsilon,
         float(
             np.median(
                 np.concatenate(

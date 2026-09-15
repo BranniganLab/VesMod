@@ -168,15 +168,154 @@ def test_hough_circle_channel_rejects_oversized_circle():
     assert result.hough_circle_count == 0
 
 
-def test_hough_duplicate_suppression_rejects_nested_circle():
-    larger = (50, 50, 20, 10.0, {(40, 50), (60, 50)})
-    nested = (50, 50, 10, 5.0, {(40, 50), (60, 50)})
-
-    assert internal_structures._hough_candidates_duplicate(
-        nested,
-        larger,
-        _hough_config(),
+def test_hough_duplicate_suppression_rejects_nested_circle(monkeypatch):
+    proposals = np.array([[[60.0, 60.0, 20.0], [65.0, 60.0, 10.0]]])
+    monkeypatch.setattr(
+        internal_structures.cv2,
+        "HoughCircles",
+        lambda *args, **kwargs: proposals,
     )
+    monkeypatch.setattr(
+        internal_structures,
+        "_hough_annular_evidence",
+        lambda image, x, y, radius, angles, config: (
+            10.0 if radius == (20 if x == 60 else 10) else 1.0,
+            1.0,
+            np.ones(angles.size, dtype=bool),
+        ),
+    )
+    duplicate_checks = []
+    duplicate_detector = internal_structures._hough_candidates_duplicate
+
+    def record_duplicate_check(candidate, kept, config):
+        result = duplicate_detector(candidate, kept, config)
+        duplicate_checks.append(result)
+        return result
+
+    monkeypatch.setattr(
+        internal_structures,
+        "_hough_candidates_duplicate",
+        record_duplicate_check,
+    )
+    interior_mask = np.ones((120, 120), dtype=bool)
+
+    detected = internal_structures._detect_hough_circles(
+        np.ones((120, 120)),
+        interior_mask,
+        interior_mask,
+        _hough_config(hough_max_radius_fraction=1.0),
+    )
+
+    assert duplicate_checks == [True]
+    assert label(detected).max() == 1
+
+
+def test_hough_circle_rejects_proposal_clipped_by_image_edge(monkeypatch):
+    proposals = np.array([[[4.0, 60.0, 10.0]]])
+    monkeypatch.setattr(
+        internal_structures.cv2,
+        "HoughCircles",
+        lambda *args, **kwargs: proposals,
+    )
+    interior_mask = np.ones((120, 120), dtype=bool)
+
+    detected = internal_structures._detect_hough_circles(
+        np.ones((120, 120)),
+        interior_mask,
+        interior_mask,
+        _hough_config(hough_max_radius_fraction=1.0),
+    )
+
+    assert not np.any(detected)
+
+
+def test_hough_circle_evidence_is_clipped_to_usable_mask(monkeypatch):
+    proposals = np.array([[[60.0, 60.0, 20.0]]])
+    monkeypatch.setattr(
+        internal_structures.cv2,
+        "HoughCircles",
+        lambda *args, **kwargs: proposals,
+    )
+    monkeypatch.setattr(
+        internal_structures,
+        "_hough_annular_evidence",
+        lambda image, x, y, radius, angles, config: (
+            1.0 if radius == 20 else 0.1,
+            1.0,
+            np.ones(angles.size, dtype=bool),
+        ),
+    )
+    interior_mask = np.ones((120, 120), dtype=bool)
+    usable_mask = interior_mask.copy()
+    usable_mask[:, :50] = False
+
+    detected = internal_structures._detect_hough_circles(
+        np.ones((120, 120)),
+        interior_mask,
+        usable_mask,
+        _hough_config(hough_max_radius_fraction=1.0),
+    )
+
+    assert np.any(detected)
+    assert not np.any(detected & ~usable_mask)
+
+
+def test_hough_circle_detection_is_intensity_scale_invariant(monkeypatch):
+    proposals = np.array([[[60.0, 60.0, 14.0]]])
+    monkeypatch.setattr(
+        internal_structures.cv2,
+        "HoughCircles",
+        lambda *args, **kwargs: proposals,
+    )
+    frame = np.full((120, 120), 100.0)
+    _dark_ring(frame, 60, 60, 14)
+    interior_mask = np.ones((120, 120), dtype=bool)
+    config = _hough_config(hough_max_radius_fraction=1.0)
+
+    detected = internal_structures._detect_hough_circles(
+        frame,
+        interior_mask,
+        interior_mask,
+        config,
+    )
+    low_intensity_detected = internal_structures._detect_hough_circles(
+        frame * 1e-3,
+        interior_mask,
+        interior_mask,
+        config,
+    )
+
+    assert np.any(detected)
+    np.testing.assert_array_equal(low_intensity_detected, detected)
+
+
+def test_hough_circle_rejects_candidate_without_off_peak_baseline(monkeypatch):
+    proposals = np.array([[[60.0, 60.0, 3.0]]])
+    monkeypatch.setattr(
+        internal_structures.cv2,
+        "HoughCircles",
+        lambda *args, **kwargs: proposals,
+    )
+    monkeypatch.setattr(
+        internal_structures,
+        "_hough_annular_evidence",
+        lambda image, x, y, radius, angles, config: (
+            10.0,
+            1.0,
+            np.ones(angles.size, dtype=bool),
+        ),
+    )
+    yy, xx = np.ogrid[:120, :120]
+    interior_mask = (yy - 60) ** 2 + (xx - 60) ** 2 <= 20**2
+
+    detected = internal_structures._detect_hough_circles(
+        np.ones((120, 120)),
+        interior_mask,
+        interior_mask,
+        _hough_config(hough_max_radius_fraction=0.16),
+    )
+
+    assert not np.any(detected)
 
 
 def test_strong_interior_seed_can_fill_into_boundary_exclusion_band():
