@@ -8,10 +8,13 @@ manually labelled videos before they are used to classify populations.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import acos, pi, sqrt
 
+import cv2
 import numpy as np
 from numpy.typing import NDArray
 from scipy import ndimage
+from scipy.ndimage import map_coordinates
 from skimage.draw import polygon
 from skimage.filters import sato
 from skimage.measure import label, regionprops
@@ -85,6 +88,11 @@ class InternalStructureConfig:
         Maximum eccentricity retained as a circular or oval bubble.
     max_bubble_area_fraction : float
         Maximum usable-interior fraction enclosed by one bubble.
+    hough_circles_enabled : bool
+        Whether to add validated Hough-circle evidence for internal bubbles.
+    hough_* :
+        Proposal, containment, annular-validation, and duplicate-suppression
+        controls for the optional Hough-circle evidence channel.
     """
 
     membrane_exclusion_px: int = 5
@@ -120,6 +128,19 @@ class InternalStructureConfig:
     min_bubble_solidity: float = 0.8
     max_bubble_eccentricity: float = 0.95
     max_bubble_area_fraction: float = 0.5
+    hough_circles_enabled: bool = False
+    hough_min_distance_px: int = 9
+    hough_canny_threshold: float = 40.0
+    hough_accumulator_threshold: float = 16.0
+    hough_min_radius_px: int = 3
+    hough_max_radius_fraction: float = 0.4
+    hough_min_containment_fraction: float = 0.95
+    hough_annular_offset_px: int = 2
+    hough_min_boundary_support: float = 0.4
+    hough_contrast_sigma: float = 3.0
+    hough_min_sign_consistency: float = 0.65
+    hough_min_peak_ratio: float = 1.4
+    hough_duplicate_overlap_fraction: float = 0.5
 
     def __post_init__(self) -> None:
         """Validate configuration values and normalize scalar state."""
@@ -130,6 +151,9 @@ class InternalStructureConfig:
             ("min_filament_length_px", True),
             ("bubble_closing_px", False),
             ("min_bubble_area_px", True),
+            ("hough_min_distance_px", True),
+            ("hough_min_radius_px", True),
+            ("hough_annular_offset_px", True),
         )
         for name, must_be_positive in integer_fields:
             value = require_integer(getattr(self, name), name)
@@ -147,6 +171,10 @@ class InternalStructureConfig:
             "filament_grow_threshold",
             "bubble_edge_sigma",
             "bubble_edge_grow_sigma",
+            "hough_canny_threshold",
+            "hough_accumulator_threshold",
+            "hough_contrast_sigma",
+            "hough_min_peak_ratio",
         )
         for name in positive_real_fields:
             value = require_positive_real(
@@ -166,6 +194,11 @@ class InternalStructureConfig:
             "min_bubble_solidity",
             "max_bubble_eccentricity",
             "max_bubble_area_fraction",
+            "hough_max_radius_fraction",
+            "hough_min_containment_fraction",
+            "hough_min_boundary_support",
+            "hough_min_sign_consistency",
+            "hough_duplicate_overlap_fraction",
         )
         for name in fraction_fields:
             value = require_fraction(
@@ -207,6 +240,8 @@ class InternalStructureConfig:
             )
         if self.max_bubble_area_fraction == 0.0:
             raise ValueError("max_bubble_area_fraction must be positive.")
+        if not isinstance(self.hough_circles_enabled, bool):
+            raise TypeError("hough_circles_enabled must be a boolean.")
 
 
 @dataclass(frozen=True)
@@ -250,6 +285,7 @@ class InternalStructureFrameResult:
     light_region_mask: NDArray[np.bool_] | None = None
     dark_filament_mask: NDArray[np.bool_] | None = None
     bubble_region_mask: NDArray[np.bool_] | None = None
+    hough_circle_mask: NDArray[np.bool_] | None = None
     dark_filament_skeleton: NDArray[np.bool_] | None = None
     dark_region_mask: NDArray[np.bool_] | None = None
 
@@ -300,6 +336,11 @@ class InternalStructureFrameResult:
         return self._area_fraction(self._channel_mask(self.bubble_region_mask))
 
     @property
+    def hough_circle_area_fraction(self) -> float:
+        """Return the usable-interior fraction supported by Hough circles."""
+        return self._area_fraction(self._channel_mask(self.hough_circle_mask))
+
+    @property
     def filament_length_px(self) -> int:
         """Return total skeleton length as a pixel-count approximation."""
         return int(
@@ -312,6 +353,11 @@ class InternalStructureFrameResult:
     def bubble_count(self) -> int:
         """Return the number of enclosed-boundary evidence regions."""
         return int(label(self._channel_mask(self.bubble_region_mask)).max())
+
+    @property
+    def hough_circle_count(self) -> int:
+        """Return the number of disconnected validated Hough circles."""
+        return int(label(self._channel_mask(self.hough_circle_mask)).max())
 
     @property
     def structure_count(self) -> int:
@@ -337,13 +383,15 @@ class InternalStructureFrameResult:
         Parameters
         ----------
         structure_type : str
-            One of light_region, dark_region, dark_filament, or bubble.
+            One of light_region, dark_region, dark_filament, bubble, or
+            hough_circle.
         """
         channel_masks = {
             "light_region": self.light_region_mask,
             "dark_region": self.dark_region_mask,
             "dark_filament": self.dark_filament_mask,
             "bubble": self.bubble_region_mask,
+            "hough_circle": self.hough_circle_mask,
         }
         if structure_type not in channel_masks:
             expected = ", ".join(channel_masks)
@@ -430,6 +478,7 @@ def detect_internal_structures(
         ridge_mask = np.zeros_like(usable_mask)
         ridge_skeleton = np.zeros_like(usable_mask)
         bubble_mask = np.zeros_like(usable_mask)
+        hough_circle_mask = np.zeros_like(usable_mask)
     else:
         normalized = np.zeros_like(residual)
         normalized[usable_mask] = residual[usable_mask] / noise_sigma
@@ -485,6 +534,11 @@ def detect_internal_structures(
             usable_mask,
             settings,
         )
+        hough_circle_mask = _detect_hough_circles(
+            crop,
+            interior_mask,
+            settings,
+        )
         (
             dark_mask,
             ridge_mask,
@@ -503,7 +557,7 @@ def detect_internal_structures(
             ridge_mask,
             ridge_skeleton,
         ) = _suppress_enclosed_boundary_halos(
-            bubble_mask,
+            bubble_mask | hough_circle_mask,
             light_mask,
             dark_mask,
             ridge_mask,
@@ -515,6 +569,7 @@ def detect_internal_structures(
         "dark_region": dark_mask,
         "curvilinear": ridge_mask,
         "enclosed_boundary": bubble_mask,
+        "hough_circle": hough_circle_mask,
     }
     structure_mask = np.logical_or.reduce(tuple(evidence_masks.values()))
     regions = _describe_merged_regions(
@@ -536,6 +591,7 @@ def detect_internal_structures(
         dark_region_mask=dark_mask,
         dark_filament_mask=ridge_mask,
         bubble_region_mask=bubble_mask,
+        hough_circle_mask=hough_circle_mask,
         dark_filament_skeleton=ridge_skeleton,
     )
 
@@ -786,12 +842,7 @@ def _suppress_bright_region_halos(
     ridge_mask: NDArray[np.bool_],
     enclosed_mask: NDArray[np.bool_],
     config: InternalStructureConfig,
-) -> tuple[
-    NDArray[np.bool_],
-    NDArray[np.bool_],
-    NDArray[np.bool_],
-    NDArray[np.bool_],
-]:
+) -> tuple[NDArray[np.bool_], NDArray[np.bool_], NDArray[np.bool_], NDArray[np.bool_],]:
     """Remove secondary evidence caused by a compact bright structure.
 
     Gaussian background subtraction produces a negative halo around a strong
@@ -846,12 +897,7 @@ def _suppress_enclosed_boundary_halos(
     dark_mask: NDArray[np.bool_],
     ridge_mask: NDArray[np.bool_],
     config: InternalStructureConfig,
-) -> tuple[
-    NDArray[np.bool_],
-    NDArray[np.bool_],
-    NDArray[np.bool_],
-    NDArray[np.bool_],
-]:
+) -> tuple[NDArray[np.bool_], NDArray[np.bool_], NDArray[np.bool_], NDArray[np.bool_],]:
     """Remove redundant structure evidence immediately around bubbles.
 
     A resolved bubble is represented by its filled enclosed-boundary mask.
@@ -941,12 +987,8 @@ def _detect_curvilinear_structures(
     config: InternalStructureConfig,
 ) -> tuple[NDArray[np.bool_], NDArray[np.bool_]]:
     """Detect connected dark-or-light ridges with sufficient length."""
-    seeds = seed_mask & (
-        ridge_response >= config.filament_seed_threshold
-    )
-    candidates = growth_mask & (
-        ridge_response >= config.filament_grow_threshold
-    )
+    seeds = seed_mask & (ridge_response >= config.filament_seed_threshold)
+    candidates = growth_mask & (ridge_response >= config.filament_grow_threshold)
     candidates = ndimage.binary_propagation(seeds, mask=candidates)
     return _retain_curvilinear_components(
         candidates,
@@ -972,9 +1014,7 @@ def _detect_bubbles(
     candidates into one artificial enclosure.  The retained mask recovers
     mixed-polarity optical rings whose dark boundary alone is interrupted.
     """
-    dark_seeds = detection_mask & (
-        normalized_residual <= -config.bubble_edge_sigma
-    )
+    dark_seeds = detection_mask & (normalized_residual <= -config.bubble_edge_sigma)
     dark_candidates = detection_mask & (
         normalized_residual <= -config.bubble_edge_grow_sigma
     )
@@ -990,9 +1030,7 @@ def _detect_bubbles(
     ridge_seed_threshold = np.mean(
         (config.filament_seed_threshold, config.filament_grow_threshold)
     )
-    ridge_seeds = ridge_candidates & (
-        ridge_response >= ridge_seed_threshold
-    )
+    ridge_seeds = ridge_candidates & (ridge_response >= ridge_seed_threshold)
     ridge_edge = ndimage.binary_propagation(
         ridge_seeds,
         mask=ridge_candidates,
@@ -1016,6 +1054,213 @@ def _detect_bubbles(
         config,
     )
     return bubble_mask
+
+
+def _detect_hough_circles(
+    image: NDArray[np.float64],
+    interior_mask: NDArray[np.bool_],
+    config: InternalStructureConfig,
+) -> NDArray[np.bool_]:
+    """Return validated circular-bubble evidence without eroding the contour.
+
+    Hough proposals are deliberately permissive. Each one is then required to
+    have a locally strong, polarity-consistent, radius-specific annular image
+    boundary and is deduplicated against higher-scoring candidates.
+    """
+    empty = np.zeros_like(interior_mask)
+    if not config.hough_circles_enabled:
+        return empty
+    scaled = cv2.normalize(image, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+    proposals = cv2.HoughCircles(
+        cv2.GaussianBlur(scaled, (9, 9), 2),
+        cv2.HOUGH_GRADIENT,
+        dp=1.0,
+        minDist=config.hough_min_distance_px,
+        param1=config.hough_canny_threshold,
+        param2=config.hough_accumulator_threshold,
+        minRadius=config.hough_min_radius_px,
+        maxRadius=max(
+            config.hough_min_radius_px, int(np.ceil(np.max(image.shape) / 2))
+        ),
+    )
+    if proposals is None:
+        return empty
+
+    max_radius = config.hough_max_radius_fraction * float(
+        np.max(ndimage.distance_transform_edt(interior_mask))
+    )
+    angles = np.linspace(0, 2 * np.pi, 180, endpoint=False)
+    candidates: list[tuple[int, int, int, float, set[tuple[int, int]]]] = []
+    for x, y, initial_radius in np.round(proposals[0]).astype(int):
+        if initial_radius > max_radius:
+            continue
+        disk_mask = np.zeros(interior_mask.shape, dtype=np.uint8)
+        cv2.circle(disk_mask, (x, y), initial_radius, 1, thickness=-1)
+        if (
+            np.mean(interior_mask[disk_mask.astype(bool)])
+            < config.hough_min_containment_fraction
+        ):
+            continue
+        radial_scores = []
+        for offset in range(-5, 6):
+            radius = initial_radius + offset
+            if radius < config.hough_min_radius_px or radius > max_radius:
+                continue
+            score, support, supported = _hough_annular_evidence(
+                image,
+                x,
+                y,
+                radius,
+                angles,
+                config,
+            )
+            radial_scores.append((score, support, radius, supported))
+        if not radial_scores:
+            continue
+        score, support, radius, supported = max(
+            radial_scores, key=lambda result: result[0]
+        )
+        off_peak_scores = [
+            other_score
+            for other_score, _, other_radius, _ in radial_scores
+            if abs(other_radius - radius) >= 3
+        ]
+        peak_ratio = score / max(float(np.median(off_peak_scores)), 1.0)
+        if (
+            support < config.hough_min_boundary_support
+            or peak_ratio < config.hough_min_peak_ratio
+        ):
+            continue
+        boundary_pixels = set(
+            zip(
+                np.round(x + radius * np.cos(angles[supported])).astype(int),
+                np.round(y + radius * np.sin(angles[supported])).astype(int),
+            )
+        )
+        candidates.append((x, y, radius, score, boundary_pixels))
+
+    selected: list[tuple[int, int, int, float, set[tuple[int, int]]]] = []
+    for candidate in sorted(candidates, key=lambda result: result[3], reverse=True):
+        if not any(
+            _hough_candidates_duplicate(candidate, kept, config) for kept in selected
+        ):
+            selected.append(candidate)
+
+    circle_mask = np.zeros(interior_mask.shape, dtype=np.uint8)
+    for x, y, radius, _, _ in selected:
+        cv2.circle(circle_mask, (x, y), radius, 1, thickness=-1)
+    return circle_mask.astype(bool) & interior_mask
+
+
+def _hough_annular_evidence(
+    image: NDArray[np.float64],
+    x: int,
+    y: int,
+    radius: int,
+    angles: NDArray[np.float64],
+    config: InternalStructureConfig,
+) -> tuple[float, float, NDArray[np.bool_]]:
+    """Return score, angular support, and supporting pixels for one radius."""
+    outer = map_coordinates(
+        image,
+        [
+            y + (radius + config.hough_annular_offset_px) * np.sin(angles),
+            x + (radius + config.hough_annular_offset_px) * np.cos(angles),
+        ],
+        order=1,
+        mode="nearest",
+    )
+    inner = map_coordinates(
+        image,
+        [
+            y + (radius - config.hough_annular_offset_px) * np.sin(angles),
+            x + (radius - config.hough_annular_offset_px) * np.cos(angles),
+        ],
+        order=1,
+        mode="nearest",
+    )
+    signed_contrast = outer - inner
+    local_noise = max(
+        1.0,
+        float(
+            np.median(
+                np.concatenate(
+                    [
+                        np.abs(np.diff(inner, append=inner[0])),
+                        np.abs(np.diff(outer, append=outer[0])),
+                    ]
+                )
+            )
+        ),
+    )
+    strong = np.abs(signed_contrast) >= config.hough_contrast_sigma * local_noise
+    if not np.any(strong):
+        return 0.0, 0.0, np.zeros(angles.size, dtype=bool)
+    polarity = np.sign(np.median(signed_contrast[strong]))
+    supported = strong & (np.sign(signed_contrast) == polarity)
+    sign_consistency = np.mean(np.sign(signed_contrast[strong]) == polarity)
+    support = float(np.mean(supported))
+    if sign_consistency < config.hough_min_sign_consistency or not np.any(supported):
+        return 0.0, support, supported
+    return (
+        float(np.median(np.abs(signed_contrast[supported])) * support),
+        support,
+        supported,
+    )
+
+
+def _hough_candidates_duplicate(
+    candidate: tuple[int, int, int, float, set[tuple[int, int]]],
+    kept: tuple[int, int, int, float, set[tuple[int, int]]],
+    config: InternalStructureConfig,
+) -> bool:
+    """Identify duplicate proposals by support overlap or nested disk area."""
+    candidate_pixels = candidate[4]
+    kept_pixels = kept[4]
+    if candidate_pixels and kept_pixels:
+        support_overlap = len(candidate_pixels & kept_pixels) / len(
+            candidate_pixels | kept_pixels
+        )
+        if support_overlap >= 0.45:
+            return True
+    return (
+        _smaller_disk_overlap_fraction(candidate, kept)
+        >= config.hough_duplicate_overlap_fraction
+    )
+
+
+def _smaller_disk_overlap_fraction(
+    first: tuple[int, int, int, float, set[tuple[int, int]]],
+    second: tuple[int, int, int, float, set[tuple[int, int]]],
+) -> float:
+    """Return filled-disk overlap as a fraction of the smaller circle."""
+    x_first, y_first, radius_first = first[:3]
+    x_second, y_second, radius_second = second[:3]
+    distance = float(np.hypot(x_first - x_second, y_first - y_second))
+    if distance >= radius_first + radius_second:
+        return 0.0
+    if distance <= abs(radius_first - radius_second):
+        return 1.0
+    overlap = (
+        radius_first**2
+        * acos(
+            (distance**2 + radius_first**2 - radius_second**2)
+            / (2 * distance * radius_first)
+        )
+        + radius_second**2
+        * acos(
+            (distance**2 + radius_second**2 - radius_first**2)
+            / (2 * distance * radius_second)
+        )
+        - 0.5
+        * sqrt(
+            (-distance + radius_first + radius_second)
+            * (distance + radius_first - radius_second)
+            * (distance - radius_first + radius_second)
+            * (distance + radius_first + radius_second)
+        )
+    )
+    return float(overlap / (pi * min(radius_first, radius_second) ** 2))
 
 
 def _bubbles_enclosed_by_edge(
@@ -1051,10 +1296,13 @@ def _bubbles_enclosed_by_edge(
         interior = np.zeros_like(usable_mask)
         coordinates = candidate.coords
         interior[coordinates[:, 0], coordinates[:, 1]] = True
-        boundary = ndimage.binary_dilation(
-            interior,
-            structure=disk(1),
-        ) & ~interior
+        boundary = (
+            ndimage.binary_dilation(
+                interior,
+                structure=disk(1),
+            )
+            & ~interior
+        )
         boundary &= detection_mask
         boundary_size = np.count_nonzero(boundary)
         if boundary_size == 0:
@@ -1075,9 +1323,7 @@ def _component_shape_passes(
     """Return whether a connected component is plausibly circular or oval."""
     perimeter = component.perimeter_crofton
     circularity = (
-        0.0
-        if perimeter == 0.0
-        else 4.0 * np.pi * component.area / perimeter**2
+        0.0 if perimeter == 0.0 else 4.0 * np.pi * component.area / perimeter**2
     )
     return (
         circularity >= min_circularity
@@ -1117,9 +1363,7 @@ def _describe_merged_regions(
         rows = coordinates[:, 0]
         columns = coordinates[:, 1]
         evidence_types = tuple(
-            name
-            for name, mask in evidence_masks.items()
-            if np.any(mask[rows, columns])
+            name for name, mask in evidence_masks.items() if np.any(mask[rows, columns])
         )
         descriptions.append(
             InternalStructureRegion(
@@ -1137,9 +1381,7 @@ def _describe_merged_regions(
                 ),
                 mean_signed_residual=float(region.intensity_mean),
                 structure_type="structure",
-                skeleton_length_px=int(
-                    np.count_nonzero(ridge_skeleton[rows, columns])
-                ),
+                skeleton_length_px=int(np.count_nonzero(ridge_skeleton[rows, columns])),
                 evidence_types=evidence_types,
             )
         )

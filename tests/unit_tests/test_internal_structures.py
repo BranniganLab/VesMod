@@ -89,6 +89,7 @@ def test_internal_structure_config_normalizes_numpy_scalars():
         ({"membrane_exclusion_px": True}, TypeError, "must be an integer"),
         ({"min_region_area_px": 0}, ValueError, "must be positive"),
         ({"background_sigma_px": np.inf}, ValueError, "finite and positive"),
+        ({"hough_circles_enabled": 1}, TypeError, "must be a boolean"),
         ({"filament_scales_px": (1.0, 0.0)}, ValueError, "finite and positive"),
         ({"bubble_closing_px": -1}, ValueError, "must be non-negative"),
         (
@@ -115,6 +116,66 @@ def test_large_light_region_grows_beyond_high_confidence_seed():
     assert result.light_area_fraction > 0.0
     assert np.count_nonzero(result.light_region_mask) > 0.7 * np.count_nonzero(
         light_disk
+    )
+
+
+def _hough_config(**overrides):
+    values = dict(
+        membrane_exclusion_px=4,
+        structure_boundary_exclusion_px=8,
+        filament_scales_px=(1.0, 2.0),
+        min_filament_length_px=8,
+        hough_circles_enabled=True,
+    )
+    values.update(overrides)
+    return InternalStructureConfig(**values)
+
+
+def _dark_ring(frame, center_x, center_y, radius):
+    yy, xx = np.ogrid[: frame.shape[0], : frame.shape[1]]
+    distance = np.sqrt((xx - center_x) ** 2 + (yy - center_y) ** 2)
+    frame[np.abs(distance - radius) <= 1.5] -= 30.0
+
+
+def test_hough_circle_channel_recovers_dark_internal_rings():
+    frame = np.full((160, 160), 100.0)
+    _dark_ring(frame, 62, 68, 14)
+    _dark_ring(frame, 92, 78, 12)
+
+    result = detect_internal_structures(
+        frame,
+        _circular_contour(center=(80.0, 80.0), radius=65.0),
+        _hough_config(),
+    )
+    hough_mask = result.to_full_frame_channel_mask("hough_circle")
+
+    assert result.hough_circle_count == 2
+    assert hough_mask[68, 62]
+    assert hough_mask[78, 92]
+    assert any("hough_circle" in region.evidence_types for region in result.regions)
+
+
+def test_hough_circle_channel_rejects_oversized_circle():
+    frame = np.full((160, 160), 100.0)
+    _dark_ring(frame, 80, 80, 32)
+
+    result = detect_internal_structures(
+        frame,
+        _circular_contour(center=(80.0, 80.0), radius=65.0),
+        _hough_config(),
+    )
+
+    assert result.hough_circle_count == 0
+
+
+def test_hough_duplicate_suppression_rejects_nested_circle():
+    larger = (50, 50, 20, 10.0, {(40, 50), (60, 50)})
+    nested = (50, 50, 10, 5.0, {(40, 50), (60, 50)})
+
+    assert internal_structures._hough_candidates_duplicate(
+        nested,
+        larger,
+        _hough_config(),
     )
 
 
@@ -155,10 +216,7 @@ def test_bright_region_subtraction_halo_is_not_added_to_union():
 
     assert full_mask[45, 45]
     assert not np.any(full_mask[(distance >= 15.0) & (distance <= 25.0)])
-    assert all(
-        region.evidence_types == ("bright_region",)
-        for region in result.regions
-    )
+    assert all(region.evidence_types == ("bright_region",) for region in result.regions)
 
 
 def test_amorphous_light_region_is_not_supported_by_bright_compact_evidence():
@@ -222,8 +280,7 @@ def test_dark_closed_edge_fills_neutral_bubble_interior():
     assert full_bubble_mask[65, 70]
     assert result.bubble_area_fraction > 0.0
     assert any(
-        "enclosed_boundary" in region.evidence_types
-        for region in result.regions
+        "enclosed_boundary" in region.evidence_types for region in result.regions
     )
 
 
@@ -300,14 +357,17 @@ def test_enclosed_boundary_suppresses_neighboring_structure_halos():
     distant_filament = np.zeros(shape, dtype=bool)
     distant_filament[90:93, 35:85] = True
 
-    bright, dark, ridge, skeleton = (
-        internal_structures._suppress_enclosed_boundary_halos(
-            bubble,
-            halo.copy(),
-            halo.copy(),
-            halo | distant_filament,
-            _config(),
-        )
+    (
+        bright,
+        dark,
+        ridge,
+        skeleton,
+    ) = internal_structures._suppress_enclosed_boundary_halos(
+        bubble,
+        halo.copy(),
+        halo.copy(),
+        halo | distant_filament,
+        _config(),
     )
 
     assert not np.any(bright[halo])
