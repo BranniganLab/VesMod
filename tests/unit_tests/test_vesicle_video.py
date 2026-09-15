@@ -45,6 +45,7 @@ def test_post_init_requires_3d_array():
 
 def test_extract_edges_returns_vesicle_edges(video, extraction_config):
     """Test that extraction returns a separate VesicleEdges object."""
+
     def extractor(frame):
         return np.full(200, 20.0), (60.0, 50.0)
 
@@ -123,6 +124,7 @@ def test_extract_edges_propagates_invalid_downsampling_configuration(video):
 
 def test_extract_edges_raises_when_all_extractions_fail(video, extraction_config):
     """Test that extraction reports failure when no frame yields a detection."""
+
     def failing_extractor(frame):
         raise RuntimeError("custom extractor failed")
 
@@ -146,6 +148,7 @@ def test_extract_edges_rejects_inconsistent_analysis_lengths(video):
 
 def test_extract_edges_does_not_run_qc(video, extraction_config):
     """Test that extraction leaves successful detections without QC state."""
+
     def extractor(frame):
         radii = np.full(200, 20.0)
         radii[50] = 100.0
@@ -278,3 +281,18 @@ def test_make_vesicle_gif_delegates_to_composable_api(tmp_path, monkeypatch):
     assert len(observed) == 1
     assert observed[0][0] == output_path
     assert observed[0][1][0].video is video
+
+
+def test_make_vesicle_gif_passes_selected_source_frames(tmp_path, monkeypatch):
+    """Test the convenience wrapper exposes panel source-frame selection."""
+    video = VesicleVideo(np.zeros((3, 20, 20)))
+    observed = []
+
+    def fake_make_gif(path, panels):
+        observed.append((path, panels))
+
+    monkeypatch.setattr("vesmod.VesEdge.animation.make_gif", fake_make_gif)
+
+    make_vesicle_gif(video, tmp_path / "video.gif", frame_indices=[2, 0])
+
+    assert observed[0][1][0].frame_indices == (2, 0)

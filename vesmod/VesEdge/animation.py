@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from numbers import Integral
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
@@ -112,18 +113,49 @@ class VesicleAnimationPanel:
     edges: VesicleEdges | None = None
     frame_decorator: Callable[[Axes, int], None] | None = None
     title_provider: Callable[[int], str] | None = None
+    frame_indices: Sequence[int] | None = None
+
+    def __post_init__(self) -> None:
+        """Resolve and validate source frames represented by the animation."""
+        _validate_vesicle_edges(self.video, self.edges)
+        if self.frame_indices is None:
+            self.frame_indices = tuple(range(self.video.frames.shape[0]))
+            return
+        try:
+            indices = tuple(self.frame_indices)
+        except TypeError as error:
+            raise TypeError("frame_indices must be an iterable of integers.") from error
+        if not indices:
+            raise ValueError("frame_indices must contain at least one frame index.")
+        for index in indices:
+            if isinstance(index, bool) or not isinstance(index, Integral):
+                raise TypeError(
+                    "frame_indices must contain only integer frame indices."
+                )
+            if index < 0 or index >= self.video.frames.shape[0]:
+                raise IndexError(
+                    f"frame index {index} is outside the range "
+                    f"0..{self.video.frames.shape[0] - 1}."
+                )
+        self.frame_indices = tuple(int(index) for index in indices)
 
     @property
     def n_frames(self) -> int:
-        """Return the number of source video frames."""
-        return self.video.frames.shape[0]
+        """Return the number of selected source frames."""
+        return len(self.frame_indices)
 
     def draw(self, ax: Axes, frame_index: int) -> None:
-        """Draw one vesicle frame on the supplied axes."""
+        """Draw one selected vesicle frame on the supplied axes."""
+        if frame_index < 0 or frame_index >= self.n_frames:
+            raise IndexError(
+                f"animation frame index {frame_index} is outside the range "
+                f"0..{self.n_frames - 1}."
+            )
+        source_frame_index = self.frame_indices[frame_index]
         draw_vesicle_frame(
             self.video,
             ax,
-            frame_index,
+            source_frame_index,
             self.edges,
             frame_decorator=self.frame_decorator,
             title_provider=self.title_provider,
@@ -307,13 +339,20 @@ def make_vesicle_gif(
     edges: VesicleEdges | None = None,
     frame_decorator: Callable[[Axes, int], None] | None = None,
     title_provider: Callable[[int], str] | None = None,
+    frame_indices: Sequence[int] | None = None,
 ) -> None:
-    """Save a single-panel vesicle GIF using the composable animation API."""
+    """Save a single-panel vesicle GIF using the composable animation API.
+
+    ``frame_indices`` optionally selects source frames, in the supplied order.
+    Edge rendering, decorators, and title providers receive the corresponding
+    source-frame index rather than the animation-frame index.
+    """
     _validate_vesicle_edges(video, edges)
     panel = VesicleAnimationPanel(
         video,
         edges=edges,
         frame_decorator=frame_decorator,
         title_provider=title_provider,
+        frame_indices=frame_indices,
     )
     make_gif(path, [panel])

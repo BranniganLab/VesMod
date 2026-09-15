@@ -42,6 +42,60 @@ def test_vesicle_animation_panel_delegates_to_frame_renderer(monkeypatch):
     plt.close(fig)
 
 
+def test_vesicle_animation_panel_maps_selected_animation_frames(monkeypatch):
+    """Test selected source frames retain their order for all callbacks."""
+    video = VesicleVideo(np.zeros((3, 10, 10)))
+    observed = []
+
+    def fake_draw_vesicle_frame(video_arg, axis, frame_index, edges=None, **kwargs):
+        observed.append((video_arg, axis, frame_index, edges, kwargs))
+
+    monkeypatch.setattr(
+        "vesmod.VesEdge.animation.draw_vesicle_frame",
+        fake_draw_vesicle_frame,
+    )
+    decorator = object()
+    title_provider = object()
+    panel = VesicleAnimationPanel(
+        video,
+        frame_indices=[2, 0],
+        frame_decorator=decorator,
+        title_provider=title_provider,
+    )
+    fig, ax = plt.subplots()
+
+    panel.draw(ax, 0)
+    panel.draw(ax, 1)
+
+    assert panel.n_frames == 2
+    assert [entry[2] for entry in observed] == [2, 0]
+    assert all(entry[4]["frame_decorator"] is decorator for entry in observed)
+    assert all(entry[4]["title_provider"] is title_provider for entry in observed)
+    plt.close(fig)
+
+
+@pytest.mark.parametrize(
+    ("frame_indices", "exception", "message"),
+    [
+        ([], ValueError, "at least one"),
+        ([3], IndexError, "outside the range"),
+        ([-1], IndexError, "outside the range"),
+        ([True], TypeError, "integer frame indices"),
+        (["1"], TypeError, "integer frame indices"),
+    ],
+)
+def test_vesicle_animation_panel_rejects_invalid_frame_indices(
+    frame_indices,
+    exception,
+    message,
+):
+    """Test invalid source-frame selections fail before animation starts."""
+    video = VesicleVideo(np.zeros((3, 10, 10)))
+
+    with pytest.raises(exception, match=message):
+        VesicleAnimationPanel(video, frame_indices=frame_indices)
+
+
 def test_time_series_panel_marks_current_sample():
     """Test time-series panels plot the trace and current-frame marker."""
     panel = TimeSeriesAnimationPanel(
