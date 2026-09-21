@@ -6,8 +6,11 @@ from skimage.measure import label
 
 from vesmod.VesEdge.experimental import internal_structures
 from vesmod.VesEdge.experimental.internal_structures import (
+    InternalHoughCircle,
     InternalStructureConfig,
+    InternalStructureFrameResult,
     detect_internal_structures,
+    select_temporally_supported_hough_circles,
     summarize_internal_structures,
 )
 from vesmod.VesEdge.models import ImageContour
@@ -92,6 +95,11 @@ def test_internal_structure_config_normalizes_numpy_scalars():
         ({"hough_circles_enabled": 1}, TypeError, "must be a boolean"),
         ({"filament_scales_px": (1.0, 0.0)}, ValueError, "finite and positive"),
         ({"bubble_closing_px": -1}, ValueError, "must be non-negative"),
+        (
+            {"hough_min_supported_quadrants": 5},
+            ValueError,
+            "cannot exceed four",
+        ),
         (
             {"min_bubble_boundary_fraction": 1.1},
             ValueError,
@@ -316,6 +324,60 @@ def test_hough_circle_rejects_candidate_without_off_peak_baseline(monkeypatch):
     )
 
     assert not np.any(detected)
+
+
+def test_hough_annular_evidence_requires_distributed_dark_rim_support():
+    frame = np.full((120, 120), 100.0)
+    yy, xx = np.ogrid[:120, :120]
+    angle = np.arctan2(yy - 60, xx - 60)
+    distance = np.sqrt((xx - 60) ** 2 + (yy - 60) ** 2)
+    frame[
+        (np.abs(distance - 18) <= 1.5)
+        & (angle > 0.0)
+        & (angle < np.pi / 2.0)
+    ] -= 30.0
+    angles = np.linspace(0.0, 2.0 * np.pi, 180, endpoint=False)
+
+    _, support, quadrants, _ = internal_structures._hough_annular_evidence(
+        frame,
+        60,
+        60,
+        18,
+        angles,
+        _hough_config(),
+    )
+
+    assert support > 0.0
+    assert quadrants < 3
+
+
+def _result_with_hough_circles(circles, center_yx):
+    empty = np.zeros((8, 8), dtype=bool)
+    return InternalStructureFrameResult(
+        original_shape=(8, 8),
+        crop_origin_yx=(0, 0),
+        usable_interior_mask=empty,
+        residual=np.zeros((8, 8)),
+        structure_mask=empty,
+        regions=(),
+        noise_sigma=1.0,
+        hough_circles=tuple(circles),
+        vesicle_center_yx=center_yx,
+    )
+
+
+def test_temporal_hough_support_allows_substantial_relative_motion():
+    first = InternalHoughCircle((30.0, 30.0), 5.0, 1.0)
+    moved = InternalHoughCircle((39.0, 35.0), 6.0, 1.0)
+    isolated = InternalHoughCircle((5.0, 5.0), 4.0, 1.0)
+    results = (
+        _result_with_hough_circles((first, isolated), (20.0, 20.0)),
+        _result_with_hough_circles((moved,), (25.0, 22.0)),
+    )
+
+    selected = select_temporally_supported_hough_circles(results)
+
+    assert selected == ((first,), (moved,))
 
 
 def test_strong_interior_seed_can_fill_into_boundary_exclusion_band():
