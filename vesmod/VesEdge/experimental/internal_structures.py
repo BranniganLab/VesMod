@@ -136,9 +136,9 @@ class InternalStructureConfig:
     hough_max_radius_fraction: float = 0.4
     hough_min_containment_fraction: float = 0.95
     hough_annular_offset_px: int = 2
-    hough_min_boundary_support: float = 0.4
+    hough_min_boundary_support: float = 0.2
+    hough_min_supported_quadrants: int = 3
     hough_contrast_sigma: float = 3.0
-    hough_min_sign_consistency: float = 0.65
     hough_min_peak_ratio: float = 1.4
     hough_duplicate_overlap_fraction: float = 0.5
 
@@ -154,6 +154,7 @@ class InternalStructureConfig:
             ("hough_min_distance_px", True),
             ("hough_min_radius_px", True),
             ("hough_annular_offset_px", True),
+            ("hough_min_supported_quadrants", True),
         )
         for name, must_be_positive in integer_fields:
             value = require_integer(getattr(self, name), name)
@@ -197,7 +198,6 @@ class InternalStructureConfig:
             "hough_max_radius_fraction",
             "hough_min_containment_fraction",
             "hough_min_boundary_support",
-            "hough_min_sign_consistency",
             "hough_duplicate_overlap_fraction",
         )
         for name in fraction_fields:
@@ -242,6 +242,8 @@ class InternalStructureConfig:
             raise ValueError("max_bubble_area_fraction must be positive.")
         if not isinstance(self.hough_circles_enabled, bool):
             raise TypeError("hough_circles_enabled must be a boolean.")
+        if self.hough_min_supported_quadrants > 4:
+            raise ValueError("hough_min_supported_quadrants cannot exceed four.")
 
 
 @dataclass(frozen=True)
@@ -268,6 +270,15 @@ class InternalStructureRegion:
 
 
 @dataclass(frozen=True)
+class InternalHoughCircle:
+    """One image-validated Hough-circle candidate in frame coordinates."""
+
+    center_yx: tuple[float, float]
+    radius_px: float
+    score: float
+
+
+@dataclass(frozen=True)
 class InternalStructureFrameResult:
     """Detection products for one frame, stored in a bounded image crop.
 
@@ -286,6 +297,8 @@ class InternalStructureFrameResult:
     dark_filament_mask: NDArray[np.bool_] | None = None
     bubble_region_mask: NDArray[np.bool_] | None = None
     hough_circle_mask: NDArray[np.bool_] | None = None
+    hough_circles: tuple[InternalHoughCircle, ...] = ()
+    vesicle_center_yx: tuple[float, float] = (0.0, 0.0)
     dark_filament_skeleton: NDArray[np.bool_] | None = None
     dark_region_mask: NDArray[np.bool_] | None = None
 
@@ -357,6 +370,8 @@ class InternalStructureFrameResult:
     @property
     def hough_circle_count(self) -> int:
         """Return the number of disconnected validated Hough circles."""
+        if self.hough_circles:
+            return len(self.hough_circles)
         return int(label(self._channel_mask(self.hough_circle_mask)).max())
 
     @property
@@ -479,6 +494,7 @@ def detect_internal_structures(
         ridge_skeleton = np.zeros_like(usable_mask)
         bubble_mask = np.zeros_like(usable_mask)
         hough_circle_mask = np.zeros_like(usable_mask)
+        hough_candidates = ()
     else:
         normalized = np.zeros_like(residual)
         normalized[usable_mask] = residual[usable_mask] / noise_sigma
@@ -534,7 +550,7 @@ def detect_internal_structures(
             usable_mask,
             settings,
         )
-        hough_circle_mask = _detect_hough_circles(
+        hough_circle_mask, hough_candidates = _detect_hough_circle_candidates(
             crop,
             interior_mask,
             usable_mask,
@@ -593,6 +609,18 @@ def detect_internal_structures(
         dark_filament_mask=ridge_mask,
         bubble_region_mask=bubble_mask,
         hough_circle_mask=hough_circle_mask,
+        hough_circles=tuple(
+            InternalHoughCircle(
+                center_yx=(
+                    float(y + crop_origin[0]),
+                    float(x + crop_origin[1]),
+                ),
+                radius_px=float(radius),
+                score=score,
+            )
+            for x, y, radius, score, _ in hough_candidates
+        ),
+        vesicle_center_yx=(contour.origin[1], contour.origin[0]),
         dark_filament_skeleton=ridge_skeleton,
     )
 
@@ -633,6 +661,85 @@ def summarize_internal_structures(
         median_bubble_count=float(
             np.median([result.bubble_count for result in results])
         ),
+    )
+
+
+def select_temporally_supported_hough_circles(
+    results: list[InternalStructureFrameResult]
+    | tuple[InternalStructureFrameResult, ...],
+    *,
+    min_neighbor_matches: int = 1,
+    max_relative_displacement: float = 1.5,
+    max_relative_radius_change: float = 0.75,
+) -> tuple[tuple[InternalHoughCircle, ...], ...]:
+    """Select Hough circles with permissive support in adjacent frames.
+
+    Candidate centers are compared after subtracting each frame's vesicle
+    center.  The deliberately generous displacement and radius tolerances
+    accommodate mobile internal bubbles.  This helper is optional: it does
+    not alter the frame-level structure masks returned by
+    :func:`detect_internal_structures`.
+    """
+    if isinstance(min_neighbor_matches, bool) or not isinstance(
+        min_neighbor_matches, int
+    ):
+        raise TypeError("min_neighbor_matches must be an integer.")
+    if min_neighbor_matches < 0:
+        raise ValueError("min_neighbor_matches must be non-negative.")
+    for name, value in (
+        ("max_relative_displacement", max_relative_displacement),
+        ("max_relative_radius_change", max_relative_radius_change),
+    ):
+        if not isinstance(value, (int, float, np.number)) or isinstance(value, bool):
+            raise TypeError(f"{name} must be a real number.")
+        if not np.isfinite(value) or value < 0:
+            raise ValueError(f"{name} must be finite and non-negative.")
+    selections = []
+    for index, result in enumerate(results):
+        neighbors = (
+            ([] if index == 0 else [results[index - 1]])
+            + ([] if index + 1 == len(results) else [results[index + 1]])
+        )
+        retained = []
+        for circle in result.hough_circles:
+            neighbor_matches = sum(
+                _hough_circle_matches(
+                    circle,
+                    result.vesicle_center_yx,
+                    candidate,
+                    neighbor.vesicle_center_yx,
+                    max_relative_displacement,
+                    max_relative_radius_change,
+                )
+                for neighbor in neighbors
+                for candidate in neighbor.hough_circles
+            )
+            if neighbor_matches >= min_neighbor_matches:
+                retained.append(circle)
+        selections.append(tuple(retained))
+    return tuple(selections)
+
+
+def _hough_circle_matches(
+    circle: InternalHoughCircle,
+    vesicle_center_yx: tuple[float, float],
+    candidate: InternalHoughCircle,
+    candidate_vesicle_center_yx: tuple[float, float],
+    max_relative_displacement: float,
+    max_relative_radius_change: float,
+) -> bool:
+    """Return whether two candidates plausibly describe one mobile bubble."""
+    relative_center = np.subtract(circle.center_yx, vesicle_center_yx)
+    candidate_relative_center = np.subtract(
+        candidate.center_yx,
+        candidate_vesicle_center_yx,
+    )
+    largest_radius = max(circle.radius_px, candidate.radius_px)
+    return (
+        np.linalg.norm(relative_center - candidate_relative_center)
+        <= max_relative_displacement * largest_radius
+        and abs(circle.radius_px - candidate.radius_px)
+        <= max_relative_radius_change * largest_radius
     )
 
 
@@ -1057,21 +1164,29 @@ def _detect_bubbles(
     return bubble_mask
 
 
-def _detect_hough_circles(
+def _detect_hough_circle_candidates(
     image: NDArray[np.float64],
     interior_mask: NDArray[np.bool_],
     usable_mask: NDArray[np.bool_],
     config: InternalStructureConfig,
-) -> NDArray[np.bool_]:
+) -> tuple[
+    NDArray[np.bool_],
+    tuple[tuple[int, int, int, float, set[tuple[int, int]]], ...],
+]:
     """Return validated circular-bubble evidence without eroding the contour.
 
     Hough proposals are deliberately permissive. Each one is then required to
-    have a locally strong, polarity-consistent, radius-specific annular image
-    boundary and is deduplicated against higher-scoring candidates.
+    have a locally strong, dark, radius-specific annular image boundary and is
+    deduplicated against higher-scoring candidates.
     """
     empty = np.zeros_like(interior_mask)
     if not config.hough_circles_enabled:
-        return empty
+        return empty, ()
+    max_radius = config.hough_max_radius_fraction * float(
+        np.max(ndimage.distance_transform_edt(interior_mask))
+    )
+    if max_radius < config.hough_min_radius_px:
+        return empty, ()
     scaled = cv2.normalize(image, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
     proposals = cv2.HoughCircles(
         cv2.GaussianBlur(scaled, (9, 9), 2),
@@ -1081,16 +1196,11 @@ def _detect_hough_circles(
         param1=config.hough_canny_threshold,
         param2=config.hough_accumulator_threshold,
         minRadius=config.hough_min_radius_px,
-        maxRadius=max(
-            config.hough_min_radius_px, int(np.ceil(np.max(image.shape) / 2))
-        ),
+        maxRadius=int(np.floor(max_radius)),
     )
     if proposals is None:
-        return empty
+        return empty, ()
 
-    max_radius = config.hough_max_radius_fraction * float(
-        np.max(ndimage.distance_transform_edt(interior_mask))
-    )
     angles = np.linspace(0, 2 * np.pi, 180, endpoint=False)
     candidates: list[tuple[int, int, int, float, set[tuple[int, int]]]] = []
     for x, y, initial_radius in np.round(proposals[0]).astype(int):
@@ -1116,7 +1226,7 @@ def _detect_hough_circles(
             radius = initial_radius + offset
             if radius < config.hough_min_radius_px or radius > max_radius:
                 continue
-            score, support, supported = _hough_annular_evidence(
+            evidence = _hough_annular_evidence(
                 image,
                 x,
                 y,
@@ -1124,15 +1234,20 @@ def _detect_hough_circles(
                 angles,
                 config,
             )
-            radial_scores.append((score, support, radius, supported))
+            if len(evidence) == 3:
+                score, support, supported = evidence
+                quadrant_count = 4 if support else 0
+            else:
+                score, support, quadrant_count, supported = evidence
+            radial_scores.append((score, support, quadrant_count, radius, supported))
         if not radial_scores:
             continue
-        score, support, radius, supported = max(
+        score, support, quadrant_count, radius, supported = max(
             radial_scores, key=lambda result: result[0]
         )
         off_peak_scores = [
             other_score
-            for other_score, _, other_radius, _ in radial_scores
+            for other_score, _, _, other_radius, _ in radial_scores
             if abs(other_radius - radius) >= 3
         ]
         if not off_peak_scores:
@@ -1148,6 +1263,7 @@ def _detect_hough_circles(
         )
         if (
             support < config.hough_min_boundary_support
+            or quadrant_count < config.hough_min_supported_quadrants
             or peak_ratio < config.hough_min_peak_ratio
         ):
             continue
@@ -1169,7 +1285,23 @@ def _detect_hough_circles(
     circle_mask = np.zeros(interior_mask.shape, dtype=np.uint8)
     for x, y, radius, _, _ in selected:
         cv2.circle(circle_mask, (x, y), radius, 1, thickness=-1)
-    return circle_mask.astype(bool) & usable_mask
+    return circle_mask.astype(bool) & usable_mask, tuple(selected)
+
+
+def _detect_hough_circles(
+    image: NDArray[np.float64],
+    interior_mask: NDArray[np.bool_],
+    usable_mask: NDArray[np.bool_],
+    config: InternalStructureConfig,
+) -> NDArray[np.bool_]:
+    """Return only the Hough evidence mask for backward compatibility."""
+    mask, _ = _detect_hough_circle_candidates(
+        image,
+        interior_mask,
+        usable_mask,
+        config,
+    )
+    return mask
 
 
 def _hough_annular_evidence(
@@ -1179,8 +1311,8 @@ def _hough_annular_evidence(
     radius: int,
     angles: NDArray[np.float64],
     config: InternalStructureConfig,
-) -> tuple[float, float, NDArray[np.bool_]]:
-    """Return score, angular support, and supporting pixels for one radius."""
+) -> tuple[float, float, int, NDArray[np.bool_]]:
+    """Return score, support, occupied quadrants, and supported rim pixels."""
     outer = map_coordinates(
         image,
         [
@@ -1199,8 +1331,15 @@ def _hough_annular_evidence(
         order=1,
         mode="nearest",
     )
-    signed_contrast = outer - inner
+    rim = map_coordinates(
+        image,
+        [y + radius * np.sin(angles), x + radius * np.cos(angles)],
+        order=1,
+        mode="nearest",
+    )
+    rim_depth = np.minimum(inner - rim, outer - rim)
     evidence_scale = max(
+        float(np.max(np.abs(rim))),
         float(np.max(np.abs(inner))),
         float(np.max(np.abs(outer))),
     )
@@ -1215,25 +1354,26 @@ def _hough_annular_evidence(
                 np.concatenate(
                     [
                         np.abs(np.diff(inner, append=inner[0])),
+                        np.abs(np.diff(rim, append=rim[0])),
                         np.abs(np.diff(outer, append=outer[0])),
                     ]
                 )
             )
         ),
     )
-    strong = np.abs(signed_contrast) >= config.hough_contrast_sigma * local_noise
+    strong = rim_depth >= config.hough_contrast_sigma * local_noise
     if not np.any(strong):
-        return 0.0, 0.0, np.zeros(angles.size, dtype=bool)
-    polarity = np.sign(np.median(signed_contrast[strong]))
-    supported = strong & (np.sign(signed_contrast) == polarity)
-    sign_consistency = np.mean(np.sign(signed_contrast[strong]) == polarity)
-    support = float(np.mean(supported))
-    if sign_consistency < config.hough_min_sign_consistency or not np.any(supported):
-        return 0.0, support, supported
+        return 0.0, 0.0, 0, np.zeros(angles.size, dtype=bool)
+    quadrant_count = sum(
+        np.any(strong[quadrant * angles.size // 4 : (quadrant + 1) * angles.size // 4])
+        for quadrant in range(4)
+    )
+    support = float(np.mean(strong))
     return (
-        float(np.median(np.abs(signed_contrast[supported])) * support),
+        float(np.median(rim_depth[strong]) * support),
         support,
-        supported,
+        quadrant_count,
+        strong,
     )
 
 
