@@ -123,7 +123,8 @@ def test_plot_mode_rigidity_adds_data_and_fit_reference_line():
 
     assert figure is ax.figure
     assert ax.get_xlabel() == "Fourier mode q"
-    assert len(ax.lines) == 2
+    assert len(ax.lines) == 3
+    np.testing.assert_array_equal(ax.lines[1].get_xdata(), np.arange(3, 8))
     assert ax.lines[-1].get_ydata()[0] == pytest.approx(fit.kC)
 
 
