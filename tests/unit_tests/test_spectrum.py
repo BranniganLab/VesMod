@@ -183,7 +183,7 @@ def test_isolate_mode_range_includes_lower_bound_and_excludes_upper_bound():
     assert isinstance(isolated, MiniSpectrum)
     np.testing.assert_array_equal(isolated.modes, np.array([1, 2, 3]))
     np.testing.assert_array_equal(isolated.avg_amps2, np.array([1.0, 2.0, 3.0]))
-    assert isolated.std_amps2 is None
+    assert isolated.avg_amps2_ste is None
 
 
 def test_isolate_mode_range_raises_when_modes_are_missing():
