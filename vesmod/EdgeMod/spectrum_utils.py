@@ -13,7 +13,7 @@ from scipy.constants import Boltzmann
 from scipy.special import gammaln
 from lmfit import Model
 
-MiniSpectrum = namedtuple("MiniSpectrum", ['modes', 'avg_amps2', 'std_amps2'])
+MiniSpectrum = namedtuple("MiniSpectrum", ['modes', 'avg_amps2', 'avg_amps2_ste'])
 
 
 def validate_lmfit_result(result, fitting_group, free_sigma):
@@ -41,8 +41,8 @@ def validate_lmfit_result(result, fitting_group, free_sigma):
             f"kC={kC.value}, stderr={kC.stderr}"
         )
 
-    residuals = np.asarray(result.residual)
     y = np.asarray(fitting_group.avg_amps2)
+    residuals = y - np.asarray(result.best_fit)
 
     rmse = np.sqrt(np.mean(residuals**2))
     rel_rmse = rmse / np.mean(np.abs(y))
@@ -58,11 +58,23 @@ def fit_spectrum_lmfit(fitting_group, lmax, free_sigma=False, weighted=False):
     model = Model(HSS97)
     pars = model.make_params(kC={'value': 15, 'min': 1, 'max': 500, 'vary': True}, sigma={'value': 0, 'min': -100, 'max': 1000, 'vary': free_sigma}, lmax={'value': lmax, 'vary': False})
 
-    use_weights = (weighted and np.all(np.isfinite(fitting_group.std_amps2)) and np.all(fitting_group.std_amps2 > 0))
+    fit_kwargs = {"q": fitting_group.modes, "params": pars, "max_nfev": 20000}
+    if weighted:
+        uncertainties = fitting_group.avg_amps2_ste
+        if uncertainties is None:
+            raise ValueError("Replica SEM values are required for a weighted fit.")
+        uncertainties = np.asarray(uncertainties, dtype=float)
+        amplitudes = np.asarray(fitting_group.avg_amps2, dtype=float)
+        if uncertainties.shape != amplitudes.shape:
+            raise ValueError("Replica SEM values must match the fitted amplitudes.")
+        if not np.all(np.isfinite(uncertainties)) or np.any(uncertainties <= 0):
+            raise ValueError(
+                "Replica SEM values must be finite and greater than zero "
+                "for every fitted mode."
+            )
+        fit_kwargs["weights"] = 1 / uncertainties
 
-    if use_weights:
-        return model.fit(fitting_group.avg_amps2, q=fitting_group.modes, weights=(1 / fitting_group.std_amps2), params=pars, max_nfev=20000)
-    return model.fit(fitting_group.avg_amps2, q=fitting_group.modes, params=pars, max_nfev=20000)
+    return model.fit(fitting_group.avg_amps2, **fit_kwargs)
 
 
 def fit_spectrum_to_theory_lmfit(fitting_group, lmax, free_sigma=False, weighted=False):
@@ -73,7 +85,7 @@ def fit_spectrum_to_theory_lmfit(fitting_group, lmax, free_sigma=False, weighted
     Parameters
     ----------
     fitting_group : namedtuple
-        Mini_spectrum containing modes, avg_amps2, and std_amps2 of just the \
+        Mini_spectrum containing modes, avg_amps2, and avg_amps2_ste of just the \
         modes you wish to fit to.
     lmax : int
         Inclusive upper bound on the summation.

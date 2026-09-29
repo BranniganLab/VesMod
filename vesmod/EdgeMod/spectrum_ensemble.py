@@ -12,7 +12,11 @@ implicitly to ensemble fits; ensemble fitting retains its existing fixed-range
 behavior.
 """
 import numpy as np
-from vesmod.EdgeMod.spectrum_utils import fit_spectrum_to_theory_lmfit, MiniSpectrum
+from vesmod.EdgeMod.spectrum_utils import (
+    fit_spectrum_lmfit,
+    MiniSpectrum,
+    validate_lmfit_result,
+)
 from .config import SpectrumFitConfig
 from .fit_result import EnsembleFit
 
@@ -114,40 +118,61 @@ class SpectrumEnsemble:
         mask1 = self.modes >= lower_bound
         mask2 = self.modes < upper_bound
         combined_mask = mask1 & mask2
-        return MiniSpectrum(self.modes[combined_mask], self.avg_amps2[combined_mask], None)
+        avg_amps2_ste = (
+            self.avg_amps2_ste[combined_mask]
+            if len(self.spectra_list) >= 2
+            else None
+        )
+        return MiniSpectrum(
+            self.modes[combined_mask],
+            self.avg_amps2[combined_mask],
+            avg_amps2_ste,
+        )
 
     def extract_kc_from_fit(
         self,
         config: SpectrumFitConfig | None = None,
+        *,
+        weight_by_replica_sem: bool = False,
     ) -> EnsembleFit:
         """Fit the averaged spectrum using a physical fit configuration.
 
-        A free-sigma ensemble fit reports the HSS97 reduced surface tension.
-        It cannot report an SI surface tension because an ensemble does not
-        retain a single radius with which to perform that conversion.
-
-        When no configuration is supplied, this method retains the historical
-        fixed-sigma ensemble behavior. Pass ``SpectrumFitConfig(free_sigma=True)``
-        to jointly fit kC and reduced surface tension.
+        A free-sigma ensemble fit reports HSS97 reduced surface tension. When
+        no configuration is supplied, the historical fixed-sigma behavior is
+        retained. Set ``weight_by_replica_sem=True`` to weight each mode by the
+        inverse standard error across replicas.
         """
         if config is None:
             config = SpectrumFitConfig(free_sigma=False)
         if not isinstance(config, SpectrumFitConfig):
             raise TypeError("config must be a SpectrumFitConfig or None.")
+        if not isinstance(weight_by_replica_sem, bool):
+            raise TypeError("weight_by_replica_sem must be a bool.")
+        if weight_by_replica_sem and len(self.spectra_list) < 2:
+            raise ValueError(
+                "At least two replica spectra are required for SEM-weighted fitting."
+            )
 
         fitting_range = self._isolate_mode_range(
             config.lower_bound,
             config.upper_bound,
         )
-        kC, reduced_sigma = fit_spectrum_to_theory_lmfit(
+        result = fit_spectrum_lmfit(
             fitting_range,
             config.lmax,
             free_sigma=config.free_sigma,
+            weighted=weight_by_replica_sem,
         )
+        validate_lmfit_result(result, fitting_range, config.free_sigma)
+        kC = result.best_values["kC"]
+        reduced_sigma = result.best_values["sigma"]
         fit = EnsembleFit(
             kC=float(kC),
             reduced_sigma=float(reduced_sigma),
             config=config,
+            weight_by_replica_sem=weight_by_replica_sem,
+            chisqr=float(result.chisqr),
+            redchi=float(result.redchi),
         )
         self.fit_results.append(fit)
         return fit

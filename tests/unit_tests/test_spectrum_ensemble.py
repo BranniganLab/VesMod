@@ -166,7 +166,7 @@ def test_isolate_mode_range_returns_selected_modes_and_average_amplitudes():
 
     np.testing.assert_array_equal(mini_spectrum.modes, np.array([2, 3]))
     np.testing.assert_allclose(mini_spectrum.avg_amps2, np.array([30.0, 45.0]))
-    assert mini_spectrum.std_amps2 is None
+    np.testing.assert_allclose(mini_spectrum.avg_amps2_ste, np.array([10.0, 15.0]))
 
 
 def test_isolate_mode_range_raises_error_when_no_modes_have_been_added():
@@ -177,35 +177,31 @@ def test_isolate_mode_range_raises_error_when_no_modes_have_been_added():
         avg._isolate_mode_range(lower_bound=2, upper_bound=4)
 
 
-def test_extract_kC_from_fit_uses_isolated_mode_range_and_returns_first_fit_value(monkeypatch):
-    """Test that _extract_kC_from_fit fits the requested mode range and returns fit[0]."""
+def test_extract_kC_from_fit_uses_isolated_mode_range(monkeypatch):
+    """Legacy fixed-sigma fitting receives the selected ensemble slice."""
+    from types import SimpleNamespace
+
     avg = SpectrumEnsemble()
-
-    avg.add_spectrum(avg_amps2=[10.0, 20.0, 30.0, 40.0], modes=[1, 2, 3, 4], kC=20.0)
-    avg.add_spectrum(avg_amps2=[20.0, 40.0, 60.0, 80.0], modes=[1, 2, 3, 4], kC=22.0)
-
+    avg.add_spectrum([10.0, 20.0, 30.0, 40.0], [1, 2, 3, 4], 20.0)
+    avg.add_spectrum([20.0, 40.0, 60.0, 80.0], [1, 2, 3, 4], 22.0)
     calls = {}
 
-    def fake_fit_spectrum_to_theory_lmfit(fitting_range, lmax, free_sigma):
-        calls["fitting_range"] = fitting_range
-        calls["lmax"] = lmax
-        calls["free_sigma"] = free_sigma
-        return (123.0, 0.0)
+    def fake_fit(group, lmax, free_sigma, weighted=False):
+        calls.update(group=group, lmax=lmax, free_sigma=free_sigma, weighted=weighted)
+        return SimpleNamespace(best_values={"kC": 123.0, "sigma": 0.0}, chisqr=1.0, redchi=1.0)
 
-    monkeypatch.setattr(
-        "vesmod.EdgeMod.spectrum_ensemble.fit_spectrum_to_theory_lmfit",
-        fake_fit_spectrum_to_theory_lmfit,
-    )
+    monkeypatch.setattr("vesmod.EdgeMod.spectrum_ensemble.fit_spectrum_lmfit", fake_fit)
+    monkeypatch.setattr("vesmod.EdgeMod.spectrum_ensemble.validate_lmfit_result", lambda *args: None)
 
     result = avg._extract_kC_from_fit(lower_bound=2, upper_bound=4, lmax=700)
 
     assert result == 123.0
     assert calls["lmax"] == 700
     assert calls["free_sigma"] is False
-    np.testing.assert_array_equal(calls["fitting_range"].modes, np.array([2, 3]))
-    np.testing.assert_allclose(calls["fitting_range"].avg_amps2, np.array([30.0, 45.0]))
-    assert calls["fitting_range"].std_amps2 is None
-
+    assert calls["weighted"] is False
+    np.testing.assert_array_equal(calls["group"].modes, np.array([2, 3]))
+    np.testing.assert_allclose(calls["group"].avg_amps2, np.array([30.0, 45.0]))
+    np.testing.assert_allclose(calls["group"].avg_amps2_ste, np.array([10.0, 15.0]))
 
 def test_kC_property_returns_value_from_extract_kC_from_fit(monkeypatch):
     """Test that the kC property delegates to _extract_kC_from_fit."""
@@ -217,62 +213,60 @@ def test_kC_property_returns_value_from_extract_kC_from_fit(monkeypatch):
 
 
 def test_extract_kc_from_fit_accepts_free_sigma_and_records_reduced_tension(monkeypatch):
-    """The public fit API honors the supplied configuration and retains its result."""
+    """The public fit API honors configuration and retains fit diagnostics."""
+    from types import SimpleNamespace
+
     avg = SpectrumEnsemble()
-    avg.add_spectrum(avg_amps2=[10.0, 20.0, 30.0, 40.0], modes=[1, 2, 3, 4], kC=20.0)
-    avg.add_spectrum(avg_amps2=[20.0, 40.0, 60.0, 80.0], modes=[1, 2, 3, 4], kC=22.0)
+    avg.add_spectrum([10.0, 20.0, 30.0, 40.0], [1, 2, 3, 4], 20.0)
+    avg.add_spectrum([20.0, 40.0, 60.0, 80.0], [1, 2, 3, 4], 22.0)
     config = SpectrumFitConfig(lmax=700, free_sigma=True, lower_bound=2, upper_bound=4)
     calls = {}
 
-    def fake_fit_spectrum_to_theory_lmfit(fitting_range, lmax, free_sigma):
-        calls["fitting_range"] = fitting_range
-        calls["lmax"] = lmax
-        calls["free_sigma"] = free_sigma
-        return (123.0, 4.5)
+    def fake_fit(group, lmax, free_sigma, weighted=False):
+        calls.update(group=group, lmax=lmax, free_sigma=free_sigma, weighted=weighted)
+        return SimpleNamespace(best_values={"kC": 123.0, "sigma": 4.5}, chisqr=2.5, redchi=2.5)
 
-    monkeypatch.setattr(
-        "vesmod.EdgeMod.spectrum_ensemble.fit_spectrum_to_theory_lmfit",
-        fake_fit_spectrum_to_theory_lmfit,
-    )
+    monkeypatch.setattr("vesmod.EdgeMod.spectrum_ensemble.fit_spectrum_lmfit", fake_fit)
+    monkeypatch.setattr("vesmod.EdgeMod.spectrum_ensemble.validate_lmfit_result", lambda *args: None)
 
-    fit = avg.extract_kc_from_fit(config)
+    fit = avg.extract_kc_from_fit(config, weight_by_replica_sem=True)
 
     assert isinstance(fit, EnsembleFit)
     assert fit.kC == 123.0
     assert fit.reduced_sigma == 4.5
     assert fit.config is config
+    assert fit.weight_by_replica_sem is True
+    assert fit.chisqr == pytest.approx(2.5)
+    assert fit.redchi == pytest.approx(2.5)
     assert avg.fit_results == [fit]
     assert calls["lmax"] == 700
     assert calls["free_sigma"] is True
-    np.testing.assert_array_equal(calls["fitting_range"].modes, np.array([2, 3]))
-
+    assert calls["weighted"] is True
+    np.testing.assert_array_equal(calls["group"].modes, np.array([2, 3]))
+    np.testing.assert_allclose(calls["group"].avg_amps2_ste, np.array([10.0, 15.0]))
 
 def test_extract_kc_from_fit_defaults_to_legacy_fixed_sigma(monkeypatch):
-    """An omitted configuration preserves historical fixed-sigma fitting."""
+    """An omitted config preserves historical fixed-sigma unweighted fitting."""
+    from types import SimpleNamespace
+
     avg = SpectrumEnsemble()
-    avg.add_spectrum(
-        avg_amps2=[10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0],
-        modes=range(1, 9),
-        kC=20.0,
-    )
+    avg.add_spectrum([10., 20., 30., 40., 50., 60., 70., 80.], range(1, 9), 20.)
     calls = {}
 
-    def fake_fit_spectrum_to_theory_lmfit(fitting_range, lmax, free_sigma):
-        calls["free_sigma"] = free_sigma
-        return (123.0, 0.0)
+    def fake_fit(group, lmax, free_sigma, weighted=False):
+        calls["weighted"] = weighted
+        return SimpleNamespace(best_values={"kC": 123.0, "sigma": 0.0}, chisqr=1.0, redchi=1.0)
 
-    monkeypatch.setattr(
-        "vesmod.EdgeMod.spectrum_ensemble.fit_spectrum_to_theory_lmfit",
-        fake_fit_spectrum_to_theory_lmfit,
-    )
+    monkeypatch.setattr("vesmod.EdgeMod.spectrum_ensemble.fit_spectrum_lmfit", fake_fit)
+    monkeypatch.setattr("vesmod.EdgeMod.spectrum_ensemble.validate_lmfit_result", lambda *args: None)
 
     fit = avg.extract_kc_from_fit()
 
     assert fit.kC == 123.0
     assert fit.reduced_sigma == 0.0
     assert fit.config.free_sigma is False
-    assert calls["free_sigma"] is False
-
+    assert fit.weight_by_replica_sem is False
+    assert calls["weighted"] is False
 
 def test_extract_kc_from_fit_rejects_non_configuration_value():
     """The public fit API has the same configuration type contract as Spectrum."""
@@ -291,4 +285,28 @@ def test_ensemble_fit_serializes_reduced_sigma():
         "kC": 12.0,
         "reduced_sigma": 3.5,
         "config": config.to_dict(),
+        "weight_by_replica_sem": False,
+        "chisqr": None,
+        "redchi": None,
     }
+
+
+
+def test_sem_weighting_requires_at_least_two_replicas():
+    """SEM weighting rejects ensembles that cannot estimate between-replica SEM."""
+    avg = SpectrumEnsemble()
+    avg.add_spectrum([1.0, 2.0, 3.0], [2, 3, 4], 20.0)
+
+    with pytest.raises(ValueError, match="At least two replica spectra"):
+        avg.extract_kc_from_fit(
+            SpectrumFitConfig(lower_bound=2, upper_bound=4, free_sigma=False),
+            weight_by_replica_sem=True,
+        )
+
+
+def test_sem_weighting_option_must_be_boolean():
+    """The weighting option has an explicit boolean contract."""
+    avg = SpectrumEnsemble()
+
+    with pytest.raises(TypeError, match="weight_by_replica_sem must be a bool"):
+        avg.extract_kc_from_fit(weight_by_replica_sem="yes")
