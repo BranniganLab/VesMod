@@ -103,8 +103,6 @@ def plot_mode_rigidity(
         raise TypeError("result must be a ModeRigidityResult.")
     if ax is None:
         _, ax = plt.subplots()
-    if color is None:
-        color = next(ax._get_lines.prop_cycler)["color"]
 
     selected = (result.modes >= result.lower_bound) & (
         result.modes < result.upper_bound
@@ -113,17 +111,19 @@ def plot_mode_rigidity(
     outside_fit = finite & ~selected
     inside_fit = finite & selected
     if np.any(outside_fit):
-        ax.plot(
+        line, = ax.plot(
             result.modes[outside_fit],
             result.apparent_kc[outside_fit],
             linestyle="none",
             marker="o",
             markerfacecolor="none",
             markeredgecolor=color,
+            color=color,
             alpha=0.55,
         )
+        color = line.get_color()
     if np.any(inside_fit):
-        ax.plot(
+        line, = ax.plot(
             result.modes[inside_fit],
             result.apparent_kc[inside_fit],
             linestyle="none",
@@ -131,9 +131,10 @@ def plot_mode_rigidity(
             color=color,
             label=label,
         )
+        color = line.get_color()
     ax.axhline(
         result.fitted_kc,
-        color=color,
+        color=color if color is not None else "C0",
         linestyle="--",
         linewidth=1.2,
     )

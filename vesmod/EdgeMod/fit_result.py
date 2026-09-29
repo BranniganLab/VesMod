@@ -69,11 +69,17 @@ class EnsembleFit:
     kC: float
     reduced_sigma: float
     config: SpectrumFitConfig
+    weight_by_replica_sem: bool = False
+    chisqr: float | None = None
+    redchi: float | None = None
 
     def to_dict(self) -> dict:
-        """Return the fitted values and configuration in serializable form."""
+        """Return fitted values, weighting, diagnostics, and configuration."""
         return {
             "kC": float(self.kC),
             "reduced_sigma": float(self.reduced_sigma),
             "config": self.config.to_dict(),
+            "weight_by_replica_sem": self.weight_by_replica_sem,
+            "chisqr": self.chisqr,
+            "redchi": self.redchi,
         }

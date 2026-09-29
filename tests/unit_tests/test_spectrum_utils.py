@@ -14,20 +14,21 @@ from vesmod.EdgeMod.spectrum_utils import (
     Nlq_Plq0_squared,
     calc_tension_from_reduced_tension,
     fit_spectrum_to_theory_lmfit,
+    fit_spectrum_lmfit,
 )
 
 
-def test_mini_spectrum_stores_modes_avg_amps2_and_std_amps2():
-    """Test that MiniSpectrum stores exactly the modes, average amplitudes, and standard deviations provided."""
+def test_mini_spectrum_stores_modes_avg_amps2_and_sem():
+    """Test that MiniSpectrum stores modes, mean amplitudes, and SEM values."""
     modes = np.array([3, 4])
     avg_amps2 = np.array([0.1, 0.2])
-    std_amps2 = np.array([0.01, 0.02])
+    avg_amps2_ste = np.array([0.01, 0.02])
 
-    spectrum = MiniSpectrum(modes, avg_amps2, std_amps2)
+    spectrum = MiniSpectrum(modes, avg_amps2, avg_amps2_ste)
 
     assert spectrum.modes is modes
     assert spectrum.avg_amps2 is avg_amps2
-    assert spectrum.std_amps2 is std_amps2
+    assert spectrum.avg_amps2_ste is avg_amps2_ste
 
 
 def test_calc_tension_from_reduced_tension_converts_microns_to_meters():
@@ -157,3 +158,39 @@ def test_fit_spectrum_to_theory_lmfit_recovers_synthetic_kc_when_sigma_is_fixed(
 
     assert kc == pytest.approx(true_kc, rel=1e-3)
     assert sigma == pytest.approx(0.0, abs=1e-10)
+
+
+def test_weighted_fit_passes_inverse_sem_to_lmfit(monkeypatch):
+    """Weighted fitting sends inverse per-mode SEM as lmfit weights."""
+    calls = {}
+
+    def fake_fit(self, data, **kwargs):
+        calls.update(kwargs)
+        return object()
+
+    monkeypatch.setattr("vesmod.EdgeMod.spectrum_utils.Model.fit", fake_fit)
+    spectrum = MiniSpectrum(
+        np.array([3, 4]),
+        np.array([0.1, 0.2]),
+        np.array([0.01, 0.04]),
+    )
+
+    fit_spectrum_lmfit(spectrum, lmax=20, weighted=True)
+
+    np.testing.assert_allclose(calls["weights"], np.array([100.0, 25.0]))
+
+
+@pytest.mark.parametrize(
+    "sem",
+    [None, np.array([0.01]), np.array([0.01, 0.0]), np.array([0.01, np.nan])],
+)
+def test_weighted_fit_rejects_missing_or_invalid_sem(monkeypatch, sem):
+    """A requested weighted fit fails instead of silently becoming unweighted."""
+    monkeypatch.setattr(
+        "vesmod.EdgeMod.spectrum_utils.Model.fit",
+        lambda *args, **kwargs: pytest.fail("lmfit must not be called"),
+    )
+    spectrum = MiniSpectrum(np.array([3, 4]), np.array([0.1, 0.2]), sem)
+
+    with pytest.raises(ValueError, match="Replica SEM"):
+        fit_spectrum_lmfit(spectrum, lmax=20, weighted=True)
