@@ -172,7 +172,7 @@ class SpectrumEnsemble:
             config=config,
             weight_by_replica_sem=weight_by_replica_sem,
             chisqr=float(result.chisqr),
-            redchi=float(result.redchi),
+            redchi=(float(result.redchi) if getattr(result, "nfree", 1) > 0 else None),
         )
         self.fit_results.append(fit)
         return fit
