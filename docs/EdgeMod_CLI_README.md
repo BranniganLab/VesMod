@@ -416,9 +416,9 @@ not removed.
 
 If EdgeMod contributes to a publication, please cite the associated manuscript and software repository.
 
-## Experimental power definitions and per-mode rigidity
+## Selecting the Fourier power definition
 
-The experimental Python API supports two definitions of Fourier-mode power:
+The `Spectrum` Python API supports two definitions of Fourier-mode power:
 
 * `mean_square` (default): the time average of `|u_q(t)|**2`, matching the
   existing EdgeMod calculation.
@@ -426,51 +426,24 @@ The experimental Python API supports two definitions of Fourier-mode power:
   `|u_q(t) - mean_t(u_q(t))|**2`, subtracting the complex temporal mean as in
   Gracia et al. (Soft Matter, 2010, equations 7-8).
 
-Choose the definition when constructing a spectrum. The same powers are then
-used by its fit and its mode-rigidity diagnostic:
-
-Here, `edges` is a QCed `VesicleEdges` object or a path to the saved radii
-array.
+Choose the definition when constructing a spectrum. The selected power is
+stored in `avg_amps2` and used by subsequent fits. Here, `edges` is a QCed
+`VesicleEdges` object or a path to the saved radii array.
 
 ```python
-from vesmod.EdgeMod import Spectrum, SpectrumFitConfig
-from vesmod.EdgeMod.experimental import (
-    calculate_mode_rigidity,
-    plot_mode_rigidity,
-)
-
-config = SpectrumFitConfig(
-    lower_bound=7,  # Gracia et al. use 6 < q < 25
-    upper_bound=25,
-    lmax=500,
-    free_sigma=True,
-)
+from vesmod.EdgeMod import Spectrum
 
 mean_square = Spectrum(edges, power_definition="mean_square")
-mean_square_fit = mean_square.extract_kc_from_fit(config)
-mean_square_modes = calculate_mode_rigidity(mean_square, mean_square_fit)
+mean_square_fit = mean_square.extract_kc_from_fit()
 
 temporal_variance = Spectrum(edges, power_definition="temporal_variance")
-temporal_variance_fit = temporal_variance.extract_kc_from_fit(config)
-temporal_variance_modes = calculate_mode_rigidity(
-    temporal_variance,
-    temporal_variance_fit,
-)
-
-fig, ax = plot_mode_rigidity(mean_square_modes, label="mean square")
-plot_mode_rigidity(temporal_variance_modes, ax=ax, label="temporal variance")
-ax.legend()
+temporal_variance_fit = temporal_variance.extract_kc_from_fit()
 ```
 
-Each curve inverts the HSS97 theoretical power mode by mode using the reduced
-tension from that spectrum's fit. The dashed horizontal line shows that fit's
-single fitted `kC`; departures from a plateau are diagnostic and are not
-independent measurements of material rigidity at each mode. To isolate the
-power-definition effect, use the same fitting bounds and tension policy for
-both spectra. The default `SpectrumFitConfig` fitting bounds can instead be
-used to compare against the usual EdgeMod analysis.
+Each `SpectrumFit` and exported spectrum records the selected definition. To
+isolate its effect, fit both spectra with the same `SpectrumFitConfig`.
 
 `temporal_variance` requires at least two frames. It removes a mode's mean in
 the recorded angular coordinate system; it does not distinguish thermal
 fluctuations from a persistent deformation that changes orientation during
-recording. These APIs live under `vesmod.EdgeMod.experimental` and may change.
+recording. This option is available through the Python API, not the CLI.
