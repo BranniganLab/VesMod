@@ -31,6 +31,8 @@ class SpectrumFit:
         Exclusive upper q bound actually used for the physical fit.
     config : SpectrumFitConfig
         Scientific configuration used to produce this physical fit.
+    power_definition : str
+        Definition of Fourier-mode power fitted to obtain these values.
     """
 
     kC: float
