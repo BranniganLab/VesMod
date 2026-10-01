@@ -12,6 +12,7 @@ implicitly to ensemble fits; ensemble fitting retains its existing fixed-range
 behavior.
 """
 import numpy as np
+from vesmod.validation import require_positive_real
 from vesmod.EdgeMod.spectrum_utils import (
     fit_spectrum_lmfit,
     MiniSpectrum,
@@ -44,6 +45,7 @@ class SpectrumEnsemble:
     def __init__(self) -> None:
         self.spectra_list: list[np.ndarray] = []
         self.kC_list: list[float] = []
+        self.radii_list: list[float | None] = []
         self.modes: np.ndarray[int] = None
         self.fit_results: list[EnsembleFit] = []
 
@@ -81,7 +83,8 @@ class SpectrumEnsemble:
         """Return standard error among replica kC values."""
         return self.kC_std / np.sqrt(len(self.kC_list))
 
-    def add_spectrum(self, avg_amps2: list[float], modes: list[int], kC: float) -> None:
+    def add_spectrum(self, avg_amps2: list[float], modes: list[int], kC: float,
+                     *, r0: float | None = None) -> None:
         """Add one replica spectrum and its fitted bending modulus.
 
         Parameters
@@ -91,6 +94,8 @@ class SpectrumEnsemble:
         modes : array-like of int
             Fourier mode indices corresponding to ``avg_amps2``. The mode array
             must match all previously added spectra.
+        r0 : float or None
+            Replica mean radius in microns, required for exposure-aware fits.
         kC : float
             Bending modulus determined independently for this replica.
 
@@ -101,6 +106,8 @@ class SpectrumEnsemble:
         TypeError
             If ``self.modes`` is neither ``None`` nor a NumPy array.
         """
+        if r0 is not None:
+            r0 = require_positive_real(r0, "r0")
         if isinstance(self.modes, np.ndarray):
             if not np.array_equal(np.array(modes), self.modes):
                 raise ValueError(f"{modes} does not equal {self.modes}")
@@ -110,6 +117,7 @@ class SpectrumEnsemble:
             raise TypeError(f"self.modes must be ndarray or None, not {type(self.modes)}")
         self.spectra_list.append(avg_amps2)
         self.kC_list.append(kC)
+        self.radii_list.append(r0)
 
     def _isolate_mode_range(self, lower_bound: int, upper_bound: int) -> MiniSpectrum:
         """Return ensemble modes with ``lower_bound <= q < upper_bound``."""
@@ -153,6 +161,13 @@ class SpectrumEnsemble:
                 "At least two replica spectra are required for SEM-weighted fitting."
             )
 
+        camera_kwargs = {}
+        if config.exposure_time > 0:
+            if len(self.radii_list) != len(self.spectra_list) or any(
+                radius is None for radius in self.radii_list
+            ):
+                raise ValueError("Supply r0 for every replica to use camera integration.")
+            camera_kwargs = {"config": config, "radii": self.radii_list}
         fitting_range = self._isolate_mode_range(
             config.lower_bound,
             config.upper_bound,
@@ -162,6 +177,7 @@ class SpectrumEnsemble:
             config.lmax,
             free_sigma=config.free_sigma,
             weighted=weight_by_replica_sem,
+            **camera_kwargs,
         )
         validate_lmfit_result(result, fitting_range, config.free_sigma)
         kC = result.best_values["kC"]
@@ -171,6 +187,7 @@ class SpectrumEnsemble:
             reduced_sigma=float(reduced_sigma),
             config=config,
             weight_by_replica_sem=weight_by_replica_sem,
+            radii=tuple(self.radii_list) if config.exposure_time > 0 else None,
             chisqr=float(result.chisqr),
             redchi=(float(result.redchi) if getattr(result, "nfree", 1) > 0 else None),
         )

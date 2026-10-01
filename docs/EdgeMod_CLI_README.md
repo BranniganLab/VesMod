@@ -415,3 +415,63 @@ not removed.
 ## Citation
 
 If EdgeMod contributes to a publication, please cite the associated manuscript and software repository.
+
+### Camera integration time
+
+Enable finite-exposure fitting with an integration time in **seconds**:
+
+```bash
+edgemod contours.npy --exposure-time 0.030
+```
+
+The default is `--exposure-time 0`, which preserves the instantaneous HSS97
+fit. Interior and exterior dynamic viscosities default to **1.02 mPa s** and
+**0.97 mPa s**, respectively. CLI overrides use **Pa s**:
+
+```bash
+edgemod contours.npy --exposure-time 0.030 --viscosity-in 0.00102 --viscosity-out 0.00097
+```
+
+In Python:
+
+```python
+config = SpectrumFitConfig(exposure_time=0.030)
+fit = spectrum.extract_kc_from_fit(config)
+```
+
+Each spherical-mode contribution `Nlq Plq²` is multiplied by
+`B(x) = 2(x - 1 + exp(-x))/x²`, with `x = exposure_time / tau_l`, before
+summing the contour spectrum. The solvent-only spherical relaxation rate is
+from Faizi et al., *Soft Matter* (2020), equation 2
+([DOI: 10.1039/d0sm00943a](https://doi.org/10.1039/d0sm00943a)). The boxcar
+averaging factor follows integration of an exponential autocorrelation and
+matches the finite-exposure factor in Kumar et al., *Soft Matter* (2020),
+equation 6 ([DOI: 10.1039/c9sm02048a](https://doi.org/10.1039/c9sm02048a)).
+Relaxation times update with fitted kC and reduced tension during optimization.
+The mean radius in microns is converted to meters, and kC in kBT to joules.
+Corrected fits require reduced tension greater than -6 for stable spherical
+modes; the optimizer enforces this bound. `--fixed-sigma` still fixes tension
+to zero.
+
+For ensemble fits, supply the radius when adding **each** replica:
+
+```python
+ensemble.add_spectrum(spectrum.avg_amps2, spectrum.modes, spectrum.kC, r0=spectrum.r0)
+fit = ensemble.extract_kc_from_fit(
+    SpectrumFitConfig(exposure_time=0.030, free_sigma=False),
+    weight_by_replica_sem=True,
+)
+```
+
+The ensemble model averages predictions at the individual radii with shared
+kC and reduced tension, using the same equal replica weights as the measured
+mean. Missing radii raise an error when exposure averaging is enabled. Exposure,
+viscosities, and temperature are retained in fit configuration; corrected
+ensemble records also retain the replica radii.
+
+This model assumes the detected contour approximates an exposure-averaged
+radial displacement, exponential spherical-mode relaxation, and dissipation
+in the interior and exterior solvents. It does not include membrane viscosity
+or image formation effects. Exposure time is the integration duration per
+frame, rather than the interval between frames. The correction changes the
+fitted theoretical prediction; measured Fourier powers remain as calculated.

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from vesmod.validation import require_integer, require_positive_real
+from vesmod.validation import require_integer, require_positive_real, require_nonnegative_real
 
 
 @dataclass(frozen=True)
@@ -43,6 +43,11 @@ class SpectrumFitConfig:
     upper_bound : int, default=8
         Exclusive upper Fourier-mode bound. The defaults therefore fit
         q = 3, 4, 5, 6, 7.
+    exposure_time : float, default=0.0
+        Camera integration time in seconds. Zero disables exposure averaging.
+    viscosity_in, viscosity_out : float
+        Interior and exterior dynamic viscosities in Pa s; defaults are
+        1.02e-3 and 0.97e-3 respectively. Used only with nonzero exposure.
     """
 
     lmax: int = 500
@@ -50,9 +55,16 @@ class SpectrumFitConfig:
     temperature: float = 295.0
     lower_bound: int = 3
     upper_bound: int = 8
+    exposure_time: float = 0.0
+    viscosity_in: float = 1.02e-3
+    viscosity_out: float = 0.97e-3
 
     def __post_init__(self) -> None:
         """Validate physical-fit parameters and establish config invariants."""
+        for name in ("viscosity_in", "viscosity_out"):
+            object.__setattr__(self, name, require_positive_real(getattr(self, name), name))
+        object.__setattr__(self, "exposure_time",
+                           require_nonnegative_real(self.exposure_time, "exposure_time"))
         lower_bound = require_integer(self.lower_bound, "lower_bound")
         upper_bound = require_integer(self.upper_bound, "upper_bound")
         lmax = require_integer(self.lmax, "lmax")
@@ -94,4 +106,7 @@ class SpectrumFitConfig:
             "temperature": float(self.temperature),
             "lower_bound": int(self.lower_bound),
             "upper_bound": int(self.upper_bound),
+            "exposure_time": self.exposure_time,
+            "viscosity_in": self.viscosity_in,
+            "viscosity_out": self.viscosity_out,
         }
