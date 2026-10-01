@@ -6,7 +6,7 @@ from scipy.constants import Boltzmann
 from scipy.integrate import quad
 from vesmod.EdgeMod import Spectrum, SpectrumFitConfig, SpectrumEnsemble
 from vesmod.EdgeMod.spectrum_utils import (
-    HSS97, HSS97_camera, MiniSpectrum, exposure_power_factor, fit_spectrum_lmfit,
+    HSS97, HSS97_with_camera_integration_time, MiniSpectrum, exposure_power_factor, fit_spectrum_lmfit,
 )
 
 
@@ -30,7 +30,7 @@ def test_invalid_settings(kwargs):
 def test_zero_exposure_is_exactly_original_model():
     """Zero exposure requires no radii and preserves the original spectrum."""
     q = np.arange(3, 8)
-    assert HSS97_camera(q, 25, 2, 40, config=SpectrumFitConfig(), radii=None) == HSS97(q, 25, 2, 40)
+    assert HSS97_with_camera_integration_time(q, 25, 2, 40, config=SpectrumFitConfig(), radii=None) == HSS97(q, 25, 2, 40)
 
 
 def test_single_spherical_mode_si_units():
@@ -39,16 +39,16 @@ def test_single_spherical_mode_si_units():
     rate = (25 * Boltzmann * 295 / (0.00097 * (5e-6)**3)
             * (2 * 3 * 4 * 5 * (12 + 2))
             / (4 * 27 + 6 * 9 - 1 + (2 * 27 + 3 * 9 - 5) * (1.02 / .97 - 1)))
-    predicted = HSS97_camera([3], 25, 2, 3, config=config, radii=[5])[0]
+    predicted = HSS97_with_camera_integration_time([3], 25, 2, 3, config=config, radii=[5])[0]
     assert predicted / HSS97([3], 25, 2, 3)[0] == pytest.approx(exposure_power_factor(.030 * rate))
 
 
 def test_radius_and_exposure_dependence():
     """Smaller radii and longer exposures suppress more contour power."""
     config = SpectrumFitConfig(viscosity_in=.00102, viscosity_out=.00097, exposure_time=.030)
-    small = np.array(HSS97_camera([3, 5, 7], 25, 0, 50, config=config, radii=[5]))
-    large = np.array(HSS97_camera([3, 5, 7], 25, 0, 50, config=config, radii=[10]))
-    long = np.array(HSS97_camera([3, 5, 7], 25, 0, 50, config=replace(config, exposure_time=.060), radii=[5]))
+    small = np.array(HSS97_with_camera_integration_time([3, 5, 7], 25, 0, 50, config=config, radii=[5]))
+    large = np.array(HSS97_with_camera_integration_time([3, 5, 7], 25, 0, 50, config=config, radii=[10]))
+    long = np.array(HSS97_with_camera_integration_time([3, 5, 7], 25, 0, 50, config=replace(config, exposure_time=.060), radii=[5]))
     assert np.all(long < small)
     assert np.all(small < large)
     assert np.all(large < HSS97([3, 5, 7], 25, 0, 50))
@@ -60,7 +60,7 @@ def test_fit_recovers_synthetic_parameters(free_sigma):
     config = SpectrumFitConfig(viscosity_in=.00102, viscosity_out=.00097, lmax=50, upper_bound=11, exposure_time=.030, free_sigma=free_sigma)
     q = np.arange(3, 11)
     sigma = 4 if free_sigma else 0
-    measured = np.array(HSS97_camera(q, 25, sigma, 50, config=config, radii=[5]))
+    measured = np.array(HSS97_with_camera_integration_time(q, 25, sigma, 50, config=config, radii=[5]))
     result = fit_spectrum_lmfit(MiniSpectrum(q, measured, measured * .01), 50,
                                 free_sigma, weighted=True, config=config, radii=[5])
     assert result.best_values['kC'] == pytest.approx(25, rel=1e-5)
@@ -75,13 +75,13 @@ def test_spectrum_and_ensemble_use_individual_radii():
     predictions = []
     for radius in [5, 15]:
         spectrum = Spectrum.from_radii(np.full((2, 32), radius, dtype=float))
-        spectrum.avg_amps2[3:8] = HSS97_camera(range(3, 8), 25, 0, 50, config=config, radii=[radius])
+        spectrum.avg_amps2[3:8] = HSS97_with_camera_integration_time(range(3, 8), 25, 0, 50, config=config, radii=[radius])
         fit = spectrum.extract_kc_from_fit(config)
         assert fit.kC == pytest.approx(25, rel=1e-5)
         assert fit.to_dict()['config']['exposure_time'] == .030
         ensemble.add_spectrum(spectrum.avg_amps2, spectrum.modes, fit.kC, r0=radius)
         predictions.append(spectrum.avg_amps2[3:8])
-    np.testing.assert_allclose(HSS97_camera(range(3, 8), 25, 0, 50, config=config, radii=[5, 15]),
+    np.testing.assert_allclose(HSS97_with_camera_integration_time(range(3, 8), 25, 0, 50, config=config, radii=[5, 15]),
                                np.mean(predictions, axis=0))
     fit = ensemble.extract_kc_from_fit(config, weight_by_replica_sem=True)
     assert fit.kC == pytest.approx(25, rel=1e-5)
@@ -108,7 +108,7 @@ def test_corrected_plot_uses_corrected_prediction():
     from vesmod.EdgeMod.spectrum_plotting import SpectrumPlotData, plot_spectrum
     config = SpectrumFitConfig(viscosity_in=.00102, viscosity_out=.00097, lmax=50, free_sigma=False, exposure_time=.030)
     q = np.arange(3, 8)
-    measured = np.array(HSS97_camera(q, 25, 0, 50, config=config, radii=[5]))
+    measured = np.array(HSS97_with_camera_integration_time(q, 25, 0, 50, config=config, radii=[5]))
     result = fit_spectrum_lmfit(MiniSpectrum(q, measured, None), 50,
                                 config=config, radii=[5])
     data = SpectrumPlotData(modes=q, avg_amps2=measured, fit_result=result,
@@ -123,9 +123,9 @@ def test_camera_requires_radius_and_stable_modes():
     """Fail clearly when required physical inputs are unavailable."""
     config = SpectrumFitConfig(viscosity_in=.00102, viscosity_out=.00097, exposure_time=.030)
     with pytest.raises(ValueError, match='radii are required'):
-        HSS97_camera([3], 25, 0, 50, config=config, radii=None)
+        HSS97_with_camera_integration_time([3], 25, 0, 50, config=config, radii=None)
     with pytest.raises(ValueError, match='stable spherical modes'):
-        HSS97_camera([3], 25, -6, 50, config=config, radii=[5])
+        HSS97_with_camera_integration_time([3], 25, -6, 50, config=config, radii=[5])
 
 
 @pytest.mark.parametrize("kwargs", [{}, {"viscosity_in": .001}, {"viscosity_out": .001}])
@@ -144,7 +144,7 @@ def test_implemented_relaxation_matches_full_tau_expression(
 ):
     """Compare actual optimizer rates with the unfactored Faizi eq. 2.
 
-    Capture the arguments passed by HSS97_camera into exposure_power_factor:
+    Capture the arguments passed by HSS97_with_camera_integration_time into exposure_power_factor:
     these are t_exp/tau_l, so dividing by exposure yields the implemented
     rates. This exercises the production calculation, rather than a copy of
     its shortcuts. q=2 and q=3 together cover every l from 2 through 500.
@@ -172,7 +172,7 @@ def test_implemented_relaxation_matches_full_tau_expression(
         return original_factor(x)
 
     monkeypatch.setattr(utils, "exposure_power_factor", capture_exposure_ratio)
-    utils.HSS97_camera([2, 3], kc_kbt, reduced_sigma, 500,
+    utils.HSS97_with_camera_integration_time([2, 3], kc_kbt, reduced_sigma, 500,
                        config=config, radii=radii_um)
     assert len(captured) == 2
 

@@ -62,7 +62,7 @@ def fit_spectrum_lmfit(fitting_group, lmax, free_sigma=False, weighted=False,
         radii = _validate_camera_radii(radii)
 
         def camera_model(q, kC, sigma, lmax):
-            return HSS97_camera(q, kC, sigma, lmax, config=config, radii=radii)
+            return HSS97_with_camera_integration_time(q, kC, sigma, lmax, config=config, radii=radii)
 
         model_function = camera_model
 
@@ -246,7 +246,7 @@ def _camera_projection(q, lmax):
     return ell, weights
 
 
-def HSS97_camera(q, kC, sigma, lmax, *, config, radii):
+def HSS97_with_camera_integration_time(q, kC, sigma, lmax, *, config, radii):
     """Predict exposure-averaged dimensionless complex contour power.
 
     Uses Faizi et al. (2020), eq. 2, solvent-only spherical relaxation rates.
