@@ -43,7 +43,7 @@ Stable core features include:
 * JSON export of fit values, q bounds, and physical-fit configuration
 * Batch processing of contour datasets
 
-Experimental EdgeMod features live under `vesmod.EdgeMod.experimental`. These currently include optional q^-3-based dynamic range selection. Experimental APIs may change as the methods are evaluated and are not part of the stable core EdgeMod interface.
+Experimental EdgeMod features live under `vesmod.EdgeMod.experimental`. These currently include optional q^-3-based dynamic range selection. `Spectrum` can calculate either time-averaged mean-square Fourier power or temporal variance around each mode's complex time mean. Experimental APIs may change as the methods are evaluated and are not part of the stable core EdgeMod interface.
 
 See the [EdgeMod CLI guide](docs/EdgeMod_CLI_README.md).
 

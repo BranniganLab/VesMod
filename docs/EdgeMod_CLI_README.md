@@ -415,3 +415,35 @@ not removed.
 ## Citation
 
 If EdgeMod contributes to a publication, please cite the associated manuscript and software repository.
+
+## Selecting the Fourier power definition
+
+The `Spectrum` Python API supports two definitions of Fourier-mode power:
+
+* `mean_square` (default): the time average of `|u_q(t)|**2`, matching the
+  existing EdgeMod calculation.
+* `temporal_variance`: the time average of
+  `|u_q(t) - mean_t(u_q(t))|**2`, subtracting the complex temporal mean as in
+  Gracia et al. (Soft Matter, 2010, equations 7-8).
+
+Choose the definition when constructing a spectrum. The selected power is
+stored in `avg_amps2` and used by subsequent fits. Here, `edges` is a QCed
+`VesicleEdges` object or a path to the saved radii array.
+
+```python
+from vesmod.EdgeMod import Spectrum
+
+mean_square = Spectrum(edges, power_definition="mean_square")
+mean_square_fit = mean_square.extract_kc_from_fit()
+
+temporal_variance = Spectrum(edges, power_definition="temporal_variance")
+temporal_variance_fit = temporal_variance.extract_kc_from_fit()
+```
+
+Each `SpectrumFit` and exported spectrum records the selected definition. To
+isolate its effect, fit both spectra with the same `SpectrumFitConfig`.
+
+`temporal_variance` requires at least two frames. It removes a mode's mean in
+the recorded angular coordinate system; it does not distinguish thermal
+fluctuations from a persistent deformation that changes orientation during
+recording. This option is available through the Python API, not the CLI.

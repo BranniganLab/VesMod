@@ -31,6 +31,8 @@ class SpectrumFit:
         Exclusive upper q bound actually used for the physical fit.
     config : SpectrumFitConfig
         Scientific configuration used to produce this physical fit.
+    power_definition : str
+        Definition of Fourier-mode power fitted to obtain these values.
     """
 
     kC: float
@@ -38,6 +40,7 @@ class SpectrumFit:
     lower_bound: int
     upper_bound: int
     config: SpectrumFitConfig
+    power_definition: str = "mean_square"
 
     def __iter__(self) -> Iterator[float]:
         """Allow compatibility unpacking as ``kc, tension = fit``."""
@@ -52,6 +55,7 @@ class SpectrumFit:
             "lower_bound": self.lower_bound,
             "upper_bound": self.upper_bound,
             "config": self.config.to_dict(),
+            "power_definition": self.power_definition,
         }
 
 

@@ -101,3 +101,15 @@ def test_to_dict_serializes_all_physical_fit_results(monkeypatch):
     assert data["fit_results"][1]["upper_bound"] == 12
     assert "method" not in data["fit_results"][0]
     assert "range_selection" not in data["fit_results"][1]
+
+
+def test_fit_records_temporal_variance_definition(monkeypatch):
+    """The exported fit identifies which power was supplied to the fitter."""
+    spectrum = _spectrum()
+    spectrum.power_definition = "temporal_variance"
+    _mock_physical_fit(monkeypatch)
+
+    fit = spectrum.extract_kc_from_fit()
+
+    assert fit.power_definition == "temporal_variance"
+    assert fit.to_dict()["power_definition"] == "temporal_variance"
