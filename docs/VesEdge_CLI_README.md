@@ -99,6 +99,16 @@ edgemod "./results/qc_standard"
 
 `vesedge extract` reads ND2 microscopy videos and writes reusable VesEdge `.npz` checkpoints. It does **not** run quality control.
 
+The default extractor's final edge measurement smooths each polar angular row
+along radius only (Gaussian sigma of 2 radial samples), then takes a signed
+radial derivative and selects its maximum inside the search window. These
+final filters do not average neighboring angles. Initial Sobel localization
+and the mode-7 Fourier baseline still define the angle-dependent ±5% search
+window; this baseline is not the final measured contour.
+
+To compare this filtering with an earlier extraction, extract again from the
+source videos. Replaying QC on existing checkpoints does not remeasure edges.
+
 ## Input Selection
 
 Always double-quote each input path or pattern. Quoting ordinary paths is safe,

@@ -336,6 +336,7 @@ def test_to_dict_includes_arrays_when_requested():
         "r0": 10.0,
         "kC": 20.0,
         "surface_tension": 1e-7,
+        "power_definition": "mean_square",
         "modes": [0, 1, -1],
         "avg_amps2": [1.0, 0.1, 0.1],
     }
@@ -355,6 +356,7 @@ def test_to_dict_excludes_arrays_when_requested():
         "r0": 10.0,
         "kC": None,
         "surface_tension": None,
+        "power_definition": "mean_square",
     }
 
 
@@ -376,6 +378,7 @@ def test_to_json_writes_json_suffix_and_serialized_spectrum_data(tmp_path):
         "r0": 10.0,
         "kC": 20.0,
         "surface_tension": 1e-7,
+        "power_definition": "mean_square",
         "modes": [0, 1],
         "avg_amps2": [1.0, 0.1],
     }

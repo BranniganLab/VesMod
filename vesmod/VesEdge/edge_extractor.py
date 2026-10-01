@@ -91,18 +91,38 @@ def _extract_edge_from_origin(frame, origin):
     # step 3: wrap the original image to polar about the requested origin
     original_frame_polar, _ = wrap_image_to_polar(frame, origin)
 
-    # step 4: horizontal Sobel filter and apply FFT-informed mask
-    horizontal_sobel = filters.sobel(original_frame_polar, axis=1)
-    gauss_blur = ndimage.gaussian_filter(horizontal_sobel, sigma=2)
-    fft_masked_horizontal_sobel = isolate_region_of_array(
-        gauss_blur,
+    # step 4: radial-only filtering and apply FFT-informed mask
+    radial_gradient = _radial_gradient(original_frame_polar)
+    masked_gradient = isolate_region_of_array(
+        radial_gradient,
         approx_edge,
         0.05,
         True,
     )
-    max_sobel = np.nanargmax(fft_masked_horizontal_sobel, axis=1)
+    edge_indices = np.nanargmax(masked_gradient, axis=1)
 
-    return np.array(max_sobel) / scaling_factor
+    return edge_indices / scaling_factor
+
+
+def _radial_gradient(polar_image):
+    """Smooth and differentiate each angular row independently along radius.
+
+    Polar axes are angle (0) and radius (1). Sigma is measured in radial
+    samples. Float output preserves signed gradients and supports NaN masking.
+    The earlier Fourier baseline still couples angles through the search window.
+    """
+    radially_smoothed = ndimage.gaussian_filter1d(
+        np.asarray(polar_image, dtype=float),
+        sigma=2,
+        axis=1,
+        mode="reflect",
+    )
+    return ndimage.correlate1d(
+        radially_smoothed,
+        weights=[-1, 0, 1],
+        axis=1,
+        mode="reflect",
+    )
 
 
 def _make_debug_image(frame, output_path):
@@ -150,12 +170,12 @@ def _make_debug_image(frame, output_path):
     axes[1][2].plot(bad_x2, bad_y2, color='tab:orange')
 
     og_polar_image, _ = wrap_image_to_polar(frame, center_of_mass)
-    horizontal_sobel = filters.sobel(og_polar_image, axis=1)
-    polar_image_masked_blurred = isolate_region_of_array(ndimage.gaussian_filter(horizontal_sobel, sigma=2), ifft, 0.05, True)
+    radial_gradient = _radial_gradient(og_polar_image)
+    polar_image_masked_blurred = isolate_region_of_array(radial_gradient, ifft, 0.05, True)
     axes[0][3].imshow(polar_image_masked_blurred, cmap='gray')
 
     max_sobel = np.nanargmax(polar_image_masked_blurred, axis=1)
-    axes[0][3].plot(max_sobel, np.arange(0, horizontal_sobel.shape[0]), color='red')
+    axes[0][3].plot(max_sobel, np.arange(0, radial_gradient.shape[0]), color='red')
 
     x_vals, y_vals = convert_to_cartesian((center_of_mass[1], center_of_mass[0]), np.array(max_sobel) / scaling_factor)
     axes[1][3].plot(x_vals, y_vals, color='red')

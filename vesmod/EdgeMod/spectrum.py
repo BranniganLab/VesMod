@@ -34,7 +34,8 @@ class Spectrum:
     """Calculate and fit the fluctuation spectrum of one vesicle trajectory.
 
     Successful construction guarantees a finite positive two-dimensional radii
-    trajectory with at least one frame and two angular samples. Derived ``r0``,
+    trajectory with at least one frame and two angular samples. Temporal
+    variance power requires at least two frames. Derived ``r0``,
     ``avg_amps2``, ``modes``, and ``fit_results`` state is initialized before
     the object is exposed to callers. Because these attributes remain publicly
     mutable for compatibility, methods still validate state that callers can
@@ -43,14 +44,24 @@ class Spectrum:
     ``kC`` and ``surface_tension`` are compatibility attributes containing the
     most recent successful physical fit. Durable per-fit provenance is stored
     in ``fit_results``.
+
+    The ``power_definition`` argument selects either ``mean_square`` or
+    ``temporal_variance`` power. The latter subtracts each complex mode's
+    temporal mean before calculating the power.
     """
 
     def __init__(
         self,
         edges_over_time: str | Path | VesicleEdges,
-        frame_cutoff=None
+        frame_cutoff=None,
+        power_definition: str = "mean_square",
     ) -> None:
-        """Create a Spectrum from accepted radii or a QCed VesicleEdges object."""
+        """Create a Spectrum from accepted radii or a QCed VesicleEdges object.
+
+        ``power_definition`` selects the mean-square power used by the fit.
+        Temporal variance power subtracts the complex temporal mean of each
+        Fourier coefficient before calculating its power.
+        """
         if isinstance(edges_over_time, VesicleEdges):
             input_data = edges_over_time.accepted_radii_microns
         elif isinstance(edges_over_time, (Path, str)):
@@ -66,21 +77,23 @@ class Spectrum:
                 "edges_over_time must be a str, pathlib Path, or VesicleEdges."
             )
 
-        self._initialize_from_radii(input_data, frame_cutoff)
+        self._initialize_from_radii(input_data, frame_cutoff, power_definition)
 
     @classmethod
     def from_radii(
         cls,
         radii: np.ndarray,
         frame_cutoff=None,
+        power_definition: str = "mean_square",
     ) -> "Spectrum":
         """Create a Spectrum directly from an in-memory radii array.
 
         The caller's array is validated and copied so later mutations do not
-        change the constructed spectrum.
+        change the constructed spectrum. ``power_definition`` selects either
+        mean-square power or variance around each complex mode's temporal mean.
         """
         spectrum = cls.__new__(cls)
-        spectrum._initialize_from_radii(radii, frame_cutoff)
+        spectrum._initialize_from_radii(radii, frame_cutoff, power_definition)
         return spectrum
 
     @staticmethod
@@ -106,8 +119,20 @@ class Spectrum:
             raise ValueError("radii must have a finite, positive mean radius.")
         return validated
 
-    def _initialize_from_radii(self, radii: np.ndarray, frame_cutoff) -> None:
+    def _initialize_from_radii(
+        self,
+        radii: np.ndarray,
+        frame_cutoff,
+        power_definition: str,
+    ) -> None:
         """Validate radii, apply an optional cutoff, and calculate the spectrum."""
+        if not isinstance(power_definition, str) or power_definition not in {
+            "mean_square",
+            "temporal_variance",
+        }:
+            raise ValueError(
+                "power_definition must be 'mean_square' or 'temporal_variance'."
+            )
         if (
             frame_cutoff is not None
             and (isinstance(frame_cutoff, bool) or not isinstance(frame_cutoff, int))
@@ -119,8 +144,13 @@ class Spectrum:
         input_data = self._validate_radii(radii)
         if frame_cutoff is not None and frame_cutoff < input_data.shape[0]:
             input_data = input_data[:frame_cutoff, :]
+        if power_definition == "temporal_variance" and input_data.shape[0] < 2:
+            raise ValueError(
+                "temporal_variance requires at least two frames."
+            )
 
         self.r0 = float(np.mean(input_data))
+        self.power_definition = power_definition
         self.avg_amps2 = self._calc_avg_sq_amplitudes(input_data)
         self.modes = self._calc_integer_modes()
         self.kC = None
@@ -129,13 +159,14 @@ class Spectrum:
         self.fit_results: list[SpectrumFit] = []
 
     def _calc_avg_sq_amplitudes(self, r_vals_over_time: np.ndarray) -> np.ndarray:
-        """Return frame-averaged squared Fourier amplitudes normalized by r0."""
+        """Return the selected time-averaged power for each normalized mode."""
         n_samples = r_vals_over_time.shape[1]
         norm = 1. / (self.r0 * n_samples)
         amps = np.fft.fft(r_vals_over_time, axis=1, norm='backward') * norm
-        amps2 = amps * amps.conj()
-        avg_amps2 = np.mean(amps2.real, axis=0)
-        return avg_amps2
+        if self.power_definition == "mean_square":
+            return np.mean(np.abs(amps) ** 2, axis=0)
+        centered_amps = amps - np.mean(amps, axis=0, keepdims=True)
+        return np.mean(np.abs(centered_amps) ** 2, axis=0)
 
     def _calc_integer_modes(self) -> np.ndarray[int]:
         """Return integer Fourier mode numbers in NumPy FFT ordering."""
@@ -209,6 +240,7 @@ class Spectrum:
             lower_bound=config.lower_bound,
             upper_bound=config.upper_bound,
             config=config,
+            power_definition=getattr(self, "power_definition", "mean_square"),
         )
 
         self.fit_results.append(fit_result)
@@ -277,6 +309,7 @@ class Spectrum:
     def to_dict(self, include_arrays=True) -> dict:
         """Return spectrum state and retained physical-fit provenance."""
         data = {
+            "power_definition": getattr(self, "power_definition", "mean_square"),
             "r0": float(self.r0) if getattr(self, "r0", None) is not None else None,
             "kC": float(self.kC) if getattr(self, "kC", None) is not None else None,
             "surface_tension": (
