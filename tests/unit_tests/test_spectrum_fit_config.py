@@ -45,8 +45,8 @@ def test_config_serializes_physical_fit_parameters():
         "lower_bound": 5,
         "upper_bound": 12,
         "exposure_time": 0.0,
-        "viscosity_in": 1.02e-3,
-        "viscosity_out": 0.97e-3,
+        "viscosity_in": None,
+        "viscosity_out": None,
     }
 
 

@@ -46,8 +46,8 @@ class SpectrumFitConfig:
     exposure_time : float, default=0.0
         Camera integration time in seconds. Zero disables exposure averaging.
     viscosity_in, viscosity_out : float
-        Interior and exterior dynamic viscosities in Pa s; defaults are
-        1.02e-3 and 0.97e-3 respectively. Used only with nonzero exposure.
+        Interior and exterior dynamic viscosities in Pa s. Both must be
+        supplied explicitly when exposure_time is nonzero.
     """
 
     lmax: int = 500
@@ -56,15 +56,19 @@ class SpectrumFitConfig:
     lower_bound: int = 3
     upper_bound: int = 8
     exposure_time: float = 0.0
-    viscosity_in: float = 1.02e-3
-    viscosity_out: float = 0.97e-3
+    viscosity_in: float | None = None
+    viscosity_out: float | None = None
 
     def __post_init__(self) -> None:
         """Validate physical-fit parameters and establish config invariants."""
         for name in ("viscosity_in", "viscosity_out"):
-            object.__setattr__(self, name, require_positive_real(getattr(self, name), name))
+            value = getattr(self, name)
+            if value is not None:
+                object.__setattr__(self, name, require_positive_real(value, name))
         object.__setattr__(self, "exposure_time",
                            require_nonnegative_real(self.exposure_time, "exposure_time"))
+        if self.exposure_time > 0 and (self.viscosity_in is None or self.viscosity_out is None):
+            raise ValueError("viscosity_in and viscosity_out are required with nonzero exposure_time.")
         lower_bound = require_integer(self.lower_bound, "lower_bound")
         upper_bound = require_integer(self.upper_bound, "upper_bound")
         lmax = require_integer(self.lmax, "lmax")

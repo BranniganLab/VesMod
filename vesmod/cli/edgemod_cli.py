@@ -131,10 +131,10 @@ def _add_fit_options(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument("--exposure-time", type=float, default=0.0,
                         help="Camera integration in seconds (e.g. 0.030); zero disables it.")
-    parser.add_argument("--viscosity-in", type=float, default=1.02e-3,
-                        help="Interior dynamic viscosity in Pa s. Default: 0.00102.")
-    parser.add_argument("--viscosity-out", type=float, default=0.97e-3,
-                        help="Exterior dynamic viscosity in Pa s. Default: 0.00097.")
+    parser.add_argument("--viscosity-in", type=float, default=None,
+                        help="Interior dynamic viscosity in Pa s; required with exposure time.")
+    parser.add_argument("--viscosity-out", type=float, default=None,
+                        help="Exterior dynamic viscosity in Pa s; required with exposure time.")
     add_batch_policy_argument(parser)
 
 
@@ -153,8 +153,8 @@ def build_fit_config(args: argparse.Namespace) -> SpectrumFitConfig:
         free_sigma=not args.fixed_sigma,
         temperature=args.temperature,
         exposure_time=getattr(args, "exposure_time", 0.0),
-        viscosity_in=getattr(args, "viscosity_in", 1.02e-3),
-        viscosity_out=getattr(args, "viscosity_out", 0.97e-3),
+        viscosity_in=getattr(args, "viscosity_in", None),
+        viscosity_out=getattr(args, "viscosity_out", None),
     )
 
 

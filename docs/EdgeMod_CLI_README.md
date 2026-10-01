@@ -421,12 +421,13 @@ If EdgeMod contributes to a publication, please cite the associated manuscript a
 Enable finite-exposure fitting with an integration time in **seconds**:
 
 ```bash
-edgemod contours.npy --exposure-time 0.030
+edgemod contours.npy --exposure-time 0.030 --viscosity-in 0.00102 --viscosity-out 0.00097
 ```
 
 The default is `--exposure-time 0`, which preserves the instantaneous HSS97
-fit. Interior and exterior dynamic viscosities default to **1.02 mPa s** and
-**0.97 mPa s**, respectively. CLI overrides use **Pa s**:
+fit. Both solvent viscosities must be supplied explicitly, in **Pa s**.
+For example, an experiment with interior viscosity **1.02 mPa s** and exterior
+viscosity **0.97 mPa s** uses:
 
 ```bash
 edgemod contours.npy --exposure-time 0.030 --viscosity-in 0.00102 --viscosity-out 0.00097
@@ -435,7 +436,7 @@ edgemod contours.npy --exposure-time 0.030 --viscosity-in 0.00102 --viscosity-ou
 In Python:
 
 ```python
-config = SpectrumFitConfig(exposure_time=0.030)
+config = SpectrumFitConfig(exposure_time=0.030, viscosity_in=0.00102, viscosity_out=0.00097)
 fit = spectrum.extract_kc_from_fit(config)
 ```
 
@@ -458,7 +459,8 @@ For ensemble fits, supply the radius when adding **each** replica:
 ```python
 ensemble.add_spectrum(spectrum.avg_amps2, spectrum.modes, spectrum.kC, r0=spectrum.r0)
 fit = ensemble.extract_kc_from_fit(
-    SpectrumFitConfig(exposure_time=0.030, free_sigma=False),
+    SpectrumFitConfig(exposure_time=0.030, free_sigma=False,
+                      viscosity_in=0.00102, viscosity_out=0.00097),
     weight_by_replica_sem=True,
 )
 ```

@@ -35,7 +35,7 @@ def test_zero_exposure_is_exactly_original_model():
 
 def test_single_spherical_mode_si_units():
     """Check l=3 rate independently with explicit SI conversions."""
-    config = SpectrumFitConfig(exposure_time=0.030)
+    config = SpectrumFitConfig(viscosity_in=.00102, viscosity_out=.00097, exposure_time=0.030)
     rate = (25 * Boltzmann * 295 / (0.00097 * (5e-6)**3)
             * (2 * 3 * 4 * 5 * (12 + 2))
             / (4 * 27 + 6 * 9 - 1 + (2 * 27 + 3 * 9 - 5) * (1.02 / .97 - 1)))
@@ -45,7 +45,7 @@ def test_single_spherical_mode_si_units():
 
 def test_radius_and_exposure_dependence():
     """Smaller radii and longer exposures suppress more contour power."""
-    config = SpectrumFitConfig(exposure_time=.030)
+    config = SpectrumFitConfig(viscosity_in=.00102, viscosity_out=.00097, exposure_time=.030)
     small = np.array(HSS97_camera([3, 5, 7], 25, 0, 50, config=config, radii=[5]))
     large = np.array(HSS97_camera([3, 5, 7], 25, 0, 50, config=config, radii=[10]))
     long = np.array(HSS97_camera([3, 5, 7], 25, 0, 50, config=replace(config, exposure_time=.060), radii=[5]))
@@ -57,7 +57,7 @@ def test_radius_and_exposure_dependence():
 @pytest.mark.parametrize('free_sigma', [False, True])
 def test_fit_recovers_synthetic_parameters(free_sigma):
     """Recover known parameters from a camera-averaged synthetic spectrum."""
-    config = SpectrumFitConfig(lmax=50, upper_bound=11, exposure_time=.030, free_sigma=free_sigma)
+    config = SpectrumFitConfig(viscosity_in=.00102, viscosity_out=.00097, lmax=50, upper_bound=11, exposure_time=.030, free_sigma=free_sigma)
     q = np.arange(3, 11)
     sigma = 4 if free_sigma else 0
     measured = np.array(HSS97_camera(q, 25, sigma, 50, config=config, radii=[5]))
@@ -70,7 +70,7 @@ def test_fit_recovers_synthetic_parameters(free_sigma):
 
 def test_spectrum_and_ensemble_use_individual_radii():
     """Exercise public fitting and retain settings and replica radii."""
-    config = SpectrumFitConfig(lmax=50, exposure_time=.030, free_sigma=False)
+    config = SpectrumFitConfig(viscosity_in=.00102, viscosity_out=.00097, lmax=50, exposure_time=.030, free_sigma=False)
     ensemble = SpectrumEnsemble()
     predictions = []
     for radius in [5, 15]:
@@ -106,7 +106,7 @@ def test_corrected_plot_uses_corrected_prediction():
     """The plotted fit line follows the fitted exposure model."""
     import matplotlib.pyplot as plt
     from vesmod.EdgeMod.spectrum_plotting import SpectrumPlotData, plot_spectrum
-    config = SpectrumFitConfig(lmax=50, free_sigma=False, exposure_time=.030)
+    config = SpectrumFitConfig(viscosity_in=.00102, viscosity_out=.00097, lmax=50, free_sigma=False, exposure_time=.030)
     q = np.arange(3, 8)
     measured = np.array(HSS97_camera(q, 25, 0, 50, config=config, radii=[5]))
     result = fit_spectrum_lmfit(MiniSpectrum(q, measured, None), 50,
@@ -121,8 +121,15 @@ def test_corrected_plot_uses_corrected_prediction():
 
 def test_camera_requires_radius_and_stable_modes():
     """Fail clearly when required physical inputs are unavailable."""
-    config = SpectrumFitConfig(exposure_time=.030)
+    config = SpectrumFitConfig(viscosity_in=.00102, viscosity_out=.00097, exposure_time=.030)
     with pytest.raises(ValueError, match='radii are required'):
         HSS97_camera([3], 25, 0, 50, config=config, radii=None)
     with pytest.raises(ValueError, match='stable spherical modes'):
         HSS97_camera([3], 25, -6, 50, config=config, radii=[5])
+
+
+@pytest.mark.parametrize("kwargs", [{}, {"viscosity_in": .001}, {"viscosity_out": .001}])
+def test_exposure_requires_explicit_viscosities(kwargs):
+    """Experiment-specific solvent values must be supplied by the caller."""
+    with pytest.raises(ValueError, match="viscosity_in and viscosity_out are required"):
+        SpectrumFitConfig(exposure_time=.030, **kwargs)
