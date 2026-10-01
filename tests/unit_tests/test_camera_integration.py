@@ -133,3 +133,66 @@ def test_exposure_requires_explicit_viscosities(kwargs):
     """Experiment-specific solvent values must be supplied by the caller."""
     with pytest.raises(ValueError, match="viscosity_in and viscosity_out are required"):
         SpectrumFitConfig(exposure_time=.030, **kwargs)
+
+
+@pytest.mark.parametrize("kc_kbt", [1.0, 25.0, 499.0])
+@pytest.mark.parametrize("reduced_sigma", [-5.99, 0.0, 1000.0])
+@pytest.mark.parametrize("viscosities", [(.001, .001), (.00102, .00097), (.01, .0005)])
+@pytest.mark.parametrize("temperature", [280.0, 310.0])
+def test_implemented_relaxation_matches_full_tau_expression(
+    monkeypatch, kc_kbt, reduced_sigma, viscosities, temperature,
+):
+    """Compare actual optimizer rates with the unfactored Faizi eq. 2.
+
+    Capture the arguments passed by HSS97_camera into exposure_power_factor:
+    these are t_exp/tau_l, so dividing by exposure yields the implemented
+    rates. This exercises the production calculation, rather than a copy of
+    its shortcuts. q=2 and q=3 together cover every l from 2 through 500.
+
+    The reference explicitly computes tau_l (seconds), with the entire
+    polynomial numerator and denominator, independently of the production
+    stiffness and rate_scale intermediates. Extended precision keeps reference
+    rounding below the 5e-15 relative tolerance on float64 production values.
+    """
+    import vesmod.EdgeMod.spectrum_utils as utils
+
+    radii_um = np.array([2.0, 5.0, 15.0, 50.0])
+    config = SpectrumFitConfig(
+        lmax=500,
+        exposure_time=.030,
+        temperature=temperature,
+        viscosity_in=viscosities[0],
+        viscosity_out=viscosities[1],
+    )
+    captured = []
+    original_factor = utils.exposure_power_factor
+
+    def capture_exposure_ratio(x):
+        captured.append(np.array(x, copy=True))
+        return original_factor(x)
+
+    monkeypatch.setattr(utils, "exposure_power_factor", capture_exposure_ratio)
+    utils.HSS97_camera([2, 3], kc_kbt, reduced_sigma, 500,
+                       config=config, radii=radii_um)
+    assert len(captured) == 2
+
+    # Full expression, without sharing any production relaxation helpers.
+    real = np.longdouble
+    kappa_joule = real(kc_kbt) * real(Boltzmann) * real(temperature)
+    eta_in = real(viscosities[0])
+    eta_out = real(viscosities[1])
+    for q, exposure_ratio in zip([2, 3], captured):
+        ell = np.arange(q, 501, 2, dtype=np.longdouble)[None, :]
+        radius_m = (radii_um.astype(np.longdouble) * real('1e-6'))[:, None]
+        tau_seconds = (
+            eta_out * radius_m**3
+            * (4 * ell**3 + 6 * ell**2 - 1
+               + (2 * ell**3 + 3 * ell**2 - 5) * (eta_in / eta_out - 1))
+            / (kappa_joule * (ell - 1) * ell * (ell + 1) * (ell + 2)
+               * (ell * (ell + 1) + real(reduced_sigma)))
+        )
+        implemented_tau = config.exposure_time / exposure_ratio
+        np.testing.assert_allclose(
+            implemented_tau, tau_seconds, rtol=5e-15, atol=0,
+            err_msg="Factored implementation differs from full spherical relaxation time",
+        )
