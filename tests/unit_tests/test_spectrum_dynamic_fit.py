@@ -62,10 +62,6 @@ def test_selected_bounds_can_be_passed_to_core_physical_fit(monkeypatch):
         fake_fit,
     )
     monkeypatch.setattr(
-        "vesmod.EdgeMod.spectrum.validate_lmfit_result",
-        lambda result, fitting_range, free_sigma: None,
-    )
-    monkeypatch.setattr(
         "vesmod.EdgeMod.spectrum.calc_tension_from_reduced_tension",
         lambda *args: 1.5,
     )

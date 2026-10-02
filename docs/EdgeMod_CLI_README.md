@@ -55,7 +55,7 @@ sample.json
 sample.spectrum_diagnostic.png
 ```
 
-If physical-fit validation fails after HSS97 fitting is attempted, EdgeMod writes the diagnostic PNG before propagating the validation error.
+EdgeMod stores returned optimizer results and writes diagnostic PNGs without applying post-fit acceptance criteria. Input and model-domain errors still propagate.
 
 For a VesEdge batch with each analysis stage in its own directory:
 
@@ -535,10 +535,11 @@ requires an existing camera integration fit, excludes modes above `lmax`, and
 cannot be combined with `include_q1=True`. Nonfit modes are shown faded as usual;
 their correction extrapolates the fitted model.
 
-### Fit correlation validation
+### Fit diagnostics
 
-When reduced sigma is free, fit validation requires lmfit to estimate a finite
-correlation between `kC` and `sigma`. Fits with an absolute correlation greater
-than `0.95` are rejected as strongly correlated; exactly `-0.95` and `+0.95`
-are allowed. This check uses the local fit covariance and applies to individual
-spectra and ensembles. Fixed-sigma fits skip the correlation check.
+Individual spectra, ensembles, and the tuple-returning fitting helper retain
+returned optimizer estimates without checking convergence status, parameter-bound
+proximity, uncertainty, or `kC`–`sigma` correlation. Relative RMSE is logged for
+each fit; uncertainties and residuals remain visible in diagnostic plots.
+Optimizer parameter bounds, input validation, and optional experimental q-range
+selection still apply.

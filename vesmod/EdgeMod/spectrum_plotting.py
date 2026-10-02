@@ -22,7 +22,6 @@ class SpectrumPlotData:
     lower_bound: int | None = None
     upper_bound: int | None = None
     lmax: int | None = None
-    validation_error: str | None = None
     exposure_time: float = 0.0
 
 
@@ -276,7 +275,7 @@ def save_spectrum_fit_diagnostic(data: SpectrumPlotData, path) -> None:
     axes[2].set_xlabel("Fitted Fourier mode q")
     axes[2].set_ylabel("(measured - fit) / measured")
     axes[2].set_title("Fit-region residuals")
-    figure.suptitle(_diagnostic_title(data.fit_result, data.validation_error))
+    figure.suptitle(_diagnostic_title(data.fit_result))
     output_path = Path(path).with_suffix(".png")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     figure.savefig(output_path, dpi=150)
@@ -304,7 +303,7 @@ def _plot_fitting_region(ax, data, color, style):
     return ax.axvspan(lower, upper, ymin=0.96, ymax=1.0, color=color, alpha=0.9)
 
 
-def _diagnostic_title(fit_result, validation_error):
+def _diagnostic_title(fit_result):
     kc = fit_result.params["kC"]
     sigma = fit_result.params["sigma"]
     kc_stderr = "unknown" if kc.stderr is None else f"{kc.stderr:.3g}"
@@ -313,6 +312,4 @@ def _diagnostic_title(fit_result, validation_error):
         f"kC={kc.value:.4g} ± {kc_stderr}; "
         f"reduced sigma={sigma.value:.4g} ± {sigma_stderr}"
     )
-    if validation_error is None:
-        return f"Spectrum fit diagnostic\n{parameters}"
-    return f"Spectrum fit diagnostic — rejected fit\n{parameters}\n{validation_error}"
+    return f"Spectrum fit diagnostic\n{parameters}"

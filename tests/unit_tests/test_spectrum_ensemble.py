@@ -191,7 +191,6 @@ def test_extract_kC_from_fit_uses_isolated_mode_range(monkeypatch):
         return SimpleNamespace(best_values={"kC": 123.0, "sigma": 0.0}, chisqr=1.0, redchi=1.0)
 
     monkeypatch.setattr("vesmod.EdgeMod.spectrum_ensemble.fit_spectrum_lmfit", fake_fit)
-    monkeypatch.setattr("vesmod.EdgeMod.spectrum_ensemble.validate_lmfit_result", lambda *args: None)
 
     result = avg._extract_kC_from_fit(lower_bound=2, upper_bound=4, lmax=700)
 
@@ -227,7 +226,6 @@ def test_extract_kc_from_fit_accepts_free_sigma_and_records_reduced_tension(monk
         return SimpleNamespace(best_values={"kC": 123.0, "sigma": 4.5}, chisqr=2.5, redchi=2.5)
 
     monkeypatch.setattr("vesmod.EdgeMod.spectrum_ensemble.fit_spectrum_lmfit", fake_fit)
-    monkeypatch.setattr("vesmod.EdgeMod.spectrum_ensemble.validate_lmfit_result", lambda *args: None)
 
     fit = avg.extract_kc_from_fit(config, weight_by_replica_sem=True)
 
@@ -258,7 +256,6 @@ def test_extract_kc_from_fit_defaults_to_legacy_fixed_sigma(monkeypatch):
         return SimpleNamespace(best_values={"kC": 123.0, "sigma": 0.0}, chisqr=1.0, redchi=1.0)
 
     monkeypatch.setattr("vesmod.EdgeMod.spectrum_ensemble.fit_spectrum_lmfit", fake_fit)
-    monkeypatch.setattr("vesmod.EdgeMod.spectrum_ensemble.validate_lmfit_result", lambda *args: None)
 
     fit = avg.extract_kc_from_fit()
 

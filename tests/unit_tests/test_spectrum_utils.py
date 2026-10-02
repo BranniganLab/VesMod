@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 # tests/test_spectrum_utils.py
 import math
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -166,7 +167,7 @@ def test_weighted_fit_passes_inverse_sem_to_lmfit(monkeypatch):
 
     def fake_fit(self, data, **kwargs):
         calls.update(kwargs)
-        return object()
+        return SimpleNamespace(best_fit=np.asarray(data))
 
     monkeypatch.setattr("vesmod.EdgeMod.spectrum_utils.Model.fit", fake_fit)
     spectrum = MiniSpectrum(

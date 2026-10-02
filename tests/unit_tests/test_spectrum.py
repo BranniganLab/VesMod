@@ -228,10 +228,6 @@ def test_extract_kc_from_fit_uses_config_and_saves_fit_results(monkeypatch):
         fake_fit_spectrum_lmfit,
     )
     monkeypatch.setattr(
-        "vesmod.EdgeMod.spectrum.validate_lmfit_result",
-        lambda result, fitting_range, free_sigma: None,
-    )
-    monkeypatch.setattr(
         "vesmod.EdgeMod.spectrum.calc_tension_from_reduced_tension",
         fake_calc_tension_from_reduced_tension,
     )
@@ -281,10 +277,6 @@ def test_extract_kc_from_fit_uses_default_config(monkeypatch):
     monkeypatch.setattr(
         "vesmod.EdgeMod.spectrum.fit_spectrum_lmfit",
         fake_fit,
-    )
-    monkeypatch.setattr(
-        "vesmod.EdgeMod.spectrum.validate_lmfit_result",
-        lambda result, fitting_range, free_sigma: None,
     )
     monkeypatch.setattr(
         "vesmod.EdgeMod.spectrum.calc_tension_from_reduced_tension",
