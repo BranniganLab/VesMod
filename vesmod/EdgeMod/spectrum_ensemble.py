@@ -19,6 +19,7 @@ from vesmod.EdgeMod.spectrum_utils import (
 )
 from .config import SpectrumFitConfig
 from .fit_result import EnsembleFit
+from .ensemble_plotting import plot_ensemble_spectrum
 
 
 class SpectrumEnsemble:
@@ -51,6 +52,14 @@ class SpectrumEnsemble:
     def __len__(self) -> int:
         """Return the number of replica bending-modulus estimates."""
         return len(self.kC_list)
+
+    def plot(self, **kwargs):
+        """Plot replicas, mean ± SEM, and recorded fits in the default style.
+
+        See :func:`plot_ensemble_spectrum` for keyword options. This method
+        never fits or modifies the ensemble.
+        """
+        return plot_ensemble_spectrum(self, **kwargs)
 
     @property
     def avg_amps2(self) -> np.ndarray:
