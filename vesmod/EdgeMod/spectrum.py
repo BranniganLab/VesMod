@@ -297,6 +297,7 @@ class Spectrum:
             lower_bound=None if fit_config is None else fit_config.lower_bound,
             upper_bound=None if fit_config is None else fit_config.upper_bound,
             lmax=None if fit_config is None else fit_config.lmax,
+            exposure_time=0.0 if fit_config is None else fit_config.exposure_time,
         )
         return plot_spectrum(
             data,

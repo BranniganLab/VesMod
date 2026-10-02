@@ -3,6 +3,10 @@
 from types import SimpleNamespace
 
 import numpy as np
+import pytest
+import matplotlib.pyplot as plt
+
+from vesmod.EdgeMod import Spectrum, SpectrumFitConfig
 
 from vesmod.EdgeMod.spectrum_plotting import (
     SpectrumPlotData,
@@ -102,3 +106,97 @@ def test_plot_spectrum_can_include_q1_as_an_opt_in():
     assert default.nonfit_artist.get_xdata()[0] == 2
     assert with_q1.nonfit_artist.get_xdata()[0] == 1
     plt.close(figure)
+
+
+from vesmod.EdgeMod.spectrum_utils import HSS97_with_camera_integration_time
+from vesmod.EdgeMod.spectrum_plotting import plot_q3_scaled_spectrum
+
+
+@pytest.mark.parametrize('power', ['measured', 'corrected', 'both'])
+def test_camera_power_views_recover_instantaneous_spectrum(power):
+    """Real camera physics supplies the synthetic powers, including nonfit modes."""
+    config = SpectrumFitConfig(exposure_time=.030, viscosity_in=.00102,
+                               viscosity_out=.00097, lmax=50)
+    modes = np.arange(2, 12)
+    instantaneous = np.asarray(HSS97(modes, 25, 2, config.lmax))
+    def camera(q):
+        return HSS97_with_camera_integration_time(q, 25, 2, config.lmax,
+                                                  config=config, radii=[5])
+    measured = np.asarray(camera(modes))
+    original = measured.copy()
+    data = SpectrumPlotData(modes, measured,
+                            SimpleNamespace(best_values={'kC': 25, 'sigma': 2}, eval=camera),
+                            3, 8, config.lmax, exposure_time=config.exposure_time)
+    result = plot_spectrum(data, config=SpectrumPlotConfig(power=power))
+    selected = (modes >= 3) & (modes < 8)
+    if power != 'measured':
+        np.testing.assert_allclose(result.corrected_fit_data_artist.get_ydata(),
+                                   instantaneous[selected], rtol=1e-14)
+        np.testing.assert_allclose(result.corrected_nonfit_artist.get_ydata(),
+                                   instantaneous[~selected], rtol=1e-14)
+        np.testing.assert_allclose(result.corrected_fit_artist.get_ydata(),
+                                   instantaneous[selected], rtol=1e-14)
+    if power != 'corrected':
+        np.testing.assert_array_equal(result.fit_data_artist.get_ydata(), measured[selected])
+        np.testing.assert_allclose(result.fit_artist.get_ydata(), measured[selected])
+    np.testing.assert_array_equal(measured, original)
+    plt.close(result.figure)
+    figure, axis = plot_q3_scaled_spectrum(data, config=SpectrumPlotConfig(power=power))
+    target = measured if power == 'measured' else instantaneous
+    # Both views draw corrected points last; q^3 scaling applies exactly once.
+    point_lines = [line for line in axis.lines if line.get_marker() in {'o', 's'}]
+    np.testing.assert_allclose(point_lines[-1].get_ydata(),
+                               modes[selected]**3 * target[selected], rtol=1e-14)
+    plt.close(figure)
+
+
+@pytest.mark.parametrize('power', ['corrected', 'both'])
+def test_corrected_plot_requires_camera_fit(power):
+    with pytest.raises(ValueError, match='camera integration fit'):
+        plot_spectrum(SpectrumPlotData(np.arange(2, 5), np.ones(3)),
+                      config=SpectrumPlotConfig(power=power))
+
+
+def test_invalid_power_view():
+    with pytest.raises(ValueError, match='power'):
+        SpectrumPlotConfig(power='unknown')
+
+
+def test_public_spectrum_plot_uses_recorded_camera_fit():
+    config = SpectrumFitConfig(exposure_time=.030, viscosity_in=.00102,
+                               viscosity_out=.00097, lmax=50, free_sigma=False)
+    spectrum = Spectrum.from_radii(np.full((2, 32), 5.0))
+    positive = spectrum.modes >= 2
+    q = spectrum.modes[positive]
+    spectrum.avg_amps2[positive] = HSS97_with_camera_integration_time(
+        q, 25, 0, 50, config=config, radii=[5])
+    original = spectrum.avg_amps2.copy()
+    spectrum.extract_kc_from_fit(config)
+    result = spectrum.plot(plot_config=SpectrumPlotConfig(power='both'))
+    np.testing.assert_allclose(result.corrected_fit_data_artist.get_ydata(),
+                               HSS97(np.arange(3, 8), 25, 0, 50), rtol=1e-5)
+    np.testing.assert_array_equal(spectrum.avg_amps2, original)
+    plt.close(result.figure)
+
+
+@pytest.mark.parametrize('recorded_exposure, explicit_exposure, expected', [
+    (.030, 0.0, 0.0),
+    (0.0, .040, .040),
+    (.030, None, .030),
+    (None, None, 0.0),
+])
+def test_spectrum_plot_exposure_uses_effective_config(
+        monkeypatch, recorded_exposure, explicit_exposure, expected):
+    """Explicit plotting config takes precedence over recorded fit config."""
+    from importlib import import_module
+    module = import_module('vesmod.EdgeMod.spectrum')
+    spectrum = Spectrum.from_radii(np.full((2, 32), 5.0))
+    def config(exposure):
+        return SpectrumFitConfig(exposure_time=exposure, viscosity_in=.00102,
+                                 viscosity_out=.00097)
+    if recorded_exposure is not None:
+        spectrum.fit_results.append(SimpleNamespace(config=config(recorded_exposure)))
+    monkeypatch.setattr(module, 'plot_spectrum', lambda data, **kwargs: data)
+    data = spectrum.plot(fit_config=None if explicit_exposure is None
+                         else config(explicit_exposure))
+    assert data.exposure_time == expected
