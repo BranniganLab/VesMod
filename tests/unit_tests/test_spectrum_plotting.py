@@ -177,3 +177,26 @@ def test_public_spectrum_plot_uses_recorded_camera_fit():
                                HSS97(np.arange(3, 8), 25, 0, 50), rtol=1e-5)
     np.testing.assert_array_equal(spectrum.avg_amps2, original)
     plt.close(result.figure)
+
+
+@pytest.mark.parametrize('recorded_exposure, explicit_exposure, expected', [
+    (.030, 0.0, 0.0),
+    (0.0, .040, .040),
+    (.030, None, .030),
+    (None, None, 0.0),
+])
+def test_spectrum_plot_exposure_uses_effective_config(
+        monkeypatch, recorded_exposure, explicit_exposure, expected):
+    """Explicit plotting config takes precedence over recorded fit config."""
+    from importlib import import_module
+    module = import_module('vesmod.EdgeMod.spectrum')
+    spectrum = Spectrum.from_radii(np.full((2, 32), 5.0))
+    def config(exposure):
+        return SpectrumFitConfig(exposure_time=exposure, viscosity_in=.00102,
+                                 viscosity_out=.00097)
+    if recorded_exposure is not None:
+        spectrum.fit_results.append(SimpleNamespace(config=config(recorded_exposure)))
+    monkeypatch.setattr(module, 'plot_spectrum', lambda data, **kwargs: data)
+    data = spectrum.plot(fit_config=None if explicit_exposure is None
+                         else config(explicit_exposure))
+    assert data.exposure_time == expected
