@@ -534,3 +534,11 @@ are intended for display; stored powers and fits remain unchanged. Correction
 requires an existing camera integration fit, excludes modes above `lmax`, and
 cannot be combined with `include_q1=True`. Nonfit modes are shown faded as usual;
 their correction extrapolates the fitted model.
+
+### Fit correlation validation
+
+When reduced sigma is free, fit validation requires lmfit to estimate a finite
+correlation between `kC` and `sigma`. Fits with an absolute correlation greater
+than `0.95` are rejected as strongly correlated; exactly `-0.95` and `+0.95`
+are allowed. This check uses the local fit covariance and applies to individual
+spectra and ensembles. Fixed-sigma fits skip the correlation check.

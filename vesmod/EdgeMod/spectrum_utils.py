@@ -9,16 +9,28 @@ from functools import lru_cache
 from collections import namedtuple
 from numbers import Integral, Real
 import math
+import logging
 import numpy as np
 from scipy.constants import Boltzmann
 from scipy.special import gammaln
 from lmfit import Model
+
+logger = logging.getLogger(__name__)
 
 MiniSpectrum = namedtuple("MiniSpectrum", ['modes', 'avg_amps2', 'avg_amps2_ste'])
 
 
 def validate_lmfit_result(result, fitting_group, free_sigma):
     """Raise ValueError if the lmfit result is not physically or numerically reliable."""
+    # Report fit quality without using residual magnitude as a rejection rule.
+    measured = np.asarray(fitting_group.avg_amps2)
+    residuals = measured - np.asarray(result.best_fit)
+    rmse = np.sqrt(np.mean(residuals**2))
+    mean_power = np.mean(np.abs(measured))
+    relative_rmse = (rmse / mean_power if mean_power > 0
+                     else (np.nan if rmse == 0 else np.inf))
+    logger.info("Spectrum fit relative RMSE=%g", relative_rmse)
+
     if not result.success:
         raise ValueError(f"Spectrum fit failed: {result.message}")
 
@@ -42,16 +54,16 @@ def validate_lmfit_result(result, fitting_group, free_sigma):
             f"kC={kC.value}, stderr={kC.stderr}"
         )
 
-    y = np.asarray(fitting_group.avg_amps2)
-    residuals = y - np.asarray(result.best_fit)
+    if free_sigma:
+        correlation = (kC.correl or {}).get("sigma")
+        if correlation is None or not np.isfinite(correlation):
+            raise ValueError("Spectrum fit did not estimate a finite kC-sigma correlation.")
+        if abs(correlation) > 0.95:
+            raise ValueError(
+                "Spectrum fit has strongly correlated kC and sigma: "
+                f"correlation={correlation:.6g}, maximum absolute correlation=0.95"
+            )
 
-    rmse = np.sqrt(np.mean(residuals**2))
-    rel_rmse = rmse / np.mean(np.abs(y))
-
-    if rel_rmse > 0.25:
-        raise ValueError(
-            f"Spectrum fit residuals are too large: relative RMSE={rel_rmse:.3f}"
-        )
 
 
 def fit_spectrum_lmfit(fitting_group, lmax, free_sigma=False, weighted=False,
