@@ -42,6 +42,16 @@ def validate_lmfit_result(result, fitting_group, free_sigma):
             f"kC={kC.value}, stderr={kC.stderr}"
         )
 
+    if free_sigma:
+        correlation = (kC.correl or {}).get("sigma")
+        if correlation is None or not np.isfinite(correlation):
+            raise ValueError("Spectrum fit did not estimate a finite kC-sigma correlation.")
+        if abs(correlation) > 0.95:
+            raise ValueError(
+                "Spectrum fit has strongly correlated kC and sigma: "
+                f"correlation={correlation:.6g}, maximum absolute correlation=0.95"
+            )
+
     y = np.asarray(fitting_group.avg_amps2)
     residuals = y - np.asarray(result.best_fit)
 
