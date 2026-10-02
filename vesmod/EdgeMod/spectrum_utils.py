@@ -52,16 +52,6 @@ def validate_lmfit_result(result, fitting_group, free_sigma):
                 f"correlation={correlation:.6g}, maximum absolute correlation=0.95"
             )
 
-    y = np.asarray(fitting_group.avg_amps2)
-    residuals = y - np.asarray(result.best_fit)
-
-    rmse = np.sqrt(np.mean(residuals**2))
-    rel_rmse = rmse / np.mean(np.abs(y))
-
-    if rel_rmse > 0.25:
-        raise ValueError(
-            f"Spectrum fit residuals are too large: relative RMSE={rel_rmse:.3f}"
-        )
 
 
 def fit_spectrum_lmfit(fitting_group, lmax, free_sigma=False, weighted=False,

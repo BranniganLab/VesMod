@@ -55,3 +55,11 @@ def test_real_lmfit_covariance_rejects_degenerate_spectrum():
     assert abs(result.params['kC'].correl['sigma']) > .95
     with pytest.raises(ValueError, match='strongly correlated kC and sigma'):
         validate_lmfit_result(result, group, free_sigma=True)
+
+
+@pytest.mark.parametrize('free_sigma', [False, True])
+def test_large_residuals_do_not_reject_fit(free_sigma):
+    """Residual magnitude is not an acceptance criterion."""
+    result, group = fit_with_correlation(.5)
+    result.best_fit = np.zeros(5)  # Relative RMSE is 1, above the former 0.25 limit.
+    validate_lmfit_result(result, group, free_sigma=free_sigma)
