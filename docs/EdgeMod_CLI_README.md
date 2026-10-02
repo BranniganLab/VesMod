@@ -509,3 +509,28 @@ isolate its effect, fit both spectra with the same `SpectrumFitConfig`.
 the recorded angular coordinate system; it does not distinguish thermal
 fluctuations from a persistent deformation that changes orientation during
 recording. This option is available through the Python API, not the CLI.
+
+### Display camera-corrected powers in Python
+
+After fitting a `Spectrum` with nonzero `exposure_time` and explicit viscosities:
+
+```python
+from vesmod.EdgeMod.spectrum_plotting import SpectrumPlotConfig
+
+spectrum.extract_kc_from_fit(fit_config)
+result = spectrum.plot(plot_config=SpectrumPlotConfig(power="both"))
+result.ax.legend()
+```
+
+`power="measured"` (the default) shows the measured powers and camera-averaged
+fit. `power="corrected"` shows only the corrected powers and instantaneous
+HSS97 curve. `power="both"` overlays both: circles for measured powers and
+squares for corrected powers, with solid and dashed theory curves respectively.
+The same option is supported by `plot_q4_scaled_spectrum`.
+
+Corrected powers are the measured powers multiplied by the fitted ratio
+`instantaneous_power / camera_power`. They depend on the fitted parameters and
+are intended for display; stored powers and fits remain unchanged. Correction
+requires an existing camera integration fit, excludes modes above `lmax`, and
+cannot be combined with `include_q1=True`. Nonfit modes are shown faded as usual;
+their correction extrapolates the fitted model.

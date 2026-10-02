@@ -2,12 +2,14 @@
 # -*- coding: utf-8 -*-
 """Composable plots for EdgeMod fluctuation spectra."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
+
+from .spectrum_utils import HSS97
 
 
 @dataclass(frozen=True)
@@ -21,6 +23,7 @@ class SpectrumPlotData:
     upper_bound: int | None = None
     lmax: int | None = None
     validation_error: str | None = None
+    exposure_time: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -33,8 +36,11 @@ class SpectrumPlotConfig:
     marker: str = "o"
     linewidth: float = 1.5
     include_q1: bool = False
+    power: str = "measured"
 
     def __post_init__(self) -> None:
+        if self.power not in {"measured", "corrected", "both"}:
+            raise ValueError("power must be measured, corrected, or both.")
         if not 0 < self.nonfit_alpha <= 1:
             raise ValueError("nonfit_alpha must be greater than 0 and at most 1.")
         if not 0 < self.fit_alpha <= 1:
@@ -57,15 +63,64 @@ class SpectrumPlotResult:
     fit_data_artist: Any | None
     fit_artist: Any | None
     fitting_region_artist: Any | None
+    corrected_nonfit_artist: Any | None = None
+    corrected_fit_data_artist: Any | None = None
+    corrected_fit_artist: Any | None = None
 
 
-def plot_spectrum(
+def plot_spectrum(data, *, ax=None, color=None, label=None, config=None):
+    """Plot measured powers, camera-corrected powers, or both.
+
+    Corrected powers use the fitted instantaneous/camera power ratio. They
+    are model-dependent estimates for display, not inputs to another fit.
+    Correction requires a camera fit and is shown for 2 <= q <= lmax.
+    """
+    if config is None:
+        config = SpectrumPlotConfig()
+    if config.power == "measured":
+        return _plot_spectrum(data, ax=ax, color=color, label=label, config=config)
+    if data.fit_result is None or data.exposure_time <= 0 or data.lmax is None:
+        raise ValueError("Corrected powers require an existing camera integration fit.")
+    if config.include_q1:
+        raise ValueError("Camera correction is defined only for q >= 2.")
+    mask = (data.modes >= 2) & (data.modes <= data.lmax)
+    modes = data.modes[mask]
+    params = data.fit_result.best_values
+    instantaneous = np.asarray(HSS97(modes, params["kC"], params["sigma"], data.lmax))
+    camera = np.asarray(data.fit_result.eval(q=modes))
+    if np.any(~np.isfinite(camera)) or np.any(camera <= 0):
+        raise ValueError("Camera prediction must be finite and positive for correction.")
+    corrected = replace(data, modes=modes, avg_amps2=data.avg_amps2[mask] * instantaneous / camera)
+    if ax is None:
+        _, ax = plt.subplots()
+    if color is None:
+        color = ax._get_lines.get_next_color()
+    def series_label(kind):
+        return f"{label} ({kind})" if label else kind.capitalize()
+    measured_result = None
+    if config.power == "both":
+        measured_result = _plot_spectrum(
+            data, ax=ax, color=color, label=series_label("measured"), config=config)
+    corrected_result = _plot_spectrum(
+        corrected, ax=ax, color=color, label=series_label("camera-corrected"),
+        config=replace(config, marker="s",
+                       fitting_region="none" if measured_result else config.fitting_region),
+        instantaneous=True)
+    result = corrected_result if measured_result is None else measured_result
+    return replace(result,
+                   corrected_nonfit_artist=corrected_result.nonfit_artist,
+                   corrected_fit_data_artist=corrected_result.fit_data_artist,
+                   corrected_fit_artist=corrected_result.fit_artist)
+
+
+def _plot_spectrum(
     data: SpectrumPlotData,
     *,
     ax=None,
     color=None,
     label=None,
     config: SpectrumPlotConfig | None = None,
+    instantaneous=False,
 ) -> SpectrumPlotResult:
     """Plot one spectrum on an existing or newly created axis.
 
@@ -81,7 +136,7 @@ def plot_spectrum(
         _, ax = plt.subplots()
     figure = ax.figure
     if color is None:
-        color = next(ax._get_lines.prop_cycler)["color"]
+        color = ax._get_lines.get_next_color()
 
     has_fit_region = data.lower_bound is not None and data.upper_bound is not None
     if data.fit_result is not None and not has_fit_region:
@@ -134,13 +189,16 @@ def plot_spectrum(
         if not np.any(selected):
             raise ValueError("fit bounds must select at least one positive mode.")
         predicted = np.asarray(
-            data.fit_result.eval(q=modes[selected])
+            HSS97(modes[selected], data.fit_result.best_values["kC"],
+                  data.fit_result.best_values["sigma"], data.lmax)
+            if instantaneous else data.fit_result.eval(q=modes[selected])
         )
         fit_artist = ax.loglog(
             modes[selected],
             predicted,
             color=color,
             linewidth=config.linewidth,
+            linestyle="--" if instantaneous else "-",
         )[0]
 
     fitting_region_artist = _plot_fitting_region(
@@ -170,52 +228,20 @@ def plot_q4_scaled_spectrum(
     config: SpectrumPlotConfig | None = None,
 ):
     """Plot the diagnostic q⁴-scaled spectrum on a caller-owned axis."""
-    if config is None:
-        config = SpectrumPlotConfig()
-    modes, measured = _positive_spectrum(data.modes, data.avg_amps2, config.include_q1)
-    if ax is None:
-        _, ax = plt.subplots()
-    if color is None:
-        color = next(ax._get_lines.prop_cycler)["color"]
-    has_fit_region = data.lower_bound is not None and data.upper_bound is not None
-    selected = _fit_mask(data, modes)
-    if not has_fit_region:
-        ax.semilogy(
-            modes,
-            modes**4 * measured,
-            linestyle="none",
-            marker=config.marker,
-            color=color,
-            alpha=config.fit_alpha,
-            label=label,
-        )
-        ax.set_xlabel("Fourier mode q")
-        ax.set_ylabel(r"$q^4\langle |u_q|^2 \rangle$")
-        ax.set_title("q⁴-scaled spectrum")
-        return ax.figure, ax
-    ax.semilogy(
-        modes[~selected],
-        modes[~selected] ** 4 * measured[~selected],
-        linestyle="none",
-        marker=config.marker,
-        markerfacecolor="none",
-        markeredgecolor=color,
-        color=color,
-        alpha=config.nonfit_alpha,
-    )
-    ax.semilogy(
-        modes[selected],
-        modes[selected] ** 4 * measured[selected],
-        linestyle="none",
-        marker=config.marker,
-        color=color,
-        alpha=config.fit_alpha,
-        label=label,
-    )
-    ax.set_xlabel("Fourier mode q")
-    ax.set_ylabel(r"$q^4\langle |u_q|^2 \rangle$")
-    ax.set_title("q⁴-scaled spectrum")
-    return ax.figure, ax
+    result = plot_spectrum(data, ax=ax, color=color, label=label, config=config)
+    artists = (result.nonfit_artist, result.fit_data_artist, result.fit_artist,
+               result.corrected_nonfit_artist, result.corrected_fit_data_artist,
+               result.corrected_fit_artist)
+    # Corrected-only views expose the same artist in both result fields.
+    for artist in {artist for artist in artists if artist is not None}:
+        q = np.asarray(artist.get_xdata())
+        artist.set_ydata(q**4 * np.asarray(artist.get_ydata()))
+    result.ax.set_xscale("linear")
+    result.ax.relim()
+    result.ax.autoscale_view()
+    result.ax.set_ylabel(r"$q^4\langle |u_q|^2 \rangle$")
+    result.ax.set_title("q⁴-scaled spectrum")
+    return result.figure, result.ax
 
 
 def save_spectrum_fit_diagnostic(data: SpectrumPlotData, path) -> None:
