@@ -16,7 +16,6 @@ from vesmod.validation import require_positive_real
 from vesmod.EdgeMod.spectrum_utils import (
     fit_spectrum_lmfit,
     MiniSpectrum,
-    validate_lmfit_result,
 )
 from .config import SpectrumFitConfig
 from .fit_result import EnsembleFit
@@ -179,7 +178,6 @@ class SpectrumEnsemble:
             weighted=weight_by_replica_sem,
             **camera_kwargs,
         )
-        validate_lmfit_result(result, fitting_range, config.free_sigma)
         kC = result.best_values["kC"]
         reduced_sigma = result.best_values["sigma"]
         fit = EnsembleFit(

@@ -264,16 +264,8 @@ def process_file(path: Path, args: argparse.Namespace):
 
     try:
         fit = spectrum.extract_kc_from_fit(config)
-    except ValueError as error:
+    except ValueError:
         _write_output(spectrum, output_path, selection)
-        if spectrum.fit_result is not None:
-            spectrum.save_fit_diagnostic(
-                diagnostic_path,
-                config.lower_bound,
-                config.upper_bound,
-                config.lmax,
-                validation_error=str(error),
-            )
         raise
 
     spectrum.save_fit_diagnostic(

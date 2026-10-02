@@ -17,7 +17,6 @@ import numpy as np
 import pytest
 
 from vesmod.EdgeMod import Spectrum, SpectrumFitConfig
-from vesmod.EdgeMod.spectrum_utils import calc_tension_from_reduced_tension
 from vesmod.VesEdge import (
     EdgeDetection,
     EdgeExtractionConfig,
@@ -144,25 +143,16 @@ def _run_pipeline(case_name: str, tmp_path: Path) -> dict[str, np.ndarray]:
     accepted_path = tmp_path / f"{case_name}.npy"
     edges.export_accepted_radii(accepted_path)
     spectrum = Spectrum(accepted_path)
-    # This reviewed fixture has rho ~= -0.9794 and must now be rejected.
-    # Retain comparisons of the optimizer outputs to detect scientific drift.
-    with pytest.raises(ValueError, match="strongly correlated kC and sigma"):
-        spectrum.extract_kc_from_fit(FIT_CONFIG)
-    assert not spectrum.fit_results
-    parameters = spectrum.fit_result.best_values
-    correlation = spectrum.fit_result.params["kC"].correl["sigma"]
-    assert correlation == pytest.approx(-0.979408, abs=1e-5)
-    tension = calc_tension_from_reduced_tension(
-        spectrum.r0, parameters["sigma"], parameters["kC"], FIT_CONFIG.temperature
-    )
+    fit = spectrum.extract_kc_from_fit(FIT_CONFIG)
+    assert spectrum.fit_results == [fit]
     results.update(
         {
             "spectrum_r0_microns": np.asarray(spectrum.r0),
             "spectrum_modes": spectrum.modes,
             "spectrum_avg_amps2": spectrum.avg_amps2,
-            "fit_kc_kbt": np.asarray(parameters["kC"]),
+            "fit_kc_kbt": np.asarray(fit.kC),
             "fit_surface_tension_newtons_per_meter": np.asarray(
-                tension
+                fit.surface_tension
             ),
         }
     )

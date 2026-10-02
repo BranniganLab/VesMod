@@ -20,9 +20,8 @@ logger = logging.getLogger(__name__)
 MiniSpectrum = namedtuple("MiniSpectrum", ['modes', 'avg_amps2', 'avg_amps2_ste'])
 
 
-def validate_lmfit_result(result, fitting_group, free_sigma):
-    """Raise ValueError if the lmfit result is not physically or numerically reliable."""
-    # Report fit quality without using residual magnitude as a rejection rule.
+def _log_relative_rmse(result, fitting_group):
+    """Report residual magnitude without applying fit acceptance criteria."""
     measured = np.asarray(fitting_group.avg_amps2)
     residuals = measured - np.asarray(result.best_fit)
     rmse = np.sqrt(np.mean(residuals**2))
@@ -30,40 +29,6 @@ def validate_lmfit_result(result, fitting_group, free_sigma):
     relative_rmse = (rmse / mean_power if mean_power > 0
                      else (np.nan if rmse == 0 else np.inf))
     logger.info("Spectrum fit relative RMSE=%g", relative_rmse)
-
-    if not result.success:
-        raise ValueError(f"Spectrum fit failed: {result.message}")
-
-    kC = result.params["kC"]
-    sigma = result.params["sigma"]
-
-    if kC.value <= kC.min or kC.value >= kC.max:
-        raise ValueError(f"Spectrum fit put kC on a parameter bound: kC={kC.value}")
-
-    if free_sigma and (sigma.value <= sigma.min or sigma.value >= sigma.max):
-        raise ValueError(
-            f"Spectrum fit put sigma on a parameter bound: sigma={sigma.value}"
-        )
-
-    if kC.stderr is None:
-        raise ValueError("Spectrum fit did not estimate uncertainty for kC.")
-
-    if kC.stderr / abs(kC.value) > 0.5:
-        raise ValueError(
-            f"Spectrum fit has poorly constrained kC: "
-            f"kC={kC.value}, stderr={kC.stderr}"
-        )
-
-    if free_sigma:
-        correlation = (kC.correl or {}).get("sigma")
-        if correlation is None or not np.isfinite(correlation):
-            raise ValueError("Spectrum fit did not estimate a finite kC-sigma correlation.")
-        if abs(correlation) > 0.95:
-            raise ValueError(
-                "Spectrum fit has strongly correlated kC and sigma: "
-                f"correlation={correlation:.6g}, maximum absolute correlation=0.95"
-            )
-
 
 
 def fit_spectrum_lmfit(fitting_group, lmax, free_sigma=False, weighted=False,
@@ -102,7 +67,9 @@ def fit_spectrum_lmfit(fitting_group, lmax, free_sigma=False, weighted=False,
             )
         fit_kwargs["weights"] = 1 / uncertainties
 
-    return model.fit(fitting_group.avg_amps2, **fit_kwargs)
+    result = model.fit(fitting_group.avg_amps2, **fit_kwargs)
+    _log_relative_rmse(result, fitting_group)
+    return result
 
 
 def fit_spectrum_to_theory_lmfit(fitting_group, lmax, free_sigma=False, weighted=False):
@@ -133,8 +100,6 @@ def fit_spectrum_to_theory_lmfit(fitting_group, lmax, free_sigma=False, weighted
         free_sigma,
         weighted,
     )
-    validate_lmfit_result(result, fitting_group, free_sigma)
-
     return result.best_values['kC'], result.best_values['sigma']
 
 

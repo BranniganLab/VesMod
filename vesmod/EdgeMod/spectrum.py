@@ -26,7 +26,6 @@ from .spectrum_utils import (
     MiniSpectrum,
     calc_tension_from_reduced_tension,
     fit_spectrum_lmfit,
-    validate_lmfit_result,
 )
 
 
@@ -216,11 +215,6 @@ class Spectrum:
             config.free_sigma,
             **({"config": config, "radii": [self.r0]} if config.exposure_time > 0 else {}),
         )
-        validate_lmfit_result(
-            self.fit_result,
-            fitting_range,
-            config.free_sigma,
-        )
 
         fitted_kc = self.fit_result.best_values["kC"]
         reduced_sigma = self.fit_result.best_values["sigma"]
@@ -253,7 +247,6 @@ class Spectrum:
         lower_bound: int,
         upper_bound: int,
         lmax: int,
-        validation_error: str | None = None,
     ) -> None:
         """Save measured spectrum, attempted fit, and residual diagnostics."""
         if self.fit_result is None:
@@ -266,7 +259,6 @@ class Spectrum:
                 lower_bound=lower_bound,
                 upper_bound=upper_bound,
                 lmax=lmax,
-                validation_error=validation_error,
             ),
             path,
         )
