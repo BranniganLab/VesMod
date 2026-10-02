@@ -8,7 +8,7 @@ from .spectrum_plotting import (
     SpectrumPlotConfig,
     SpectrumPlotData,
     SpectrumPlotResult,
-    plot_q4_scaled_spectrum,
+    plot_q3_scaled_spectrum,
     plot_spectrum,
     save_spectrum_fit_diagnostic,
 )
@@ -22,7 +22,7 @@ __all__ = [
     "SpectrumPlotConfig",
     "SpectrumPlotData",
     "SpectrumPlotResult",
-    "plot_q4_scaled_spectrum",
+    "plot_q3_scaled_spectrum",
     "plot_spectrum",
     "save_spectrum_fit_diagnostic",
 ]

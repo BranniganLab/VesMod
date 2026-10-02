@@ -109,7 +109,7 @@ def test_plot_spectrum_can_include_q1_as_an_opt_in():
 
 
 from vesmod.EdgeMod.spectrum_utils import HSS97_with_camera_integration_time
-from vesmod.EdgeMod.spectrum_plotting import plot_q4_scaled_spectrum
+from vesmod.EdgeMod.spectrum_plotting import plot_q3_scaled_spectrum
 
 
 @pytest.mark.parametrize('power', ['measured', 'corrected', 'both'])
@@ -141,12 +141,12 @@ def test_camera_power_views_recover_instantaneous_spectrum(power):
         np.testing.assert_allclose(result.fit_artist.get_ydata(), measured[selected])
     np.testing.assert_array_equal(measured, original)
     plt.close(result.figure)
-    figure, axis = plot_q4_scaled_spectrum(data, config=SpectrumPlotConfig(power=power))
+    figure, axis = plot_q3_scaled_spectrum(data, config=SpectrumPlotConfig(power=power))
     target = measured if power == 'measured' else instantaneous
-    # Both views draw corrected points last; q^4 scaling applies exactly once.
+    # Both views draw corrected points last; q^3 scaling applies exactly once.
     point_lines = [line for line in axis.lines if line.get_marker() in {'o', 's'}]
     np.testing.assert_allclose(point_lines[-1].get_ydata(),
-                               modes[selected]**4 * target[selected], rtol=1e-14)
+                               modes[selected]**3 * target[selected], rtol=1e-14)
     plt.close(figure)
 
 

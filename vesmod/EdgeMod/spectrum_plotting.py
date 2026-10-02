@@ -219,7 +219,7 @@ def _plot_spectrum(
     )
 
 
-def plot_q4_scaled_spectrum(
+def plot_q3_scaled_spectrum(
     data: SpectrumPlotData,
     *,
     ax=None,
@@ -227,7 +227,7 @@ def plot_q4_scaled_spectrum(
     label=None,
     config: SpectrumPlotConfig | None = None,
 ):
-    """Plot the diagnostic q⁴-scaled spectrum on a caller-owned axis."""
+    """Plot the diagnostic q³-scaled spectrum on a caller-owned axis."""
     result = plot_spectrum(data, ax=ax, color=color, label=label, config=config)
     artists = (result.nonfit_artist, result.fit_data_artist, result.fit_artist,
                result.corrected_nonfit_artist, result.corrected_fit_data_artist,
@@ -235,17 +235,17 @@ def plot_q4_scaled_spectrum(
     # Corrected-only views expose the same artist in both result fields.
     for artist in {artist for artist in artists if artist is not None}:
         q = np.asarray(artist.get_xdata())
-        artist.set_ydata(q**4 * np.asarray(artist.get_ydata()))
+        artist.set_ydata(q**3 * np.asarray(artist.get_ydata()))
     result.ax.set_xscale("linear")
     result.ax.relim()
     result.ax.autoscale_view()
-    result.ax.set_ylabel(r"$q^4\langle |u_q|^2 \rangle$")
-    result.ax.set_title("q⁴-scaled spectrum")
+    result.ax.set_ylabel(r"$q^3\langle |u_q|^2 \rangle$")
+    result.ax.set_title("q³-scaled spectrum")
     return result.figure, result.ax
 
 
 def save_spectrum_fit_diagnostic(data: SpectrumPlotData, path) -> None:
-    """Save the spectrum, q⁴-scaled spectrum, and fit residuals."""
+    """Save the spectrum, q³-scaled spectrum, and fit residuals."""
     if data.fit_result is None:
         raise ValueError("A fit result is required for a fit diagnostic.")
     modes, measured = _positive_spectrum(data.modes, data.avg_amps2)
@@ -260,7 +260,7 @@ def save_spectrum_fit_diagnostic(data: SpectrumPlotData, path) -> None:
         color="tab:blue",
         config=SpectrumPlotConfig(fitting_region="shade"),
     )
-    plot_q4_scaled_spectrum(
+    plot_q3_scaled_spectrum(
         data,
         ax=axes[1],
         color="tab:blue",

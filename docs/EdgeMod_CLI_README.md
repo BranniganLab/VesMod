@@ -526,7 +526,7 @@ result.ax.legend()
 fit. `power="corrected"` shows only the corrected powers and instantaneous
 HSS97 curve. `power="both"` overlays both: circles for measured powers and
 squares for corrected powers, with solid and dashed theory curves respectively.
-The same option is supported by `plot_q4_scaled_spectrum`.
+The same option is supported by `plot_q3_scaled_spectrum`.
 
 Corrected powers are the measured powers multiplied by the fitted ratio
 `instantaneous_power / camera_power`. They depend on the fitted parameters and
