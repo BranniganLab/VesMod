@@ -5,6 +5,7 @@ Created on Mon Apr  6 14:09:33 2026
 
 @author: js2746
 """
+from functools import lru_cache
 from collections import namedtuple
 from numbers import Integral, Real
 import math
@@ -53,10 +54,25 @@ def validate_lmfit_result(result, fitting_group, free_sigma):
         )
 
 
-def fit_spectrum_lmfit(fitting_group, lmax, free_sigma=False, weighted=False):
+def fit_spectrum_lmfit(fitting_group, lmax, free_sigma=False, weighted=False,
+                       *, config=None, radii=None):
     """Return the complete lmfit result for a theoretical spectrum fit."""
-    model = Model(HSS97)
+    model_function = HSS97
+    if config is not None and config.exposure_time > 0:
+        radii = _validate_camera_radii(radii)
+
+        def camera_model(q, kC, sigma, lmax):
+            return HSS97_with_camera_integration_time(q, kC, sigma, lmax, config=config, radii=radii)
+
+        model_function = camera_model
+
+    model = Model(model_function)
     pars = model.make_params(kC={'value': 15, 'min': 1, 'max': 500, 'vary': True}, sigma={'value': 0, 'min': -100, 'max': 1000, 'vary': free_sigma}, lmax={'value': lmax, 'vary': False})
+
+    if config is not None and config.exposure_time > 0:
+        # All spherical modes must be stable, including l=2 even if q=2
+        # is omitted from the fitted contour spectrum.
+        pars["sigma"].set(min=-6 + 1e-8)
 
     fit_kwargs = {"q": fitting_group.modes, "params": pars, "max_nfev": 20000}
     if weighted:
@@ -192,6 +208,72 @@ def HSS97(q: list[int], kC: float, sigma: float, lmax: int) -> list[float]:
             summ += Nlq_Plq0_squared(l, wavenum) / denom
         function.append((1 / kC) * summ)
     return function
+
+
+def exposure_power_factor(x):
+    """Return retained power for a boxcar-averaged exponential correlation.
+
+    ``x`` is exposure time / relaxation time. A series avoids cancellation
+    near zero; the reciprocal form avoids squaring large x.
+    """
+    x = np.asarray(x, dtype=float)
+    if np.any(~np.isfinite(x)) or np.any(x < 0):
+        raise ValueError("Exposure/relaxation ratio must be finite and nonnegative.")
+    result = np.empty_like(x)
+    small = x < 1e-3
+    z = x[small]
+    result[small] = 1 - z / 3 + z**2 / 12 - z**3 / 60 + z**4 / 360
+    z = x[~small]
+    result[~small] = 2 / z * (1 + np.expm1(-z) / z)
+    return result
+
+
+def _validate_camera_radii(radii):
+    """Require one positive radius in microns for each modeled replica."""
+    if radii is None:
+        raise ValueError("Vesicle radii are required for camera integration fitting.")
+    radii = np.atleast_1d(np.asarray(radii, dtype=float))
+    if radii.ndim != 1 or radii.size == 0 or np.any(~np.isfinite(radii)) or np.any(radii <= 0):
+        raise ValueError("Camera integration radii must be finite and positive.")
+    return radii.copy()
+
+
+@lru_cache(maxsize=256)
+def _camera_projection(q, lmax):
+    """Cache fixed Nlq Plq^2 geometry for repeated optimizer evaluations."""
+    ell = np.arange(q, lmax + 1, 2, dtype=float)
+    weights = np.array([Nlq_Plq0_squared(int(l), q) for l in ell])
+    return ell, weights
+
+
+def HSS97_with_camera_integration_time(q, kC, sigma, lmax, *, config, radii):
+    """Predict exposure-averaged dimensionless complex contour power.
+
+    Uses Faizi et al. (2020), eq. 2, solvent-only spherical relaxation rates.
+    kC is in kBT, sigma is reduced tension, radii are in microns, exposure
+    is in seconds, viscosities are in Pa s, and temperature is in Kelvin.
+    Each l contribution is multiplied by B(t_exp/tau_l) before summation.
+    For ensembles the predictions are averaged equally across replica radii
+    with shared kC and reduced tension, matching the measured spectrum mean.
+    """
+    modes = _validate_hss97_inputs(q, kC, sigma, lmax)
+    if config.exposure_time == 0:
+        return HSS97(modes, kC, sigma, lmax)
+    radii_m = _validate_camera_radii(radii) * 1e-6
+    if sigma <= -6:
+        raise ValueError("Camera integration requires stable spherical modes: sigma > -6.")
+    rate_scale = kC * Boltzmann * config.temperature / (config.viscosity_out * radii_m**3)
+    predictions = []
+    for mode in modes:
+        ell, weights = _camera_projection(mode, int(lmax))
+        stiffness = (ell - 1) * (ell + 2) * (ell * (ell + 1) + sigma)
+        drag = (4 * ell**3 + 6 * ell**2 - 1
+                + (2 * ell**3 + 3 * ell**2 - 5)
+                * (config.viscosity_in / config.viscosity_out - 1))
+        rates = rate_scale[:, None] * (stiffness * ell * (ell + 1) / drag)
+        retained = exposure_power_factor(config.exposure_time * rates).mean(axis=0)
+        predictions.append(float(np.sum(weights * retained / stiffness) / kC))
+    return predictions
 
 
 def Nlq_Plq0_squared(l: int, q: int) -> float:

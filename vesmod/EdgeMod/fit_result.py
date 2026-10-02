@@ -74,6 +74,7 @@ class EnsembleFit:
     weight_by_replica_sem: bool = False
     chisqr: float | None = None
     redchi: float | None = None
+    radii: tuple[float, ...] | None = None
 
     def to_dict(self) -> dict:
         """Return fitted values, weighting, diagnostics, and configuration."""
@@ -84,4 +85,5 @@ class EnsembleFit:
             "weight_by_replica_sem": self.weight_by_replica_sem,
             "chisqr": self.chisqr,
             "redchi": self.redchi,
+            "radii": None if self.radii is None else list(self.radii),
         }

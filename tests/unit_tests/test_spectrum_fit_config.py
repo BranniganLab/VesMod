@@ -44,6 +44,9 @@ def test_config_serializes_physical_fit_parameters():
         "temperature": 310.0,
         "lower_bound": 5,
         "upper_bound": 12,
+        "exposure_time": 0.0,
+        "viscosity_in": None,
+        "viscosity_out": None,
     }
 
 

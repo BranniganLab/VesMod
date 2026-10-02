@@ -214,6 +214,7 @@ class Spectrum:
             fitting_range,
             config.lmax,
             config.free_sigma,
+            **({"config": config, "radii": [self.r0]} if config.exposure_time > 0 else {}),
         )
         validate_lmfit_result(
             self.fit_result,

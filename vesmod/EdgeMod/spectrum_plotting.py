@@ -9,8 +9,6 @@ from typing import Any
 import matplotlib.pyplot as plt
 import numpy as np
 
-from .spectrum_utils import HSS97
-
 
 @dataclass(frozen=True)
 class SpectrumPlotData:
@@ -136,12 +134,7 @@ def plot_spectrum(
         if not np.any(selected):
             raise ValueError("fit bounds must select at least one positive mode.")
         predicted = np.asarray(
-            HSS97(
-                modes[selected],
-                data.fit_result.best_values["kC"],
-                data.fit_result.best_values["sigma"],
-                data.lmax,
-            )
+            data.fit_result.eval(q=modes[selected])
         )
         fit_artist = ax.loglog(
             modes[selected],
@@ -232,12 +225,7 @@ def save_spectrum_fit_diagnostic(data: SpectrumPlotData, path) -> None:
     modes, measured = _positive_spectrum(data.modes, data.avg_amps2)
     selected = _fit_mask(data, modes)
     predicted = np.asarray(
-        HSS97(
-            modes[selected],
-            data.fit_result.best_values["kC"],
-            data.fit_result.best_values["sigma"],
-            data.lmax,
-        )
+        data.fit_result.eval(q=modes[selected])
     )
     figure, axes = plt.subplots(1, 3, figsize=(15, 4.5), constrained_layout=True)
     plot_spectrum(

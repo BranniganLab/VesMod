@@ -19,6 +19,7 @@ def test_save_spectrum_fit_diagnostic_creates_png_for_rejected_fit(tmp_path):
     measured = np.asarray(HSS97(modes, kC=25.0, sigma=2.0, lmax=30))
     fit_result = SimpleNamespace(
         best_values={"kC": 25.0, "sigma": 2.0},
+        eval=lambda q: HSS97(q, kC=25.0, sigma=2.0, lmax=30),
         params={
             "kC": SimpleNamespace(value=25.0, stderr=30.0),
             "sigma": SimpleNamespace(value=2.0, stderr=4.0),
@@ -51,6 +52,7 @@ def test_plot_spectrum_uses_same_color_for_data_and_fit_and_accepts_axis():
     measured = np.asarray(HSS97(modes, kC=25.0, sigma=2.0, lmax=30))
     fit_result = SimpleNamespace(
         best_values={"kC": 25.0, "sigma": 2.0},
+        eval=lambda q: HSS97(q, kC=25.0, sigma=2.0, lmax=30),
         params={
             "kC": SimpleNamespace(value=25.0, stderr=None),
             "sigma": SimpleNamespace(value=2.0, stderr=None),

@@ -288,6 +288,7 @@ def test_ensemble_fit_serializes_reduced_sigma():
         "weight_by_replica_sem": False,
         "chisqr": None,
         "redchi": None,
+        "radii": None,
     }
 
 
