@@ -58,8 +58,20 @@ def test_real_lmfit_covariance_rejects_degenerate_spectrum():
 
 
 @pytest.mark.parametrize('free_sigma', [False, True])
-def test_large_residuals_do_not_reject_fit(free_sigma):
+def test_large_residuals_do_not_reject_fit(free_sigma, caplog):
     """Residual magnitude is not an acceptance criterion."""
     result, group = fit_with_correlation(.5)
     result.best_fit = np.zeros(5)  # Relative RMSE is 1, above the former 0.25 limit.
-    validate_lmfit_result(result, group, free_sigma=free_sigma)
+    with caplog.at_level("INFO", logger="vesmod.EdgeMod.spectrum_utils"):
+        validate_lmfit_result(result, group, free_sigma=free_sigma)
+    assert "Spectrum fit relative RMSE=1" in caplog.text
+
+
+@pytest.mark.parametrize('prediction, expected', [(0.0, 'nan'), (1.0, 'inf')])
+def test_zero_measured_power_logs_rmse_without_rejection(caplog, prediction, expected):
+    result, group = fit_with_correlation(.5)
+    group = group._replace(avg_amps2=np.zeros(5))
+    result.best_fit = np.full(5, prediction)
+    with caplog.at_level("INFO", logger="vesmod.EdgeMod.spectrum_utils"):
+        validate_lmfit_result(result, group, free_sigma=True)
+    assert f"Spectrum fit relative RMSE={expected}" in caplog.text
