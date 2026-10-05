@@ -213,7 +213,8 @@ class Spectrum:
             fitting_range,
             config.lmax,
             config.free_sigma,
-            **({"config": config, "radii": [self.r0]} if config.exposure_time > 0 else {}),
+            **({"config": config, "radii": [self.r0], "expected_replica_count": 1}
+               if config.exposure_time > 0 else {}),
         )
 
         fitted_kc = self.fit_result.best_values["kC"]
