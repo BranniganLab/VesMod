@@ -177,8 +177,9 @@ def test_isolate_mode_range_raises_error_when_no_modes_have_been_added():
         avg._isolate_mode_range(lower_bound=2, upper_bound=4)
 
 
-def test_extract_kC_from_fit_uses_isolated_mode_range(monkeypatch):
-    """Legacy fixed-sigma fitting receives the selected ensemble slice."""
+@pytest.mark.parametrize("free_sigma", [True, False])
+def test_extract_kC_from_fit_uses_isolated_mode_range(monkeypatch, free_sigma):
+    """The scalar helper passes the requested sigma option and ensemble slice."""
     from types import SimpleNamespace
 
     avg = SpectrumEnsemble()
@@ -192,11 +193,13 @@ def test_extract_kC_from_fit_uses_isolated_mode_range(monkeypatch):
 
     monkeypatch.setattr("vesmod.EdgeMod.spectrum_ensemble.fit_spectrum_lmfit", fake_fit)
 
-    result = avg._extract_kC_from_fit(lower_bound=2, upper_bound=4, lmax=700)
+    result = avg._extract_kC_from_fit(
+        lower_bound=2, upper_bound=4, lmax=700, free_sigma=free_sigma,
+    )
 
     assert result == 123.0
     assert calls["lmax"] == 700
-    assert calls["free_sigma"] is False
+    assert calls["free_sigma"] is free_sigma
     assert calls["weighted"] is False
     np.testing.assert_array_equal(calls["group"].modes, np.array([2, 3]))
     np.testing.assert_allclose(calls["group"].avg_amps2, np.array([30.0, 45.0]))
@@ -243,8 +246,9 @@ def test_extract_kc_from_fit_accepts_free_sigma_and_records_reduced_tension(monk
     np.testing.assert_array_equal(calls["group"].modes, np.array([2, 3]))
     np.testing.assert_allclose(calls["group"].avg_amps2_ste, np.array([10.0, 15.0]))
 
-def test_extract_kc_from_fit_defaults_to_legacy_fixed_sigma(monkeypatch):
-    """An omitted config preserves historical fixed-sigma unweighted fitting."""
+@pytest.mark.parametrize("entry_point", ["extract_kc_from_fit", "_extract_kC_from_fit", "kC"])
+def test_ensemble_fit_defaults_to_free_sigma(monkeypatch, entry_point):
+    """Every default ensemble entry point fits sigma freely."""
     from types import SimpleNamespace
 
     avg = SpectrumEnsemble()
@@ -252,18 +256,43 @@ def test_extract_kc_from_fit_defaults_to_legacy_fixed_sigma(monkeypatch):
     calls = {}
 
     def fake_fit(group, lmax, free_sigma, weighted=False):
-        calls["weighted"] = weighted
-        return SimpleNamespace(best_values={"kC": 123.0, "sigma": 0.0}, chisqr=1.0, redchi=1.0)
+        calls.update(free_sigma=free_sigma, weighted=weighted)
+        return SimpleNamespace(best_values={"kC": 123.0, "sigma": 4.5}, chisqr=1.0, redchi=1.0)
 
     monkeypatch.setattr("vesmod.EdgeMod.spectrum_ensemble.fit_spectrum_lmfit", fake_fit)
 
-    fit = avg.extract_kc_from_fit()
+    result = avg.kC if entry_point == "kC" else getattr(avg, entry_point)()
+    fit = avg.fit_results[-1]
 
+    assert result == (fit if entry_point == "extract_kc_from_fit" else fit.kC)
     assert fit.kC == 123.0
-    assert fit.reduced_sigma == 0.0
-    assert fit.config.free_sigma is False
+    assert fit.reduced_sigma == 4.5
+    assert fit.config.free_sigma is True
     assert fit.weight_by_replica_sem is False
+    assert calls["free_sigma"] is True
     assert calls["weighted"] is False
+
+
+@pytest.mark.parametrize("free_sigma", [True, False])
+def test_ensemble_fit_recovers_synthetic_spectrum(free_sigma):
+    """Default free and explicit fixed fits recover known HSS97 parameters."""
+    from vesmod.EdgeMod.spectrum_utils import HSS97
+
+    modes = np.arange(2, 10)
+    expected_kc = 25.0
+    expected_sigma = 15.0 if free_sigma else 0.0
+    amplitudes = np.asarray(HSS97(modes, expected_kc, expected_sigma, lmax=500))
+    avg = SpectrumEnsemble()
+    # Symmetric replica variation keeps the ensemble mean exactly theoretical.
+    for scale in (0.9, 1.1):
+        avg.add_spectrum(scale * amplitudes, modes, expected_kc)
+
+    fit = (avg.extract_kc_from_fit() if free_sigma else
+           avg.extract_kc_from_fit(SpectrumFitConfig(free_sigma=False)))
+
+    assert fit.config.free_sigma is free_sigma
+    assert fit.kC == pytest.approx(expected_kc, rel=1e-4)
+    assert fit.reduced_sigma == pytest.approx(expected_sigma, abs=1e-4)
 
 def test_extract_kc_from_fit_rejects_non_configuration_value():
     """The public fit API has the same configuration type contract as Spectrum."""

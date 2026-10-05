@@ -454,12 +454,14 @@ Corrected fits require reduced tension greater than -6 for stable spherical
 modes; the optimizer enforces this bound. `--fixed-sigma` still fixes tension
 to zero.
 
-For ensemble fits, supply the radius when adding **each** replica:
+Ensemble fits use free sigma by default. Supply
+`SpectrumFitConfig(free_sigma=False, ...)` to fix reduced tension to zero.
+For exposure-aware ensemble fits, supply the radius when adding **each** replica:
 
 ```python
 ensemble.add_spectrum(spectrum.avg_amps2, spectrum.modes, spectrum.kC, r0=spectrum.r0)
 fit = ensemble.extract_kc_from_fit(
-    SpectrumFitConfig(exposure_time=0.030, free_sigma=False,
+    SpectrumFitConfig(exposure_time=0.030,
                       viscosity_in=0.00102, viscosity_out=0.00097),
     weight_by_replica_sem=True,
 )

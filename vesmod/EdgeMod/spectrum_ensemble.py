@@ -69,7 +69,7 @@ class SpectrumEnsemble:
 
     @property
     def kC(self) -> float:
-        """Return kC from the legacy fixed-sigma fit of the averaged spectrum."""
+        """Return kC from a free-sigma fit of the averaged spectrum."""
         return self._extract_kC_from_fit()
 
     @property
@@ -144,13 +144,14 @@ class SpectrumEnsemble:
     ) -> EnsembleFit:
         """Fit the averaged spectrum using a physical fit configuration.
 
-        A free-sigma ensemble fit reports HSS97 reduced surface tension. When
-        no configuration is supplied, the historical fixed-sigma behavior is
-        retained. Set ``weight_by_replica_sem=True`` to weight each mode by the
-        inverse standard error across replicas.
+        Reduced surface tension is fitted as a free parameter by default and
+        reported in HSS97 dimensionless units. Supply a configuration with
+        ``free_sigma=False`` to fix it to zero. Set
+        ``weight_by_replica_sem=True`` to weight each mode by the inverse
+        standard error across replicas.
         """
         if config is None:
-            config = SpectrumFitConfig(free_sigma=False)
+            config = SpectrumFitConfig()
         if not isinstance(config, SpectrumFitConfig):
             raise TypeError("config must be a SpectrumFitConfig or None.")
         if not isinstance(weight_by_replica_sem, bool):
@@ -197,8 +198,10 @@ class SpectrumEnsemble:
         lower_bound: int = 3,
         upper_bound: int = 8,
         lmax: int = 500,
+        *,
+        free_sigma: bool = True,
     ) -> float:
-        """Fit a fixed q range of the averaged spectrum with sigma fixed to zero.
+        """Fit a fixed q range of the averaged spectrum with free sigma by default.
 
         Parameters
         ----------
@@ -208,18 +211,20 @@ class SpectrumEnsemble:
             Exclusive upper Fourier mode used in the ensemble fit.
         lmax : int, default=500
             Maximum summation index in the theoretical spectrum model.
+        free_sigma : bool, default=True
+            Whether reduced surface tension is fitted as a free parameter.
+            Set to False to fix it to zero.
 
         Returns
         -------
         float
-            Best-fitting bending modulus for the averaged spectrum with reduced
-            surface tension fixed to zero.
+            Best-fitting bending modulus for the averaged spectrum.
         """
         return self.extract_kc_from_fit(
             SpectrumFitConfig(
                 lower_bound=lower_bound,
                 upper_bound=upper_bound,
                 lmax=lmax,
-                free_sigma=False,
+                free_sigma=free_sigma,
             )
         ).kC

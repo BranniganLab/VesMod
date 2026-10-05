@@ -276,18 +276,20 @@ if selection.accepted:
 
 Both successful physical fits remain available in `spectrum.fit_results`. Each `SpectrumFit` records the actual q bounds used and the full core `SpectrumFitConfig`. Experimental selection diagnostics remain separate from the core `Spectrum`/`SpectrumFit` state.
 
-Fit a replica-averaged spectrum with the same configuration object. The legacy
-`.kC` property keeps its fixed-sigma behavior; use the explicit API when the
-ensemble fit should include free sigma:
+Fit a replica-averaged spectrum with the same configuration object. Ensemble
+fits use free sigma by default, including the `.kC` property:
 
 ```python
 from vesmod.EdgeMod import SpectrumEnsemble, SpectrumFitConfig
 
 ensemble = SpectrumEnsemble()
 # Add compatible replica spectra with ensemble.add_spectrum(...).
-ensemble_fit = ensemble.extract_kc_from_fit(SpectrumFitConfig(free_sigma=True))
+ensemble_fit = ensemble.extract_kc_from_fit()
 
 print(ensemble_fit.kC, ensemble_fit.reduced_sigma)
+
+# Optionally fix reduced surface tension to zero.
+fixed_sigma_fit = ensemble.extract_kc_from_fit(SpectrumFitConfig(free_sigma=False))
 ```
 
 `EnsembleFit.reduced_sigma` is dimensionless. An ensemble has no single radius,
