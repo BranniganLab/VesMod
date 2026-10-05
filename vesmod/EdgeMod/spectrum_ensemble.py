@@ -167,7 +167,8 @@ class SpectrumEnsemble:
                 radius is None for radius in self.radii_list
             ):
                 raise ValueError("Supply r0 for every replica to use camera integration.")
-            camera_kwargs = {"config": config, "radii": self.radii_list}
+            camera_kwargs = {"config": config, "radii": self.radii_list,
+                             "expected_replica_count": len(self.spectra_list)}
         fitting_range = self._isolate_mode_range(
             config.lower_bound,
             config.upper_bound,

@@ -32,11 +32,28 @@ def _log_relative_rmse(result, fitting_group):
 
 
 def fit_spectrum_lmfit(fitting_group, lmax, free_sigma=False, weighted=False,
-                       *, config=None, radii=None):
-    """Return the complete lmfit result for a theoretical spectrum fit."""
+                       *, config=None, radii=None, expected_replica_count=None):
+    """Return the complete lmfit result for a theoretical spectrum fit.
+
+    For camera integration, supply ``expected_replica_count`` when fitting
+    an averaged spectrum directly. This checks that there is one radius per
+    contributing replica; an averaged spectrum alone cannot reveal its count.
+    ``Spectrum`` and ``SpectrumEnsemble`` supply the count automatically.
+    """
     model_function = HSS97
     if config is not None and config.exposure_time > 0:
         radii = _validate_camera_radii(radii)
+        if expected_replica_count is not None:
+            if (isinstance(expected_replica_count, (bool, np.bool_))
+                    or not isinstance(expected_replica_count, (int, np.integer))
+                    or expected_replica_count < 1):
+                raise ValueError("expected_replica_count must be a positive integer.")
+            if radii.size != expected_replica_count:
+                raise ValueError(
+                    "Camera integration requires one radius per replica: "
+                    f"expected {expected_replica_count} radii, received {radii.size}. "
+                    "Supply each replica's radius, rather than a mean radius."
+                )
 
         def camera_model(q, kC, sigma, lmax):
             return HSS97_with_camera_integration_time(q, kC, sigma, lmax, config=config, radii=radii)

@@ -128,6 +128,39 @@ def test_camera_requires_radius_and_stable_modes():
         HSS97_with_camera_integration_time([3], 25, -6, 50, config=config, radii=[5])
 
 
+@pytest.mark.parametrize("radii", [[10], [5, 10, 15]])
+def test_camera_fit_rejects_wrong_replica_radius_count(radii):
+    config = SpectrumFitConfig(viscosity_in=.00102, viscosity_out=.00097,
+                               exposure_time=.030)
+    group = MiniSpectrum(np.arange(3, 8), np.ones(5), None)
+    with pytest.raises(ValueError, match="expected 2 radii, received"):
+        fit_spectrum_lmfit(group, 50, config=config, radii=radii,
+                          expected_replica_count=2)
+
+
+@pytest.mark.parametrize("radii", [[5], [5, 15]])
+def test_camera_fit_accepts_matching_replica_radius_count(radii):
+    config = SpectrumFitConfig(viscosity_in=.00102, viscosity_out=.00097,
+                               exposure_time=.030, lmax=50)
+    q = np.arange(3, 8)
+    power = HSS97_with_camera_integration_time(q, 25, 0, 50,
+                                              config=config, radii=radii)
+    result = fit_spectrum_lmfit(MiniSpectrum(q, np.array(power), None), 50,
+                               config=config, radii=radii,
+                               expected_replica_count=len(radii))
+    assert result.best_values["kC"] == pytest.approx(25, rel=1e-5)
+
+
+@pytest.mark.parametrize("count", [0, -1, True, 1.5])
+def test_camera_fit_rejects_invalid_expected_replica_count(count):
+    config = SpectrumFitConfig(viscosity_in=.00102, viscosity_out=.00097,
+                               exposure_time=.030)
+    group = MiniSpectrum(np.arange(3, 8), np.ones(5), None)
+    with pytest.raises(ValueError, match="positive integer"):
+        fit_spectrum_lmfit(group, 50, config=config, radii=[5],
+                          expected_replica_count=count)
+
+
 @pytest.mark.parametrize("kwargs", [{}, {"viscosity_in": .001}, {"viscosity_out": .001}])
 def test_exposure_requires_explicit_viscosities(kwargs):
     """Experiment-specific solvent values must be supplied by the caller."""
