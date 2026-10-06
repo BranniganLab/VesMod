@@ -183,11 +183,11 @@ def test_extract_kC_from_fit_uses_isolated_mode_range(monkeypatch, free_sigma):
     from types import SimpleNamespace
 
     avg = SpectrumEnsemble()
-    avg.add_spectrum([10.0, 20.0, 30.0, 40.0], [1, 2, 3, 4], 20.0)
-    avg.add_spectrum([20.0, 40.0, 60.0, 80.0], [1, 2, 3, 4], 22.0)
+    avg.add_spectrum([10.0, 20.0, 30.0, 40.0], [1, 2, 3, 4], 20.0, r0=5.0)
+    avg.add_spectrum([20.0, 40.0, 60.0, 80.0], [1, 2, 3, 4], 22.0, r0=5.0)
     calls = {}
 
-    def fake_fit(group, lmax, free_sigma, weighted=False):
+    def fake_fit(group, lmax, free_sigma, weighted=False, **kwargs):
         calls.update(group=group, lmax=lmax, free_sigma=free_sigma, weighted=weighted)
         return SimpleNamespace(best_values={"kC": 123.0, "sigma": 0.0}, chisqr=1.0, redchi=1.0)
 
@@ -219,12 +219,12 @@ def test_extract_kc_from_fit_accepts_free_sigma_and_records_reduced_tension(monk
     from types import SimpleNamespace
 
     avg = SpectrumEnsemble()
-    avg.add_spectrum([10.0, 20.0, 30.0, 40.0], [1, 2, 3, 4], 20.0)
-    avg.add_spectrum([20.0, 40.0, 60.0, 80.0], [1, 2, 3, 4], 22.0)
+    avg.add_spectrum([10.0, 20.0, 30.0, 40.0], [1, 2, 3, 4], 20.0, r0=5.0)
+    avg.add_spectrum([20.0, 40.0, 60.0, 80.0], [1, 2, 3, 4], 22.0, r0=5.0)
     config = SpectrumFitConfig(lmax=700, free_sigma=True, lower_bound=2, upper_bound=4)
     calls = {}
 
-    def fake_fit(group, lmax, free_sigma, weighted=False):
+    def fake_fit(group, lmax, free_sigma, weighted=False, **kwargs):
         calls.update(group=group, lmax=lmax, free_sigma=free_sigma, weighted=weighted)
         return SimpleNamespace(best_values={"kC": 123.0, "sigma": 4.5}, chisqr=2.5, redchi=2.5)
 
@@ -252,10 +252,10 @@ def test_ensemble_fit_defaults_to_free_sigma(monkeypatch, entry_point):
     from types import SimpleNamespace
 
     avg = SpectrumEnsemble()
-    avg.add_spectrum([10., 20., 30., 40., 50., 60., 70., 80.], range(1, 9), 20.)
+    avg.add_spectrum([10., 20., 30., 40., 50., 60., 70., 80.], range(1, 9), 20., r0=5.0)
     calls = {}
 
-    def fake_fit(group, lmax, free_sigma, weighted=False):
+    def fake_fit(group, lmax, free_sigma, weighted=False, **kwargs):
         calls.update(free_sigma=free_sigma, weighted=weighted)
         return SimpleNamespace(best_values={"kC": 123.0, "sigma": 4.5}, chisqr=1.0, redchi=1.0)
 
@@ -285,7 +285,7 @@ def test_ensemble_fit_recovers_synthetic_spectrum(free_sigma):
     avg = SpectrumEnsemble()
     # Symmetric replica variation keeps the ensemble mean exactly theoretical.
     for scale in (0.9, 1.1):
-        avg.add_spectrum(scale * amplitudes, modes, expected_kc)
+        avg.add_spectrum(scale * amplitudes, modes, expected_kc, r0=5.0)
 
     fit = (avg.extract_kc_from_fit() if free_sigma else
            avg.extract_kc_from_fit(SpectrumFitConfig(free_sigma=False)))
@@ -322,7 +322,7 @@ def test_ensemble_fit_serializes_reduced_sigma():
 def test_sem_weighting_requires_at_least_two_replicas():
     """SEM weighting rejects ensembles that cannot estimate between-replica SEM."""
     avg = SpectrumEnsemble()
-    avg.add_spectrum([1.0, 2.0, 3.0], [2, 3, 4], 20.0)
+    avg.add_spectrum([1.0, 2.0, 3.0], [2, 3, 4], 20.0, r0=5.0)
 
     with pytest.raises(ValueError, match="At least two replica spectra"):
         avg.extract_kc_from_fit(

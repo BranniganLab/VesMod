@@ -94,7 +94,7 @@ class SpectrumEnsemble:
             Fourier mode indices corresponding to ``avg_amps2``. The mode array
             must match all previously added spectra.
         r0 : float or None
-            Replica mean radius in microns, required for exposure-aware fits.
+            Replica mean radius in microns, required for every fit.
         kC : float
             Bending modulus determined independently for this replica.
 
@@ -161,14 +161,12 @@ class SpectrumEnsemble:
                 "At least two replica spectra are required for SEM-weighted fitting."
             )
 
-        camera_kwargs = {}
-        if config.exposure_time > 0:
-            if len(self.radii_list) != len(self.spectra_list) or any(
-                radius is None for radius in self.radii_list
-            ):
-                raise ValueError("Supply r0 for every replica to use camera integration.")
-            camera_kwargs = {"config": config, "radii": self.radii_list,
-                             "expected_replica_count": len(self.spectra_list)}
+        if len(self.radii_list) != len(self.spectra_list) or any(
+            radius is None for radius in self.radii_list
+        ):
+            raise ValueError("Supply r0 for every replica to set the reduced-tension bound.")
+        fit_kwargs = {"config": config, "radii": self.radii_list,
+                         "expected_replica_count": len(self.spectra_list)}
         fitting_range = self._isolate_mode_range(
             config.lower_bound,
             config.upper_bound,
@@ -178,7 +176,7 @@ class SpectrumEnsemble:
             config.lmax,
             free_sigma=config.free_sigma,
             weighted=weight_by_replica_sem,
-            **camera_kwargs,
+            **fit_kwargs,
         )
         kC = result.best_values["kC"]
         reduced_sigma = result.best_values["sigma"]
@@ -187,7 +185,7 @@ class SpectrumEnsemble:
             reduced_sigma=float(reduced_sigma),
             config=config,
             weight_by_replica_sem=weight_by_replica_sem,
-            radii=tuple(self.radii_list) if config.exposure_time > 0 else None,
+            radii=tuple(self.radii_list),
             chisqr=float(result.chisqr),
             redchi=(float(result.redchi) if getattr(result, "nfree", 1) > 0 else None),
         )

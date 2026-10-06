@@ -35,33 +35,38 @@ def fit_spectrum_lmfit(fitting_group, lmax, free_sigma=False, weighted=False,
                        *, config=None, radii=None, expected_replica_count=None):
     """Return the complete lmfit result for a theoretical spectrum fit.
 
-    For camera integration, supply ``expected_replica_count`` when fitting
+    Radii in microns are required for every fit. The reduced-tension upper
+    bound is 100 * min(radii)**2, enforcing the per-replica bound for a shared
+    ensemble reduced tension.
+
+    Supply ``expected_replica_count`` when fitting
     an averaged spectrum directly. This checks that there is one radius per
     contributing replica; an averaged spectrum alone cannot reveal its count.
     ``Spectrum`` and ``SpectrumEnsemble`` supply the count automatically.
     """
+    radii = _validate_camera_radii(radii)
+    sigma_max = 100 * float(np.min(radii))**2
     model_function = HSS97
-    if config is not None and config.exposure_time > 0:
-        radii = _validate_camera_radii(radii)
-        if expected_replica_count is not None:
-            if (isinstance(expected_replica_count, (bool, np.bool_))
-                    or not isinstance(expected_replica_count, (int, np.integer))
-                    or expected_replica_count < 1):
-                raise ValueError("expected_replica_count must be a positive integer.")
-            if radii.size != expected_replica_count:
-                raise ValueError(
-                    "Camera integration requires one radius per replica: "
-                    f"expected {expected_replica_count} radii, received {radii.size}. "
-                    "Supply each replica's radius, rather than a mean radius."
-                )
+    if expected_replica_count is not None:
+        if (isinstance(expected_replica_count, (bool, np.bool_))
+                or not isinstance(expected_replica_count, (int, np.integer))
+                or expected_replica_count < 1):
+            raise ValueError("expected_replica_count must be a positive integer.")
+        if radii.size != expected_replica_count:
+            raise ValueError(
+                "Spectrum fitting requires one radius per replica: "
+                f"expected {expected_replica_count} radii, received {radii.size}. "
+                "Supply each replica's radius, rather than a mean radius."
+            )
 
+    if config is not None and config.exposure_time > 0:
         def camera_model(q, kC, sigma, lmax):
             return HSS97_with_camera_integration_time(q, kC, sigma, lmax, config=config, radii=radii)
 
         model_function = camera_model
 
     model = Model(model_function)
-    pars = model.make_params(kC={'value': 15, 'min': 1, 'max': 500, 'vary': True}, sigma={'value': 0, 'min': -100, 'max': 1000, 'vary': free_sigma}, lmax={'value': lmax, 'vary': False})
+    pars = model.make_params(kC={'value': 15, 'min': 1, 'max': 500, 'vary': True}, sigma={'value': 0, 'min': -100, 'max': sigma_max, 'vary': free_sigma}, lmax={'value': lmax, 'vary': False})
 
     if config is not None and config.exposure_time > 0:
         # All spherical modes must be stable, including l=2 even if q=2
@@ -89,7 +94,7 @@ def fit_spectrum_lmfit(fitting_group, lmax, free_sigma=False, weighted=False,
     return result
 
 
-def fit_spectrum_to_theory_lmfit(fitting_group, lmax, free_sigma=False, weighted=False):
+def fit_spectrum_to_theory_lmfit(fitting_group, lmax, free_sigma=False, weighted=False, *, radii):
     """
     Fit a Mini_spectrum to the theory from Hackl, Seifert, and Sachmann 1997 \
     using lmfit.
@@ -116,6 +121,7 @@ def fit_spectrum_to_theory_lmfit(fitting_group, lmax, free_sigma=False, weighted
         lmax,
         free_sigma,
         weighted,
+        radii=radii,
     )
     return result.best_values['kC'], result.best_values['sigma']
 
@@ -223,12 +229,12 @@ def exposure_power_factor(x):
 
 
 def _validate_camera_radii(radii):
-    """Require one positive radius in microns for each modeled replica."""
+    """Require positive radii in microns for fitting and camera averaging."""
     if radii is None:
-        raise ValueError("Vesicle radii are required for camera integration fitting.")
+        raise ValueError("Vesicle radii are required for spectrum fitting.")
     radii = np.atleast_1d(np.asarray(radii, dtype=float))
     if radii.ndim != 1 or radii.size == 0 or np.any(~np.isfinite(radii)) or np.any(radii <= 0):
-        raise ValueError("Camera integration radii must be finite and positive.")
+        raise ValueError("Spectrum fitting radii must be finite and positive.")
     return radii.copy()
 
 

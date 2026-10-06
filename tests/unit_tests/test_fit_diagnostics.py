@@ -54,10 +54,10 @@ def test_fit_estimates_are_retained(monkeypatch, caplog, entry_point, condition)
 
     with caplog.at_level("INFO", logger="vesmod.EdgeMod.spectrum_utils"):
         if entry_point == "direct":
-            assert fit_spectrum_lmfit(group, 50, free_sigma=True) is result
+            assert fit_spectrum_lmfit(group, 50, free_sigma=True, radii=[5.0]) is result
             kc = result.best_values["kC"]
         elif entry_point == "tuple":
-            kc, sigma = fit_spectrum_to_theory_lmfit(group, 50, free_sigma=True)
+            kc, sigma = fit_spectrum_to_theory_lmfit(group, 50, free_sigma=True, radii=[5.0])
             assert sigma == params["sigma"].value
         elif entry_point == "spectrum":
             spectrum = Spectrum.from_radii(np.full((2, 32), 5.0))
@@ -68,7 +68,7 @@ def test_fit_estimates_are_retained(monkeypatch, caplog, entry_point, condition)
             kc = fit.kC
         else:
             ensemble = SpectrumEnsemble()
-            ensemble.add_spectrum(group.avg_amps2, group.modes, 5.0)
+            ensemble.add_spectrum(group.avg_amps2, group.modes, 5.0, r0=5.0)
             fit = ensemble.extract_kc_from_fit(config)
             assert ensemble.fit_results == [fit]
             assert fit.reduced_sigma == params["sigma"].value
@@ -81,7 +81,7 @@ def test_real_lmfit_retains_strongly_correlated_estimates():
     """An exact HSS97 spectrum remains fit-able despite parameter tradeoff."""
     modes = np.arange(3, 8)
     group = MiniSpectrum(modes, HSS97(modes, 25, 100, 50), None)
-    kc, sigma = fit_spectrum_to_theory_lmfit(group, 50, free_sigma=True)
+    kc, sigma = fit_spectrum_to_theory_lmfit(group, 50, free_sigma=True, radii=[5.0])
     assert kc == pytest.approx(25, rel=1e-4)
     assert sigma == pytest.approx(100, rel=1e-4)
 
@@ -94,7 +94,7 @@ def test_zero_measured_power_logs_rmse(caplog, monkeypatch, prediction, expected
     monkeypatch.setattr("vesmod.EdgeMod.spectrum_utils.Model.fit",
                         lambda *args, **kwargs: result)
     with caplog.at_level("INFO", logger="vesmod.EdgeMod.spectrum_utils"):
-        assert fit_spectrum_lmfit(group, 50) is result
+        assert fit_spectrum_lmfit(group, 50, radii=[5.0]) is result
     assert f"Spectrum fit relative RMSE={expected}" in caplog.text
 
 
@@ -106,4 +106,4 @@ def test_optimizer_exceptions_still_propagate(monkeypatch):
     monkeypatch.setattr("vesmod.EdgeMod.spectrum_utils.Model.fit", fail)
     group = MiniSpectrum(np.arange(3, 8), np.ones(5), None)
     with pytest.raises(ValueError, match="optimizer failed to evaluate model"):
-        fit_spectrum_lmfit(group, 50)
+        fit_spectrum_lmfit(group, 50, radii=[5.0])

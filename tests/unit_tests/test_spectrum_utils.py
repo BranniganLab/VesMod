@@ -155,7 +155,7 @@ def test_fit_spectrum_to_theory_lmfit_recovers_synthetic_kc_when_sigma_is_fixed(
     avg_amps2 = np.array(HSS97(modes, kC=true_kc, sigma=0.0, lmax=lmax))
     fitting_group = MiniSpectrum(modes, avg_amps2, None)
 
-    kc, sigma = fit_spectrum_to_theory_lmfit(fitting_group, lmax=lmax, free_sigma=False)
+    kc, sigma = fit_spectrum_to_theory_lmfit(fitting_group, lmax=lmax, free_sigma=False, radii=[5.0])
 
     assert kc == pytest.approx(true_kc, rel=1e-3)
     assert sigma == pytest.approx(0.0, abs=1e-10)
@@ -176,7 +176,7 @@ def test_weighted_fit_passes_inverse_sem_to_lmfit(monkeypatch):
         np.array([0.01, 0.04]),
     )
 
-    fit_spectrum_lmfit(spectrum, lmax=20, weighted=True)
+    fit_spectrum_lmfit(spectrum, lmax=20, weighted=True, radii=[5.0])
 
     np.testing.assert_allclose(calls["weights"], np.array([100.0, 25.0]))
 
@@ -194,4 +194,4 @@ def test_weighted_fit_rejects_missing_or_invalid_sem(monkeypatch, sem):
     spectrum = MiniSpectrum(np.array([3, 4]), np.array([0.1, 0.2]), sem)
 
     with pytest.raises(ValueError, match="Replica SEM"):
-        fit_spectrum_lmfit(spectrum, lmax=20, weighted=True)
+        fit_spectrum_lmfit(spectrum, lmax=20, weighted=True, radii=[5.0])

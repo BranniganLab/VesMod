@@ -469,7 +469,7 @@ fit = ensemble.extract_kc_from_fit(
 
 The ensemble model averages predictions at the individual radii with shared
 kC and reduced tension, using the same equal replica weights as the measured
-mean. Missing radii raise an error when exposure averaging is enabled. Exposure,
+mean. Missing radii raise an error for every fit. Exposure,
 viscosities, and temperature are retained in fit configuration; corrected
 ensemble records also retain the replica radii.
 
@@ -590,3 +590,22 @@ replica keeps its own radius. Because `chi_s = eta_m/(R*eta)`, this means the
 implied dimensional membrane viscosity varies with radius. To assume a shared
 eta_m across vesicles, calculate radius-specific chi_s and fit individually;
 the ensemble option does not currently accept per-replica chi_s.
+
+### Radius-dependent reduced-tension bound
+
+Every fit now uses `sigma_reduced <= 100 * R0**2`, with `R0` in **microns**.
+For a single vesicle, `R0` is its mean radius. This applies with and without
+camera averaging, for both relaxation models and both fixed/free sigma fits.
+Direct fitting helpers require `radii`; ensembles require `r0` when adding
+**every** replica, even without camera averaging. The example for combining
+replicas reads this value from each spectrum's saved metadata.
+
+Ensembles fit one shared reduced tension, so their upper bound is
+`100 * min(replica_radii)**2`. This is the intersection of the individual
+allowable ranges: a mean-radius bound would permit the smallest vesicle to
+exceed its own limit. Replica radii are retained in ensemble fit metadata.
+
+Since physical tension is `sigma_reduced * kC * k_B*T / R0_meters**2`,
+the proposed rule limits `physical_tension/kappa` to `100 / micron**2`
+(equivalently `1e14 / meter**2`). It is not a fixed physical tension cap:
+the allowed tension still depends on the fitted bending modulus.
