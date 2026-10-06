@@ -601,9 +601,9 @@ Direct fitting helpers require `radii`; ensembles require `r0` when adding
 replicas reads this value from each spectrum's saved metadata.
 
 Ensembles fit one shared reduced tension, so their upper bound is
-`100 * min(replica_radii)**2`. This is the intersection of the individual
-allowable ranges: a mean-radius bound would permit the smallest vesicle to
-exceed its own limit. Replica radii are retained in ensemble fit metadata.
+`100 * mean(replica_radii)**2`, using the arithmetic mean of the replica
+mean radii, then squaring it. Replica radii are retained in ensemble fit
+metadata.
 
 Since physical tension is `sigma_reduced * kC * k_B*T / R0_meters**2`,
 the proposed rule limits `physical_tension/kappa` to `100 / micron**2`

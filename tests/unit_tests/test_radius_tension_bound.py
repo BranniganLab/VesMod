@@ -29,7 +29,7 @@ def test_public_single_and_ensemble_bounds(monkeypatch, exposure, chi, free_sigm
         spectrum.extract_kc_from_fit(config)
         ensemble.add_spectrum(spectrum.avg_amps2, spectrum.modes, 25, r0=radius)
     fit = ensemble.extract_kc_from_fit(config)
-    assert captured == [4900, 400, 2500, 400]
+    assert captured == pytest.approx([4900, 400, 2500, 100 * (14 / 3)**2])
     assert fit.to_dict()['radii'] == [7, 2, 5]
 
 

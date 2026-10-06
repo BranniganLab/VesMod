@@ -36,8 +36,8 @@ def fit_spectrum_lmfit(fitting_group, lmax, free_sigma=False, weighted=False,
     """Return the complete lmfit result for a theoretical spectrum fit.
 
     Radii in microns are required for every fit. The reduced-tension upper
-    bound is 100 * min(radii)**2, enforcing the per-replica bound for a shared
-    ensemble reduced tension.
+    bound is 100 * mean(radii)**2. For ensembles, the arithmetic mean of
+    the replica mean radii sets the bound on shared reduced tension.
 
     Supply ``expected_replica_count`` when fitting
     an averaged spectrum directly. This checks that there is one radius per
@@ -45,7 +45,7 @@ def fit_spectrum_lmfit(fitting_group, lmax, free_sigma=False, weighted=False,
     ``Spectrum`` and ``SpectrumEnsemble`` supply the count automatically.
     """
     radii = _validate_camera_radii(radii)
-    sigma_max = 100 * float(np.min(radii))**2
+    sigma_max = 100 * float(np.mean(radii))**2
     model_function = HSS97
     if expected_replica_count is not None:
         if (isinstance(expected_replica_count, (bool, np.bool_))
