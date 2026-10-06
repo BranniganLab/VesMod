@@ -229,3 +229,78 @@ def test_implemented_relaxation_matches_full_tau_expression(
             implemented_tau, tau_seconds, rtol=5e-15, atol=0,
             err_msg="Factored implementation differs from full spherical relaxation time",
         )
+
+
+@pytest.mark.parametrize('chi', [0.0, 0.8, 8.0, 150.0])
+def test_faizi2024_rates_match_equation_one(monkeypatch, chi):
+    """Check all l=2..500 and SI units against the full published equation."""
+    import vesmod.EdgeMod.spectrum_utils as utils
+    config = SpectrumFitConfig(exposure_time=.030, viscosity_out=.001, chi_s=chi)
+    captured = []
+    original = utils.exposure_power_factor
+
+    def capture(x):
+        captured.append(x.copy())
+        return original(x)
+
+    monkeypatch.setattr(utils, 'exposure_power_factor', capture)
+    utils.HSS97_with_camera_integration_time([2, 3], 25, 4, 500,
+                                             config=config, radii=[2, 5, 15])
+    for q, x in zip([2, 3], captured):
+        ell = np.arange(q, 501, 2, dtype=float)[None, :]
+        radius = np.array([2, 5, 15])[:, None] * 1e-6
+        expected = (25 * Boltzmann * 295 / (.001 * radius**3)
+                    * (ell - 1) * ell * (ell + 1) * (ell + 2)
+                    * (ell * (ell + 1) + 4)
+                    / (4 * ell**3 + 6 * ell**2 - 1
+                       + (4 * ell**2 + 4 * ell - 8) * chi))
+        np.testing.assert_allclose(x / .030, expected, rtol=1e-14)
+
+
+def test_chi_zero_limit_and_membrane_drag():
+    config = SpectrumFitConfig(exposure_time=.030, viscosity_out=.001, viscosity_in=.001)
+    predict = lambda c: np.array(HSS97_with_camera_integration_time(
+        [3, 5, 7], 25, 4, 50, config=c, radii=[5, 15]))
+    solvent = predict(config)
+    np.testing.assert_array_equal(solvent, predict(replace(config, chi_s=0)))
+    viscous = predict(replace(config, chi_s=8))
+    assert np.all(viscous > solvent)
+    assert np.all(viscous < HSS97([3, 5, 7], 25, 4, 50))
+    no_exposure = replace(config, exposure_time=0, chi_s=8)
+    assert HSS97_with_camera_integration_time([3], 25, 4, 50,
+        config=no_exposure, radii=None) == HSS97([3], 25, 4, 50)
+
+
+@pytest.mark.parametrize('chi', [-1, np.nan, np.inf, True])
+def test_invalid_chi(chi):
+    with pytest.raises((TypeError, ValueError)):
+        SpectrumFitConfig(chi_s=chi)
+
+
+def test_chi_solvent_requirements():
+    with pytest.raises(ValueError, match='viscosity_out is required'):
+        SpectrumFitConfig(exposure_time=.030, chi_s=8)
+    with pytest.raises(ValueError, match='equal solvent viscosities'):
+        SpectrumFitConfig(exposure_time=.030, chi_s=8,
+                          viscosity_in=.00102, viscosity_out=.00097)
+
+
+def test_chi_cli_and_synthetic_ensemble_fit(monkeypatch):
+    from vesmod.cli.edgemod_cli import parse_args, build_fit_config
+    monkeypatch.setattr('sys.argv', ['edgemod', 'contours.npy', '--exposure-time', '.030',
+                                   '--viscosity-out', '.001', '--chi-s', '8', '--lmax', '50'])
+    config = build_fit_config(parse_args())
+    assert config.chi_s == 8
+    assert config.to_dict()['chi_s'] == 8
+    ensemble = SpectrumEnsemble()
+    for radius in [5, 15]:
+        spectrum = Spectrum.from_radii(np.full((2, 32), radius, dtype=float))
+        spectrum.avg_amps2[3:8] = HSS97_with_camera_integration_time(
+            range(3, 8), 25, 4, 50, config=config, radii=[radius])
+        fit = spectrum.extract_kc_from_fit(config)
+        assert fit.kC == pytest.approx(25, rel=1e-5)
+        assert fit.surface_tension == pytest.approx(4 * 25 * Boltzmann * 295 / (radius * 1e-6)**2, rel=1e-5)
+        ensemble.add_spectrum(spectrum.avg_amps2, spectrum.modes, fit.kC, r0=radius)
+    fit = ensemble.extract_kc_from_fit(config)
+    assert fit.kC == pytest.approx(25, rel=1e-5)
+    assert fit.to_dict()['config']['chi_s'] == 8

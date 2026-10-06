@@ -47,7 +47,15 @@ class SpectrumFitConfig:
         Camera integration time in seconds. Zero disables exposure averaging.
     viscosity_in, viscosity_out : float
         Interior and exterior dynamic viscosities in Pa s. Both must be
-        supplied explicitly when exposure_time is nonzero.
+        supplied explicitly when exposure_time is nonzero and chi_s is None.
+        With chi_s supplied, viscosity_out is the common solvent viscosity;
+        viscosity_in may be omitted or must equal viscosity_out.
+    chi_s : float or None, default=None
+        Supplying a finite nonnegative dimensionless value selects Faizi et
+        al. (2024), Eq. 1, with membrane viscosity chi_s = eta_m/(R eta).
+        This is a fixed input, not a fitted parameter. None retains the
+        solvent-only rate with unequal solvent viscosities. In an ensemble,
+        the supplied chi_s is shared by all replicas, not eta_m.
     """
 
     lmax: int = 500
@@ -58,6 +66,7 @@ class SpectrumFitConfig:
     exposure_time: float = 0.0
     viscosity_in: float | None = None
     viscosity_out: float | None = None
+    chi_s: float | None = None
 
     def __post_init__(self) -> None:
         """Validate physical-fit parameters and establish config invariants."""
@@ -67,7 +76,15 @@ class SpectrumFitConfig:
                 object.__setattr__(self, name, require_positive_real(value, name))
         object.__setattr__(self, "exposure_time",
                            require_nonnegative_real(self.exposure_time, "exposure_time"))
-        if self.exposure_time > 0 and (self.viscosity_in is None or self.viscosity_out is None):
+        if self.chi_s is not None:
+            object.__setattr__(self, "chi_s", require_nonnegative_real(self.chi_s, "chi_s"))
+            if (self.viscosity_in is not None and self.viscosity_out is not None
+                    and self.viscosity_in != self.viscosity_out):
+                raise ValueError("Faizi 2024 Eq. 1 requires equal solvent viscosities; "
+                                 "omit viscosity_in or set it equal to viscosity_out.")
+            if self.exposure_time > 0 and self.viscosity_out is None:
+                raise ValueError("viscosity_out is required with nonzero exposure_time and chi_s.")
+        elif self.exposure_time > 0 and (self.viscosity_in is None or self.viscosity_out is None):
             raise ValueError("viscosity_in and viscosity_out are required with nonzero exposure_time.")
         lower_bound = require_integer(self.lower_bound, "lower_bound")
         upper_bound = require_integer(self.upper_bound, "upper_bound")
@@ -113,4 +130,5 @@ class SpectrumFitConfig:
             "exposure_time": self.exposure_time,
             "viscosity_in": self.viscosity_in,
             "viscosity_out": self.viscosity_out,
+            "chi_s": self.chi_s,
         }
