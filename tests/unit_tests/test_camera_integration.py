@@ -231,11 +231,11 @@ def test_implemented_relaxation_matches_full_tau_expression(
         )
 
 
-@pytest.mark.parametrize('chi', [0.0, 0.8, 8.0, 150.0])
-def test_faizi2024_rates_match_equation_one(monkeypatch, chi):
+@pytest.mark.parametrize('eta_m', [0.0, 4.1e-9, 8e-8, 1.5e-6])
+def test_faizi2024_rates_match_equation_one(monkeypatch, eta_m):
     """Check all l=2..500 and SI units against the full published equation."""
     import vesmod.EdgeMod.spectrum_utils as utils
-    config = SpectrumFitConfig(exposure_time=.030, viscosity_out=.001, chi_s=chi)
+    config = SpectrumFitConfig(exposure_time=.030, viscosity_out=.001, eta_m=eta_m)
     captured = []
     original = utils.exposure_power_factor
 
@@ -253,7 +253,7 @@ def test_faizi2024_rates_match_equation_one(monkeypatch, chi):
                     * (ell - 1) * ell * (ell + 1) * (ell + 2)
                     * (ell * (ell + 1) + 4)
                     / (4 * ell**3 + 6 * ell**2 - 1
-                       + (4 * ell**2 + 4 * ell - 8) * chi))
+                       + (4 * ell**2 + 4 * ell - 8) * (eta_m / (radius * .001))))
         np.testing.assert_allclose(x / .030, expected, rtol=1e-14)
 
 
@@ -262,36 +262,36 @@ def test_chi_zero_limit_and_membrane_drag():
     predict = lambda c: np.array(HSS97_with_camera_integration_time(
         [3, 5, 7], 25, 4, 50, config=c, radii=[5, 15]))
     solvent = predict(config)
-    np.testing.assert_array_equal(solvent, predict(replace(config, chi_s=0)))
-    viscous = predict(replace(config, chi_s=8))
+    np.testing.assert_array_equal(solvent, predict(replace(config, eta_m=0)))
+    viscous = predict(replace(config, eta_m=4.1e-9))
     assert np.all(viscous > solvent)
     assert np.all(viscous < HSS97([3, 5, 7], 25, 4, 50))
-    no_exposure = replace(config, exposure_time=0, chi_s=8)
+    no_exposure = replace(config, exposure_time=0, eta_m=4.1e-9)
     assert HSS97_with_camera_integration_time([3], 25, 4, 50,
         config=no_exposure, radii=None) == HSS97([3], 25, 4, 50)
 
 
 @pytest.mark.parametrize('chi', [-1, np.nan, np.inf, True])
-def test_invalid_chi(chi):
+def test_invalid_eta_m(chi):
     with pytest.raises((TypeError, ValueError)):
-        SpectrumFitConfig(chi_s=chi)
+        SpectrumFitConfig(eta_m=chi)
 
 
-def test_chi_solvent_requirements():
+def test_eta_m_solvent_requirements():
     with pytest.raises(ValueError, match='viscosity_out is required'):
-        SpectrumFitConfig(exposure_time=.030, chi_s=8)
+        SpectrumFitConfig(exposure_time=.030, eta_m=4.1e-9)
     with pytest.raises(ValueError, match='equal solvent viscosities'):
-        SpectrumFitConfig(exposure_time=.030, chi_s=8,
+        SpectrumFitConfig(exposure_time=.030, eta_m=4.1e-9,
                           viscosity_in=.00102, viscosity_out=.00097)
 
 
-def test_chi_cli_and_synthetic_ensemble_fit(monkeypatch):
+def test_eta_m_cli_and_synthetic_ensemble_fit(monkeypatch):
     from vesmod.cli.edgemod_cli import parse_args, build_fit_config
     monkeypatch.setattr('sys.argv', ['edgemod', 'contours.npy', '--exposure-time', '.030',
-                                   '--viscosity-out', '.001', '--chi-s', '8', '--lmax', '50'])
+                                   '--viscosity-out', '.001', '--eta-m', '4.1e-9', '--lmax', '50'])
     config = build_fit_config(parse_args())
-    assert config.chi_s == 8
-    assert config.to_dict()['chi_s'] == 8
+    assert config.eta_m == 4.1e-9
+    assert config.to_dict()['eta_m'] == 4.1e-9
     ensemble = SpectrumEnsemble()
     for radius in [5, 15]:
         spectrum = Spectrum.from_radii(np.full((2, 32), radius, dtype=float))
@@ -303,4 +303,14 @@ def test_chi_cli_and_synthetic_ensemble_fit(monkeypatch):
         ensemble.add_spectrum(spectrum.avg_amps2, spectrum.modes, fit.kC, r0=radius)
     fit = ensemble.extract_kc_from_fit(config)
     assert fit.kC == pytest.approx(25, rel=1e-5)
-    assert fit.to_dict()['config']['chi_s'] == 8
+    assert fit.to_dict()['config']['eta_m'] == 4.1e-9
+
+
+def test_membrane_viscosity_ensemble_averages_individual_radii():
+    config = SpectrumFitConfig(exposure_time=.030, viscosity_out=.001, eta_m=4.1e-9)
+    q = [3, 5, 7]
+    individual = [HSS97_with_camera_integration_time(q, 25, 4, 50,
+                  config=config, radii=[r]) for r in [2, 5, 15]]
+    combined = HSS97_with_camera_integration_time(q, 25, 4, 50,
+                                                config=config, radii=[2, 5, 15])
+    np.testing.assert_allclose(combined, np.mean(individual, axis=0), rtol=1e-14)

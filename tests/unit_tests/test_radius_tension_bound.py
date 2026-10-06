@@ -8,7 +8,7 @@ from vesmod.EdgeMod import Spectrum, SpectrumEnsemble, SpectrumFitConfig
 from vesmod.EdgeMod.spectrum_utils import MiniSpectrum, fit_spectrum_lmfit
 
 
-@pytest.mark.parametrize('exposure,chi', [(0, None), (.030, None), (.030, 8)])
+@pytest.mark.parametrize('exposure,chi', [(0, None), (.030, None), (.030, 4.1e-9)])
 @pytest.mark.parametrize('free_sigma', [False, True])
 def test_public_single_and_ensemble_bounds(monkeypatch, exposure, chi, free_sigma):
     captured = []
@@ -21,7 +21,7 @@ def test_public_single_and_ensemble_bounds(monkeypatch, exposure, chi, free_sigm
 
     monkeypatch.setattr('vesmod.EdgeMod.spectrum_utils.Model.fit', capture)
     config = SpectrumFitConfig(lmax=20, free_sigma=free_sigma,
-                               exposure_time=exposure, chi_s=chi,
+                               exposure_time=exposure, eta_m=chi,
                                viscosity_in=.001, viscosity_out=.001)
     ensemble = SpectrumEnsemble()
     for radius in [7.0, 2.0, 5.0]:

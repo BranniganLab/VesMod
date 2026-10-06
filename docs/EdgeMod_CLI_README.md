@@ -548,48 +548,41 @@ selection still apply.
 
 ### Membrane viscosity in camera averaging (Faizi 2024)
 
-Supply `--chi-s` to select Equation 1 of
+Supply `--eta-m` to select Equation 1 of
 [Faizi, Granek, and Vlahovska (2024)](https://www.pnas.org/doi/10.1073/pnas.2413557121):
 
 ```bash
-edgemod contours.npy --exposure-time 0.030 --viscosity-out 0.001 --chi-s 8
+edgemod contours.npy --exposure-time 0.030 --viscosity-out 0.001 --eta-m 4.1e-9
 ```
 
 The Python equivalent is
-`SpectrumFitConfig(exposure_time=0.030, viscosity_out=0.001, chi_s=8)`.
-`chi_s` is a fixed, finite, nonnegative dimensionless input, not a fit parameter
-or the fit's chi-squared statistic. It is saved with the fit configuration.
-Omitting it retains the existing solvent-only rate with separate inside/outside
-viscosities. Supplying zero selects the paper's nonviscous-membrane limit.
+`SpectrumFitConfig(exposure_time=0.030, viscosity_out=0.001, eta_m=4.1e-9)`.
+`eta_m` is a fixed, finite, nonnegative membrane surface viscosity in **Pa s m**,
+not a fitted parameter. It is saved with the fit configuration. Omitting it
+retains the solvent-only rate; supplying zero selects the nonviscous limit.
+
+Each replica uses `chi_s = eta_m/(R0_meters*viscosity_out)`. Thus ensembles
+share the dimensional membrane viscosity while using each replica's own radius
+and chi_s in the exposure correction. The mean radius is used only for the
+ensemble reduced-tension upper bound, not the relaxation rates.
 
 Both rates have the numerator
 `kappa/(eta_out R^3) * (l-1) l (l+1) (l+2) * (l(l+1)+sigma_reduced)`.
-The existing denominator is
+The solvent-only denominator is
 `4l^3+6l^2-1 + (2l^3+3l^2-5)*(eta_in/eta_out-1)`;
 Equation 1 uses
 `4l^3+6l^2-1 + (4l^2+4l-8)*chi_s`.
-The latter uses one common solvent viscosity: `viscosity_out` supplies eta,
-and `viscosity_in` must be omitted or equal to it. Unequal viscosities are
-rejected rather than silently discarded or combined into an unrequested model.
-For example, the experimental pair 0.00102 and 0.00097 Pa s cannot both be
-used in the exact Equation 1 option; choose and explicitly supply a common eta.
+Equation 1 uses one common solvent viscosity: `viscosity_out` supplies eta,
+and `viscosity_in` must be omitted or equal to it.
 
 Here `kappa = kC*k_B*T`, radii are converted from microns to meters, and rates
-are in inverse seconds. The reduced tension matches the existing fitted sigma.
-Positive chi_s slows relaxation, retains more power during camera exposure,
-and leaves the zero-exposure equilibrium spectrum unchanged.
+are in inverse seconds. Positive eta_m slows relaxation and retains more power
+during camera exposure. The zero-exposure equilibrium spectrum is unchanged.
 
-The paper infers viscosity from contour autocorrelations. EdgeMod instead uses
-its predicted spherical-mode rates in the existing exposure integral:
-each spherical l contribution is multiplied by
-`B(t_exp*omega_l) = 2*(x-1+exp(-x))/x^2` before projection onto contour q.
-It does not treat an entire contour q mode as a single exponential.
-
-For ensembles, the same supplied chi_s is used for every replica, while each
-replica keeps its own radius. Because `chi_s = eta_m/(R*eta)`, this means the
-implied dimensional membrane viscosity varies with radius. To assume a shared
-eta_m across vesicles, calculate radius-specific chi_s and fit individually;
-the ensemble option does not currently accept per-replica chi_s.
+The paper infers viscosity from contour autocorrelations. EdgeMod uses its
+predicted spherical-mode rates in the exposure integral: each spherical l
+contribution is multiplied by `B(t_exp*omega_l)` before projection onto contour
+q, rather than treating the entire contour mode as a single exponential.
 
 ### Radius-dependent reduced-tension bound
 

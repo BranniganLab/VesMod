@@ -47,7 +47,7 @@ def test_config_serializes_physical_fit_parameters():
         "exposure_time": 0.0,
         "viscosity_in": None,
         "viscosity_out": None,
-        "chi_s": None,
+        "eta_m": None,
     }
 
 

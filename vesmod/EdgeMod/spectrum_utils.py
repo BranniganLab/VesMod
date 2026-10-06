@@ -250,7 +250,7 @@ def HSS97_with_camera_integration_time(q, kC, sigma, lmax, *, config, radii):
     """Predict exposure-averaged dimensionless complex contour power.
 
     Defaults to Faizi et al. (2020), eq. 2, solvent-only spherical rates.
-    Supplying config.chi_s selects Faizi et al. (2024), eq. 1, including
+    Supplying config.eta_m selects Faizi et al. (2024), eq. 1, including
     membrane drag and using viscosity_out as the common solvent viscosity.
     kC is in kBT, sigma is reduced tension, radii are in microns, exposure
     is in seconds, viscosities are in Pa s, and temperature is in Kelvin.
@@ -270,11 +270,12 @@ def HSS97_with_camera_integration_time(q, kC, sigma, lmax, *, config, radii):
         ell, weights = _camera_projection(mode, int(lmax))
         stiffness = (ell - 1) * (ell + 2) * (ell * (ell + 1) + sigma)
         drag = 4 * ell**3 + 6 * ell**2 - 1
-        if config.chi_s is None:
+        if config.eta_m is None:
             drag += ((2 * ell**3 + 3 * ell**2 - 5)
                      * (config.viscosity_in / config.viscosity_out - 1))
         else:
-            drag += (4 * ell**2 + 4 * ell - 8) * config.chi_s
+            chi_s = config.eta_m / (radii_m[:, None] * config.viscosity_out)
+            drag = drag[None, :] + (4 * ell**2 + 4 * ell - 8) * chi_s
         rates = rate_scale[:, None] * (stiffness * ell * (ell + 1) / drag)
         retained = exposure_power_factor(config.exposure_time * rates).mean(axis=0)
         predictions.append(float(np.sum(weights * retained / stiffness) / kC))

@@ -132,11 +132,11 @@ def _add_fit_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--exposure-time", type=float, default=0.0,
                         help="Camera integration in seconds (e.g. 0.030); zero disables it.")
     parser.add_argument("--viscosity-in", type=float, default=None,
-                        help="Interior viscosity in Pa s; required with exposure time unless --chi-s is supplied.")
+                        help="Interior viscosity in Pa s; required with exposure time unless --eta-m is supplied.")
     parser.add_argument("--viscosity-out", type=float, default=None,
                         help="Exterior dynamic viscosity in Pa s; required with exposure time.")
-    parser.add_argument("--chi-s", type=float, default=None,
-                        help="Fixed dimensionless membrane viscosity; selects Faizi 2024 Eq. 1. "
+    parser.add_argument("--eta-m", type=float, default=None,
+                        help="Fixed membrane surface viscosity in Pa s m; selects Faizi 2024 Eq. 1. "
                              "Uses viscosity-out as common solvent viscosity; omit viscosity-in or use the same value.")
     add_batch_policy_argument(parser)
 
@@ -158,7 +158,7 @@ def build_fit_config(args: argparse.Namespace) -> SpectrumFitConfig:
         exposure_time=getattr(args, "exposure_time", 0.0),
         viscosity_in=getattr(args, "viscosity_in", None),
         viscosity_out=getattr(args, "viscosity_out", None),
-        chi_s=getattr(args, "chi_s", None),
+        eta_m=getattr(args, "eta_m", None),
     )
 
 
