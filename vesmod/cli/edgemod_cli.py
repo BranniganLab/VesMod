@@ -129,15 +129,21 @@ def _add_fit_options(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="Replace outputs managed by a prior compatible EdgeMod batch.",
     )
+    parser.add_argument("--model", choices=["spherical_contour_spectrum"],
+                        default="spherical_contour_spectrum", help="Equilibrium spectrum model.")
+    parser.add_argument("--camera-integration", action="store_true",
+                        help="Apply finite camera-exposure averaging to the prediction.")
+    parser.add_argument("--relaxation-model", choices=["solvent_only", "solvent_and_membrane"],
+                        default="solvent_only", help="Method for spherical-mode relaxation times.")
     parser.add_argument("--exposure-time", type=float, default=0.0,
-                        help="Camera integration in seconds (e.g. 0.030); zero disables it.")
+                        help="Exposure duration in seconds; positive value required with --camera-integration.")
     parser.add_argument("--viscosity-in", type=float, default=None,
-                        help="Interior viscosity in Pa s; required with exposure time unless --eta-m is supplied.")
+                        help="Interior viscosity in Pa s; required for solvent_only camera integration.")
     parser.add_argument("--viscosity-out", type=float, default=None,
-                        help="Exterior dynamic viscosity in Pa s; required with exposure time.")
+                        help="Exterior viscosity in Pa s; common solvent viscosity for solvent_and_membrane.")
     parser.add_argument("--eta-m", type=float, default=None,
-                        help="Fixed membrane surface viscosity in Pa s m; selects Faizi 2024 Eq. 1. "
-                             "Uses viscosity-out as common solvent viscosity; omit viscosity-in or use the same value.")
+                        help="Fixed membrane surface viscosity in Pa s m; required for solvent_and_membrane. "
+                             "Does not select the relaxation model.")
     add_batch_policy_argument(parser)
 
 
@@ -159,6 +165,9 @@ def build_fit_config(args: argparse.Namespace) -> SpectrumFitConfig:
         viscosity_in=getattr(args, "viscosity_in", None),
         viscosity_out=getattr(args, "viscosity_out", None),
         eta_m=getattr(args, "eta_m", None),
+        model=getattr(args, "model", "spherical_contour_spectrum"),
+        camera_integration=getattr(args, "camera_integration", False),
+        relaxation_model=getattr(args, "relaxation_model", "solvent_only"),
     )
 
 

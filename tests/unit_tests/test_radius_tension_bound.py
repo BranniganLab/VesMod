@@ -20,7 +20,7 @@ def test_public_single_and_ensemble_bounds(monkeypatch, exposure, chi, free_sigm
                                best_fit=np.asarray(data), chisqr=0, redchi=0)
 
     monkeypatch.setattr('vesmod.EdgeMod.spectrum_utils.Model.fit', capture)
-    config = SpectrumFitConfig(lmax=20, free_sigma=free_sigma,
+    config = SpectrumFitConfig(camera_integration=exposure > 0, relaxation_model="solvent_and_membrane" if chi is not None else "solvent_only", lmax=20, free_sigma=free_sigma,
                                exposure_time=exposure, eta_m=chi,
                                viscosity_in=.001, viscosity_out=.001)
     ensemble = SpectrumEnsemble()

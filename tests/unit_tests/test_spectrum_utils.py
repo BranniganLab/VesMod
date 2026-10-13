@@ -10,7 +10,7 @@ from scipy.constants import Boltzmann
 from scipy.special import lpmv
 
 from vesmod.EdgeMod.spectrum_utils import (
-    HSS97,
+    spherical_contour_spectrum,
     MiniSpectrum,
     Nlq_Plq0_squared,
     calc_tension_from_reduced_tension,
@@ -82,7 +82,7 @@ def test_nlq_plq0_squared_is_finite_at_l89_q89():
 
 def test_hss97_succeeds_for_q89():
     """Test the full theoretical sum supports a high diagnostic mode."""
-    result = HSS97(q=[89], kC=20.0, sigma=0.0, lmax=500)
+    result = spherical_contour_spectrum(q=[89], kC=20.0, sigma=0.0, lmax=500)
 
     assert len(result) == 1
     assert np.isfinite(result[0])
@@ -111,17 +111,17 @@ def test_nlq_plq0_squared_does_not_change_numpy_error_policy():
 
 
 def test_hss97_returns_one_value_per_input_mode():
-    """Test that HSS97 returns one theoretical spectrum value for each requested Fourier mode."""
+    """Test that spherical_contour_spectrum returns one theoretical spectrum value for each requested Fourier mode."""
     q = np.array([2, 3, 4])
 
-    values = HSS97(q=q, kC=20.0, sigma=0.0, lmax=20)
+    values = spherical_contour_spectrum(q=q, kC=20.0, sigma=0.0, lmax=20)
 
     assert isinstance(values, list)
     assert len(values) == len(q)
 
 
 def test_hss97_uses_inclusive_lmax():
-    """Test that HSS97 sums over l from q through lmax, inclusive."""
+    """Test that spherical_contour_spectrum sums over l from q through lmax, inclusive."""
     q = 2
     kC = 5.0
     sigma = 0.0
@@ -132,7 +132,7 @@ def test_hss97_uses_inclusive_lmax():
         denom = (l - 1) * (l + 2) * (l**2 + l + sigma)
         expected_sum += Nlq_Plq0_squared(l, q) / denom
 
-    assert HSS97(q=[q], kC=kC, sigma=sigma, lmax=lmax)[0] == pytest.approx(expected_sum / kC)
+    assert spherical_contour_spectrum(q=[q], kC=kC, sigma=sigma, lmax=lmax)[0] == pytest.approx(expected_sum / kC)
 
 
 def test_hss97_allows_q_equal_to_lmax():
@@ -144,15 +144,15 @@ def test_hss97_allows_q_equal_to_lmax():
     denom = (q - 1) * (q + 2) * (q**2 + q + sigma)
     expected = Nlq_Plq0_squared(q, q) / denom / kC
 
-    assert HSS97(q=[q], kC=kC, sigma=sigma, lmax=q)[0] == pytest.approx(expected)
+    assert spherical_contour_spectrum(q=[q], kC=kC, sigma=sigma, lmax=q)[0] == pytest.approx(expected)
 
 
 def test_fit_spectrum_to_theory_lmfit_recovers_synthetic_kc_when_sigma_is_fixed():
-    """Test that fitting synthetic HSS97 data with fixed sigma recovers the known kC used to generate the data."""
+    """Test that fitting synthetic spherical_contour_spectrum data with fixed sigma recovers the known kC used to generate the data."""
     modes = np.array([2, 3, 4, 5, 6])
     true_kc = 25.0
     lmax = 60
-    avg_amps2 = np.array(HSS97(modes, kC=true_kc, sigma=0.0, lmax=lmax))
+    avg_amps2 = np.array(spherical_contour_spectrum(modes, kC=true_kc, sigma=0.0, lmax=lmax))
     fitting_group = MiniSpectrum(modes, avg_amps2, None)
 
     kc, sigma = fit_spectrum_to_theory_lmfit(fitting_group, lmax=lmax, free_sigma=False, radii=[5.0])

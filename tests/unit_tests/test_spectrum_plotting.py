@@ -14,16 +14,16 @@ from vesmod.EdgeMod.spectrum_plotting import (
     plot_spectrum,
     save_spectrum_fit_diagnostic,
 )
-from vesmod.EdgeMod.spectrum_utils import HSS97
+from vesmod.EdgeMod.spectrum_utils import spherical_contour_spectrum
 
 
 def test_save_spectrum_fit_diagnostic_creates_png_with_large_uncertainty(tmp_path):
     """Diagnostic images show fit uncertainties without rejecting the fit."""
     modes = np.arange(2, 10)
-    measured = np.asarray(HSS97(modes, kC=25.0, sigma=2.0, lmax=30))
+    measured = np.asarray(spherical_contour_spectrum(modes, kC=25.0, sigma=2.0, lmax=30))
     fit_result = SimpleNamespace(
         best_values={"kC": 25.0, "sigma": 2.0},
-        eval=lambda q: HSS97(q, kC=25.0, sigma=2.0, lmax=30),
+        eval=lambda q: spherical_contour_spectrum(q, kC=25.0, sigma=2.0, lmax=30),
         params={
             "kC": SimpleNamespace(value=25.0, stderr=30.0),
             "sigma": SimpleNamespace(value=2.0, stderr=4.0),
@@ -52,10 +52,10 @@ def test_plot_spectrum_uses_same_color_for_data_and_fit_and_accepts_axis():
     import matplotlib.pyplot as plt
 
     modes = np.arange(2, 10)
-    measured = np.asarray(HSS97(modes, kC=25.0, sigma=2.0, lmax=30))
+    measured = np.asarray(spherical_contour_spectrum(modes, kC=25.0, sigma=2.0, lmax=30))
     fit_result = SimpleNamespace(
         best_values={"kC": 25.0, "sigma": 2.0},
-        eval=lambda q: HSS97(q, kC=25.0, sigma=2.0, lmax=30),
+        eval=lambda q: spherical_contour_spectrum(q, kC=25.0, sigma=2.0, lmax=30),
         params={
             "kC": SimpleNamespace(value=25.0, stderr=None),
             "sigma": SimpleNamespace(value=2.0, stderr=None),
@@ -90,7 +90,7 @@ def test_plot_spectrum_can_include_q1_as_an_opt_in():
     import matplotlib.pyplot as plt
 
     modes = np.arange(1, 6)
-    measured = np.asarray(HSS97(np.maximum(modes, 2), kC=25.0, sigma=2.0, lmax=30))
+    measured = np.asarray(spherical_contour_spectrum(np.maximum(modes, 2), kC=25.0, sigma=2.0, lmax=30))
     figure, (default_axis, q1_axis) = plt.subplots(1, 2)
     default = plot_spectrum(
         SpectrumPlotData(modes=modes, avg_amps2=measured), ax=default_axis,
@@ -107,19 +107,19 @@ def test_plot_spectrum_can_include_q1_as_an_opt_in():
     plt.close(figure)
 
 
-from vesmod.EdgeMod.spectrum_utils import HSS97_with_camera_integration_time
+from vesmod.EdgeMod.spectrum_utils import predict_spectrum
 from vesmod.EdgeMod.spectrum_plotting import plot_q3_scaled_spectrum
 
 
 @pytest.mark.parametrize('power', ['measured', 'corrected', 'both'])
 def test_camera_power_views_recover_instantaneous_spectrum(power):
     """Real camera physics supplies the synthetic powers, including nonfit modes."""
-    config = SpectrumFitConfig(exposure_time=.030, viscosity_in=.00102,
+    config = SpectrumFitConfig(camera_integration=True, exposure_time=.030, viscosity_in=.00102,
                                viscosity_out=.00097, lmax=50)
     modes = np.arange(2, 12)
-    instantaneous = np.asarray(HSS97(modes, 25, 2, config.lmax))
+    instantaneous = np.asarray(spherical_contour_spectrum(modes, 25, 2, config.lmax))
     def camera(q):
-        return HSS97_with_camera_integration_time(q, 25, 2, config.lmax,
+        return predict_spectrum(q, 25, 2, config.lmax,
                                                   config=config, radii=[5])
     measured = np.asarray(camera(modes))
     original = measured.copy()
@@ -162,18 +162,18 @@ def test_invalid_power_view():
 
 
 def test_public_spectrum_plot_uses_recorded_camera_fit():
-    config = SpectrumFitConfig(exposure_time=.030, viscosity_in=.00102,
+    config = SpectrumFitConfig(camera_integration=True, exposure_time=.030, viscosity_in=.00102,
                                viscosity_out=.00097, lmax=50, free_sigma=False)
     spectrum = Spectrum.from_radii(np.full((2, 32), 5.0))
     positive = spectrum.modes >= 2
     q = spectrum.modes[positive]
-    spectrum.avg_amps2[positive] = HSS97_with_camera_integration_time(
+    spectrum.avg_amps2[positive] = predict_spectrum(
         q, 25, 0, 50, config=config, radii=[5])
     original = spectrum.avg_amps2.copy()
     spectrum.extract_kc_from_fit(config)
     result = spectrum.plot(plot_config=SpectrumPlotConfig(power='both'))
     np.testing.assert_allclose(result.corrected_fit_data_artist.get_ydata(),
-                               HSS97(np.arange(3, 8), 25, 0, 50), rtol=1e-5)
+                               spherical_contour_spectrum(np.arange(3, 8), 25, 0, 50), rtol=1e-5)
     np.testing.assert_array_equal(spectrum.avg_amps2, original)
     plt.close(result.figure)
 
@@ -191,7 +191,7 @@ def test_spectrum_plot_exposure_uses_effective_config(
     module = import_module('vesmod.EdgeMod.spectrum')
     spectrum = Spectrum.from_radii(np.full((2, 32), 5.0))
     def config(exposure):
-        return SpectrumFitConfig(exposure_time=exposure, viscosity_in=.00102,
+        return SpectrumFitConfig(camera_integration=exposure > 0, exposure_time=exposure, viscosity_in=.00102,
                                  viscosity_out=.00097)
     if recorded_exposure is not None:
         spectrum.fit_results.append(SimpleNamespace(config=config(recorded_exposure)))

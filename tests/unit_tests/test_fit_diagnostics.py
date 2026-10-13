@@ -8,7 +8,7 @@ from lmfit import Parameters
 
 from vesmod.EdgeMod import Spectrum, SpectrumEnsemble, SpectrumFitConfig
 from vesmod.EdgeMod.spectrum_utils import (
-    HSS97,
+    spherical_contour_spectrum,
     MiniSpectrum,
     fit_spectrum_lmfit,
     fit_spectrum_to_theory_lmfit,
@@ -78,9 +78,9 @@ def test_fit_estimates_are_retained(monkeypatch, caplog, entry_point, condition)
 
 
 def test_real_lmfit_retains_strongly_correlated_estimates():
-    """An exact HSS97 spectrum remains fit-able despite parameter tradeoff."""
+    """An exact spherical_contour_spectrum spectrum remains fit-able despite parameter tradeoff."""
     modes = np.arange(3, 8)
-    group = MiniSpectrum(modes, HSS97(modes, 25, 100, 50), None)
+    group = MiniSpectrum(modes, spherical_contour_spectrum(modes, 25, 100, 50), None)
     kc, sigma = fit_spectrum_to_theory_lmfit(group, 50, free_sigma=True, radii=[5.0])
     assert kc == pytest.approx(25, rel=1e-4)
     assert sigma == pytest.approx(100, rel=1e-4)

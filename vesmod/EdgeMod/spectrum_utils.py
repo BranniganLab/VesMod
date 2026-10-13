@@ -46,7 +46,7 @@ def fit_spectrum_lmfit(fitting_group, lmax, free_sigma=False, weighted=False,
     """
     radii = _validate_camera_radii(radii)
     sigma_max = 100 * float(np.mean(radii))**2
-    model_function = HSS97
+    model_function = spherical_contour_spectrum
     if expected_replica_count is not None:
         if (isinstance(expected_replica_count, (bool, np.bool_))
                 or not isinstance(expected_replica_count, (int, np.integer))
@@ -59,16 +59,16 @@ def fit_spectrum_lmfit(fitting_group, lmax, free_sigma=False, weighted=False,
                 "Supply each replica's radius, rather than a mean radius."
             )
 
-    if config is not None and config.exposure_time > 0:
-        def camera_model(q, kC, sigma, lmax):
-            return HSS97_with_camera_integration_time(q, kC, sigma, lmax, config=config, radii=radii)
+    if config is not None:
+        def configured_model(q, kC, sigma, lmax):
+            return predict_spectrum(q, kC, sigma, lmax, config=config, radii=radii)
 
-        model_function = camera_model
+        model_function = configured_model
 
     model = Model(model_function)
     pars = model.make_params(kC={'value': 15, 'min': 1, 'max': 500, 'vary': True}, sigma={'value': 0, 'min': -100, 'max': sigma_max, 'vary': free_sigma}, lmax={'value': lmax, 'vary': False})
 
-    if config is not None and config.exposure_time > 0:
+    if config is not None and config.camera_integration:
         # All spherical modes must be stable, including l=2 even if q=2
         # is omitted from the fitted contour spectrum.
         pars["sigma"].set(min=-6 + 1e-8)
@@ -126,8 +126,8 @@ def fit_spectrum_to_theory_lmfit(fitting_group, lmax, free_sigma=False, weighted
     return result.best_values['kC'], result.best_values['sigma']
 
 
-def _validate_hss97_inputs(q, kC, sigma, lmax) -> list[int]:
-    """Validate the public HSS97 domain and return integer modes."""
+def _validate_spherical_inputs(q, kC, sigma, lmax) -> list[int]:
+    """Validate the spherical spectrum domain and return integer modes."""
     if not isinstance(kC, Real) or isinstance(kC, bool):
         raise TypeError("kC must be numeric.")
     if not math.isfinite(kC) or kC <= 0:
@@ -161,14 +161,14 @@ def _validate_hss97_inputs(q, kC, sigma, lmax) -> list[int]:
             raise ValueError("q must contain only finite integer-valued modes.")
         mode_int = int(mode)
         if mode_int < 2:
-            raise ValueError("HSS97 requires q >= 2.")
+            raise ValueError("spherical_contour_spectrum requires q >= 2.")
         if mode_int > lmax_int:
             raise ValueError("Each q mode must be less than or equal to lmax.")
         integer_modes.append(mode_int)
     return integer_modes
 
 
-def HSS97(q: list[int], kC: float, sigma: float, lmax: int) -> list[float]:
+def spherical_contour_spectrum(q: list[int], kC: float, sigma: float, lmax: int) -> list[float]:
     """
     Generate function to be fit in order to estimate kC and sigma. See Hackl,\
     Seifert, and Sackmann 1997 eqs 7 & 8.
@@ -194,7 +194,7 @@ def HSS97(q: list[int], kC: float, sigma: float, lmax: int) -> list[float]:
     Public calls require physical Fourier modes q >= 2 and q <= lmax.
 
     """
-    modes = _validate_hss97_inputs(q, kC, sigma, lmax)
+    modes = _validate_spherical_inputs(q, kC, sigma, lmax)
     function = []
     lmax = int(lmax)
     for wavenum in modes:
@@ -203,7 +203,7 @@ def HSS97(q: list[int], kC: float, sigma: float, lmax: int) -> list[float]:
             denom = (l - 1) * (l + 2) * (l ** 2 + l + sigma)
             if denom == 0:
                 raise ValueError(
-                    "HSS97 denominator is zero for the requested sigma and mode."
+                    "spherical_contour_spectrum denominator is zero for the requested sigma and mode."
                 )
             summ += Nlq_Plq0_squared(l, wavenum) / denom
         function.append((1 / kC) * summ)
@@ -246,38 +246,77 @@ def _camera_projection(q, lmax):
     return ell, weights
 
 
-def HSS97_with_camera_integration_time(q, kC, sigma, lmax, *, config, radii):
-    """Predict exposure-averaged dimensionless complex contour power.
+def mode_relaxation_times(ell, kC, sigma, *, config, radii):
+    """Return spherical-mode relaxation times in seconds, shape (radii, ell).
 
-    Defaults to Faizi et al. (2020), eq. 2, solvent-only spherical rates.
-    Supplying config.eta_m selects Faizi et al. (2024), eq. 1, including
-    membrane drag and using viscosity_out as the common solvent viscosity.
-    kC is in kBT, sigma is reduced tension, radii are in microns, exposure
-    is in seconds, viscosities are in Pa s, and temperature is in Kelvin.
-    Each l contribution is multiplied by B(t_exp/tau_l) before summation.
-    For ensembles the predictions are averaged equally across replica radii
-    with shared kC and reduced tension, matching the measured spectrum mean.
+    kC is in kBT, sigma is reduced tension, and radii are in microns.
+    The explicitly selected relaxation model determines the drag expression.
+    This calculation can also be used without enabling camera integration.
     """
-    modes = _validate_hss97_inputs(q, kC, sigma, lmax)
-    if config.exposure_time == 0:
-        return HSS97(modes, kC, sigma, lmax)
+    try:
+        modes = list(ell)
+    except TypeError as error:
+        raise TypeError("ell must be an iterable of integer modes.") from error
+    ell = np.asarray(
+        _validate_spherical_inputs(modes, kC, sigma, max(modes, default=2)),
+        dtype=float,
+    )
     radii_m = _validate_camera_radii(radii) * 1e-6
+    _validate_relaxation_inputs(sigma, config)
+    stiffness = (ell - 1) * (ell + 2) * (ell * (ell + 1) + sigma)
+    rate_scale = kC * Boltzmann * config.temperature / (config.viscosity_out * radii_m**3)
+    return _mode_relaxation_times_unchecked(ell, stiffness, config, radii_m, rate_scale)
+
+
+def _validate_relaxation_inputs(sigma, config):
+    """Check stability and solvent inputs once at the public API boundary."""
     if sigma <= -6:
-        raise ValueError("Camera integration requires stable spherical modes: sigma > -6.")
+        raise ValueError("Relaxation requires stable spherical modes: sigma > -6.")
+    if config.viscosity_out is None:
+        raise ValueError("viscosity_out is required to calculate relaxation times.")
+    if config.relaxation_model == "solvent_only" and config.viscosity_in is None:
+        raise ValueError("viscosity_in is required for solvent_only relaxation times.")
+
+
+def _mode_relaxation_times_unchecked(ell, stiffness, config, radii_m, rate_scale):
+    """Evaluate dynamics for validated modes and precomputed SI radius terms.
+
+    The prediction loop uses cached spherical-mode arrays, so it must not
+    call the public mode_relaxation_times API and revalidate every ell.
+    The public API and predictor share this numerical calculation.
+    """
+    drag = 4 * ell**3 + 6 * ell**2 - 1
+    if config.relaxation_model == "solvent_only":
+        drag += ((2 * ell**3 + 3 * ell**2 - 5)
+                 * (config.viscosity_in / config.viscosity_out - 1))
+    else:
+        chi_s = config.eta_m / (radii_m[:, None] * config.viscosity_out)
+        drag = drag[None, :] + (4 * ell**2 + 4 * ell - 8) * chi_s
+    return drag / (rate_scale[:, None] * stiffness * ell * (ell + 1))
+
+
+def predict_spectrum(q, kC, sigma, lmax, *, config, radii=None):
+    """Predict dimensionless complex contour power for fitting or plotting.
+
+    The equilibrium model, camera-integration toggle, and relaxation model
+    are explicit independent settings. Exposure averaging multiplies each
+    spherical-mode power by B(t_exp/tau_l) before contour projection. Ensemble
+    predictions average equally across replica radii, with shared kC and
+    reduced tension. Disabling camera integration needs no radii or solvent
+    viscosities and returns the equilibrium spectrum exactly.
+    """
+    modes = _validate_spherical_inputs(q, kC, sigma, lmax)
+    if not config.camera_integration:
+        return spherical_contour_spectrum(modes, kC, sigma, lmax)
+    radii_m = _validate_camera_radii(radii) * 1e-6
+    _validate_relaxation_inputs(sigma, config)
     rate_scale = kC * Boltzmann * config.temperature / (config.viscosity_out * radii_m**3)
     predictions = []
     for mode in modes:
         ell, weights = _camera_projection(mode, int(lmax))
         stiffness = (ell - 1) * (ell + 2) * (ell * (ell + 1) + sigma)
-        drag = 4 * ell**3 + 6 * ell**2 - 1
-        if config.eta_m is None:
-            drag += ((2 * ell**3 + 3 * ell**2 - 5)
-                     * (config.viscosity_in / config.viscosity_out - 1))
-        else:
-            chi_s = config.eta_m / (radii_m[:, None] * config.viscosity_out)
-            drag = drag[None, :] + (4 * ell**2 + 4 * ell - 8) * chi_s
-        rates = rate_scale[:, None] * (stiffness * ell * (ell + 1) / drag)
-        retained = exposure_power_factor(config.exposure_time * rates).mean(axis=0)
+        times = _mode_relaxation_times_unchecked(ell, stiffness, config, radii_m, rate_scale)
+        retained = exposure_power_factor(config.exposure_time / times).mean(axis=0)
         predictions.append(float(np.sum(weights * retained / stiffness) / kC))
     return predictions
 
@@ -301,7 +340,7 @@ def Nlq_Plq0_squared(l: int, q: int) -> float:
     Returns
     -------
     float
-        The squared normalized associated Legendre value from HSS97.
+        The squared normalized associated Legendre value for contour projection.
 
     """
     for name, value in (("l", l), ("q", q)):

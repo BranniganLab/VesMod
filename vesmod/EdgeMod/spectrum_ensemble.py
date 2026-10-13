@@ -145,8 +145,8 @@ class SpectrumEnsemble:
         """Fit the averaged spectrum using a physical fit configuration.
 
         Reduced surface tension is fitted as a free parameter by default and
-        reported in HSS97 dimensionless units. Supply a configuration with
-        ``free_sigma=False`` to fix it to zero. Set
+        reported as dimensionless reduced tension. Supply a configuration
+        with ``free_sigma=False`` to fix it to zero. Set
         ``weight_by_replica_sem=True`` to weight each mode by the inverse
         standard error across replicas.
         """
