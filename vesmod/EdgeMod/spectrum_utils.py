@@ -262,21 +262,36 @@ def mode_relaxation_times(ell, kC, sigma, *, config, radii):
         dtype=float,
     )
     radii_m = _validate_camera_radii(radii) * 1e-6
+    _validate_relaxation_inputs(sigma, config)
+    stiffness = (ell - 1) * (ell + 2) * (ell * (ell + 1) + sigma)
+    rate_scale = kC * Boltzmann * config.temperature / (config.viscosity_out * radii_m**3)
+    return _mode_relaxation_times_unchecked(ell, stiffness, config, radii_m, rate_scale)
+
+
+def _validate_relaxation_inputs(sigma, config):
+    """Check stability and solvent inputs once at the public API boundary."""
     if sigma <= -6:
         raise ValueError("Relaxation requires stable spherical modes: sigma > -6.")
     if config.viscosity_out is None:
         raise ValueError("viscosity_out is required to calculate relaxation times.")
-    stiffness = (ell - 1) * (ell + 2) * (ell * (ell + 1) + sigma)
+    if config.relaxation_model == "solvent_only" and config.viscosity_in is None:
+        raise ValueError("viscosity_in is required for solvent_only relaxation times.")
+
+
+def _mode_relaxation_times_unchecked(ell, stiffness, config, radii_m, rate_scale):
+    """Evaluate dynamics for validated modes and precomputed SI radius terms.
+
+    The prediction loop uses cached spherical-mode arrays, so it must not
+    call the public mode_relaxation_times API and revalidate every ell.
+    The public API and predictor share this numerical calculation.
+    """
     drag = 4 * ell**3 + 6 * ell**2 - 1
     if config.relaxation_model == "solvent_only":
-        if config.viscosity_in is None:
-            raise ValueError("viscosity_in is required for solvent_only relaxation times.")
         drag += ((2 * ell**3 + 3 * ell**2 - 5)
                  * (config.viscosity_in / config.viscosity_out - 1))
     else:
         chi_s = config.eta_m / (radii_m[:, None] * config.viscosity_out)
         drag = drag[None, :] + (4 * ell**2 + 4 * ell - 8) * chi_s
-    rate_scale = kC * Boltzmann * config.temperature / (config.viscosity_out * radii_m**3)
     return drag / (rate_scale[:, None] * stiffness * ell * (ell + 1))
 
 
@@ -293,11 +308,14 @@ def predict_spectrum(q, kC, sigma, lmax, *, config, radii=None):
     modes = _validate_spherical_inputs(q, kC, sigma, lmax)
     if not config.camera_integration:
         return spherical_contour_spectrum(modes, kC, sigma, lmax)
+    radii_m = _validate_camera_radii(radii) * 1e-6
+    _validate_relaxation_inputs(sigma, config)
+    rate_scale = kC * Boltzmann * config.temperature / (config.viscosity_out * radii_m**3)
     predictions = []
     for mode in modes:
         ell, weights = _camera_projection(mode, int(lmax))
         stiffness = (ell - 1) * (ell + 2) * (ell * (ell + 1) + sigma)
-        times = mode_relaxation_times(ell, kC, sigma, config=config, radii=radii)
+        times = _mode_relaxation_times_unchecked(ell, stiffness, config, radii_m, rate_scale)
         retained = exposure_power_factor(config.exposure_time / times).mean(axis=0)
         predictions.append(float(np.sum(weights * retained / stiffness) / kC))
     return predictions

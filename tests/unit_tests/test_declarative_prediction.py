@@ -84,3 +84,34 @@ def test_disabled_correction_fits_and_plots_equilibrium_with_exposure_metadata()
             spectrum.plot(ax=ax, plot_config=SpectrumPlotConfig(power='corrected'))
     finally:
         plt.close(figure)
+
+
+@pytest.mark.parametrize('relaxation_model, eta_m', [
+    ('solvent_only', None), ('solvent_and_membrane', 4.1e-9),
+])
+def test_prediction_validates_inputs_once_not_each_spherical_mode(
+        monkeypatch, relaxation_model, eta_m):
+    """Cached ell arrays must bypass repeated public-API validation."""
+    import vesmod.EdgeMod.spectrum_utils as utils
+    config = SpectrumFitConfig(camera_integration=True, exposure_time=.030,
+                               relaxation_model=relaxation_model, eta_m=eta_m,
+                               viscosity_in=.001, viscosity_out=.001)
+    calls = {'spectrum': 0, 'radii': 0}
+    original_spectrum = utils._validate_spherical_inputs
+    original_radii = utils._validate_camera_radii
+
+    def validate_spectrum(q, *args):
+        calls['spectrum'] += 1
+        assert len(q) == 5  # q=3..7, not hundreds of cached spherical modes
+        return original_spectrum(q, *args)
+
+    def validate_radii(radii):
+        calls['radii'] += 1
+        return original_radii(radii)
+
+    monkeypatch.setattr(utils, '_validate_spherical_inputs', validate_spectrum)
+    monkeypatch.setattr(utils, '_validate_camera_radii', validate_radii)
+    power = utils.predict_spectrum([3, 4, 5, 6, 7], 25, 4, 500,
+                                   config=config, radii=[5, 15])
+    assert np.all(np.isfinite(power))
+    assert calls == {'spectrum': 1, 'radii': 1}
