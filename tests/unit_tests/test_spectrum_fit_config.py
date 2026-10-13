@@ -48,6 +48,9 @@ def test_config_serializes_physical_fit_parameters():
         "viscosity_in": None,
         "viscosity_out": None,
         "eta_m": None,
+        "model": "spherical_contour_spectrum",
+        "camera_integration": False,
+        "relaxation_model": "solvent_only",
     }
 
 

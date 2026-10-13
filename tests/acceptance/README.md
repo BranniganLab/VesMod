@@ -30,3 +30,8 @@ python -m pytest tests/test_end_to_end_acceptance.py \
 Review the code change and the reported test results before committing the new
 binary reference. Updating a reference should be a deliberate scientific
 decision, never an automatic response to a failing test.
+
+The declarative spectrum configuration update changes only the stored fit
+metadata: `model="spherical_contour_spectrum"`, `camera_integration=False`,
+`relaxation_model="solvent_only"`, and the existing `eta_m=None` default.
+All numerical reference arrays are preserved.

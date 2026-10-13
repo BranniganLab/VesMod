@@ -275,13 +275,13 @@ def test_ensemble_fit_defaults_to_free_sigma(monkeypatch, entry_point):
 
 @pytest.mark.parametrize("free_sigma", [True, False])
 def test_ensemble_fit_recovers_synthetic_spectrum(free_sigma):
-    """Default free and explicit fixed fits recover known HSS97 parameters."""
-    from vesmod.EdgeMod.spectrum_utils import HSS97
+    """Default free and explicit fixed fits recover known spherical_contour_spectrum parameters."""
+    from vesmod.EdgeMod.spectrum_utils import spherical_contour_spectrum
 
     modes = np.arange(2, 10)
     expected_kc = 25.0
     expected_sigma = 15.0 if free_sigma else 0.0
-    amplitudes = np.asarray(HSS97(modes, expected_kc, expected_sigma, lmax=500))
+    amplitudes = np.asarray(spherical_contour_spectrum(modes, expected_kc, expected_sigma, lmax=500))
     avg = SpectrumEnsemble()
     # Symmetric replica variation keeps the ensemble mean exactly theoretical.
     for scale in (0.9, 1.1):

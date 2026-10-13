@@ -1,5 +1,6 @@
 """Public core EdgeMod API."""
 
+from .spectrum_utils import spherical_contour_spectrum, predict_spectrum, mode_relaxation_times
 from .config import SpectrumFitConfig
 from .fit_result import EnsembleFit, SpectrumFit
 from .spectrum import Spectrum
@@ -14,6 +15,9 @@ from .spectrum_plotting import (
 )
 
 __all__ = [
+    "spherical_contour_spectrum",
+    "predict_spectrum",
+    "mode_relaxation_times",
     "SpectrumFitConfig",
     "SpectrumFit",
     "EnsembleFit",
