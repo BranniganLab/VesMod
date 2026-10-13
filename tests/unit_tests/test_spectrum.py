@@ -207,7 +207,7 @@ def test_extract_kc_from_fit_uses_config_and_saves_fit_results(monkeypatch):
     spectrum.fit_results = []
     calls = {}
 
-    def fake_fit_spectrum_lmfit(fitting_range, lmax, free_sigma):
+    def fake_fit_spectrum_lmfit(fitting_range, lmax, free_sigma, **kwargs):
         calls["modes"] = fitting_range.modes.copy()
         calls["avg_amps2"] = fitting_range.avg_amps2.copy()
         calls["lmax"] = lmax
@@ -268,7 +268,7 @@ def test_extract_kc_from_fit_uses_default_config(monkeypatch):
     spectrum.fit_results = []
     calls = {}
 
-    def fake_fit(fitting_range, lmax, free_sigma):
+    def fake_fit(fitting_range, lmax, free_sigma, **kwargs):
         calls["modes"] = fitting_range.modes.copy()
         calls["lmax"] = lmax
         calls["free_sigma"] = free_sigma

@@ -23,6 +23,6 @@ for file in glob.glob(file_dir + "*.json"):
         data = json.load(json_data)
 
     if np.abs(data["surface_tension"]) < sigma_max:
-        ensemble.add_spectrum(data["avg_amps2"], data["modes"], data["kC"])
+        ensemble.add_spectrum(data["avg_amps2"], data["modes"], data["kC"], r0=data["r0"])
 
 print(ensemble.kC, ensemble.kC_ste, len(ensemble))

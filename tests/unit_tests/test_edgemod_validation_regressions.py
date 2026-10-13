@@ -1,10 +1,10 @@
-"""Regression tests for EdgeMod input and HSS97 domain validation."""
+"""Regression tests for EdgeMod input and spherical_contour_spectrum domain validation."""
 
 import numpy as np
 import pytest
 
 from vesmod.EdgeMod import Spectrum, SpectrumFitConfig
-from vesmod.EdgeMod.spectrum_utils import HSS97, Nlq_Plq0_squared
+from vesmod.EdgeMod.spectrum_utils import spherical_contour_spectrum, Nlq_Plq0_squared
 
 
 @pytest.mark.parametrize(
@@ -54,7 +54,7 @@ def test_file_constructor_uses_same_radii_validation(tmp_path):
 
 
 def test_fit_config_rejects_q1_domain():
-    """The HSS97 singular q=1 mode is rejected before fitting."""
+    """The spherical_contour_spectrum singular q=1 mode is rejected before fitting."""
     with pytest.raises(ValueError, match="at least 2"):
         SpectrumFitConfig(lower_bound=1, upper_bound=4)
 
@@ -92,12 +92,12 @@ def test_fit_config_requires_enough_modes_for_free_parameters():
 def test_hss97_rejects_invalid_public_domain(kwargs, error_type, message):
     """Direct model calls fail with explicit domain errors."""
     with pytest.raises(error_type, match=message):
-        HSS97(**kwargs)
+        spherical_contour_spectrum(**kwargs)
 
 
 def test_hss97_accepts_lmfit_style_float_lmax_and_modes():
     """lmfit may pass fixed parameters and independent variables as floats."""
-    result = HSS97(
+    result = spherical_contour_spectrum(
         q=np.array([3.0, 4.0]),
         kC=20.0,
         sigma=0.0,

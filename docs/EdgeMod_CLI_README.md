@@ -421,22 +421,23 @@ If EdgeMod contributes to a publication, please cite the associated manuscript a
 Enable finite-exposure fitting with an integration time in **seconds**:
 
 ```bash
-edgemod contours.npy --exposure-time 0.030 --viscosity-in 0.00102 --viscosity-out 0.00097
+edgemod contours.npy --camera-integration --exposure-time 0.030 --viscosity-in 0.00102 --viscosity-out 0.00097
 ```
 
-The default is `--exposure-time 0`, which preserves the instantaneous HSS97
-fit. Both solvent viscosities must be supplied explicitly, in **Pa s**.
+Camera integration is off by default, preserving the equilibrium spherical
+contour spectrum (Hackl, Seifert, and Sackmann 1997). Exposure duration alone
+does not enable the correction. Both solvent viscosities must be supplied explicitly, in **Pa s**.
 For example, an experiment with interior viscosity **1.02 mPa s** and exterior
 viscosity **0.97 mPa s** uses:
 
 ```bash
-edgemod contours.npy --exposure-time 0.030 --viscosity-in 0.00102 --viscosity-out 0.00097
+edgemod contours.npy --camera-integration --exposure-time 0.030 --viscosity-in 0.00102 --viscosity-out 0.00097
 ```
 
 In Python:
 
 ```python
-config = SpectrumFitConfig(exposure_time=0.030, viscosity_in=0.00102, viscosity_out=0.00097)
+config = SpectrumFitConfig(camera_integration=True, exposure_time=0.030, viscosity_in=0.00102, viscosity_out=0.00097)
 fit = spectrum.extract_kc_from_fit(config)
 ```
 
@@ -461,7 +462,7 @@ For exposure-aware ensemble fits, supply the radius when adding **each** replica
 ```python
 ensemble.add_spectrum(spectrum.avg_amps2, spectrum.modes, spectrum.kC, r0=spectrum.r0)
 fit = ensemble.extract_kc_from_fit(
-    SpectrumFitConfig(exposure_time=0.030,
+    SpectrumFitConfig(camera_integration=True, exposure_time=0.030,
                       viscosity_in=0.00102, viscosity_out=0.00097),
     weight_by_replica_sem=True,
 )
@@ -469,7 +470,7 @@ fit = ensemble.extract_kc_from_fit(
 
 The ensemble model averages predictions at the individual radii with shared
 kC and reduced tension, using the same equal replica weights as the measured
-mean. Missing radii raise an error when exposure averaging is enabled. Exposure,
+mean. Missing radii raise an error for every fit. Exposure,
 viscosities, and temperature are retained in fit configuration; corrected
 ensemble records also retain the replica radii.
 
@@ -514,7 +515,8 @@ recording. This option is available through the Python API, not the CLI.
 
 ### Display camera-corrected powers in Python
 
-After fitting a `Spectrum` with nonzero `exposure_time` and explicit viscosities:
+After fitting a `Spectrum` with `camera_integration=True`, positive exposure time,
+and the inputs required by its selected relaxation model:
 
 ```python
 from vesmod.EdgeMod.spectrum_plotting import SpectrumPlotConfig
@@ -545,3 +547,102 @@ proximity, uncertainty, or `kC`–`sigma` correlation. Relative RMSE is logged f
 each fit; uncertainties and residuals remain visible in diagnostic plots.
 Optimizer parameter bounds, input validation, and optional experimental q-range
 selection still apply.
+
+### Membrane viscosity in camera averaging (Faizi 2024)
+
+Select `--relaxation-model solvent_and_membrane` to use Equation 1 of
+[Faizi, Granek, and Vlahovska (2024)](https://www.pnas.org/doi/10.1073/pnas.2413557121):
+
+```bash
+edgemod contours.npy --camera-integration --exposure-time 0.030 --relaxation-model solvent_and_membrane --viscosity-out 0.001 --eta-m 4.1e-9
+```
+
+The Python equivalent is
+`SpectrumFitConfig(camera_integration=True, relaxation_model="solvent_and_membrane", exposure_time=0.030, viscosity_out=0.001, eta_m=4.1e-9)`.
+`eta_m` is a fixed, finite, nonnegative membrane surface viscosity in **Pa s m**,
+not a fitted parameter. It is saved with the fit configuration and required
+when selecting `solvent_and_membrane`; zero gives its nonviscous limit.
+Supplying `eta_m` with `solvent_only` raises an error instead of changing methods.
+
+Each replica uses `chi_s = eta_m/(R0_meters*viscosity_out)`. Thus ensembles
+share the dimensional membrane viscosity while using each replica's own radius
+and chi_s in the exposure correction. The mean radius is used only for the
+ensemble reduced-tension upper bound, not the relaxation rates.
+
+Both rates have the numerator
+`kappa/(eta_out R^3) * (l-1) l (l+1) (l+2) * (l(l+1)+sigma_reduced)`.
+The solvent-only denominator is
+`4l^3+6l^2-1 + (2l^3+3l^2-5)*(eta_in/eta_out-1)`;
+Equation 1 uses
+`4l^3+6l^2-1 + (4l^2+4l-8)*chi_s`.
+Equation 1 uses one common solvent viscosity: `viscosity_out` supplies eta,
+and `viscosity_in` must be omitted or equal to it.
+
+Here `kappa = kC*k_B*T`, radii are converted from microns to meters, and rates
+are in inverse seconds. Positive eta_m slows relaxation and retains more power
+during camera exposure. The zero-exposure equilibrium spectrum is unchanged.
+
+The paper infers viscosity from contour autocorrelations. EdgeMod uses its
+predicted spherical-mode rates in the exposure integral: each spherical l
+contribution is multiplied by `B(t_exp*omega_l)` before projection onto contour
+q, rather than treating the entire contour mode as a single exponential.
+
+### Radius-dependent reduced-tension bound
+
+Every fit now uses `sigma_reduced <= 100 * R0**2`, with `R0` in **microns**.
+For a single vesicle, `R0` is its mean radius. This applies with and without
+camera averaging, for both relaxation models and both fixed/free sigma fits.
+Direct fitting helpers require `radii`; ensembles require `r0` when adding
+**every** replica, even without camera averaging. The example for combining
+replicas reads this value from each spectrum's saved metadata.
+
+Ensembles fit one shared reduced tension, so their upper bound is
+`100 * mean(replica_radii)**2`, using the arithmetic mean of the replica
+mean radii, then squaring it. Replica radii are retained in ensemble fit
+metadata.
+
+Since physical tension is `sigma_reduced * kC * k_B*T / R0_meters**2`,
+the proposed rule limits `physical_tension/kappa` to `100 / micron**2`
+(equivalently `1e14 / meter**2`). It is not a fixed physical tension cap:
+the allowed tension still depends on the fitted bending modulus.
+
+## Declarative prediction configuration
+
+`SpectrumFitConfig` separates three choices:
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `model` / `--model` | `spherical_contour_spectrum` | Equilibrium contour-power model; currently the only supported model. |
+| `camera_integration` / `--camera-integration` | Off | Apply exposure averaging before spherical-to-contour projection. |
+| `relaxation_model` / `--relaxation-model` | `solvent_only` | Calculate relaxation times from separate solvent viscosities, or select `solvent_and_membrane` for common solvent viscosity plus membrane drag. |
+
+The relaxation method is never inferred from `eta_m`. Camera integration
+requires a positive exposure duration and the selected method's viscosities.
+Turning it off preserves exposure metadata and returns the equilibrium
+prediction exactly. The choices are serialized in fit results and provenance.
+
+For prediction without fitting:
+
+```python
+from vesmod.EdgeMod import SpectrumFitConfig, predict_spectrum
+
+config = SpectrumFitConfig(
+    model="spherical_contour_spectrum",
+    camera_integration=True,
+    relaxation_model="solvent_and_membrane",
+    exposure_time=0.030,
+    viscosity_out=0.001,
+    eta_m=4.1e-9,
+)
+power = predict_spectrum([3, 4, 5, 6, 7], kC=25, sigma=4, lmax=500,
+                         config=config, radii=[5])  # radii in microns
+```
+
+`predict_spectrum` is also the prediction used during fitting. The equilibrium
+function is now named `spherical_contour_spectrum`; the previous `HSS97` and
+`HSS97_with_camera_integration_time` function names have been removed.
+Existing camera-aware Python calls must add `camera_integration=True`, and
+membrane-aware calls must also set `relaxation_model="solvent_and_membrane"`.
+CLI calls likewise need the explicit flags. Supplying only exposure duration
+now leaves camera integration off. `mode_relaxation_times` is available for
+standalone calculation in seconds with either explicitly selected method.

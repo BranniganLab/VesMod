@@ -24,7 +24,7 @@ def _mock_physical_fit(monkeypatch) -> None:
     """Replace physical fitting with a deterministic result keyed to first q."""
     monkeypatch.setattr(
         "vesmod.EdgeMod.spectrum.fit_spectrum_lmfit",
-        lambda fitting_range, lmax, free_sigma: SimpleNamespace(
+        lambda fitting_range, lmax, free_sigma, **kwargs: SimpleNamespace(
             best_values={
                 "kC": float(fitting_range.modes[0]),
                 "sigma": 2.0,

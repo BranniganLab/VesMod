@@ -9,7 +9,7 @@ from typing import Any
 import matplotlib.pyplot as plt
 import numpy as np
 
-from .spectrum_utils import HSS97
+from .spectrum_utils import spherical_contour_spectrum
 
 
 @dataclass(frozen=True)
@@ -85,7 +85,7 @@ def plot_spectrum(data, *, ax=None, color=None, label=None, config=None):
     mask = (data.modes >= 2) & (data.modes <= data.lmax)
     modes = data.modes[mask]
     params = data.fit_result.best_values
-    instantaneous = np.asarray(HSS97(modes, params["kC"], params["sigma"], data.lmax))
+    instantaneous = np.asarray(spherical_contour_spectrum(modes, params["kC"], params["sigma"], data.lmax))
     camera = np.asarray(data.fit_result.eval(q=modes))
     if np.any(~np.isfinite(camera)) or np.any(camera <= 0):
         raise ValueError("Camera prediction must be finite and positive for correction.")
@@ -188,7 +188,7 @@ def _plot_spectrum(
         if not np.any(selected):
             raise ValueError("fit bounds must select at least one positive mode.")
         predicted = np.asarray(
-            HSS97(modes[selected], data.fit_result.best_values["kC"],
+            spherical_contour_spectrum(modes[selected], data.fit_result.best_values["kC"],
                   data.fit_result.best_values["sigma"], data.lmax)
             if instantaneous else data.fit_result.eval(q=modes[selected])
         )

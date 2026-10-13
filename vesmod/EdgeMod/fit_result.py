@@ -64,8 +64,8 @@ class EnsembleFit:
     """Store one fit of an averaged replica spectrum.
 
     An ensemble does not have one physical mean radius. Its fitted sigma is
-    therefore retained as the dimensionless reduced sigma used by the HSS97
-    model rather than converted to SI surface tension.
+    therefore retained as dimensionless reduced tension in the spherical
+    contour model rather than converted to SI surface tension.
     """
 
     kC: float
