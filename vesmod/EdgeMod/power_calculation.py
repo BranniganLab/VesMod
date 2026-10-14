@@ -31,7 +31,7 @@ class PowerCalculationResult:
     power_unit: str
 
     def __post_init__(self):
-        """Validate and own independent arrays and scientific metadata."""
+        """Validate mode powers and scientific metadata."""
         modes = np.asarray(self.modes)
         powers = np.asarray(self.powers)
         if modes.ndim != 1 or powers.ndim != 1 or not modes.size:
@@ -55,7 +55,7 @@ class PowerCalculationResult:
 
 
 class SpectrumCalculator(Protocol):
-    """A callable converting validated, independently copied radii in micrometers to powers."""
+    """A callable converting validated radii in micrometers to powers."""
 
     def __call__(self, radii: np.ndarray) -> PowerCalculationResult:
         """Calculate powers without mutating the input trajectory."""

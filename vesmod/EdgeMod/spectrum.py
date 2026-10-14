@@ -37,7 +37,7 @@ class Spectrum:
     trajectory with at least one frame and two angular samples. Temporal
     variance power requires at least two frames. Derived ``r0``,
     ``powers``, ``modes``, and ``fit_results`` state is initialized before
-    the object is exposed to callers. Calculated arrays are independent copies; metadata accessors are read-only.
+    the object is exposed to callers.
 
     ``kC`` and ``surface_tension`` are compatibility attributes containing the
     most recent successful physical fit. Durable per-fit provenance is stored
@@ -83,8 +83,7 @@ class Spectrum:
     ) -> "Spectrum":
         """Create a Spectrum directly from an in-memory radii array.
 
-        The caller's array is validated and copied so later mutations do not
-        change the constructed spectrum. ``calculator`` defines its powers.
+        ``calculator`` defines the mode powers calculated from the radii.
         """
         spectrum = cls.__new__(cls)
         spectrum._initialize_from_radii(radii, frame_cutoff, calculator)
@@ -92,7 +91,7 @@ class Spectrum:
 
     @staticmethod
     def _validate_radii(radii: np.ndarray) -> np.ndarray:
-        """Return a validated float copy of a contour-radius trajectory."""
+        """Validate a contour-radius trajectory."""
         require_numeric_array(radii, "radii")
         if radii.ndim != 2:
             raise ValueError("radii must be a two-dimensional array.")
@@ -148,12 +147,12 @@ class Spectrum:
 
     @property
     def powers(self) -> np.ndarray:
-        """Independently stored powers aligned with :attr:`modes`."""
+        """Calculated powers aligned with :attr:`modes`."""
         return self._calculation.powers
 
     @property
     def modes(self) -> np.ndarray:
-        """Independently stored signed Fourier modes returned by the calculator."""
+        """Signed Fourier modes returned by the calculator."""
         return self._calculation.modes
 
     @property
