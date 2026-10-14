@@ -8,11 +8,6 @@ import numpy as np
 from vesmod.validation import require_positive_real
 
 
-def _owned_readonly(values):
-    """Return an immutable array backed by owned bytes."""
-    array = np.asarray(values)
-    return np.frombuffer(array.tobytes(), dtype=array.dtype).reshape(array.shape)
-
 
 @dataclass(frozen=True)
 class PowerCalculationResult:
@@ -36,7 +31,7 @@ class PowerCalculationResult:
     power_unit: str
 
     def __post_init__(self):
-        """Validate and own immutable arrays and scientific metadata."""
+        """Validate and own independent arrays and scientific metadata."""
         modes = np.asarray(self.modes)
         powers = np.asarray(self.powers)
         if modes.ndim != 1 or powers.ndim != 1 or not modes.size:
@@ -55,12 +50,12 @@ class PowerCalculationResult:
                 raise ValueError(f"{name} must be a nonempty string.")
         object.__setattr__(self, 'reference_radius',
                            require_positive_real(self.reference_radius, 'reference_radius'))
-        object.__setattr__(self, 'modes', _owned_readonly(modes))
-        object.__setattr__(self, 'powers', _owned_readonly(powers.astype(float)))
+        object.__setattr__(self, 'modes', modes.copy())
+        object.__setattr__(self, 'powers', powers.astype(float, copy=True))
 
 
 class SpectrumCalculator(Protocol):
-    """A callable converting validated, read-only radii in micrometers to powers."""
+    """A callable converting validated, independently copied radii in micrometers to powers."""
 
     def __call__(self, radii: np.ndarray) -> PowerCalculationResult:
         """Calculate powers without mutating the input trajectory."""

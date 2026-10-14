@@ -21,7 +21,7 @@ from .spectrum_plotting import (
 )
 from .config import SpectrumFitConfig
 from .calculators import MeanSquaredPowerCalculator
-from .power_calculation import PowerCalculationResult, SpectrumCalculator, _owned_readonly
+from .power_calculation import PowerCalculationResult, SpectrumCalculator
 from .fit_result import SpectrumFit
 from .spectrum_utils import (
     MiniSpectrum,
@@ -37,7 +37,7 @@ class Spectrum:
     trajectory with at least one frame and two angular samples. Temporal
     variance power requires at least two frames. Derived ``r0``,
     ``powers``, ``modes``, and ``fit_results`` state is initialized before
-    the object is exposed to callers. Calculated arrays and metadata are read-only.
+    the object is exposed to callers. Calculated arrays are independent copies; metadata accessors are read-only.
 
     ``kC`` and ``surface_tension`` are compatibility attributes containing the
     most recent successful physical fit. Durable per-fit provenance is stored
@@ -135,7 +135,7 @@ class Spectrum:
             calculator = MeanSquaredPowerCalculator()
         if not callable(calculator):
             raise TypeError("calculator must be callable.")
-        result = calculator(_owned_readonly(input_data))
+        result = calculator(input_data.copy())
         if not isinstance(result, PowerCalculationResult):
             raise TypeError("calculator must return a PowerCalculationResult.")
         if result.radius_unit not in {"um", "m", "nm"}:
@@ -148,12 +148,12 @@ class Spectrum:
 
     @property
     def powers(self) -> np.ndarray:
-        """Read-only powers aligned with :attr:`modes`."""
+        """Independently stored powers aligned with :attr:`modes`."""
         return self._calculation.powers
 
     @property
     def modes(self) -> np.ndarray:
-        """Read-only signed Fourier modes returned by the calculator."""
+        """Independently stored signed Fourier modes returned by the calculator."""
         return self._calculation.modes
 
     @property

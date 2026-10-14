@@ -19,17 +19,15 @@ def _result(**changes):
     return PowerCalculationResult(**values)
 
 
-def test_custom_callable_receives_retained_readonly_input_and_owns_output():
+def test_custom_callable_receives_independent_input_and_owns_output():
     radii = np.full((4, 16), 10.)
     powers = np.array([1., .02])
     observed = []
 
     def calculate(retained):
         observed.append(retained.shape)
-        with pytest.raises(ValueError):
-            retained[0, 0] = 2
-        with pytest.raises(ValueError):
-            retained.setflags(write=True)
+        retained[0, 0] = 2
+        assert radii[0, 0] == 10
         return _result(powers=powers)
 
     spectrum = Spectrum.from_radii(radii, frame_cutoff=2, calculator=calculate)
@@ -38,9 +36,11 @@ def test_custom_callable_receives_retained_readonly_input_and_owns_output():
     assert observed == [(2, 16)]
     np.testing.assert_array_equal(spectrum.powers, [1., .02])
     assert spectrum.r0 == 10
-    for array in [spectrum.powers, spectrum.modes]:
-        with pytest.raises(ValueError):
-            array.setflags(write=True)
+    spectrum.powers[0] = 3
+    spectrum.modes[0] = -1
+    assert spectrum.powers[0] == 3
+    assert spectrum.modes[0] == -1
+    assert powers[0] == 100
     with pytest.raises(AttributeError):
         spectrum.power_definition = 'mean_square'
     with pytest.raises(AttributeError):
