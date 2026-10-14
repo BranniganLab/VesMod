@@ -1,5 +1,7 @@
 """Fit estimates are retained without post-fit acceptance criteria."""
 
+from dataclasses import replace
+
 from types import SimpleNamespace
 
 import numpy as np
@@ -61,7 +63,12 @@ def test_fit_estimates_are_retained(monkeypatch, caplog, entry_point, condition)
             assert sigma == params["sigma"].value
         elif entry_point == "spectrum":
             spectrum = Spectrum.from_radii(np.full((2, 32), 5.0))
-            spectrum.avg_amps2[:] = 1.0
+            powers = spectrum.powers.copy()
+            powers[:] = 1.0
+            spectrum = Spectrum.from_radii(
+                np.full((2, 32), spectrum.r0),
+                calculator=lambda radii: replace(spectrum._calculation, powers=powers),
+            )
             fit = spectrum.extract_kc_from_fit(config)
             assert spectrum.fit_results == [fit]
             assert spectrum.fit_result is result

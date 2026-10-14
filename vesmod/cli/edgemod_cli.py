@@ -226,7 +226,7 @@ def _select_dynamic_config(
     selector: QMinusThreeRangeSelector,
 ) -> tuple[SpectrumFitConfig, DynamicRangeSelection]:
     """Run experimental selection and return a core config with chosen bounds."""
-    selection = selector.select(spectrum.modes, spectrum.avg_amps2)
+    selection = selector.select(spectrum.modes, spectrum.powers)
     if not selection.accepted:
         return config, selection
     if selection.lower_bound is None or selection.upper_bound is None:

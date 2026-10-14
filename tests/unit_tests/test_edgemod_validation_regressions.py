@@ -39,7 +39,7 @@ def test_from_radii_constructs_spectrum_and_copies_input():
     # normalized by the trajectory-wide mean radius (2.5), the two q=0 frame
     # amplitudes are 0.8 and 1.2 and their mean squared amplitude is 1.04.
     np.testing.assert_allclose(
-        spectrum.avg_amps2,
+        spectrum.powers,
         np.array([1.04, 0.0, 0.0, 0.0]),
     )
 

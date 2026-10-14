@@ -263,7 +263,7 @@ selector = QMinusThreeRangeSelector(
     slope_tolerance=0.2,
     max_log_rmse=0.1,
 )
-selection = selector.select(spectrum.modes, spectrum.avg_amps2)
+selection = selector.select(spectrum.modes, spectrum.powers)
 
 if selection.accepted:
     dynamic_config = replace(
@@ -333,3 +333,5 @@ VesMod is distributed under the GNU General Public License v3.0 (or, at your opt
 ## Citation
 
 If VesMod contributes to a publication, please cite the associated manuscript and software repository.
+
+See [replaceable power calculators and migration](docs/EdgeMod_power_calculators.md) for the calculator contract and `Spectrum.powers` API.

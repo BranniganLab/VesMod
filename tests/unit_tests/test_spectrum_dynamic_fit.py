@@ -1,6 +1,8 @@
 """Integration tests for experimental EdgeMod dynamic range selection."""
 
 from dataclasses import replace
+from spectrum_fixture import SyntheticSpectrum
+
 from types import SimpleNamespace
 
 import numpy as np
@@ -12,14 +14,14 @@ from vesmod.EdgeMod.experimental import QMinusThreeRangeSelector
 
 def _spectrum_with_power_law() -> Spectrum:
     """Return a minimal Spectrum carrying q^-3 amplitudes from q=5 onward."""
-    spectrum = Spectrum.__new__(Spectrum)
+    spectrum = SyntheticSpectrum.__new__(SyntheticSpectrum)
     spectrum.r0 = 10.0
     spectrum.modes = np.arange(0, 12)
-    spectrum.avg_amps2 = np.ones(12, dtype=float)
+    spectrum.powers = np.ones(12, dtype=float)
     q = spectrum.modes[3:].astype(float)
-    spectrum.avg_amps2[3:] = q ** -3
-    spectrum.avg_amps2[3] *= 8.0
-    spectrum.avg_amps2[4] *= 0.2
+    spectrum.powers[3:] = q ** -3
+    spectrum.powers[3] *= 8.0
+    spectrum.powers[4] *= 0.2
     spectrum.kC = None
     spectrum.surface_tension = None
     spectrum.fit_result = None
@@ -41,7 +43,7 @@ def _selector() -> QMinusThreeRangeSelector:
 def test_selected_bounds_can_be_passed_to_core_physical_fit(monkeypatch):
     """Test experimental selection composes with the range-agnostic core fitter."""
     spectrum = _spectrum_with_power_law()
-    selection = _selector().select(spectrum.modes, spectrum.avg_amps2)
+    selection = _selector().select(spectrum.modes, spectrum.powers)
     assert selection.accepted
 
     config = replace(
@@ -79,18 +81,18 @@ def test_selected_bounds_can_be_passed_to_core_physical_fit(monkeypatch):
 
 def test_rejected_selection_does_not_require_core_physical_fit(monkeypatch):
     """Test experimental rejection can stop before the core fitter is invoked."""
-    spectrum = Spectrum.__new__(Spectrum)
+    spectrum = SyntheticSpectrum.__new__(SyntheticSpectrum)
     spectrum.r0 = 10.0
     spectrum.modes = np.arange(0, 12)
-    spectrum.avg_amps2 = np.ones(12, dtype=float)
+    spectrum.powers = np.ones(12, dtype=float)
     q = spectrum.modes[3:].astype(float)
-    spectrum.avg_amps2[3:] = q ** -2
+    spectrum.powers[3:] = q ** -2
     spectrum.kC = 99.0
     spectrum.surface_tension = 98.0
     spectrum.fit_result = None
     spectrum.fit_results = []
 
-    selection = _selector().select(spectrum.modes, spectrum.avg_amps2)
+    selection = _selector().select(spectrum.modes, spectrum.powers)
 
     assert not selection.accepted
     assert "No trusted q range" in selection.reason
@@ -102,7 +104,7 @@ def test_rejected_selection_does_not_require_core_physical_fit(monkeypatch):
 def test_core_spectrum_serialization_has_no_dynamic_selection_state():
     """Test experimental diagnostics do not become permanent Spectrum state."""
     spectrum = _spectrum_with_power_law()
-    selection = _selector().select(spectrum.modes, spectrum.avg_amps2)
+    selection = _selector().select(spectrum.modes, spectrum.powers)
     assert selection.accepted
 
     data = spectrum.to_dict(include_arrays=False)

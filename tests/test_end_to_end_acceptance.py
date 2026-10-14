@@ -149,7 +149,7 @@ def _run_pipeline(case_name: str, tmp_path: Path) -> dict[str, np.ndarray]:
         {
             "spectrum_r0_microns": np.asarray(spectrum.r0),
             "spectrum_modes": spectrum.modes,
-            "spectrum_avg_amps2": spectrum.avg_amps2,
+            "spectrum_avg_amps2": spectrum.powers,
             "fit_kc_kbt": np.asarray(fit.kC),
             "fit_surface_tension_newtons_per_meter": np.asarray(
                 fit.surface_tension

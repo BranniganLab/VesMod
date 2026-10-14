@@ -4,6 +4,8 @@
 import json
 from types import SimpleNamespace
 
+from spectrum_fixture import SyntheticSpectrum
+
 import numpy as np
 import pytest
 
@@ -30,7 +32,7 @@ def test_init_from_npy_calculates_r0_avg_amps2_and_integer_modes(tmp_path):
 
     assert spectrum.r0 == pytest.approx(2.0)
     np.testing.assert_allclose(
-        spectrum.avg_amps2,
+        spectrum.powers,
         np.array([1.0, 0.0, 0.0, 0.0]),
     )
     np.testing.assert_array_equal(
@@ -76,7 +78,7 @@ def test_init_from_vesicle_edges_uses_only_accepted_detections():
 
     assert spectrum.r0 == pytest.approx(2.0)
     np.testing.assert_allclose(
-        spectrum.avg_amps2,
+        spectrum.powers,
         np.array([1.0, 0.0, 0.0, 0.0]),
     )
 
@@ -158,7 +160,7 @@ def test_calc_avg_sq_amplitudes_matches_manual_fft_normalization(tmp_path):
         (expected_amps * expected_amps.conj()).real,
         axis=0,
     )
-    np.testing.assert_allclose(spectrum.avg_amps2, expected_avg_amps2)
+    np.testing.assert_allclose(spectrum.powers, expected_avg_amps2)
 
 
 def test_calc_integer_modes_returns_positive_then_negative_fft_modes(tmp_path):
@@ -167,16 +169,16 @@ def test_calc_integer_modes_returns_positive_then_negative_fft_modes(tmp_path):
     np.save(infile, np.full((2, 4), 1.0))
     spectrum = Spectrum(infile)
     np.testing.assert_array_equal(
-        spectrum._calc_integer_modes(),
+        spectrum.modes,
         np.array([0, 1, -2, -1]),
     )
 
 
 def test_isolate_mode_range_includes_lower_bound_and_excludes_upper_bound():
     """Test lower-inclusive, upper-exclusive mode selection."""
-    spectrum = Spectrum.__new__(Spectrum)
+    spectrum = SyntheticSpectrum.__new__(SyntheticSpectrum)
     spectrum.modes = np.array([-2, -1, 0, 1, 2, 3, 4])
-    spectrum.avg_amps2 = np.array([20.0, 10.0, 0.0, 1.0, 2.0, 3.0, 4.0])
+    spectrum.powers = np.array([20.0, 10.0, 0.0, 1.0, 2.0, 3.0, 4.0])
 
     isolated = spectrum.isolate_mode_range(lower_bound=1, upper_bound=4)
 
@@ -188,19 +190,19 @@ def test_isolate_mode_range_includes_lower_bound_and_excludes_upper_bound():
 
 def test_isolate_mode_range_raises_when_modes_are_missing():
     """Test that mode selection fails clearly when modes are unavailable."""
-    spectrum = Spectrum.__new__(Spectrum)
+    spectrum = SyntheticSpectrum.__new__(SyntheticSpectrum)
     spectrum.modes = None
-    spectrum.avg_amps2 = np.array([1.0])
+    spectrum.powers = np.array([1.0])
     with pytest.raises(AttributeError, match="There are no modes"):
         spectrum.isolate_mode_range(1, 3)
 
 
 def test_extract_kc_from_fit_uses_config_and_saves_fit_results(monkeypatch):
     """Test fitting uses the configured modes and physical-fit settings."""
-    spectrum = Spectrum.__new__(Spectrum)
+    spectrum = SyntheticSpectrum.__new__(SyntheticSpectrum)
     spectrum.r0 = 10.0
     spectrum.modes = np.array([0, 1, 2, 3, 4, 5])
-    spectrum.avg_amps2 = np.array([0.0, 0.1, 0.2, 0.3, 0.4, 0.5])
+    spectrum.powers = np.array([0.0, 0.1, 0.2, 0.3, 0.4, 0.5])
     spectrum.kC = None
     spectrum.surface_tension = None
     spectrum.fit_result = None
@@ -258,10 +260,10 @@ def test_extract_kc_from_fit_uses_config_and_saves_fit_results(monkeypatch):
 
 def test_extract_kc_from_fit_uses_default_config(monkeypatch):
     """Test omitted config preserves the historical fixed q=3--7 fit."""
-    spectrum = Spectrum.__new__(Spectrum)
+    spectrum = SyntheticSpectrum.__new__(SyntheticSpectrum)
     spectrum.r0 = 10.0
     spectrum.modes = np.arange(0, 9)
-    spectrum.avg_amps2 = np.ones(9)
+    spectrum.powers = np.ones(9)
     spectrum.kC = None
     spectrum.surface_tension = None
     spectrum.fit_result = None
@@ -294,10 +296,10 @@ def test_extract_kc_from_fit_uses_default_config(monkeypatch):
 
 def test_extract_kc_from_fit_rejects_empty_configured_range(monkeypatch):
     """Test a fixed config containing no spectrum modes fails before fitting."""
-    spectrum = Spectrum.__new__(Spectrum)
+    spectrum = SyntheticSpectrum.__new__(SyntheticSpectrum)
     spectrum.r0 = 10.0
     spectrum.modes = np.arange(0, 6)
-    spectrum.avg_amps2 = np.ones(6)
+    spectrum.powers = np.ones(6)
     spectrum.kC = None
     spectrum.surface_tension = None
     spectrum.fit_result = None
@@ -316,12 +318,12 @@ def test_extract_kc_from_fit_rejects_empty_configured_range(monkeypatch):
 
 def test_to_dict_includes_arrays_when_requested():
     """Test serialization includes arrays when requested."""
-    spectrum = Spectrum.__new__(Spectrum)
+    spectrum = SyntheticSpectrum.__new__(SyntheticSpectrum)
     spectrum.r0 = np.float64(10.0)
     spectrum.kC = np.float64(20.0)
     spectrum.surface_tension = np.float64(1e-7)
     spectrum.modes = np.array([0, 1, -1])
-    spectrum.avg_amps2 = np.array([1.0, 0.1, 0.1])
+    spectrum.powers = np.array([1.0, 0.1, 0.1])
 
     data = spectrum.to_dict(include_arrays=True)
     assert data == {
@@ -329,19 +331,22 @@ def test_to_dict_includes_arrays_when_requested():
         "kC": 20.0,
         "surface_tension": 1e-7,
         "power_definition": "mean_square",
+        "radius_unit": "um",
+        "reference_radius": 10.0,
+        "power_unit": "dimensionless",
         "modes": [0, 1, -1],
-        "avg_amps2": [1.0, 0.1, 0.1],
+        "powers": [1.0, 0.1, 0.1],
     }
 
 
 def test_to_dict_excludes_arrays_when_requested():
     """Test serialization can omit arrays when requested."""
-    spectrum = Spectrum.__new__(Spectrum)
+    spectrum = SyntheticSpectrum.__new__(SyntheticSpectrum)
     spectrum.r0 = 10.0
     spectrum.kC = None
     spectrum.surface_tension = None
     spectrum.modes = np.array([0])
-    spectrum.avg_amps2 = np.array([1.0])
+    spectrum.powers = np.array([1.0])
 
     data = spectrum.to_dict(include_arrays=False)
     assert data == {
@@ -349,17 +354,20 @@ def test_to_dict_excludes_arrays_when_requested():
         "kC": None,
         "surface_tension": None,
         "power_definition": "mean_square",
+        "radius_unit": "um",
+        "reference_radius": 10.0,
+        "power_unit": "dimensionless",
     }
 
 
 def test_to_json_writes_json_suffix_and_serialized_spectrum_data(tmp_path):
     """Test JSON export uses the requested Spectrum data."""
-    spectrum = Spectrum.__new__(Spectrum)
+    spectrum = SyntheticSpectrum.__new__(SyntheticSpectrum)
     spectrum.r0 = 10.0
     spectrum.kC = 20.0
     spectrum.surface_tension = 1e-7
     spectrum.modes = np.array([0, 1])
-    spectrum.avg_amps2 = np.array([1.0, 0.1])
+    spectrum.powers = np.array([1.0, 0.1])
 
     outfile = tmp_path / "spectrum_output.txt"
     spectrum.to_json(outfile, include_arrays=True, indent=2)
@@ -371,6 +379,9 @@ def test_to_json_writes_json_suffix_and_serialized_spectrum_data(tmp_path):
         "kC": 20.0,
         "surface_tension": 1e-7,
         "power_definition": "mean_square",
+        "radius_unit": "um",
+        "reference_radius": 10.0,
+        "power_unit": "dimensionless",
         "modes": [0, 1],
-        "avg_amps2": [1.0, 0.1],
+        "powers": [1.0, 0.1],
     }

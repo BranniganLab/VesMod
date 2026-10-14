@@ -8,7 +8,6 @@ experimental procedures may choose those bounds before calling the core fit,
 but ``Spectrum`` itself does not depend on any range-selection strategy.
 """
 from pathlib import Path
-from types import NoneType
 import json
 import numpy as np
 from vesmod.VesEdge import VesicleEdges
@@ -21,6 +20,8 @@ from .spectrum_plotting import (
     save_spectrum_fit_diagnostic,
 )
 from .config import SpectrumFitConfig
+from .calculators import MeanSquaredPowerCalculator
+from .power_calculation import PowerCalculationResult, SpectrumCalculator
 from .fit_result import SpectrumFit
 from .spectrum_utils import (
     MiniSpectrum,
@@ -35,31 +36,26 @@ class Spectrum:
     Successful construction guarantees a finite positive two-dimensional radii
     trajectory with at least one frame and two angular samples. Temporal
     variance power requires at least two frames. Derived ``r0``,
-    ``avg_amps2``, ``modes``, and ``fit_results`` state is initialized before
-    the object is exposed to callers. Because these attributes remain publicly
-    mutable for compatibility, methods still validate state that callers can
-    invalidate after construction.
+    ``powers``, ``modes``, and ``fit_results`` state is initialized before
+    the object is exposed to callers.
 
     ``kC`` and ``surface_tension`` are compatibility attributes containing the
     most recent successful physical fit. Durable per-fit provenance is stored
     in ``fit_results``.
 
-    The ``power_definition`` argument selects either ``mean_square`` or
-    ``temporal_variance`` power. The latter subtracts each complex mode's
-    temporal mean before calculating the power.
+    The ``calculator`` callable defines the power calculation; mean-square
+    power is the default.
     """
 
     def __init__(
         self,
         edges_over_time: str | Path | VesicleEdges,
         frame_cutoff=None,
-        power_definition: str = "mean_square",
+        calculator: SpectrumCalculator | None = None,
     ) -> None:
         """Create a Spectrum from accepted radii or a QCed VesicleEdges object.
 
-        ``power_definition`` selects the mean-square power used by the fit.
-        Temporal variance power subtracts the complex temporal mean of each
-        Fourier coefficient before calculating its power.
+        ``calculator`` supplies the contour-to-power calculation.
         """
         if isinstance(edges_over_time, VesicleEdges):
             input_data = edges_over_time.accepted_radii_microns
@@ -76,28 +72,26 @@ class Spectrum:
                 "edges_over_time must be a str, pathlib Path, or VesicleEdges."
             )
 
-        self._initialize_from_radii(input_data, frame_cutoff, power_definition)
+        self._initialize_from_radii(input_data, frame_cutoff, calculator)
 
     @classmethod
     def from_radii(
         cls,
         radii: np.ndarray,
         frame_cutoff=None,
-        power_definition: str = "mean_square",
+        calculator: SpectrumCalculator | None = None,
     ) -> "Spectrum":
         """Create a Spectrum directly from an in-memory radii array.
 
-        The caller's array is validated and copied so later mutations do not
-        change the constructed spectrum. ``power_definition`` selects either
-        mean-square power or variance around each complex mode's temporal mean.
+        ``calculator`` defines the mode powers calculated from the radii.
         """
         spectrum = cls.__new__(cls)
-        spectrum._initialize_from_radii(radii, frame_cutoff, power_definition)
+        spectrum._initialize_from_radii(radii, frame_cutoff, calculator)
         return spectrum
 
     @staticmethod
     def _validate_radii(radii: np.ndarray) -> np.ndarray:
-        """Return a validated float copy of a contour-radius trajectory."""
+        """Validate a contour-radius trajectory."""
         require_numeric_array(radii, "radii")
         if radii.ndim != 2:
             raise ValueError("radii must be a two-dimensional array.")
@@ -122,16 +116,9 @@ class Spectrum:
         self,
         radii: np.ndarray,
         frame_cutoff,
-        power_definition: str,
+        calculator: SpectrumCalculator | None,
     ) -> None:
         """Validate radii, apply an optional cutoff, and calculate the spectrum."""
-        if not isinstance(power_definition, str) or power_definition not in {
-            "mean_square",
-            "temporal_variance",
-        }:
-            raise ValueError(
-                "power_definition must be 'mean_square' or 'temporal_variance'."
-            )
         if (
             frame_cutoff is not None
             and (isinstance(frame_cutoff, bool) or not isinstance(frame_cutoff, int))
@@ -143,35 +130,44 @@ class Spectrum:
         input_data = self._validate_radii(radii)
         if frame_cutoff is not None and frame_cutoff < input_data.shape[0]:
             input_data = input_data[:frame_cutoff, :]
-        if power_definition == "temporal_variance" and input_data.shape[0] < 2:
-            raise ValueError(
-                "temporal_variance requires at least two frames."
-            )
-
-        self.r0 = float(np.mean(input_data))
-        self.power_definition = power_definition
-        self.avg_amps2 = self._calc_avg_sq_amplitudes(input_data)
-        self.modes = self._calc_integer_modes()
+        if calculator is None:
+            calculator = MeanSquaredPowerCalculator()
+        if not callable(calculator):
+            raise TypeError("calculator must be callable.")
+        result = calculator(input_data.copy())
+        if not isinstance(result, PowerCalculationResult):
+            raise TypeError("calculator must return a PowerCalculationResult.")
+        if result.radius_unit not in {"um", "m", "nm"}:
+            raise ValueError("Unsupported radius_unit; use um, m or nm.")
+        self._calculation = result
         self.kC = None
         self.surface_tension = None
         self.fit_result = None
         self.fit_results: list[SpectrumFit] = []
 
-    def _calc_avg_sq_amplitudes(self, r_vals_over_time: np.ndarray) -> np.ndarray:
-        """Return the selected time-averaged power for each normalized mode."""
-        n_samples = r_vals_over_time.shape[1]
-        norm = 1. / (self.r0 * n_samples)
-        amps = np.fft.fft(r_vals_over_time, axis=1, norm='backward') * norm
-        if self.power_definition == "mean_square":
-            return np.mean(np.abs(amps) ** 2, axis=0)
-        centered_amps = amps - np.mean(amps, axis=0, keepdims=True)
-        return np.mean(np.abs(centered_amps) ** 2, axis=0)
+    @property
+    def powers(self) -> np.ndarray:
+        """Calculated powers aligned with :attr:`modes`."""
+        return self._calculation.powers
 
-    def _calc_integer_modes(self) -> np.ndarray[int]:
-        """Return integer Fourier mode numbers in NumPy FFT ordering."""
-        freqs = np.fft.fftfreq(self.avg_amps2.shape[0])
-        modes = np.round(freqs * self.avg_amps2.shape[0]).astype(int)
-        return modes
+    @property
+    def modes(self) -> np.ndarray:
+        """Signed Fourier modes returned by the calculator."""
+        return self._calculation.modes
+
+    @property
+    def r0(self) -> float:
+        """Calculator reference radius in micrometers."""
+        factors = {"um": 1.0, "m": 1e6, "nm": 1e-3}
+        try:
+            return self._calculation.reference_radius * factors[self._calculation.radius_unit]
+        except KeyError as error:
+            raise ValueError("Unsupported radius_unit; use um, m or nm.") from error
+
+    @property
+    def power_definition(self) -> str:
+        """Read-only description of the calculated powers."""
+        return self._calculation.power_definition
 
     def isolate_mode_range(self, lower_bound: int, upper_bound: int) -> MiniSpectrum:
         """Return modes with ``lower_bound <= q < upper_bound`` and amplitudes."""
@@ -182,7 +178,7 @@ class Spectrum:
         combined_mask = mask1 & mask2
         return MiniSpectrum(
             self.modes[combined_mask],
-            self.avg_amps2[combined_mask],
+            self.powers[combined_mask],
             None,
         )
 
@@ -254,7 +250,7 @@ class Spectrum:
         save_spectrum_fit_diagnostic(
             SpectrumPlotData(
                 modes=self.modes,
-                avg_amps2=self.avg_amps2,
+                avg_amps2=self.powers,
                 fit_result=self.fit_result,
                 lower_bound=lower_bound,
                 upper_bound=upper_bound,
@@ -284,7 +280,7 @@ class Spectrum:
         fit_result = self.fit_result
         data = SpectrumPlotData(
             modes=self.modes,
-            avg_amps2=self.avg_amps2,
+            avg_amps2=self.powers,
             fit_result=fit_result,
             lower_bound=None if fit_config is None else fit_config.lower_bound,
             upper_bound=None if fit_config is None else fit_config.upper_bound,
@@ -313,6 +309,9 @@ class Spectrum:
             ),
         }
 
+        data["reference_radius"] = self._calculation.reference_radius
+        data["radius_unit"] = self._calculation.radius_unit
+        data["power_unit"] = self._calculation.power_unit
         fit_results = getattr(self, "fit_results", None)
         if fit_results:
             data["fit_results"] = [result.to_dict() for result in fit_results]
@@ -323,9 +322,9 @@ class Spectrum:
                 if getattr(self, "modes", None) is not None
                 else None
             )
-            data["avg_amps2"] = (
-                self.avg_amps2.tolist()
-                if getattr(self, "avg_amps2", None) is not None
+            data["powers"] = (
+                self.powers.tolist()
+                if getattr(self, "powers", None) is not None
                 else None
             )
 

@@ -167,14 +167,20 @@ def test_public_spectrum_plot_uses_recorded_camera_fit():
     spectrum = Spectrum.from_radii(np.full((2, 32), 5.0))
     positive = spectrum.modes >= 2
     q = spectrum.modes[positive]
-    spectrum.avg_amps2[positive] = predict_spectrum(
+    powers = spectrum.powers.copy()
+    powers[positive] = predict_spectrum(
         q, 25, 0, 50, config=config, radii=[5])
-    original = spectrum.avg_amps2.copy()
+    from dataclasses import replace
+    spectrum = Spectrum.from_radii(
+        np.full((2, 32), 5.0),
+        calculator=lambda radii: replace(spectrum._calculation, powers=powers),
+    )
+    original = spectrum.powers.copy()
     spectrum.extract_kc_from_fit(config)
     result = spectrum.plot(plot_config=SpectrumPlotConfig(power='both'))
     np.testing.assert_allclose(result.corrected_fit_data_artist.get_ydata(),
                                spherical_contour_spectrum(np.arange(3, 8), 25, 0, 50), rtol=1e-5)
-    np.testing.assert_array_equal(spectrum.avg_amps2, original)
+    np.testing.assert_array_equal(spectrum.powers, original)
     plt.close(result.figure)
 
 

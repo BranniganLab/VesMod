@@ -1,4 +1,5 @@
 """Physical and integration tests for finite camera exposure fitting."""
+
 from dataclasses import replace
 import numpy as np
 import pytest
@@ -75,18 +76,23 @@ def test_spectrum_and_ensemble_use_individual_radii():
     predictions = []
     for radius in [5, 15]:
         spectrum = Spectrum.from_radii(np.full((2, 32), radius, dtype=float))
-        spectrum.avg_amps2[3:8] = predict_spectrum(range(3, 8), 25, 0, 50, config=config, radii=[radius])
+        powers = spectrum.powers.copy()
+        powers[3:8] = predict_spectrum(range(3, 8), 25, 0, 50, config=config, radii=[radius])
+        spectrum = Spectrum.from_radii(
+            np.full((2, 32), spectrum.r0),
+            calculator=lambda radii: replace(spectrum._calculation, powers=powers),
+        )
         fit = spectrum.extract_kc_from_fit(config)
         assert fit.kC == pytest.approx(25, rel=1e-5)
         assert fit.to_dict()['config']['exposure_time'] == .030
-        ensemble.add_spectrum(spectrum.avg_amps2, spectrum.modes, fit.kC, r0=radius)
-        predictions.append(spectrum.avg_amps2[3:8])
+        ensemble.add_spectrum(spectrum.powers, spectrum.modes, fit.kC, r0=radius)
+        predictions.append(spectrum.powers[3:8])
     np.testing.assert_allclose(predict_spectrum(range(3, 8), 25, 0, 50, config=config, radii=[5, 15]),
                                np.mean(predictions, axis=0))
     fit = ensemble.extract_kc_from_fit(config, weight_by_replica_sem=True)
     assert fit.kC == pytest.approx(25, rel=1e-5)
     assert fit.to_dict()['radii'] == [5, 15]
-    ensemble.add_spectrum(spectrum.avg_amps2, spectrum.modes, 25)
+    ensemble.add_spectrum(spectrum.powers, spectrum.modes, 25)
     with pytest.raises(ValueError, match='r0 for every replica'):
         ensemble.extract_kc_from_fit(config)
 
@@ -295,12 +301,17 @@ def test_eta_m_cli_and_synthetic_ensemble_fit(monkeypatch):
     ensemble = SpectrumEnsemble()
     for radius in [5, 15]:
         spectrum = Spectrum.from_radii(np.full((2, 32), radius, dtype=float))
-        spectrum.avg_amps2[3:8] = predict_spectrum(
+        powers = spectrum.powers.copy()
+        powers[3:8] = predict_spectrum(
             range(3, 8), 25, 4, 50, config=config, radii=[radius])
+        spectrum = Spectrum.from_radii(
+            np.full((2, 32), spectrum.r0),
+            calculator=lambda radii: replace(spectrum._calculation, powers=powers),
+        )
         fit = spectrum.extract_kc_from_fit(config)
         assert fit.kC == pytest.approx(25, rel=1e-5)
         assert fit.surface_tension == pytest.approx(4 * 25 * Boltzmann * 295 / (radius * 1e-6)**2, rel=1e-5)
-        ensemble.add_spectrum(spectrum.avg_amps2, spectrum.modes, fit.kC, r0=radius)
+        ensemble.add_spectrum(spectrum.powers, spectrum.modes, fit.kC, r0=radius)
     fit = ensemble.extract_kc_from_fit(config)
     assert fit.kC == pytest.approx(25, rel=1e-5)
     assert fit.to_dict()['config']['eta_m'] == 4.1e-9
