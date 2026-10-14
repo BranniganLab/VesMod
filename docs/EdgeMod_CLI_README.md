@@ -311,7 +311,7 @@ selector = QMinusThreeRangeSelector(
     max_log_rmse=0.1,
 )
 
-selection = selector.select(spectrum.modes, spectrum.avg_amps2)
+selection = selector.select(spectrum.modes, spectrum.powers)
 if not selection.accepted:
     raise ValueError(selection.reason)
 
@@ -460,7 +460,7 @@ Ensemble fits use free sigma by default. Supply
 For exposure-aware ensemble fits, supply the radius when adding **each** replica:
 
 ```python
-ensemble.add_spectrum(spectrum.avg_amps2, spectrum.modes, spectrum.kC, r0=spectrum.r0)
+ensemble.add_spectrum(spectrum.powers, spectrum.modes, spectrum.kC, r0=spectrum.r0)
 fit = ensemble.extract_kc_from_fit(
     SpectrumFitConfig(camera_integration=True, exposure_time=0.030,
                       viscosity_in=0.00102, viscosity_out=0.00097),
@@ -492,16 +492,16 @@ The `Spectrum` Python API supports two definitions of Fourier-mode power:
   Gracia et al. (Soft Matter, 2010, equations 7-8).
 
 Choose the definition when constructing a spectrum. The selected power is
-stored in `avg_amps2` and used by subsequent fits. Here, `edges` is a QCed
+stored in `powers` and used by subsequent fits. Here, `edges` is a QCed
 `VesicleEdges` object or a path to the saved radii array.
 
 ```python
-from vesmod.EdgeMod import Spectrum
+from vesmod.EdgeMod import Spectrum, MeanSquaredPowerCalculator, TemporalVarianceCalculator
 
-mean_square = Spectrum(edges, power_definition="mean_square")
+mean_square = Spectrum(edges, calculator=MeanSquaredPowerCalculator())
 mean_square_fit = mean_square.extract_kc_from_fit()
 
-temporal_variance = Spectrum(edges, power_definition="temporal_variance")
+temporal_variance = Spectrum(edges, calculator=TemporalVarianceCalculator())
 temporal_variance_fit = temporal_variance.extract_kc_from_fit()
 ```
 

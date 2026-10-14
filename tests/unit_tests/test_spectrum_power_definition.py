@@ -1,5 +1,7 @@
 """Tests for the selectable temporal power used by EdgeMod."""
 
+from vesmod.EdgeMod import MeanSquaredPowerCalculator, TemporalVarianceCalculator
+
 import numpy as np
 import pytest
 
@@ -11,10 +13,10 @@ def test_mean_square_retains_static_mode_power():
     theta = 2 * np.pi * np.arange(120) / 120
     radii = np.array([10.0 + 0.2 * np.cos(4 * theta)] * 20)
 
-    spectrum = Spectrum.from_radii(radii, power_definition="mean_square")
+    spectrum = Spectrum.from_radii(radii, calculator=MeanSquaredPowerCalculator())
 
     q4 = np.flatnonzero(spectrum.modes == 4)[0]
-    assert spectrum.avg_amps2[q4] > 0
+    assert spectrum.powers[q4] > 0
 
 
 def test_temporal_variance_removes_static_mode_power():
@@ -22,10 +24,10 @@ def test_temporal_variance_removes_static_mode_power():
     theta = 2 * np.pi * np.arange(120) / 120
     radii = np.array([10.0 + 0.2 * np.cos(4 * theta)] * 20)
 
-    spectrum = Spectrum.from_radii(radii, power_definition="temporal_variance")
+    spectrum = Spectrum.from_radii(radii, calculator=TemporalVarianceCalculator())
 
     q4 = np.flatnonzero(spectrum.modes == 4)[0]
-    assert spectrum.avg_amps2[q4] == pytest.approx(0.0, abs=1e-30)
+    assert spectrum.powers[q4] == pytest.approx(0.0, abs=1e-30)
 
 
 def test_power_definitions_agree_when_complex_mode_mean_is_zero():
@@ -34,15 +36,15 @@ def test_power_definitions_agree_when_complex_mode_mean_is_zero():
     base = 10.0 + 0.2 * np.cos(4 * theta)
     radii = np.array([base, 10.0 - 0.2 * np.cos(4 * theta)] * 10)
 
-    mean_square = Spectrum.from_radii(radii, power_definition="mean_square")
+    mean_square = Spectrum.from_radii(radii, calculator=MeanSquaredPowerCalculator())
     temporal_variance = Spectrum.from_radii(
         radii,
-        power_definition="temporal_variance",
+        calculator=TemporalVarianceCalculator(),
     )
 
     q4 = np.flatnonzero(mean_square.modes == 4)[0]
-    assert temporal_variance.avg_amps2[q4] == pytest.approx(
-        mean_square.avg_amps2[q4]
+    assert temporal_variance.powers[q4] == pytest.approx(
+        mean_square.powers[q4]
     )
 
 
@@ -51,21 +53,21 @@ def test_temporal_variance_requires_two_frames():
     with pytest.raises(ValueError, match="at least two frames"):
         Spectrum.from_radii(
             np.full((1, 120), 10.0),
-            power_definition="temporal_variance",
+            calculator=TemporalVarianceCalculator(),
         )
 
 
 def test_unknown_power_definition_is_rejected():
     """Only the two documented power definitions are accepted."""
-    with pytest.raises(ValueError, match="power_definition must be"):
-        Spectrum.from_radii(np.full((2, 120), 10.0), power_definition="variance")
+    with pytest.raises(TypeError, match="calculator must be callable"):
+        Spectrum.from_radii(np.full((2, 120), 10.0), calculator="variance")
 
 
 def test_power_definition_is_serialized():
     """Saved spectrum metadata records which power was calculated."""
     spectrum = Spectrum.from_radii(
         np.full((2, 120), 10.0),
-        power_definition="temporal_variance",
+        calculator=TemporalVarianceCalculator(),
     )
 
     assert spectrum.to_dict(include_arrays=False)["power_definition"] == (

@@ -1,4 +1,5 @@
 """Behavioral coverage of explicit model, exposure, and relaxation choices."""
+
 from dataclasses import replace
 
 import matplotlib.pyplot as plt
@@ -70,7 +71,12 @@ def test_standalone_relaxation_times_do_not_require_camera_averaging():
 def test_disabled_correction_fits_and_plots_equilibrium_with_exposure_metadata():
     config = SpectrumFitConfig(exposure_time=.030, lmax=50)
     spectrum = Spectrum.from_radii(np.full((2, 32), 5.0))
-    spectrum.avg_amps2[3:8] = spherical_contour_spectrum(range(3, 8), 25, 4, 50)
+    powers = spectrum.powers.copy()
+    powers[3:8] = spherical_contour_spectrum(range(3, 8), 25, 4, 50)
+    spectrum = Spectrum.from_radii(
+        np.full((2, 32), spectrum.r0),
+        calculator=lambda radii: replace(spectrum._calculation, powers=powers),
+    )
     fit = spectrum.extract_kc_from_fit(config)
     assert fit.kC == pytest.approx(25, rel=1e-5)
     assert fit.to_dict()['config']['camera_integration'] is False
@@ -78,7 +84,7 @@ def test_disabled_correction_fits_and_plots_equilibrium_with_exposure_metadata()
     try:
         spectrum.plot(ax=ax)
         np.testing.assert_allclose(ax.lines[-1].get_ydata(),
-                                   spectrum.avg_amps2[3:8], rtol=1e-5)
+                                   spectrum.powers[3:8], rtol=1e-5)
         from vesmod.EdgeMod import SpectrumPlotConfig
         with pytest.raises(ValueError, match='existing camera integration fit'):
             spectrum.plot(ax=ax, plot_config=SpectrumPlotConfig(power='corrected'))

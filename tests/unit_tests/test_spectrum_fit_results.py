@@ -1,5 +1,7 @@
 """Tests for preserving multiple core EdgeMod fit results on one Spectrum."""
 
+from spectrum_fixture import SyntheticSpectrum
+
 from types import SimpleNamespace
 
 import numpy as np
@@ -9,10 +11,10 @@ from vesmod.EdgeMod import Spectrum, SpectrumFit, SpectrumFitConfig
 
 def _spectrum() -> Spectrum:
     """Return a minimal spectrum for repeated physical fitting."""
-    spectrum = Spectrum.__new__(Spectrum)
+    spectrum = SyntheticSpectrum.__new__(SyntheticSpectrum)
     spectrum.r0 = 10.0
     spectrum.modes = np.arange(0, 12)
-    spectrum.avg_amps2 = np.ones(12, dtype=float)
+    spectrum.powers = np.ones(12, dtype=float)
     spectrum.kC = None
     spectrum.surface_tension = None
     spectrum.fit_result = None
