@@ -1,0 +1,29 @@
+{
+  "title": "VesMod: Vesicle contour extraction and flicker spectroscopy",
+  "description": "VesMod is a Python package for extracting membrane contours from microscopy videos of giant unilamellar vesicles (GUVs) and estimating membrane bending rigidity from thermal shape fluctuations. VesEdge provides automated contour extraction and quality control. EdgeMod computes fluctuation spectra and fits physical models to estimate membrane bending rigidity and tension.",
+  "upload_type": "software",
+  "creators": [
+    {
+      "name": "Sandberg, Jesse W.",
+      "affiliation": "Rutgers University–Camden",
+      "orcid": "0000-0001-7466-8466"
+    },
+    {
+      "name": "Brannigan, Grace",
+      "affiliation": "Rutgers University–Camden",
+      "orcid": "0000-0001-8949-2694"
+    }
+  ],
+  "license": "GPL-3.0-or-later",
+  "access_right": "open",
+  "keywords": [
+    "vesicle",
+    "giant unilamellar vesicle",
+    "membrane biophysics",
+    "flicker spectroscopy",
+    "bending rigidity",
+    "edge detection",
+    "microscopy",
+    "Python"
+  ]
+}
