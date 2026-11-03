@@ -3,13 +3,8 @@
 import numpy as np
 import pytest
 
-from vesmod.VesEdge import (
-    EdgeDetection,
-    ImageContour,
-    QCFlag,
-    check_area_deviation,
-    contour_area,
-)
+from vesmod.VesEdge.models import EdgeDetection, ImageContour, QCFlag
+from vesmod.VesEdge.qc.checks.area_qc import check_area_deviation, contour_area
 
 
 def _edge_with_area(area_pixels2):

@@ -13,14 +13,10 @@ import pytest
 
 from vesmod.EdgeMod import Spectrum, SpectrumFitConfig
 from vesmod.EdgeMod.spectrum_utils import MiniSpectrum
-from vesmod.VesEdge import (
-    EdgeDetection,
-    EdgeDetectionFailure,
-    EdgeExtractionConfig,
-    QCFlag,
-    VesicleEdges,
-    VesicleQCConfig,
-)
+from vesmod.VesEdge.models import EdgeDetection, EdgeDetectionFailure, QCFlag
+from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
+from vesmod.VesEdge.vesicle_edges import VesicleEdges
+from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
 from vesmod.VesEdge.models import ImageContour
 
 

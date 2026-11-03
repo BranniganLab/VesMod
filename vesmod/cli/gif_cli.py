@@ -5,15 +5,11 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from vesmod.VesEdge import (
-    OnDemandFrameSequence,
-    RecordedQCSelection,
-    VesicleEdges,
-    VesicleVideo,
-    load_recorded_qc,
-    make_vesicle_gif,
-    replay_recorded_qc,
-)
+from vesmod.VesEdge.io.frame_source import OnDemandFrameSequence
+from vesmod.VesEdge.qc.qc_replay import RecordedQCSelection, load_recorded_qc, replay_recorded_qc
+from vesmod.VesEdge.vesicle_edges import VesicleEdges
+from vesmod.VesEdge.vesicle_video import VesicleVideo
+from vesmod.VesEdge.visualization.animation import make_vesicle_gif
 
 from vesmod.io import (
     map_output_path,

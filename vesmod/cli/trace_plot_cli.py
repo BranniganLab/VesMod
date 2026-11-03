@@ -7,13 +7,9 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
-from vesmod.VesEdge import (
-    EdgeTracePlotConfig,
-    VesicleEdges,
-    load_recorded_qc,
-    plot_edge_traces,
-    replay_recorded_qc,
-)
+from vesmod.VesEdge.visualization.trace_plotting import EdgeTracePlotConfig, plot_edge_traces
+from vesmod.VesEdge.vesicle_edges import VesicleEdges
+from vesmod.VesEdge.qc.qc_replay import load_recorded_qc, replay_recorded_qc
 from vesmod.io import open_checkpoint_frames, resolve_source_path
 
 

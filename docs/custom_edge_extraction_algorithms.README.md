@@ -120,7 +120,7 @@ vesedge extract "sample.nd2" \
 Default:
 
 ```text
-vesmod.VesEdge:extract_edge_from_frame
+vesmod.VesEdge.extraction.edge_extractor:extract_edge_from_frame
 ```
 
 If `--extractor-file` is supplied, the function from that file takes precedence over `--extractor`.
@@ -168,10 +168,8 @@ This separation is useful when developing an extractor because changes to the ex
 ## Python API
 
 ```python
-from vesmod.VesEdge import (
-    EdgeExtractionConfig,
-    VesicleVideo,
-)
+from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
+from vesmod.VesEdge.vesicle_video import VesicleVideo
 
 video = VesicleVideo(frames)
 edges = video.extract_edges(
@@ -192,7 +190,9 @@ edges.save_checkpoint("sample.npz")
 Later, reload it and run curvature QC without invoking the extractor again:
 
 ```python
-from vesmod.VesEdge import CurvatureQCConfig, VesicleEdges, VesicleQCConfig
+from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
+from vesmod.VesEdge.vesicle_edges import VesicleEdges
+from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
 
 edges = VesicleEdges.from_checkpoint("sample.npz")
 edges.run_qc(
@@ -217,7 +217,7 @@ The function returns a frozen `RadialBaselineFit` containing the reconstructed
 radial values in `.values` and the requested harmonic order in `.order`:
 
 ```python
-from vesmod.VesEdge import fit_radial_baseline
+from vesmod.VesEdge.contour_geometry import fit_radial_baseline
 
 baseline = fit_radial_baseline(r_vals, order=7)
 smooth_r_vals = baseline.values

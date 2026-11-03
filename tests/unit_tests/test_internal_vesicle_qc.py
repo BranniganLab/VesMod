@@ -3,11 +3,9 @@
 import numpy as np
 import pytest
 
-from vesmod.VesEdge import (
-    EdgeExtractionConfig,
-    VesicleEdges,
-    VesicleQCConfig,
-)
+from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
+from vesmod.VesEdge.vesicle_edges import VesicleEdges
+from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
 from vesmod.VesEdge.experimental.internal_vesicle_qc import (
     _coherent_outer_edge_coverage,
     _frame_enclosing_boundary_score,

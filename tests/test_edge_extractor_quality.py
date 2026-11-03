@@ -14,12 +14,10 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from vesmod.VesEdge import (
-    EdgeExtractionConfig,
-    VesicleQCConfig,
-    VesicleVideo,
-    extract_edge_from_frame,
-)
+from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
+from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
+from vesmod.VesEdge.vesicle_video import VesicleVideo
+from vesmod.VesEdge.extraction.edge_extractor import extract_edge_from_frame
 from vesmod.VesEdge.models import (
     EdgeDetection,
     EdgeDetectionFailure,

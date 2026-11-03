@@ -5,12 +5,8 @@ import json
 import numpy as np
 import pytest
 
-from vesmod.VesEdge import (
-    RecordedQCSelection,
-    VesicleQCConfig,
-    load_recorded_qc,
-    replay_recorded_qc,
-)
+from vesmod.VesEdge.qc.qc_replay import RecordedQCSelection, load_recorded_qc, replay_recorded_qc
+from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
 from vesmod.VesEdge.experimental.internal_vesicle_qc import (
     InternalVesicleQCConfig,
 )

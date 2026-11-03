@@ -69,7 +69,7 @@ def test_real_nd2_sequential_reads_have_bounded_file_backed_rss():
         import nd2
         import numpy as np
 
-        from vesmod.VesEdge.frame_source import (
+        from vesmod.VesEdge.io.frame_source import (
             OnDemandFrameSequence,
             _ND2_READER_MEMORY_BUDGET_BYTES,
         )

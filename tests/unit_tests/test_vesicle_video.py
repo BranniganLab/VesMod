@@ -6,13 +6,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
-from vesmod.VesEdge import (
-    EdgeExtractionConfig,
-    VesicleEdges,
-    VesicleVideo,
-    draw_vesicle_frame,
-    make_vesicle_gif,
-)
+from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
+from vesmod.VesEdge.vesicle_edges import VesicleEdges
+from vesmod.VesEdge.vesicle_video import VesicleVideo
+from vesmod.VesEdge.visualization.animation import draw_vesicle_frame, make_vesicle_gif
 from vesmod.VesEdge.models import EdgeDetection, EdgeDetectionFailure, QCFlag
 
 
@@ -273,7 +270,7 @@ def test_make_vesicle_gif_delegates_to_composable_api(tmp_path, monkeypatch):
     def fake_make_gif(path, panels):
         observed.append((path, panels))
 
-    monkeypatch.setattr("vesmod.VesEdge.animation.make_gif", fake_make_gif)
+    monkeypatch.setattr("vesmod.VesEdge.visualization.animation.make_gif", fake_make_gif)
 
     output_path = tmp_path / "video.gif"
     make_vesicle_gif(video, output_path)
@@ -291,7 +288,7 @@ def test_make_vesicle_gif_passes_selected_source_frames(tmp_path, monkeypatch):
     def fake_make_gif(path, panels):
         observed.append((path, panels))
 
-    monkeypatch.setattr("vesmod.VesEdge.animation.make_gif", fake_make_gif)
+    monkeypatch.setattr("vesmod.VesEdge.visualization.animation.make_gif", fake_make_gif)
 
     make_vesicle_gif(video, tmp_path / "video.gif", frame_indices=[2, 0])
 

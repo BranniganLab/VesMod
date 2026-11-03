@@ -17,14 +17,12 @@ import numpy as np
 import pytest
 
 from vesmod.EdgeMod import Spectrum, SpectrumFitConfig
-from vesmod.VesEdge import (
-    EdgeDetection,
-    EdgeExtractionConfig,
-    VesicleEdges,
-    VesicleQCConfig,
-    VesicleVideo,
-    extract_edge_from_frame,
-)
+from vesmod.VesEdge.models import EdgeDetection
+from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
+from vesmod.VesEdge.vesicle_edges import VesicleEdges
+from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
+from vesmod.VesEdge.vesicle_video import VesicleVideo
+from vesmod.VesEdge.extraction.edge_extractor import extract_edge_from_frame
 
 
 TEST_ROOT = Path(__file__).parent

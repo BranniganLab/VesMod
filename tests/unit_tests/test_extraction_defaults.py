@@ -5,8 +5,8 @@ import sys
 import numpy as np
 import pytest
 
-from vesmod.VesEdge import EdgeExtractionConfig
-from vesmod.VesEdge.checkpoint_io import _extraction_config_from_checkpoint
+from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
+from vesmod.VesEdge.io.checkpoint_io import _extraction_config_from_checkpoint
 from vesmod.cli import vesedge_cli
 
 

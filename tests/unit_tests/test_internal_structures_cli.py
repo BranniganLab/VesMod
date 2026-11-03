@@ -10,14 +10,10 @@ import sys
 import numpy as np
 import pytest
 
-from vesmod.VesEdge import (
-    EdgeDetection,
-    ImageContour,
-    QCFlag,
-    RecordedQCSelection,
-    VesicleQCConfig,
-)
-from vesmod.VesEdge.experimental import InternalStructureRegion
+from vesmod.VesEdge.models import EdgeDetection, ImageContour, QCFlag
+from vesmod.VesEdge.qc.qc_replay import RecordedQCSelection
+from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
+from vesmod.VesEdge.experimental.internal_structures import InternalStructureRegion
 from vesmod.cli import internal_structures_cli, vesedge_cli
 
 

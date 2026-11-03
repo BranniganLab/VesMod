@@ -240,7 +240,7 @@ require an explicit axis selection rather than silently choosing one.
 The default extractor is:
 
 ```text
-vesmod.VesEdge:extract_edge_from_frame
+vesmod.VesEdge.extraction.edge_extractor:extract_edge_from_frame
 ```
 
 Use an importable custom extractor with:
@@ -770,14 +770,12 @@ intentionally exported only from `vesmod.VesEdge.experimental`; callers should
 expect its configuration, result models, and measurements to evolve.
 
 ```python
-from vesmod.VesEdge import (
-    EdgeExtractionConfig,
-    VesicleQCConfig,
-    CurvatureQCConfig,
-    VesicleEdges,
-    VesicleVideo,
-    extract_edge_from_frame,
-)
+from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
+from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
+from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
+from vesmod.VesEdge.vesicle_edges import VesicleEdges
+from vesmod.VesEdge.vesicle_video import VesicleVideo
+from vesmod.VesEdge.extraction.edge_extractor import extract_edge_from_frame
 
 video = VesicleVideo(frames)
 edges = video.extract_edges(
@@ -810,7 +808,7 @@ Visualization is kept separate from `VesicleVideo`. Use `draw_vesicle_frame(...)
 Internal-structure measurements use the experimental namespace:
 
 ```python
-from vesmod.VesEdge.experimental import (
+from vesmod.VesEdge.experimental.internal_structures import (
     InternalStructureConfig,
     detect_internal_structures,
     summarize_internal_structures,

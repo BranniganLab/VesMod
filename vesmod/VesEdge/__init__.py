@@ -1,7 +1,5 @@
 """Public VesEdge API."""
 
-from ._compat import register_legacy_modules
-
 from .visualization.animation import (
     AnimationPanel,
     TimeSeriesAnimationPanel,
@@ -96,7 +94,3 @@ __all__ = [
     "replay_recorded_qc",
     "select_trace_detections",
 ]
-
-
-register_legacy_modules()
-del register_legacy_modules
