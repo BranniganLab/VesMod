@@ -10,7 +10,7 @@ from pathlib import Path
 from vesmod.VesEdge.visualization.trace_plotting import EdgeTracePlotConfig, plot_edge_traces
 from vesmod.VesEdge.vesicle_edges import VesicleEdges
 from vesmod.VesEdge.qc.qc_replay import load_recorded_qc, replay_recorded_qc
-from vesmod.io import open_checkpoint_frames, resolve_source_path
+from vesmod.VesEdge.io.checkpoint_sources import open_checkpoint_frames, resolve_source_path
 
 
 def add_trace_plot_parser(subparsers) -> None:

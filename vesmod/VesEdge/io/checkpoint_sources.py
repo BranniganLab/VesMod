@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from vesmod.VesEdge.io.frame_source import OnDemandFrameSequence, open_frame_source
+from .frame_source import OnDemandFrameSequence, open_frame_source
 
 
 def build_video_filename_index(checkpoint_paths: list[Path], video_root: Path | None) -> dict[str, tuple[Path, ...]]:

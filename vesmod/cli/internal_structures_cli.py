@@ -29,12 +29,12 @@ from vesmod.cli.path_utils import (
     _relative_input_path,
     remove_manifest_artifacts,
 )
-from vesmod.io import (
+from vesmod.VesEdge.io.checkpoint_sources import (
     build_video_filename_index,
-    map_output_path,
     open_checkpoint_frames,
     resolve_source_path,
 )
+from vesmod.io.path_mapping import map_output_path
 from vesmod.cli.batch_policy import (
     add_batch_policy_argument,
     exit_code,

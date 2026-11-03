@@ -24,7 +24,8 @@ from vesmod.VesEdge.vesicle_edges import VesicleEdges
 from vesmod.VesEdge.vesicle_video import VesicleVideo
 from vesmod.VesEdge.io.frame_source import open_frame_source
 from vesmod.VesEdge.experimental.internal_vesicle_qc import InternalVesicleQCConfig
-from vesmod.io import map_output_path, open_checkpoint_frames, resolve_source_path
+from vesmod.VesEdge.io.checkpoint_sources import open_checkpoint_frames, resolve_source_path
+from vesmod.io.path_mapping import map_output_path
 from vesmod.cli import internal_structures_cli
 from vesmod.cli.gif_cli import add_gif_parser, run_gif
 from vesmod.cli.trace_plot_cli import add_trace_plot_parser, run_trace_plot

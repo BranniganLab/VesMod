@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from vesmod.io import build_video_filename_index, resolve_source_path
+from vesmod.VesEdge.io.checkpoint_sources import build_video_filename_index, resolve_source_path
 
 
 def test_resolve_source_path_uses_recorded_absolute_path(tmp_path):
