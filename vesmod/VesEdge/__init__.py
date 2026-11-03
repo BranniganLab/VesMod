@@ -1,6 +1,8 @@
 """Public VesEdge API."""
 
-from .animation import (
+from ._compat import register_legacy_modules
+
+from .visualization.animation import (
     AnimationPanel,
     TimeSeriesAnimationPanel,
     VesicleAnimationPanel,
@@ -8,24 +10,16 @@ from .animation import (
     make_gif,
     make_vesicle_gif,
 )
-from .area_qc import AreaQCConfig, AreaQCResult, check_area_deviation, contour_area
-from .config import (
-    AreaQCConfig,
-    MinimumRadiusQCConfig,
-    LocalizedDeviationQCConfig,
-    SingletonDeviationQCConfig,
-    CurvatureQCConfig,
-    EdgeExtractionConfig,
-    VesicleQCConfig,
-)
-from .edge_extractor import extract_edge_from_frame
-from .edge_filtering import CurvatureQCConfig, CurvatureQCResult
+from .qc.checks.area_qc import AreaQCConfig, AreaQCResult, check_area_deviation, contour_area
+from .extraction.config import EdgeExtractionConfig
+from .extraction.edge_extractor import extract_edge_from_frame
+from .qc.checks.edge_filtering import CurvatureQCConfig, CurvatureQCResult
 from .experimental.internal_vesicle_qc import InternalVesicleQCResult
-from .minimum_radius_qc import MinimumRadiusQCConfig, check_minimum_radius
-from .localized_deviation_qc import LocalizedDeviationQCConfig, check_localized_deviation
-from .singleton_qc import SingletonDeviationQCConfig
+from .qc.checks.minimum_radius_qc import MinimumRadiusQCConfig, check_minimum_radius
+from .qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig, check_localized_deviation
+from .qc.checks.singleton_qc import SingletonDeviationQCConfig
 from .contour_geometry import RadialBaselineFit, fit_radial_baseline
-from .frame_source import (
+from .io.frame_source import (
     OnDemandFrameSequence,
     as_frame_source,
     open_frame_source,
@@ -41,13 +35,14 @@ from .models import (
 )
 from .vesicle_edges import VesicleEdges
 from .vesicle_video import VesicleVideo
-from .qc_replay import (
+from .qc.qc_config import VesicleQCConfig
+from .qc.qc_replay import (
     QCReplayResult,
     RecordedQCSelection,
     load_recorded_qc,
     replay_recorded_qc,
 )
-from .trace_plotting import (
+from .visualization.trace_plotting import (
     EdgeTracePlotConfig,
     centered_contour_coordinates,
     contour_center_of_mass,
@@ -101,3 +96,7 @@ __all__ = [
     "replay_recorded_qc",
     "select_trace_detections",
 ]
+
+
+register_legacy_modules()
+del register_legacy_modules

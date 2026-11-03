@@ -6,8 +6,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .models import EdgeDetection, QCFlag
-from .vesicle_video_utils import measure_wrapped_finite_second_difference
+from ...models import EdgeDetection, QCFlag
+from ...extraction.vesicle_video_utils import measure_wrapped_finite_second_difference
 from vesmod.validation import require_nonnegative_real
 
 

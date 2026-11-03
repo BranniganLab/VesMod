@@ -10,9 +10,9 @@ from pathlib import Path
 import numpy as np
 from numpy.typing import NDArray
 
-from .checkpoint_io import load_checkpoint, save_checkpoint
-from .config import EdgeExtractionConfig, VesicleQCConfig
-from .frame_source import OnDemandFrameSequence
+from .io.checkpoint_io import load_checkpoint, save_checkpoint
+from .extraction.config import EdgeExtractionConfig
+from .io.frame_source import OnDemandFrameSequence
 from .models import (
     EdgeDetection,
     EdgeDetectionFailure,
@@ -20,7 +20,8 @@ from .models import (
     EdgeResult,
     VesicleQCResult,
 )
-from .qc_checks import run_configured_qc_checks
+from .qc.qc_checks import run_configured_qc_checks
+from .qc.qc_config import VesicleQCConfig
 
 
 @dataclass

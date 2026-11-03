@@ -20,7 +20,7 @@ from vesmod.validation import (
     require_numeric_array,
 )
 
-from .qc_config import VesicleQCConfig
+from .qc.qc_config import VesicleQCConfig
 
 
 @dataclass(frozen=True)

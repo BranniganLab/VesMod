@@ -11,8 +11,8 @@ from pathlib import Path
 import numpy as np
 from numpy.typing import NDArray
 
-from .config import EdgeExtractionConfig
-from .frame_source import OnDemandFrameSequence, as_frame_source
+from .extraction.config import EdgeExtractionConfig
+from .io.frame_source import OnDemandFrameSequence, as_frame_source
 from .models import (
     EdgeDetection,
     EdgeDetectionFailure,
@@ -20,7 +20,7 @@ from .models import (
     ImageContour,
 )
 from .vesicle_edges import VesicleEdges
-from .vesicle_video_utils import downsample_to_new_indices
+from .extraction.vesicle_video_utils import downsample_to_new_indices
 
 
 @dataclass

@@ -7,7 +7,7 @@ from numpy.typing import NDArray
 
 from dataclasses import dataclass
 
-from .models import EdgeDetection, QCFlag
+from ...models import EdgeDetection, QCFlag
 from vesmod.validation import require_fraction
 
 

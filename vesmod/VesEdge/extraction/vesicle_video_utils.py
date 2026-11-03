@@ -7,7 +7,7 @@ Created on Mon Dec 22 14:27:50 2025.
 """
 import numpy as np
 import cv2
-from .contour_geometry import fit_radial_baseline
+from ..contour_geometry import fit_radial_baseline
 
 
 def convert_to_cartesian(center_point, r_vals):

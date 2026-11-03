@@ -12,7 +12,7 @@ from skimage.measure import regionprops
 import matplotlib.pyplot as plt
 import numpy as np
 from .vesicle_video_utils import wrap_image_to_polar, isolate_region_of_array, convert_to_cartesian
-from .contour_geometry import fit_radial_baseline, radial_contour_centroid
+from ..contour_geometry import fit_radial_baseline, radial_contour_centroid
 
 
 _ORIGIN_REFINEMENT_TOLERANCE_PIXELS = 0.05

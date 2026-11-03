@@ -3,8 +3,8 @@
 from dataclasses import dataclass
 
 import numpy as np
-from .models import EdgeDetection, QCFlag
-from .contour_geometry import fit_radial_baseline
+from ...models import EdgeDetection, QCFlag
+from ...contour_geometry import fit_radial_baseline
 from vesmod.validation import require_integer_valued, require_nonnegative_real
 
 
