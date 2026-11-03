@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import csv
+from pathlib import Path
 import numpy as np
-from numpy.typing import NDArray
 
 from dataclasses import dataclass
 
+from ..contract import QCCheck
+from ...contour_geometry import contour_area
 from ...models import EdgeDetection, QCFlag
 from vesmod.validation import require_fraction
 
@@ -32,36 +35,6 @@ class AreaQCResult:
     reference_area_pixels2: float
     relative_deviations: tuple[float, ...]
     rejected_count: int
-
-
-def contour_area(contour_radii: NDArray[np.float64]) -> float:
-    """Return enclosed area for uniformly sampled radial coordinates.
-
-    The polar-area integral is approximated as pi * mean(r**2). This preserves
-    noncircular radial variation, unlike pi * mean(r)**2.
-
-    Parameters
-    ----------
-    contour_radii : NDArray[np.float64]
-        Radial contour coordinates sampled uniformly over [0, 2*pi).
-
-    Returns
-    -------
-    float
-        Enclosed area in squared pixel units. Non-finite input produces nan so
-        the corresponding detection can be rejected by QC.
-
-    Raises
-    ------
-    ValueError
-        If the radii are not a nonempty one-dimensional array.
-    """
-    radii = np.asarray(contour_radii)
-    if radii.ndim != 1 or radii.size == 0:
-        raise ValueError("contour_radii must be a nonempty 1D array.")
-    if not np.all(np.isfinite(radii)):
-        return float("nan")
-    return float(np.pi * np.mean(np.square(radii)))
 
 
 def check_area_deviation(
@@ -160,4 +133,133 @@ def check_area_deviation(
             for deviation in deviations
         ),
         rejected_count=rejected_count,
+    )
+
+
+def _save_area_qc_plot(path: Path, edges) -> None:
+    """Plot contour area by source frame with configured acceptance bounds."""
+    import matplotlib.pyplot as plt
+
+    area_result = edges.qc_result.area
+    config = edges.qc_result.config
+    detections = edges.successful_detections
+    frame_indices = [edge.frame_index for edge in detections]
+    areas = area_result.areas_pixels2
+    reference = area_result.reference_area_pixels2
+    deviation = config.area.max_relative_deviation
+    lower_bound = reference * (1 - deviation)
+    upper_bound = reference * (1 + deviation)
+
+    figure, axis = plt.subplots()
+    axis.plot(frame_indices, areas, ".", color="tab:blue", label="contour area")
+    axis.axhline(reference, color="black", label="trajectory median")
+    axis.axhline(
+        lower_bound,
+        color="tab:red",
+        linestyle="--",
+        label="acceptance bounds",
+    )
+    axis.axhline(upper_bound, color="tab:red", linestyle="--")
+    axis.set_xlabel("Source frame")
+    axis.set_ylabel("Contour area (pixels squared)")
+    axis.legend()
+    figure.savefig(path, dpi=200, bbox_inches="tight")
+    plt.close(figure)
+
+
+def _write_area_qc_csv(path: Path, edges) -> None:
+    """Write exact per-frame contour-area QC measurements."""
+    area_result = edges.qc_result.area
+    rows = []
+    for detection, area, deviation in zip(
+        edges.successful_detections,
+        area_result.areas_pixels2,
+        area_result.relative_deviations,
+        strict=True,
+    ):
+        rows.append(
+            {
+                "frame_index": detection.frame_index,
+                "area_pixels2": area,
+                "relative_area_deviation": deviation,
+                "area_rejected": (
+                    QCFlag.AREA_DEVIATION in detection.qc.flags
+                ),
+            }
+        )
+    with path.open("w", newline="", encoding="utf-8") as output_file:
+        writer = csv.DictWriter(
+            output_file,
+            fieldnames=[
+                "frame_index",
+                "area_pixels2",
+                "relative_area_deviation",
+                "area_rejected",
+            ],
+        )
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+class AreaDeviationCheck(QCCheck):
+    """Apply trajectory-wide area-deviation quality control."""
+
+    name = "area"
+    config_type = AreaQCConfig
+    requires_frames = False
+
+    def default_config(self):
+        return AreaQCConfig()
+
+    def config_to_dict(self, config):
+        return {"max_relative_deviation": config.max_relative_deviation, "enabled": config.enabled}
+
+    def enabled(self, config) -> bool:
+        """Return whether area-deviation quality control is enabled."""
+        return config.enabled
+
+    def run(self, detections, config, frames):
+        """Evaluate area deviation across the detection trajectory."""
+        del frames
+        return check_area_deviation(detections, config.max_relative_deviation)
+
+    def add_cli_arguments(self, parser) -> None:
+        """Register command-line options for this check."""
+        parser.add_argument(
+            "--max-relative-area-deviation",
+            type=float,
+            default=0.25,
+            help=(
+                "Maximum absolute fractional deviation from the trajectory median "
+                "contour area. Default: 0.25."
+            ),
+        )
+        parser.add_argument(
+            "--no-area-qc",
+            action="store_true",
+            help="Disable trajectory-level contour-area deviation QC.",
+        )
+
+    def config_from_args(self, args):
+        """Build settings from parsed command-line options."""
+        return AreaQCConfig(
+            max_relative_deviation=args.max_relative_area_deviation,
+            enabled=not args.no_area_qc,
+        )
+
+    summary_order = 1
+    summary_defaults = {"area_rejected": 0}
+
+    def summary_values(self, edges):
+        """Count frames rejected by this check."""
+        return {
+            "area_rejected": sum(
+                QCFlag.AREA_DEVIATION in detection.qc.flags
+                for detection in edges.successful_detections
+            )
+        }
+
+    diagnostic_writers = (
+        ('.area_qc.png', _save_area_qc_plot),
+        ('.area_qc.csv', _write_area_qc_csv),
     )

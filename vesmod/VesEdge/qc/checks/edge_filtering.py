@@ -6,8 +6,9 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from ..contract import QCCheck
 from ...models import EdgeDetection, QCFlag
-from ...extraction.vesicle_video_utils import measure_wrapped_finite_second_difference
+from ...contour_geometry import measure_wrapped_finite_second_difference
 from vesmod.validation import require_nonnegative_real
 
 
@@ -76,3 +77,76 @@ def check_curvature(
         edge.qc.flags.add(QCFlag.CURVATURE)
     else:
         edge.qc.flags.discard(QCFlag.CURVATURE)
+
+
+class CurvatureCheck(QCCheck):
+    """Apply curvature-score quality control to individual detections."""
+
+    name = "curvature"
+    config_type = CurvatureQCConfig
+    requires_frames = False
+
+    def default_config(self):
+        return CurvatureQCConfig(threshold=0.1, enabled=False)
+
+    def config_to_dict(self, config):
+        return {"threshold": config.threshold, "enabled": config.enabled}
+
+    def enabled(self, config) -> bool:
+        """Return whether curvature quality control is enabled."""
+        return config.enabled
+
+    def run(self, detections, config, frames):
+        """Record curvature scores and flags for each detection."""
+        del frames
+        for detection in detections:
+            check_curvature(detection, threshold=config.threshold)
+        scores = tuple(
+            float(detection.qc.diagnostics["curvature_score"])
+            if "curvature_score" in detection.qc.diagnostics
+            else float("nan")
+            for detection in detections
+        )
+        return CurvatureQCResult(
+            scores=scores,
+            rejected_count=sum(QCFlag.CURVATURE in detection.qc.flags for detection in detections),
+        )
+
+    def add_cli_arguments(self, parser) -> None:
+        """Register command-line options for this check."""
+        parser.add_argument(
+            "--curvature-threshold",
+            type=float,
+            default=21.520619405632544,
+            help=(
+                "Maximum dimensionless angular-resolution-normalized wrapped "
+                "finite second difference of the median-radius-normalized "
+                "contour allowed by curvature QC. The default threshold "
+                "21.520619405632544 is calibrated to the historical 120-sample "
+                "score scale."
+            ),
+        )
+        parser.add_argument(
+            "--no-curvature-qc",
+            action="store_true",
+            help="Disable frame-level curvature QC.",
+        )
+
+    def config_from_args(self, args):
+        """Build settings from parsed command-line options."""
+        return CurvatureQCConfig(
+            threshold=args.curvature_threshold,
+            enabled=not args.no_curvature_qc,
+        )
+
+    summary_order = 0
+    summary_defaults = {"curvature_rejected": 0}
+
+    def summary_values(self, edges):
+        """Count frames rejected by this check."""
+        return {
+            "curvature_rejected": sum(
+                QCFlag.CURVATURE in detection.qc.flags
+                for detection in edges.successful_detections
+            )
+        }

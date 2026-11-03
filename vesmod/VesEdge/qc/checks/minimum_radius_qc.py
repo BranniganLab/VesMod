@@ -1,9 +1,12 @@
 """Frame-level QC for malformed or collapsed extracted contours."""
 
+import csv
+from pathlib import Path
 from dataclasses import dataclass
 
 import numpy as np
 
+from ..contract import QCCheck
 from ...models import EdgeDetection, QCFlag
 from vesmod.validation import require_nonnegative_real
 
@@ -47,3 +50,113 @@ def check_minimum_radius(edge: EdgeDetection, min_median_radius_pixels: float) -
         edge.qc.flags.add(QCFlag.MINIMUM_RADIUS)
     else:
         edge.qc.flags.discard(QCFlag.MINIMUM_RADIUS)
+
+
+def _write_minimum_radius_qc_csv(path: Path, edges) -> None:
+    """Write exact per-frame contour-radius QC measurements."""
+    with path.open("w", newline="", encoding="utf-8") as output_file:
+        writer = csv.DictWriter(
+            output_file,
+            fieldnames=[
+                "frame_index",
+                "median_radius_pixels",
+                "minimum_radius_rejected",
+            ],
+        )
+        writer.writeheader()
+        for detection in edges.successful_detections:
+            writer.writerow(
+                {
+                    "frame_index": detection.frame_index,
+                    "median_radius_pixels": getattr(
+                        detection.qc,
+                        "diagnostics",
+                        {"median_radius_pixels": getattr(
+                            detection.qc,
+                            "median_radius_pixels",
+                            None,
+                        )},
+                    ).get("median_radius_pixels"),
+                    "minimum_radius_rejected": (
+                        QCFlag.MINIMUM_RADIUS in detection.qc.flags
+                    ),
+                }
+            )
+
+
+class MinimumRadiusCheck(QCCheck):
+    """Apply the configured minimum-radius check to each detection."""
+
+    name = "minimum_radius"
+    config_type = MinimumRadiusQCConfig
+    requires_frames = False
+
+
+    def default_config(self):
+        return MinimumRadiusQCConfig()
+
+    def config_to_dict(self, config):
+        return {"enabled": config.enabled, "min_median_radius_pixels": config.min_median_radius_pixels}
+
+    def enabled(self, config) -> bool:
+        """Return whether minimum-radius quality control is enabled."""
+        return config.enabled
+
+    def run(self, detections, config, frames) -> MinimumRadiusQCResult:
+        """Apply the minimum-radius check to each detection."""
+        del frames
+        for detection in detections:
+            check_minimum_radius(
+                detection,
+                min_median_radius_pixels=config.min_median_radius_pixels,
+            )
+        return MinimumRadiusQCResult(
+            median_radii_pixels=tuple(
+                float(detection.qc.diagnostics["median_radius_pixels"])
+                for detection in detections
+            ),
+            rejected_count=sum(
+                QCFlag.MINIMUM_RADIUS in detection.qc.flags
+                for detection in detections
+            ),
+        )
+
+    def add_cli_arguments(self, parser) -> None:
+        """Register command-line options for this check."""
+        parser.add_argument(
+            "--min-median-radius-pixels",
+            type=float,
+            default=5.0,
+            help=(
+                "Reject frames whose median native contour radius is below this "
+                "value. Default: 5."
+            ),
+        )
+        parser.add_argument(
+            "--minimum-radius-qc",
+            action="store_true",
+            help="Enable frame-level nonpositive/collapsed contour-radius QC.",
+        )
+
+    def config_from_args(self, args):
+        """Build settings from parsed command-line options."""
+        return MinimumRadiusQCConfig(
+            enabled=getattr(args, "minimum_radius_qc", False),
+            min_median_radius_pixels=getattr(args, "min_median_radius_pixels", 5.0),
+        )
+
+    summary_order = 2
+    summary_defaults = {"minimum_radius_rejected": 0}
+
+    def summary_values(self, edges):
+        """Count frames rejected by this check."""
+        return {
+            "minimum_radius_rejected": sum(
+                QCFlag.MINIMUM_RADIUS in detection.qc.flags
+                for detection in edges.successful_detections
+            )
+        }
+
+    diagnostic_writers = (
+        ('.minimum_radius_qc.csv', _write_minimum_radius_qc_csv),
+    )

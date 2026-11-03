@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 
 import numpy as np
+from ..contract import QCCheck
 from ...models import EdgeDetection, QCFlag
 from ...contour_geometry import fit_radial_baseline
 from vesmod.validation import require_integer_valued, require_nonnegative_real
@@ -112,3 +113,91 @@ def check_localized_deviation(
         edge.qc.flags.add(QCFlag.LOCALIZED_DEVIATION)
     else:
         edge.qc.flags.discard(QCFlag.LOCALIZED_DEVIATION)
+
+
+class LocalizedDeviationCheck(QCCheck):
+    """Apply localized-deviation quality control to each detection."""
+
+    name = "localized_deviation"
+    config_type = LocalizedDeviationQCConfig
+    requires_frames = False
+
+    def default_config(self):
+        return LocalizedDeviationQCConfig()
+    def config_to_dict(self, config):
+        return {
+            "enabled": config.enabled,
+            "order": config.order,
+            "max_residual_fraction": config.max_residual_fraction,
+            "support_residual_fraction": config.support_residual_fraction,
+            "max_support_samples": config.max_support_samples,
+        }
+
+    def enabled(self, config) -> bool:
+        """Return whether localized-deviation quality control is enabled."""
+        return config.enabled
+
+    def run(self, detections, config, frames) -> LocalizedDeviationQCResult:
+        """Apply the localized-deviation check to each detection."""
+        del frames
+        for detection in detections:
+            check_localized_deviation(
+                detection,
+                config.order,
+                config.max_residual_fraction,
+                config.support_residual_fraction,
+                config.max_support_samples,
+            )
+        return LocalizedDeviationQCResult(
+            scores=tuple(
+                float(detection.qc.diagnostics["localized_deviation_score"])
+                for detection in detections
+            ),
+            support_samples=tuple(
+                detection.qc.diagnostics["localized_deviation_support_samples"]
+                for detection in detections
+            ),
+            rejected_count=sum(
+                QCFlag.LOCALIZED_DEVIATION in detection.qc.flags
+                for detection in detections
+            ),
+        )
+
+    def add_cli_arguments(self, parser) -> None:
+        """Register command-line options for this check."""
+        parser.add_argument("--localized-deviation-qc", action="store_true", help="Enable low-order geometric localized-deviation QC.")
+        parser.add_argument("--localized-deviation-order", type=int, default=3, help="Fourier baseline order. Default: 3.")
+        parser.add_argument("--max-localized-deviation-residual-fraction", type=float, default=0.05, help="Maximum baseline residual divided by median radius. Default: 0.05.")
+        parser.add_argument(
+            "--localized-deviation-support-residual-fraction",
+            type=float,
+            default=None,
+            help=(
+                "Secondary residual fraction for support-aware localized-deviation "
+                "QC; requires --max-localized-deviation-support-samples."
+            ),
+        )
+        parser.add_argument(
+            "--max-localized-deviation-support-samples",
+            type=int,
+            default=None,
+            help="Maximum contiguous angular support at the secondary threshold.",
+        )
+
+    def config_from_args(self, args):
+        """Build settings from parsed command-line options."""
+        return LocalizedDeviationQCConfig(
+            enabled=getattr(args, "localized_deviation_qc", False),
+            order=getattr(args, "localized_deviation_order", 3),
+            max_residual_fraction=getattr(args, "max_localized_deviation_residual_fraction", 0.05),
+            support_residual_fraction=getattr(
+                args,
+                "localized_deviation_support_residual_fraction",
+                None,
+            ),
+            max_support_samples=getattr(
+                args,
+                "max_localized_deviation_support_samples",
+                None,
+            ),
+        )

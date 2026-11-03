@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import csv
+from pathlib import Path
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -10,8 +12,9 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.ndimage import gaussian_filter1d, map_coordinates, median_filter
 
-from ..qc.checks.area_qc import contour_area
-from ..models import EdgeDetection
+from ..contour_geometry import contour_area
+from ..models import EdgeDetection, TrajectoryQCFlag
+from ..qc.contract import QCCheck
 from vesmod.validation import (
     require_fraction,
     require_integer_valued,
@@ -291,4 +294,184 @@ def check_internal_vesicle_selection(
         positive_frame_fraction=positive_fraction,
         persistent_enclosing_boundary=reject,
         reason=reason,
+    )
+
+
+def _write_internal_vesicle_qc_csv(
+    path: Path,
+    edges,
+) -> None:
+    """Write per-frame evidence of a wrongly traced internal vesicle."""
+    result = edges.qc_result.internal_vesicle
+    rows = []
+    if result.inspected:
+        trajectory_rejected = result.persistent_enclosing_boundary
+        for frame_index, score in zip(
+            result.sampled_frame_indices,
+            result.scores,
+            strict=True,
+        ):
+            rows.append(
+                {
+                    "frame_index": frame_index,
+                    "enclosing_boundary_angular_coverage": score,
+                    "internal_vesicle_trajectory_rejected": (
+                        trajectory_rejected
+                    ),
+                }
+            )
+    with path.open("w", newline="", encoding="utf-8") as output_file:
+        writer = csv.DictWriter(
+            output_file,
+            fieldnames=[
+                "frame_index",
+                "enclosing_boundary_angular_coverage",
+                "internal_vesicle_trajectory_rejected",
+            ],
+        )
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+class InternalVesicleCheck(QCCheck):
+    """Apply frame-dependent internal-vesicle quality control."""
+
+    name = "internal_vesicle"
+    config_type = InternalVesicleQCConfig
+    requires_frames = True
+
+    def default_config(self):
+        return InternalVesicleQCConfig()
+
+    def config_to_dict(self, config):
+        return dict(config.__dict__)
+
+    def enabled(self, config) -> bool:
+        """Return whether internal-vesicle quality control is enabled."""
+        return config.enabled
+
+    def run(self, detections, config, frames):
+        """Evaluate internal-vesicle selection using source video frames."""
+        if frames is None:
+            raise ValueError("Internal-vesicle QC requires source video frames.")
+        return check_internal_vesicle_selection(frames, detections, config)
+
+    def trajectory_flags(
+        self, result: InternalVesicleQCResult | None,
+    ) -> frozenset[TrajectoryQCFlag]:
+        """Map persistent enclosing-boundary evidence to a trajectory flag."""
+        if result is not None and result.persistent_enclosing_boundary:
+            return frozenset({TrajectoryQCFlag.INTERNAL_VESICLE})
+        return frozenset()
+
+    def add_cli_arguments(self, parser) -> None:
+        """Register command-line options for this check."""
+        parser.add_argument(
+            "--internal-vesicle-qc",
+            action="store_true",
+            help=(
+                "Check whether the edge detector persistently traced a smaller "
+                "vesicle enclosed by the intended vesicle. Disabled by default."
+            ),
+        )
+        parser.add_argument(
+            "--max-internal-vesicle-area-fraction",
+            type=float,
+            default=0.5,
+            help=(
+                "Inspect for a larger enclosing membrane only when the median "
+                "traced contour occupies less than this fraction of the image. "
+                "Default: 0.5."
+            ),
+        )
+        parser.add_argument(
+            "--internal-vesicle-min-frame-fraction",
+            type=float,
+            default=0.5,
+            help=(
+                "Minimum fraction of inspected frames with enclosing-boundary "
+                "evidence required to reject the video. Default: 0.5."
+            ),
+        )
+        parser.add_argument(
+            "--internal-vesicle-max-frames",
+            type=int,
+            default=20,
+            help=(
+                "Maximum number of frames sampled evenly across the video for "
+                "internal-vesicle QC. Default: 20."
+            ),
+        )
+        parser.add_argument(
+            "--internal-vesicle-min-valid-frames",
+            type=int,
+            default=3,
+            help=(
+                "Minimum valid sampled frames required for a decision, capped by "
+                "the number sampled for short videos. Default: 3."
+            ),
+        )
+        parser.add_argument(
+            "--internal-vesicle-min-valid-frame-fraction",
+            type=float,
+            default=0.5,
+            help=(
+                "Minimum fraction of sampled frames that must yield valid scores. "
+                "Default: 0.5."
+            ),
+        )
+
+    def config_from_args(self, args):
+        """Build settings from parsed command-line options."""
+        return InternalVesicleQCConfig(
+            enabled=getattr(args, "internal_vesicle_qc", False),
+            max_area_fraction=getattr(
+                args, "max_internal_vesicle_area_fraction", 0.5
+            ),
+            min_frame_fraction=getattr(
+                args, "internal_vesicle_min_frame_fraction", 0.5
+            ),
+            max_frames=getattr(args, "internal_vesicle_max_frames", 20),
+            min_valid_frames=getattr(
+                args, "internal_vesicle_min_valid_frames", 3
+            ),
+            min_valid_frame_fraction=getattr(
+                args, "internal_vesicle_min_valid_frame_fraction", 0.5
+            ),
+        )
+
+    summary_order = 4
+    summary_defaults = {
+        'internal_vesicle_trajectory_rejected': False,
+        'internal_vesicle_inspected': False,
+        'internal_vesicle_area_fraction': '',
+        'internal_vesicle_positive_frame_fraction': '',
+        'internal_vesicle_valid_frame_count': '',
+        'internal_vesicle_valid_frame_fraction': '',
+        'internal_vesicle_reason': '',
+    }
+
+    def summary_values(self, edges):
+        """Report enclosing-membrane evidence and trajectory rejection."""
+        result = edges.qc_result
+        if result is None:
+            return {}
+        measurement = result.for_check(self.name)
+        if measurement is None:
+            return {}
+        return {
+            "internal_vesicle_trajectory_rejected": (
+                TrajectoryQCFlag.INTERNAL_VESICLE in result.trajectory_flags
+            ),
+            "internal_vesicle_inspected": measurement.inspected,
+            "internal_vesicle_area_fraction": measurement.contour_area_fraction,
+            "internal_vesicle_positive_frame_fraction": measurement.positive_frame_fraction,
+            "internal_vesicle_valid_frame_count": measurement.valid_frame_count,
+            "internal_vesicle_valid_frame_fraction": measurement.valid_frame_fraction,
+            "internal_vesicle_reason": measurement.reason,
+        }
+
+
+    diagnostic_writers = (
+        ('.internal_vesicle_qc.csv', _write_internal_vesicle_qc_csv),
     )

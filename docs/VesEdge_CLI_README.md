@@ -855,3 +855,18 @@ GMM-based population QC has been removed because a minority radius distribution 
 ## Citation
 
 If VesEdge contributes to a publication, please cite the associated manuscript and software repository.
+
+## Adding a built-in QC check
+
+Put the check and its configuration in a module under
+`vesmod/VesEdge/qc/checks/`. Implement
+[`QCCheck`](../vesmod/VesEdge/qc/contract.py) and add one instance to the ordered
+[`QC_CHECKS` registry](../vesmod/VesEdge/qc/qc_checks.py). For a frame
+rejection, add the check's name to that detection's QC flags. For a recording
+rejection, return a reason from `trajectory_flags`. Set `requires_frames`
+when the check needs the original images.
+
+The same registration drives command-line options, configuration recorded
+for replay, and any summary columns or diagnostic writers the check declares.
+See the [registration test](../tests/unit_tests/test_qc_checks.py) for an
+image-based example that runs through the CLI and replays the saved settings.

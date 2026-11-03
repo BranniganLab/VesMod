@@ -9,6 +9,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from vesmod.VesEdge.models import QCFlag, VesicleQCResult
+from vesmod.VesEdge.qc.checks.area_qc import _save_area_qc_plot, _write_area_qc_csv
+from vesmod.VesEdge.qc.checks.minimum_radius_qc import _write_minimum_radius_qc_csv
 from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
 from vesmod.VesEdge.io.frame_source import OnDemandFrameSequence
 from vesmod.VesEdge.vesicle_edges import VesicleEdges
@@ -307,7 +310,7 @@ def test_process_qc_file_runs_qc_and_saves_filtered_output(tmp_path, monkeypatch
 
         def run_qc(self, config):
             observed["qc_config"] = config
-            self.qc_result = object()
+            self.qc_result = VesicleQCResult(config)
 
         def export_accepted_radii(self, path):
             observed["npy"] = path
@@ -353,10 +356,7 @@ def test_process_qc_file_resolves_relative_video_path_for_image_qc(
 
         def run_qc(self, config, frames=None):
             assert frames.shape == (1, 10, 10)
-            self.qc_result = argparse.Namespace(
-                trajectory_flags=frozenset(),
-                internal_vesicle=None,
-            )
+            self.qc_result = VesicleQCResult(config)
 
         def export_accepted_radii(self, path):
             observed["npy"] = path
@@ -397,7 +397,7 @@ def test_process_qc_file_preserves_relative_output_path(tmp_path, monkeypatch):
     class FakeEdges:
         detections = [Detection()]
         successful_detections = detections
-        qc_result = object()
+        qc_result = None
 
         def run_qc(self, config):
             pass
@@ -439,7 +439,7 @@ def test_process_qc_file_records_zero_accepted_frames(
             self.qc_result = None
 
         def run_qc(self, config):
-            self.qc_result = object()
+            self.qc_result = VesicleQCResult(config)
             raise ValueError("no frames passed quality control")
 
         def export_accepted_radii(self, path):
@@ -733,7 +733,7 @@ def test_area_qc_diagnostics_preserve_frame_measurements(tmp_path):
 
     class Detection:
         frame_index = 4
-        qc = argparse.Namespace(flags={vesedge_cli.QCFlag.AREA_DEVIATION})
+        qc = argparse.Namespace(flags={QCFlag.AREA_DEVIATION})
 
     class FakeEdges:
         successful_detections = [Detection()]
@@ -751,8 +751,8 @@ def test_area_qc_diagnostics_preserve_frame_measurements(tmp_path):
 
     csv_path = tmp_path / "sample.area_qc.csv"
     plot_path = tmp_path / "sample.area_qc.png"
-    vesedge_cli._write_area_qc_csv(csv_path, FakeEdges())
-    vesedge_cli._save_area_qc_plot(plot_path, FakeEdges())
+    _write_area_qc_csv(csv_path, FakeEdges())
+    _save_area_qc_plot(plot_path, FakeEdges())
 
     csv_text = csv_path.read_text()
     assert "4,25.0,0.75,True" in csv_text
@@ -766,13 +766,13 @@ def test_minimum_radius_qc_diagnostics_preserve_frame_measurements(tmp_path):
         frame_index = 4
         qc = argparse.Namespace(
             median_radius_pixels=2.5,
-            flags={vesedge_cli.QCFlag.MINIMUM_RADIUS},
+            flags={QCFlag.MINIMUM_RADIUS},
         )
 
     class FakeEdges:
         successful_detections = (Detection(),)
 
     csv_path = tmp_path / "sample.minimum_radius_qc.csv"
-    vesedge_cli._write_minimum_radius_qc_csv(csv_path, FakeEdges())
+    _write_minimum_radius_qc_csv(csv_path, FakeEdges())
     csv_text = csv_path.read_text()
     assert "4,2.5,True" in csv_text

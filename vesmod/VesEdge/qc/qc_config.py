@@ -52,7 +52,7 @@ class VesicleQCConfig:
         if unknown:
             raise TypeError(f"Unexpected QC configuration field: {sorted(unknown)[0]}")
         normalized = {
-            name: supplied.get(name, spec.default_config())
+            name: supplied[name] if name in supplied else spec.default_config()
             for name, spec in specs.items()
         }
         for name, value in normalized.items():

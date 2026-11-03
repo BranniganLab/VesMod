@@ -1,12 +1,12 @@
 import numpy as np
 import pytest
 
+from vesmod.VesEdge.contour_geometry import measure_wrapped_finite_second_difference
 from vesmod.VesEdge.extraction.vesicle_video_utils import (
     convert_to_cartesian,
     convert_to_polar,
     downsample_to_new_indices,
     isolate_region_of_array,
-    measure_wrapped_finite_second_difference,
     wrap_image_to_polar,
     zero_out_all_but_lowest_n_modes,
 )

@@ -4,7 +4,8 @@ import numpy as np
 import pytest
 
 from vesmod.VesEdge.models import EdgeDetection, ImageContour, QCFlag
-from vesmod.VesEdge.qc.checks.area_qc import check_area_deviation, contour_area
+from vesmod.VesEdge.contour_geometry import contour_area
+from vesmod.VesEdge.qc.checks.area_qc import check_area_deviation
 
 
 def _edge_with_area(area_pixels2):

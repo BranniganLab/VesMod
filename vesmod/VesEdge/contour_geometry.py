@@ -10,6 +10,7 @@ from dataclasses import dataclass
 
 import cv2
 import numpy as np
+from numpy.typing import NDArray
 
 
 @dataclass(frozen=True)
@@ -115,3 +116,53 @@ def radial_contour_centroid(origin, radii):
         origin[0] + centroid_relative_x,
         origin[1] + centroid_relative_y,
     )
+
+
+def contour_area(contour_radii: NDArray[np.float64]) -> float:
+    """Return enclosed area for uniformly sampled radial coordinates.
+
+    The polar-area integral is approximated as pi * mean(r**2). This preserves
+    noncircular radial variation, unlike pi * mean(r)**2.
+
+    Parameters
+    ----------
+    contour_radii : NDArray[np.float64]
+        Radial contour coordinates sampled uniformly over [0, 2*pi).
+
+    Returns
+    -------
+    float
+        Enclosed area in squared pixel units. Non-finite input produces nan so
+        the corresponding detection can be rejected by QC.
+
+    Raises
+    ------
+    ValueError
+        If the radii are not a nonempty one-dimensional array.
+    """
+    radii = np.asarray(contour_radii)
+    if radii.ndim != 1 or radii.size == 0:
+        raise ValueError("contour_radii must be a nonempty 1D array.")
+    if not np.all(np.isfinite(radii)):
+        return float("nan")
+    return float(np.pi * np.mean(np.square(radii)))
+
+
+def measure_wrapped_finite_second_difference(arr):
+    """
+    Wrap the array and measure its second difference.
+
+    Parameters
+    ----------
+    arr : numpy ndarray
+        1D array that you wish to take the second derivative of.
+
+    Returns
+    -------
+    second_deriv : numpy ndarray
+        The second derivative (curvature) of the input array.
+
+    """
+    wrapped_array = np.pad(arr, pad_width=2, mode='wrap')
+    second_deriv = np.diff(wrapped_array, n=2)[1: -1]
+    return second_deriv

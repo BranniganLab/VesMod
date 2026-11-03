@@ -10,20 +10,13 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
-import matplotlib.pyplot as plt
 
-from vesmod.VesEdge.qc.checks.area_qc import AreaQCConfig
-from vesmod.VesEdge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
-from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
-from vesmod.VesEdge.qc.checks.minimum_radius_qc import MinimumRadiusQCConfig
-from vesmod.VesEdge.qc.checks.singleton_qc import SingletonDeviationQCConfig
 from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
+from vesmod.VesEdge.qc import qc_checks
 from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
-from vesmod.VesEdge.models import QCFlag, TrajectoryQCFlag
 from vesmod.VesEdge.vesicle_edges import VesicleEdges
 from vesmod.VesEdge.vesicle_video import VesicleVideo
 from vesmod.VesEdge.io.frame_source import open_frame_source
-from vesmod.VesEdge.experimental.internal_vesicle_qc import InternalVesicleQCConfig
 from vesmod.VesEdge.io.checkpoint_sources import open_checkpoint_frames, resolve_source_path
 from vesmod.io.path_mapping import map_output_path
 from vesmod.cli import internal_structures_cli
@@ -183,127 +176,8 @@ def _add_qc_parser(subparsers) -> None:
         ),
     )
     add_batch_policy_argument(parser)
-    parser.add_argument(
-        "--curvature-threshold",
-        type=float,
-        default=21.520619405632544,
-        help=(
-            "Maximum dimensionless angular-resolution-normalized wrapped "
-            "finite second difference of the median-radius-normalized "
-            "contour allowed by curvature QC. The default threshold "
-            "21.520619405632544 is calibrated to the historical 120-sample "
-            "score scale."
-        ),
-    )
-    parser.add_argument(
-        "--no-curvature-qc",
-        action="store_true",
-        help="Disable frame-level curvature QC.",
-    )
-    parser.add_argument(
-        "--max-relative-area-deviation",
-        type=float,
-        default=0.25,
-        help=(
-            "Maximum absolute fractional deviation from the trajectory median "
-            "contour area. Default: 0.25."
-        ),
-    )
-    parser.add_argument(
-        "--no-area-qc",
-        action="store_true",
-        help="Disable trajectory-level contour-area deviation QC.",
-    )
-    parser.add_argument(
-        "--min-median-radius-pixels",
-        type=float,
-        default=5.0,
-        help=(
-            "Reject frames whose median native contour radius is below this "
-            "value. Default: 5."
-        ),
-    )
-    parser.add_argument(
-        "--minimum-radius-qc",
-        action="store_true",
-        help="Enable frame-level nonpositive/collapsed contour-radius QC.",
-    )
-    parser.add_argument("--localized-deviation-qc", action="store_true", help="Enable low-order geometric localized-deviation QC.")
-    parser.add_argument("--localized-deviation-order", type=int, default=3, help="Fourier baseline order. Default: 3.")
-    parser.add_argument("--max-localized-deviation-residual-fraction", type=float, default=0.05, help="Maximum baseline residual divided by median radius. Default: 0.05.")
-    parser.add_argument(
-        "--localized-deviation-support-residual-fraction",
-        type=float,
-        default=None,
-        help=(
-            "Secondary residual fraction for support-aware localized-deviation "
-            "QC; requires --max-localized-deviation-support-samples."
-        ),
-    )
-    parser.add_argument(
-        "--max-localized-deviation-support-samples",
-        type=int,
-        default=None,
-        help="Maximum contiguous angular support at the secondary threshold.",
-    )
-    parser.add_argument("--singleton-deviation-qc", action="store_true", help="Enable narrow, isolated radial-excursion QC.")
-    parser.add_argument("--singleton-deviation-order", type=int, default=3, help="Fourier baseline order for singleton-deviation QC. Default: 3.")
-    parser.add_argument("--min-singleton-deviation-residual-fraction", type=float, default=0.05, help="Minimum residual divided by median radius for singleton-deviation QC. Default: 0.05.")
-    parser.add_argument("--max-singleton-deviation-width-samples", type=int, default=2, help="Maximum contiguous excursion width in angular samples. Default: 2.")
-    parser.add_argument(
-        "--internal-vesicle-qc",
-        action="store_true",
-        help=(
-            "Check whether the edge detector persistently traced a smaller "
-            "vesicle enclosed by the intended vesicle. Disabled by default."
-        ),
-    )
-    parser.add_argument(
-        "--max-internal-vesicle-area-fraction",
-        type=float,
-        default=0.5,
-        help=(
-            "Inspect for a larger enclosing membrane only when the median "
-            "traced contour occupies less than this fraction of the image. "
-            "Default: 0.5."
-        ),
-    )
-    parser.add_argument(
-        "--internal-vesicle-min-frame-fraction",
-        type=float,
-        default=0.5,
-        help=(
-            "Minimum fraction of inspected frames with enclosing-boundary "
-            "evidence required to reject the video. Default: 0.5."
-        ),
-    )
-    parser.add_argument(
-        "--internal-vesicle-max-frames",
-        type=int,
-        default=20,
-        help=(
-            "Maximum number of frames sampled evenly across the video for "
-            "internal-vesicle QC. Default: 20."
-        ),
-    )
-    parser.add_argument(
-        "--internal-vesicle-min-valid-frames",
-        type=int,
-        default=3,
-        help=(
-            "Minimum valid sampled frames required for a decision, capped by "
-            "the number sampled for short videos. Default: 3."
-        ),
-    )
-    parser.add_argument(
-        "--internal-vesicle-min-valid-frame-fraction",
-        type=float,
-        default=0.5,
-        help=(
-            "Minimum fraction of sampled frames that must yield valid scores. "
-            "Default: 0.5."
-        ),
-    )
+    for check in qc_checks.QC_CHECKS:
+        check.add_cli_arguments(parser)
     parser.add_argument(
         "--overwrite",
         action="store_true",
@@ -424,57 +298,10 @@ def process_extract_file(path: Path, args: argparse.Namespace) -> bool | None:
 
 def _qc_config_from_args(args: argparse.Namespace) -> VesicleQCConfig:
     """Build the QC configuration requested on the command line."""
-    return VesicleQCConfig(
-        curvature=CurvatureQCConfig(
-            threshold=args.curvature_threshold,
-            enabled=not args.no_curvature_qc,
-        ),
-        area=AreaQCConfig(
-            max_relative_deviation=args.max_relative_area_deviation,
-            enabled=not args.no_area_qc,
-        ),
-        minimum_radius=MinimumRadiusQCConfig(
-            enabled=getattr(args, "minimum_radius_qc", False),
-            min_median_radius_pixels=getattr(args, "min_median_radius_pixels", 5.0),
-        ),
-        baseline=LocalizedDeviationQCConfig(
-            enabled=getattr(args, "localized_deviation_qc", False),
-            order=getattr(args, "localized_deviation_order", 3),
-            max_residual_fraction=getattr(args, "max_localized_deviation_residual_fraction", 0.05),
-            support_residual_fraction=getattr(
-                args,
-                "localized_deviation_support_residual_fraction",
-                None,
-            ),
-            max_support_samples=getattr(
-                args,
-                "max_localized_deviation_support_samples",
-                None,
-            ),
-        ),
-        singleton=SingletonDeviationQCConfig(
-            enabled=getattr(args, "singleton_deviation_qc", False),
-            order=getattr(args, "singleton_deviation_order", 3),
-            min_residual_fraction=getattr(args, "min_singleton_deviation_residual_fraction", 0.05),
-            max_width_samples=getattr(args, "max_singleton_deviation_width_samples", 2),
-        ),
-        internal_vesicle=InternalVesicleQCConfig(
-            enabled=getattr(args, "internal_vesicle_qc", False),
-            max_area_fraction=getattr(
-                args, "max_internal_vesicle_area_fraction", 0.5
-            ),
-            min_frame_fraction=getattr(
-                args, "internal_vesicle_min_frame_fraction", 0.5
-            ),
-            max_frames=getattr(args, "internal_vesicle_max_frames", 20),
-            min_valid_frames=getattr(
-                args, "internal_vesicle_min_valid_frames", 3
-            ),
-            min_valid_frame_fraction=getattr(
-                args, "internal_vesicle_min_valid_frame_fraction", 0.5
-            ),
-        ),
-    )
+    return VesicleQCConfig(checks={
+        check.name: check.config_from_args(args)
+        for check in qc_checks.QC_CHECKS
+    })
 
 
 def _qc_provenance(
@@ -582,72 +409,16 @@ def _qc_summary(
 ) -> dict:
     """Build a summary row for one QCed checkpoint."""
     successful = edges.successful_detections
-    curvature_rejected = sum(
-        QCFlag.CURVATURE in detection.qc.flags
-        for detection in successful
-    )
-    area_rejected = sum(
-        QCFlag.AREA_DEVIATION in detection.qc.flags
-        for detection in successful
-    )
-    minimum_radius_rejected = sum(
-        QCFlag.MINIMUM_RADIUS in detection.qc.flags
-        for detection in successful
-    )
-    singleton_deviation_rejected = sum(
-        QCFlag.SINGLETON_DEVIATION in detection.qc.flags
-        for detection in successful
-    )
-    trajectory_flags = getattr(edges.qc_result, "trajectory_flags", frozenset())
-    trajectory_rejected = bool(trajectory_flags)
     accepted = (
-        0
-        if trajectory_rejected
+        0 if edges.qc_result is not None and not edges.qc_result.passed
         else sum(detection.qc.passed for detection in successful)
-    )
-    internal_result = getattr(
-        edges.qc_result,
-        "internal_vesicle",
-        None,
     )
     return {
         "file": str(_relative_input_path(path, input_path)),
         "frames": len(edges.detections),
         "successful_detections": len(successful),
         "extraction_failures": len(edges.detections) - len(successful),
-        "curvature_rejected": curvature_rejected,
-        "area_rejected": area_rejected,
-        "minimum_radius_rejected": minimum_radius_rejected,
-        "singleton_deviation_rejected": singleton_deviation_rejected,
-        "internal_vesicle_trajectory_rejected": (
-            TrajectoryQCFlag.INTERNAL_VESICLE in trajectory_flags
-        ),
-        "internal_vesicle_inspected": (
-            internal_result.inspected if internal_result is not None else False
-        ),
-        "internal_vesicle_area_fraction": (
-            internal_result.contour_area_fraction
-            if internal_result is not None
-            else ""
-        ),
-        "internal_vesicle_positive_frame_fraction": (
-            internal_result.positive_frame_fraction
-            if internal_result is not None
-            else ""
-        ),
-        "internal_vesicle_valid_frame_count": (
-            internal_result.valid_frame_count
-            if internal_result is not None
-            else ""
-        ),
-        "internal_vesicle_valid_frame_fraction": (
-            internal_result.valid_frame_fraction
-            if internal_result is not None
-            else ""
-        ),
-        "internal_vesicle_reason": (
-            internal_result.reason if internal_result is not None else ""
-        ),
+        **_check_summary(edges),
         "accepted": accepted,
         "accepted_fraction": accepted / len(successful),
         "status": status,
@@ -662,17 +433,7 @@ def _load_error_summary(path: Path, input_path: Path, error: str) -> dict:
         "frames": 0,
         "successful_detections": 0,
         "extraction_failures": 0,
-        "curvature_rejected": 0,
-        "area_rejected": 0,
-        "minimum_radius_rejected": 0,
-        "singleton_deviation_rejected": 0,
-        "internal_vesicle_trajectory_rejected": False,
-        "internal_vesicle_inspected": False,
-        "internal_vesicle_area_fraction": "",
-        "internal_vesicle_positive_frame_fraction": "",
-        "internal_vesicle_valid_frame_count": "",
-        "internal_vesicle_valid_frame_fraction": "",
-        "internal_vesicle_reason": "",
+        **_check_summary(),
         "accepted": 0,
         "accepted_fraction": 0.0,
         "status": "load_error",
@@ -707,11 +468,12 @@ def process_qc_file(
     qc_error = ""
     try:
         frames = None
-        if qc_config.internal_vesicle.enabled:
+        frame_checks = qc_checks.checks_requiring_frames(qc_config)
+        if frame_checks:
             if edges.source_path is None:
+                names = ", ".join(check.name.replace("_", "-") for check in frame_checks)
                 raise ValueError(
-                    "Internal-vesicle QC requires a checkpoint with a source "
-                    "video path."
+                    f"{names.capitalize()} QC requires a checkpoint with a source video path."
                 )
             source_path = resolve_source_path(edges.source_path, path)
             frames = open_checkpoint_frames(source_path)
@@ -742,49 +504,16 @@ def process_qc_file(
         status,
         qc_error,
     )
-    area_plot_path = output_path.with_suffix(".area_qc.png")
-    area_csv_path = output_path.with_suffix(".area_qc.csv")
-    minimum_radius_csv_path = output_path.with_suffix(".minimum_radius_qc.csv")
-    internal_vesicle_csv_path = output_path.with_suffix(
-        ".internal_vesicle_qc.csv"
-    )
-    has_area_result = (
-        edges.qc_result is not None
-        and getattr(edges.qc_result, "area", None) is not None
-    )
-    if has_area_result and (args.overwrite or not area_plot_path.exists()):
-        _save_area_qc_plot(area_plot_path, edges)
-        if managed_artifacts is not None:
-            managed_artifacts.add(area_plot_path)
-    if has_area_result and (args.overwrite or not area_csv_path.exists()):
-        _write_area_qc_csv(area_csv_path, edges)
-        if managed_artifacts is not None:
-            managed_artifacts.add(area_csv_path)
-    has_minimum_radius_result = (
-        edges.qc_result is not None
-        and getattr(
-            getattr(edges.qc_result, "config", None),
-            "minimum_radius",
-            None,
-        ) is not None
-        and edges.qc_result.config.minimum_radius.enabled
-    )
-    if has_minimum_radius_result and (
-        args.overwrite or not minimum_radius_csv_path.exists()
-    ):
-        _write_minimum_radius_qc_csv(minimum_radius_csv_path, edges)
-        if managed_artifacts is not None:
-            managed_artifacts.add(minimum_radius_csv_path)
-    has_internal_vesicle_result = (
-        edges.qc_result is not None
-        and getattr(edges.qc_result, "internal_vesicle", None) is not None
-    )
-    if has_internal_vesicle_result and (
-        args.overwrite or not internal_vesicle_csv_path.exists()
-    ):
-        _write_internal_vesicle_qc_csv(internal_vesicle_csv_path, edges)
-        if managed_artifacts is not None:
-            managed_artifacts.add(internal_vesicle_csv_path)
+    if edges.qc_result is not None:
+        for check in qc_checks.QC_CHECKS:
+            if edges.qc_result.for_check(check.name) is None:
+                continue
+            for suffix, write in check.diagnostic_writers:
+                diagnostic_path = output_path.with_suffix(suffix)
+                if args.overwrite or not diagnostic_path.exists():
+                    write(diagnostic_path, edges)
+                    if managed_artifacts is not None:
+                        managed_artifacts.add(diagnostic_path)
     if (
         status == "ok"
         and row["accepted"] > 0
@@ -813,135 +542,14 @@ def _record_qc_artifacts(
     )
 
 
-def _write_minimum_radius_qc_csv(path: Path, edges: VesicleEdges) -> None:
-    """Write exact per-frame contour-radius QC measurements."""
-    with path.open("w", newline="", encoding="utf-8") as output_file:
-        writer = csv.DictWriter(
-            output_file,
-            fieldnames=[
-                "frame_index",
-                "median_radius_pixels",
-                "minimum_radius_rejected",
-            ],
-        )
-        writer.writeheader()
-        for detection in edges.successful_detections:
-            writer.writerow(
-                {
-                    "frame_index": detection.frame_index,
-                    "median_radius_pixels": getattr(
-                        detection.qc,
-                        "diagnostics",
-                        {"median_radius_pixels": getattr(
-                            detection.qc,
-                            "median_radius_pixels",
-                            None,
-                        )},
-                    ).get("median_radius_pixels"),
-                    "minimum_radius_rejected": (
-                        QCFlag.MINIMUM_RADIUS in detection.qc.flags
-                    ),
-                }
-            )
-
-
-def _write_area_qc_csv(path: Path, edges: VesicleEdges) -> None:
-    """Write exact per-frame contour-area QC measurements."""
-    area_result = edges.qc_result.area
-    rows = []
-    for detection, area, deviation in zip(
-        edges.successful_detections,
-        area_result.areas_pixels2,
-        area_result.relative_deviations,
-        strict=True,
-    ):
-        rows.append(
-            {
-                "frame_index": detection.frame_index,
-                "area_pixels2": area,
-                "relative_area_deviation": deviation,
-                "area_rejected": (
-                    QCFlag.AREA_DEVIATION in detection.qc.flags
-                ),
-            }
-        )
-    with path.open("w", newline="", encoding="utf-8") as output_file:
-        writer = csv.DictWriter(
-            output_file,
-            fieldnames=[
-                "frame_index",
-                "area_pixels2",
-                "relative_area_deviation",
-                "area_rejected",
-            ],
-        )
-        writer.writeheader()
-        writer.writerows(rows)
-
-
-def _write_internal_vesicle_qc_csv(
-    path: Path,
-    edges: VesicleEdges,
-) -> None:
-    """Write per-frame evidence of a wrongly traced internal vesicle."""
-    result = edges.qc_result.internal_vesicle
-    rows = []
-    if result.inspected:
-        trajectory_rejected = result.persistent_enclosing_boundary
-        for frame_index, score in zip(
-            result.sampled_frame_indices,
-            result.scores,
-            strict=True,
-        ):
-            rows.append(
-                {
-                    "frame_index": frame_index,
-                    "enclosing_boundary_angular_coverage": score,
-                    "internal_vesicle_trajectory_rejected": (
-                        trajectory_rejected
-                    ),
-                }
-            )
-    with path.open("w", newline="", encoding="utf-8") as output_file:
-        writer = csv.DictWriter(
-            output_file,
-            fieldnames=[
-                "frame_index",
-                "enclosing_boundary_angular_coverage",
-                "internal_vesicle_trajectory_rejected",
-            ],
-        )
-        writer.writeheader()
-        writer.writerows(rows)
-
-
-def _save_area_qc_plot(path: Path, edges: VesicleEdges) -> None:
-    """Plot contour area by source frame with configured acceptance bounds."""
-    area_result = edges.qc_result.area
-    config = edges.qc_result.config
-    detections = edges.successful_detections
-    frame_indices = [edge.frame_index for edge in detections]
-    areas = area_result.areas_pixels2
-    reference = area_result.reference_area_pixels2
-    deviation = config.area.max_relative_deviation
-    lower_bound = reference * (1 - deviation)
-    upper_bound = reference * (1 + deviation)
-
-    figure, axis = plt.subplots()
-    axis.plot(frame_indices, areas, ".", color="tab:blue", label="contour area")
-    axis.axhline(reference, color="black", label="trajectory median")
-    axis.axhline(
-        lower_bound,
-        color="tab:red",
-        linestyle="--",
-        label="acceptance bounds",
-    )
-    axis.axhline(upper_bound, color="tab:red", linestyle="--")
-    axis.set_xlabel("Source frame")
-    axis.set_ylabel("Contour area (pixels squared)")
-    axis.legend()
-    figure.savefig(path, dpi=200, bbox_inches="tight")
-    plt.close(figure)
+def _check_summary(edges: VesicleEdges | None = None) -> dict:
+    """Collect registered check columns and, when available, their values."""
+    values = {}
+    for check in sorted(qc_checks.QC_CHECKS, key=lambda check: check.summary_order):
+        values.update(check.summary_defaults)
+        if edges is not None:
+            values.update(check.summary_values(edges))
+    return values
 
 
 def _write_qc_summary(output_dir: Path, rows: list[dict]) -> None:
@@ -952,17 +560,7 @@ def _write_qc_summary(output_dir: Path, rows: list[dict]) -> None:
         "frames",
         "successful_detections",
         "extraction_failures",
-        "curvature_rejected",
-        "area_rejected",
-        "minimum_radius_rejected",
-        "singleton_deviation_rejected",
-        "internal_vesicle_trajectory_rejected",
-        "internal_vesicle_inspected",
-        "internal_vesicle_area_fraction",
-        "internal_vesicle_positive_frame_fraction",
-        "internal_vesicle_valid_frame_count",
-        "internal_vesicle_valid_frame_fraction",
-        "internal_vesicle_reason",
+        *_check_summary(),
         "accepted",
         "accepted_fraction",
         "status",

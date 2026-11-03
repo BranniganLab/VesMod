@@ -149,7 +149,7 @@ class EdgeQC:
         Whether the edge has passed all QC checks that have been run.
     """
 
-    flags: set[QCFlag] = field(default_factory=set)
+    flags: set[QCFlag | str] = field(default_factory=set)
     diagnostics: dict[str, object] = field(default_factory=dict)
 
     def __getattr__(self, name: str) -> object:
@@ -242,7 +242,7 @@ class VesicleQCResult:
 
     config: VesicleQCConfig
     results: Mapping[str, object] = field(default_factory=dict)
-    trajectory_flags: frozenset[TrajectoryQCFlag] = frozenset()
+    trajectory_flags: frozenset[TrajectoryQCFlag | str] = frozenset()
 
     def __post_init__(self) -> None:
         """Freeze the check-keyed result collection."""

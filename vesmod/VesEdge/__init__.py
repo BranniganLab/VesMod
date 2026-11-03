@@ -8,7 +8,7 @@ from .visualization.animation import (
     make_gif,
     make_vesicle_gif,
 )
-from .qc.checks.area_qc import AreaQCConfig, AreaQCResult, check_area_deviation, contour_area
+from .qc.checks.area_qc import AreaQCConfig, AreaQCResult, check_area_deviation
 from .extraction.config import EdgeExtractionConfig
 from .extraction.edge_extractor import extract_edge_from_frame
 from .qc.checks.edge_filtering import CurvatureQCConfig, CurvatureQCResult
@@ -16,7 +16,7 @@ from .experimental.internal_vesicle_qc import InternalVesicleQCResult
 from .qc.checks.minimum_radius_qc import MinimumRadiusQCConfig, check_minimum_radius
 from .qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig, check_localized_deviation
 from .qc.checks.singleton_qc import SingletonDeviationQCConfig
-from .contour_geometry import RadialBaselineFit, fit_radial_baseline
+from .contour_geometry import RadialBaselineFit, contour_area, fit_radial_baseline
 from .io.frame_source import (
     OnDemandFrameSequence,
     as_frame_source,

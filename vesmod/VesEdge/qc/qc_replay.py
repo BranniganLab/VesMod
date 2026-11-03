@@ -12,7 +12,7 @@ import numpy as np
 from vesmod.io.path_mapping import map_output_path
 
 from ..io.frame_source import OnDemandFrameSequence
-from .qc_checks import QC_CHECKS
+from .qc_checks import checks_requiring_frames
 from .qc_config import VesicleQCConfig
 from ..vesicle_edges import VesicleEdges
 
@@ -33,11 +33,7 @@ class RecordedQCSelection:
     @property
     def requires_frames(self) -> bool:
         """Return whether any enabled recorded check consumes source images."""
-        return any(
-            check.requires_frames
-            and check.enabled(self.config.for_check(check.name))
-            for check in QC_CHECKS
-        )
+        return bool(checks_requiring_frames(self.config))
 
     def validate_checkpoints(self, checkpoints: Iterable[Path]) -> None:
         """Require every requested checkpoint to be in the recorded manifest."""

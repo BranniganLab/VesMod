@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from ..contract import QCCheck
 from ...contour_geometry import fit_radial_baseline
 from ...models import EdgeDetection, QCFlag
 from vesmod.validation import require_integer_valued, require_nonnegative_real
@@ -74,3 +75,71 @@ def check_singleton_deviation(
         edge.qc.flags.add(QCFlag.SINGLETON_DEVIATION)
     else:
         edge.qc.flags.discard(QCFlag.SINGLETON_DEVIATION)
+
+
+class SingletonDeviationCheck(QCCheck):
+    """Apply narrow singleton-deviation QC to each detection."""
+    name = "singleton_deviation"
+    config_type = SingletonDeviationQCConfig
+    requires_frames = False
+
+    def default_config(self):
+        return SingletonDeviationQCConfig()
+
+    def config_to_dict(self, config):
+        return {"enabled": config.enabled, "order": config.order, "min_residual_fraction": config.min_residual_fraction, "max_width_samples": config.max_width_samples}
+
+    def enabled(self, config) -> bool:
+        """Return whether singleton-deviation QC is enabled."""
+        return config.enabled
+
+    def run(self, detections, config, frames) -> SingletonDeviationQCResult:
+        """Apply singleton-deviation QC to each detection."""
+        del frames
+        for detection in detections:
+            check_singleton_deviation(
+                detection,
+                config.order, config.min_residual_fraction, config.max_width_samples,
+            )
+        return SingletonDeviationQCResult(
+            scores=tuple(
+                float(detection.qc.diagnostics["singleton_score"])
+                for detection in detections
+            ),
+            counts=tuple(
+                int(detection.qc.diagnostics["singleton_count"])
+                for detection in detections
+            ),
+            rejected_count=sum(
+                QCFlag.SINGLETON_DEVIATION in detection.qc.flags
+                for detection in detections
+            ),
+        )
+
+    def add_cli_arguments(self, parser) -> None:
+        """Register command-line options for this check."""
+        parser.add_argument("--singleton-deviation-qc", action="store_true", help="Enable narrow, isolated radial-excursion QC.")
+        parser.add_argument("--singleton-deviation-order", type=int, default=3, help="Fourier baseline order for singleton-deviation QC. Default: 3.")
+        parser.add_argument("--min-singleton-deviation-residual-fraction", type=float, default=0.05, help="Minimum residual divided by median radius for singleton-deviation QC. Default: 0.05.")
+        parser.add_argument("--max-singleton-deviation-width-samples", type=int, default=2, help="Maximum contiguous excursion width in angular samples. Default: 2.")
+
+    def config_from_args(self, args):
+        """Build settings from parsed command-line options."""
+        return SingletonDeviationQCConfig(
+            enabled=getattr(args, "singleton_deviation_qc", False),
+            order=getattr(args, "singleton_deviation_order", 3),
+            min_residual_fraction=getattr(args, "min_singleton_deviation_residual_fraction", 0.05),
+            max_width_samples=getattr(args, "max_singleton_deviation_width_samples", 2),
+        )
+
+    summary_order = 3
+    summary_defaults = {"singleton_deviation_rejected": 0}
+
+    def summary_values(self, edges):
+        """Count frames rejected by this check."""
+        return {
+            "singleton_deviation_rejected": sum(
+                QCFlag.SINGLETON_DEVIATION in detection.qc.flags
+                for detection in edges.successful_detections
+            )
+        }
