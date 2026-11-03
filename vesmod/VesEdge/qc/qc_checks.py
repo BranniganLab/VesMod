@@ -5,14 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from numpy.typing import NDArray
 
-from ..experimental.internal_vesicle_qc import InternalVesicleCheck
 from ..io.frame_source import OnDemandFrameSequence
-from ..models import EdgeDetection, TrajectoryQCFlag
-from .checks.area_qc import AreaDeviationCheck
+from ..models import EdgeDetection
+from ..experimental.area_qc import AreaDeviationCheck
 from .checks.edge_filtering import CurvatureCheck
 from .checks.localized_deviation_qc import LocalizedDeviationCheck
-from .checks.minimum_radius_qc import MinimumRadiusCheck
-from .checks.singleton_qc import SingletonDeviationCheck
+from ..experimental.minimum_radius_qc import MinimumRadiusCheck
+from ..experimental.singleton_qc import SingletonDeviationCheck
 from .contract import QCCheck
 from .qc_config import VesicleQCConfig
 
@@ -25,7 +24,7 @@ class QCCheckOutcome:
     """Results returned by registered checks and trajectory flags."""
 
     results: dict[str, object] = field(default_factory=dict)
-    trajectory_flags: frozenset[TrajectoryQCFlag | str] = frozenset()
+    trajectory_flags: frozenset[str] = frozenset()
 
 
 QC_CHECKS: tuple[QCCheck, ...] = (
@@ -34,7 +33,6 @@ QC_CHECKS: tuple[QCCheck, ...] = (
     LocalizedDeviationCheck(),
     SingletonDeviationCheck(),
     AreaDeviationCheck(),
-    InternalVesicleCheck(),
 )
 
 
@@ -78,6 +76,9 @@ def config_from_dict(values: dict) -> VesicleQCConfig:
 
         return VesicleQCConfig(checks=migrate_flat_config(values))
     values = dict(values)
+    from .legacy_config import discard_removed_check
+
+    discard_removed_check(values)
     aliases = {
         "radius": "minimum_radius",
         "baseline": "localized_deviation",

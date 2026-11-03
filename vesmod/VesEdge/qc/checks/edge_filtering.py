@@ -13,11 +13,14 @@ from vesmod.validation import require_nonnegative_real
 
 
 
+DEFAULT_CURVATURE_THRESHOLD = 21.520619405632544
+
+
 @dataclass(frozen=True)
 class CurvatureQCConfig:
     """Configuration owned by the curvature QC check."""
 
-    threshold: float
+    threshold: float = DEFAULT_CURVATURE_THRESHOLD
     enabled: bool = True
 
     def __post_init__(self) -> None:
@@ -87,7 +90,7 @@ class CurvatureCheck(QCCheck):
     requires_frames = False
 
     def default_config(self):
-        return CurvatureQCConfig(threshold=0.1, enabled=False)
+        return CurvatureQCConfig()
 
     def config_to_dict(self, config):
         return {"threshold": config.threshold, "enabled": config.enabled}
@@ -117,7 +120,7 @@ class CurvatureCheck(QCCheck):
         parser.add_argument(
             "--curvature-threshold",
             type=float,
-            default=21.520619405632544,
+            default=DEFAULT_CURVATURE_THRESHOLD,
             help=(
                 "Maximum dimensionless angular-resolution-normalized wrapped "
                 "finite second difference of the median-radius-normalized "

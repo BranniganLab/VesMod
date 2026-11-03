@@ -117,32 +117,22 @@ def test_run_qc_records_aggregate_results(edges, qc_config):
     assert edges.qc_result.curvature.rejected_count == 0
     assert edges.qc_result.area is not None
     assert edges.qc_result.area.rejected_count == 0
-    assert edges.qc_result.internal_vesicle is None
 
 
-def test_run_qc_requires_frames_for_internal_vesicle_check(edges):
-    """Image-based QC cannot run from contours alone."""
-    config = VesicleQCConfig(
-        curvature_threshold=100.0,
-        enable_internal_vesicle_qc=True,
-    )
-
-    with pytest.raises(ValueError, match="source video frames"):
-        edges.run_qc(config)
-
-
-def test_run_qc_restores_previous_state_when_a_check_errors(edges, qc_config):
+def test_run_qc_restores_previous_state_when_a_check_errors(edges, qc_config, monkeypatch):
     """A failed QC attempt cannot leave partially updated edge state."""
     edges.run_qc(qc_config)
     previous_result = edges.qc_result
     previous_edge_qc = [edge.qc for edge in edges.successful_detections]
-    image_config = VesicleQCConfig(
-        curvature_threshold=1.0,
-        enable_internal_vesicle_qc=True,
-    )
+    def fail_after_reset(detections, config, frames):
+        assert detections[0].qc is not previous_edge_qc[0]
+        raise ValueError("check failed")
 
-    with pytest.raises(ValueError, match="do not match detection indices"):
-        edges.run_qc(image_config, frames=np.zeros((1, 100, 100)))
+    monkeypatch.setattr(
+        "vesmod.VesEdge.vesicle_edges.run_configured_qc_checks", fail_after_reset,
+    )
+    with pytest.raises(ValueError, match="check failed"):
+        edges.run_qc(qc_config)
 
     assert edges.qc_result is previous_result
     assert all(

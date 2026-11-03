@@ -6,8 +6,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ..contract import QCCheck
-from ...models import EdgeDetection, QCFlag
+from ..qc.contract import QCCheck
+from ..models import EdgeDetection, QCFlag
 from vesmod.validation import require_nonnegative_real
 
 

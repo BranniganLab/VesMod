@@ -5,10 +5,10 @@ Equivalent CLI workflow::
     vesedge extract ./videos --pixels-per-micron 13.44 \
         --n-angular-samples 120 --output-dir ./checkpoints
 
-    vesedge qc ./checkpoints --curvature-threshold 0.059 \
+    vesedge qc ./checkpoints --curvature-threshold 21.520619405632544 \
         --output-dir ./results/qc_standard
 
-    vesedge qc ./checkpoints --curvature-threshold 0.089 \
+    vesedge qc ./checkpoints --curvature-threshold 32.46298468904425 \
         --output-dir ./results/qc_permissive
 """
 
@@ -56,7 +56,7 @@ for file in glob.glob(fpath + "*.nd2", recursive=True):
 
 # Later, load the same checkpoint and evaluate it under any QC configuration.
 qc_config = VesicleQCConfig(
-    curvature=CurvatureQCConfig(threshold=0.059),
+    curvature=CurvatureQCConfig(threshold=21.520619405632544),
 )
 
 # edges = VesicleEdges.from_checkpoint("YOUR/PATH/HERE/sample.npz")
@@ -66,7 +66,7 @@ qc_config = VesicleQCConfig(
 
 # Evaluate the same checkpoint again without rerunning extraction.
 # permissive_qc = VesicleQCConfig(
-#     curvature=CurvatureQCConfig(threshold=0.089),
+#     curvature=CurvatureQCConfig(threshold=32.46298468904425),
 # )
 # edges.run_qc(permissive_qc)
 # edges.export_accepted_radii("YOUR/PATH/HERE/results/qc_permissive/sample.npy")

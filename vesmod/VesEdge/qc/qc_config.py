@@ -28,9 +28,9 @@ class VesicleQCConfig:
                 raise TypeError(
                     "Positional QC configuration cannot be combined with keywords."
                 )
-            if len(legacy_args) > 3:
-                raise TypeError("At most curvature, area, and internal_vesicle are positional.")
-            names = ("curvature", "area", "internal_vesicle")
+            if len(legacy_args) > 2:
+                raise TypeError("At most curvature and area are positional.")
+            names = ("curvature", "area")
             if isinstance(legacy_args[0], (int, float)):
                 if len(legacy_args) != 1:
                     raise TypeError(

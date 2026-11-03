@@ -7,12 +7,7 @@ from types import SimpleNamespace
 
 import numpy as np
 
-import pytest
 
-from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
-from vesmod.VesEdge.qc.checks.area_qc import AreaQCConfig
-from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
-from vesmod.VesEdge.experimental.internal_vesicle_qc import InternalVesicleQCConfig
 from vesmod.VesEdge.qc import qc_checks
 from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
 from vesmod.VesEdge.models import EdgeDetection, ImageContour
@@ -29,7 +24,6 @@ def test_builtin_qc_check_order_is_explicit():
         "localized_deviation",
         "singleton_deviation",
         "area",
-        "internal_vesicle",
     ]
 
 
@@ -57,17 +51,6 @@ def test_registry_runs_enabled_checks_in_declared_order(monkeypatch):
     qc_checks.run_configured_qc_checks([], SimpleNamespace(for_check=lambda name: None))
 
     assert calls == ["first", "second"]
-
-
-def test_registry_requires_frames_only_for_enabled_frame_check():
-    config = VesicleQCConfig(
-        curvature=CurvatureQCConfig(threshold=0.1, enabled=False),
-        area=AreaQCConfig(max_relative_deviation=0.25, enabled=False),
-        internal_vesicle=InternalVesicleQCConfig(enabled=True),
-    )
-
-    with pytest.raises(ValueError, match="Internal-vesicle QC is enabled"):
-        qc_checks.run_configured_qc_checks([], config)
 
 
 def test_one_registration_drives_cli_reports_and_replay(tmp_path, monkeypatch):

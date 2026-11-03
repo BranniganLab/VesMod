@@ -17,7 +17,7 @@ QC-independent .npz checkpoints
         └── vesedge internal-structures ───────▶ interior measurements
 ```
 
-This allows expensive image processing to be run once while QC settings are evaluated repeatedly and reproducibly. Built-in QC includes frame-level curvature and trajectory-relative contour-area checks.
+This allows expensive image processing to be run once while QC settings are evaluated repeatedly and reproducibly. Curvature and localized-deviation QC are enabled by default. Experimental checks must be enabled explicitly.
 
 ## Quick Start
 
@@ -35,7 +35,6 @@ Apply one QC configuration:
 ```bash
 vesedge qc "./checkpoints" \
     --curvature-threshold 21.520619405632544 \
-    --max-relative-area-deviation 0.25 \
     --output-dir ./results/qc_standard
 ```
 
@@ -329,9 +328,9 @@ vesedge qc "./checkpoints" \
     --output-dir ./results/no_curvature
 ```
 
-With curvature QC disabled, every successfully extracted detection is exported. Extraction failures remain absent because they do not contain contours.
+With curvature QC disabled, localized-deviation QC and any explicitly enabled experimental checks still apply.
 
-## Minimum Contour Radius QC
+## Experimental Minimum Contour Radius QC
 
 Minimum Contour Radius QC rejects malformed or collapsed frame-level contours before other
 analyses use them. A frame fails when any native contour radius is nonfinite or
@@ -350,10 +349,9 @@ and the rejection flag are retained with the frame QC results. When enabled,
 each checkpoint also produces a managed `.minimum_radius_qc.csv` diagnostic containing
 the frame index, median native radius, and rejection flag; `qc_summary.csv`
 includes the total number of minimum-radius-rejected frames. This check is disabled by
-default and is independent of curvature and area QC, so existing QC
-configurations remain unchanged. Its configuration is kept as a separate QC
-component to allow it to be registered with the modular QC interface described
-in issue #138.
+default. A very small contour can be nearly circular and pass both default
+checks. Minimum-radius QC can catch this kind of collapsed trace. Normal
+contour construction already requires positive, finite radii.
 
 ## Geometric Localized-deviation QC
 
@@ -364,7 +362,6 @@ radius:
 
 ```bash
 vesedge qc "./checkpoints" \
-    --localized-deviation-qc \
     --localized-deviation-order 3 \
     --max-localized-deviation-residual-fraction 0.05 \
     --localized-deviation-support-residual-fraction 0.03 \
@@ -372,8 +369,9 @@ vesedge qc "./checkpoints" \
     --output-dir ./results/qc_localized_deviation
 ```
 
-This check is disabled by default. The order, residual score, and threshold
-are retained in QC provenance. Optionally, a secondary residual threshold and
+This check is enabled by default. It uses the first three Fourier harmonics
+and a maximum residual fraction of 0.05. Disable it with
+`--no-localized-deviation-qc`. The order and thresholds are recorded in QC provenance. Optionally, a secondary residual threshold and
 maximum contiguous support width can be supplied together. A frame is rejected
 when its maximum residual is at least the primary threshold, or when its
 residual reaches the secondary threshold over no more than the configured
@@ -386,10 +384,9 @@ preserves maximum-residual-only behavior. The support-aware options are:
   support for that secondary threshold.
 
 These options must be supplied together. The measured support width is retained
-in QC results. This check is implemented as an independent component so it can
-be registered by the modular QC orchestration proposed in issue #138.
+in QC results.
 
-## Singleton-deviation QC
+## Experimental Singleton-deviation QC
 
 Singleton-deviation QC detects narrow, isolated radial excursions from a
 low-order Fourier baseline. It is useful for rejecting a single-pixel or
@@ -410,7 +407,7 @@ qc_summary.csv reports the number of singleton-deviation-rejected frames.
 
 VesEdge no longer performs GMM-based population QC. The removed options `--population-bic-threshold`, `--max-minor-population-fraction`, and `--no-population-qc` are invalid and produce an argument error.
 
-## Contour-Area Deviation QC
+## Experimental Contour-Area Deviation QC
 
 Area QC detects frames in which the extracted contour encloses substantially more or less area than is typical for the same vesicle trajectory. For a full-resolution radial contour sampled uniformly in angle, VesEdge calculates:
 
@@ -422,15 +419,16 @@ relative_deviation = abs(area - reference_area) / reference_area
 
 Using `mean(r**2)` retains noncircular contour variation and differs from approximating every contour as a circle using `mean(r)`. The metric uses the native extracted contour in pixel units; it is independent of analysis downsampling, microscope calibration, and internal-structure mask erosion.
 
-Set the largest accepted fractional deviation with:
+Enable area QC and set the largest accepted fractional deviation with:
 
 ```bash
 vesedge qc "./checkpoints" \
+    --area-qc \
     --max-relative-area-deviation 0.25 \
     --output-dir ./results/qc_standard
 ```
 
-Default: `0.25`. A deviation exactly equal to the threshold passes; a larger deviation fails.
+The check is disabled by default. When enabled, the default threshold is `0.25`. A deviation exactly equal to the threshold passes; a larger deviation fails.
 
 Disable this rule with:
 
@@ -441,51 +439,6 @@ vesedge qc "./checkpoints" \
 ```
 
 The trajectory median assumes that most successful detections trace the correct object. The threshold is an absolute fractional change rather than a MAD-scaled z-score, so its meaning does not depend on how narrowly normal areas happen to vary. Compare the area diagnostic across representative acquisitions before treating the default as universal.
-
-## Experimental Internal-Vesicle Mis-Selection QC
-
-Area-deviation QC cannot detect a stable mistake in which the edge detector
-traces a small vesicle located inside the intended larger vesicle. Enable the
-optional image-based check with:
-
-```bash
-vesedge qc "./checkpoints" \
-    --internal-vesicle-qc \
-    --output-dir ./results/qc_internal_vesicles
-```
-
-This is an edge-selection QC check, not internal-structure measurement. It
-searches outside the traced contour for radial intensity-gradient evidence of
-a larger enclosing membrane. Strong outward gradients must occur at spatially
-coherent radii before they count as one enclosing boundary.
-The minimum outward separation is relative to the selected contour radius, so
-the criterion scales with image resolution instead of assuming a fixed pixel
-size.
-
-The inexpensive size gate runs first. If the median traced contour occupies at
-least half of the image, it is considered too large to plausibly be an internal
-vesicle and no video frame is loaded for radial inspection. Change that cutoff with
-`--max-internal-vesicle-area-fraction`; change the fraction of positive frames
-required to reject the video with `--internal-vesicle-min-frame-fraction`.
-
-Eligible videos are sampled evenly rather than loaded in full. The default
-maximum is 20 frames; change it with `--internal-vesicle-max-frames`. A decision
-also requires at least three valid scores and at least half of the sampled
-frames to be valid (with the count capped for shorter videos). Configure these
-guards with `--internal-vesicle-min-valid-frames` and
-`--internal-vesicle-min-valid-frame-fraction`.
-
-Each enabled run writes `*.internal_vesicle_qc.csv`, containing the quantitative
-enclosing-boundary angular-coverage score for each inspected frame. The video
-summary records the traced area fraction, valid-score coverage, positive-frame
-fraction, the trajectory-level rejection decision, and a human-readable
-reason. A rejected trajectory does not mark every sampled frame as a failed
-frame. The implementation is
-exposed from `vesmod.VesEdge.experimental` and should be evaluated on
-the documented failure cases `DOPC_C1P_92.5_7.5/ND Acquisition 25_crop` and
-`DOPC_C16_95_5/ND Acquisition 20_crop` when those source acquisitions are
-available.
-
 
 ## QC Outputs
 
@@ -501,10 +454,6 @@ normally creates:
 results/qc_standard/
 ├── sample01.npy
 ├── sample02.npy
-├── sample01.area_qc.csv
-├── sample01.area_qc.png
-├── sample02.area_qc.csv
-├── sample02.area_qc.png
 ├── vesedge_qc.json
 └── qc_summary.csv
 ```
@@ -526,11 +475,12 @@ This file records:
 - `area.max_relative_deviation` and `area.enabled`;
 - `minimum_radius.min_median_radius_pixels` and
   `minimum_radius.enabled`;
-- `baseline.order`, `baseline.max_residual_fraction`, and
-  `baseline.enabled`;
-- `singleton.order`, `singleton.min_residual_fraction`,
-  `singleton.max_width_samples`, and `singleton.enabled`;
-- whether internal-vesicle QC was enabled and all of its thresholds.
+- `localized_deviation.order`, `localized_deviation.max_residual_fraction`, and
+  `localized_deviation.enabled`;
+- the settings for the experimental singleton-deviation check under `singleton_deviation`.
+
+Older manifests with inner-vesicle selection disabled can still be replayed.
+Manifests that enabled the removed check require a new QC run.
 
 Consequently, recursive and non-recursive runs, or runs resolving to different checkpoint sets, have different provenance even if their QC thresholds are identical.
 
@@ -545,7 +495,7 @@ The summary contains one row per selected checkpoint with:
 - area-deviation rejections;
 - minimum-radius rejections;
 - singleton-deviation rejections;
-- internal-vesicle inspection, scores, and trajectory rejection;
+- localized-deviation rejections;
 - accepted frames;
 - accepted fraction;
 - processing status;
@@ -553,7 +503,7 @@ The summary contains one row per selected checkpoint with:
 
 A checkpoint that cannot be loaded receives a `load_error` row with zero counts and the loading error. Therefore `qc_summary.csv` is still written when every selected checkpoint fails to load.
 
-This file is intended to make it easy to compare how aggressive different QC configurations are before comparing the downstream EdgeMod results. Each `*.area_qc.csv` records the exact native contour area, relative deviation, and area-QC decision by source frame. The corresponding `*.area_qc.png` plots those areas together with the trajectory median and configured acceptance bounds.
+This file is intended to make it easy to compare how aggressive different QC configurations are before comparing the downstream EdgeMod results. With experimental area QC enabled, each `*.area_qc.csv` records the exact native contour area, relative deviation, and area-QC decision by source frame. The corresponding `*.area_qc.png` plots those areas together with the trajectory median and configured acceptance bounds.
 
 ## Existing Outputs and `--overwrite`
 

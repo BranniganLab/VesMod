@@ -3,12 +3,11 @@
 import numpy as np
 import pytest
 
-from vesmod.VesEdge.qc.checks.area_qc import AreaQCConfig
+from vesmod.VesEdge.experimental.area_qc import AreaQCConfig
 from vesmod.VesEdge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
 from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
 from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
 from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
-from vesmod.VesEdge.experimental.internal_vesicle_qc import InternalVesicleQCConfig
 
 
 def test_edge_extraction_config_requires_positive_pixels_per_micron():
@@ -152,7 +151,6 @@ def test_vesicle_qc_config_normalizes_numeric_thresholds():
     [
         lambda: CurvatureQCConfig(5.0, enabled=1),
         lambda: AreaQCConfig(enabled=1),
-        lambda: InternalVesicleQCConfig(enabled=1),
     ],
 )
 def test_vesicle_qc_config_requires_boolean_enable_flags(factory):
@@ -205,8 +203,9 @@ def test_vesicle_qc_config_uses_registered_defaults_for_omitted_checks():
         {"area": {"enabled": False, "max_relative_deviation": 0.4}}
     )
 
-    assert config.curvature.threshold == pytest.approx(0.1)
-    assert not config.curvature.enabled
+    assert config.curvature.threshold == pytest.approx(21.520619405632544)
+    assert config.curvature.enabled
+    assert config.localized_deviation.enabled
     assert config.area.max_relative_deviation == pytest.approx(0.4)
 
 
@@ -220,13 +219,11 @@ def test_vesicle_qc_config_contains_independent_check_configs():
     """Each QC family is represented by its own immutable configuration."""
     curvature = CurvatureQCConfig(5.0, enabled=False)
     area = AreaQCConfig(0.4)
-    internal = InternalVesicleQCConfig(enabled=True, max_frames=4)
 
-    config = VesicleQCConfig(curvature, area, internal)
+    config = VesicleQCConfig(curvature, area)
 
     assert config.curvature is curvature
     assert config.area is area
-    assert config.internal_vesicle is internal
 
 
 @pytest.mark.parametrize(
@@ -243,12 +240,14 @@ def test_vesicle_qc_config_rejects_unknown_or_mixed_nested_fields(values):
         VesicleQCConfig.from_dict(values)
 
 
-def test_vesicle_qc_config_rejects_legacy_pixel_separation():
-    """A fixed pixel distance cannot be silently mapped to a relative one."""
-    with pytest.raises(ValueError, match="cannot be converted"):
-        VesicleQCConfig.from_dict(
-            {
-                "curvature_threshold": 5.0,
-                "internal_vesicle_min_separation_pixels": 5.0,
-            }
-        )
+
+def test_removed_inner_vesicle_settings_in_old_manifests():
+    """Replay can ignore disabled settings but must reject a removed active check."""
+    config = VesicleQCConfig.from_dict({"internal_vesicle": {"enabled": False}})
+    assert "internal_vesicle" not in config.to_dict()
+    with pytest.raises(ValueError, match="was removed"):
+        VesicleQCConfig.from_dict({"internal_vesicle": {"enabled": True}})
+    with pytest.raises(ValueError, match="was removed"):
+        VesicleQCConfig.from_dict({
+            "curvature_threshold": 5.0, "enable_internal_vesicle_qc": True,
+        })

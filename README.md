@@ -127,7 +127,7 @@ The `qc` style requires a completed `vesedge qc` run and its output directory
 via `--qc-dir`; run that command after the next step. Add `--recursive` when the
 checkpoint input contains nested directories.
 
-### 3. Apply curvature QC
+### 3. Apply contour quality control
 
 Use a dedicated output directory for each QC configuration:
 
@@ -143,15 +143,11 @@ This creates:
 results/qc_standard/
 ├── sample01.npy
 ├── sample02.npy
-├── sample01.area_qc.csv
-├── sample01.area_qc.png
-├── sample02.area_qc.csv
-├── sample02.area_qc.png
 ├── vesedge_qc.json
 └── qc_summary.csv
 ```
 
-`vesedge_qc.json` records the exact QC configuration and input selection. `qc_summary.csv` reports extraction failures, curvature rejections, area-deviation rejections, optional internal-vesicle trajectory decisions, accepted-frame counts, and accepted fractions for each checkpoint. Experimental internal-vesicle QC is disabled by default; enable it with `--internal-vesicle-qc`. It first skips traced contours occupying at least half the image, then lazily samples smaller-contour videos for persistent evidence of a coherent larger enclosing membrane. A positive result rejects the trajectory without marking every constituent frame as individually defective. When area QC produces `qc_result.area`, each checkpoint also receives an `*.area_qc.csv` file containing its per-frame area measurements and an `*.area_qc.png` area-versus-frame diagnostic plot. These two files are not generated when area QC is disabled with `--no-area-qc`.
+`vesedge_qc.json` records the QC settings and input selection. Curvature and localized-deviation checks run by default. `qc_summary.csv` reports extraction failures, rejections, and accepted-frame counts and fractions. Experimental area-deviation QC is opt-in with `--area-qc` and adds a per-frame CSV and diagnostic plot.
 
 ### 4. Compare alternate QC configurations
 
@@ -225,7 +221,7 @@ Reload the checkpoint and apply QC later:
 edges = VesicleEdges.from_checkpoint("sample.npz")
 
 qc_config = VesicleQCConfig(
-    curvature=CurvatureQCConfig(threshold=0.059),
+    curvature=CurvatureQCConfig(),
 )
 
 edges.run_qc(qc_config)

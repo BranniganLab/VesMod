@@ -4,9 +4,9 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ..contract import QCCheck
-from ...contour_geometry import fit_radial_baseline
-from ...models import EdgeDetection, QCFlag
+from ..qc.contract import QCCheck
+from ..contour_geometry import fit_radial_baseline
+from ..models import EdgeDetection, QCFlag
 from vesmod.validation import require_integer_valued, require_nonnegative_real
 
 

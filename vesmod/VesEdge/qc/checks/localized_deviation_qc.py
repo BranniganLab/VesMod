@@ -13,7 +13,7 @@ from vesmod.validation import require_integer_valued, require_nonnegative_real
 class LocalizedDeviationQCConfig:
     """Configuration owned by the localized-deviation QC check."""
 
-    enabled: bool = False
+    enabled: bool = True
     order: int = 3
     max_residual_fraction: float = 0.05
     support_residual_fraction: float | None = None
@@ -165,7 +165,15 @@ class LocalizedDeviationCheck(QCCheck):
 
     def add_cli_arguments(self, parser) -> None:
         """Register command-line options for this check."""
-        parser.add_argument("--localized-deviation-qc", action="store_true", help="Enable low-order geometric localized-deviation QC.")
+        toggle = parser.add_mutually_exclusive_group()
+        toggle.add_argument(
+            "--localized-deviation-qc", dest="localized_deviation_qc",
+            action="store_true", default=True, help="Enable localized-deviation QC (default).",
+        )
+        toggle.add_argument(
+            "--no-localized-deviation-qc", dest="localized_deviation_qc",
+            action="store_false", help="Disable localized-deviation QC.",
+        )
         parser.add_argument("--localized-deviation-order", type=int, default=3, help="Fourier baseline order. Default: 3.")
         parser.add_argument("--max-localized-deviation-residual-fraction", type=float, default=0.05, help="Maximum baseline residual divided by median radius. Default: 0.05.")
         parser.add_argument(
@@ -187,7 +195,7 @@ class LocalizedDeviationCheck(QCCheck):
     def config_from_args(self, args):
         """Build settings from parsed command-line options."""
         return LocalizedDeviationQCConfig(
-            enabled=getattr(args, "localized_deviation_qc", False),
+            enabled=getattr(args, "localized_deviation_qc", True),
             order=getattr(args, "localized_deviation_order", 3),
             max_residual_fraction=getattr(args, "max_localized_deviation_residual_fraction", 0.05),
             support_residual_fraction=getattr(
@@ -201,3 +209,15 @@ class LocalizedDeviationCheck(QCCheck):
                 None,
             ),
         )
+
+
+    summary_defaults = {"localized_deviation_rejected": 0}
+
+    def summary_values(self, edges):
+        """Count frames rejected by localized-deviation QC."""
+        return {
+            "localized_deviation_rejected": sum(
+                QCFlag.LOCALIZED_DEVIATION in detection.qc.flags
+                for detection in edges.successful_detections
+            )
+        }

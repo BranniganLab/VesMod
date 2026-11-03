@@ -10,10 +10,9 @@ import numpy as np
 import pytest
 
 from vesmod.VesEdge.models import QCFlag, VesicleQCResult
-from vesmod.VesEdge.qc.checks.area_qc import _save_area_qc_plot, _write_area_qc_csv
-from vesmod.VesEdge.qc.checks.minimum_radius_qc import _write_minimum_radius_qc_csv
+from vesmod.VesEdge.experimental.area_qc import _save_area_qc_plot, _write_area_qc_csv
+from vesmod.VesEdge.experimental.minimum_radius_qc import _write_minimum_radius_qc_csv
 from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
-from vesmod.VesEdge.io.frame_source import OnDemandFrameSequence
 from vesmod.VesEdge.vesicle_edges import VesicleEdges
 from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
 from vesmod.cli import vesedge_cli
@@ -45,7 +44,7 @@ def _qc_args(tmp_path, input_path=Path("sample.npz")) -> argparse.Namespace:
         curvature_threshold=5.0,
         no_curvature_qc=False,
         max_relative_area_deviation=0.25,
-        no_area_qc=False,
+        area_qc=False,
         singleton_deviation_qc=False,
         singleton_deviation_order=3,
         min_singleton_deviation_residual_fraction=0.05,
@@ -97,7 +96,14 @@ def test_parse_args_selects_qc_subcommand(monkeypatch, tmp_path):
     assert args.no_curvature_qc
     assert args.curvature_threshold == pytest.approx(21.520619405632544)
     assert args.max_relative_area_deviation == pytest.approx(0.25)
-    assert not args.no_area_qc
+    assert not args.area_qc
+    assert args.localized_deviation_qc
+    config = vesedge_cli._qc_config_from_args(args)
+    assert not config.curvature.enabled
+    assert config.localized_deviation.enabled
+    assert not config.area.enabled
+    assert not config.minimum_radius.enabled
+    assert not config.singleton_deviation.enabled
 
 
 def test_qc_parser_accepts_singleton_deviation_options(monkeypatch, tmp_path):
@@ -333,59 +339,6 @@ def test_process_qc_file_runs_qc_and_saves_filtered_output(tmp_path, monkeypatch
     assert row["status"] == "ok"
 
 
-def test_process_qc_file_resolves_relative_video_path_for_image_qc(
-    tmp_path,
-    monkeypatch,
-):
-    """Image QC resolves a recorded source relative to its checkpoint."""
-    checkpoint = tmp_path / "checkpoints" / "sample.npz"
-    checkpoint.parent.mkdir()
-    checkpoint.touch()
-    source = checkpoint.parent / "video.npy"
-    np.save(source, np.zeros((1, 10, 10)))
-    observed = {}
-
-    class Detection:
-        qc = argparse.Namespace(flags=set(), passed=True)
-
-    class FakeEdges:
-        source_path = Path("video.npy")
-        detections = [Detection()]
-        successful_detections = detections
-        qc_result = None
-
-        def run_qc(self, config, frames=None):
-            assert frames.shape == (1, 10, 10)
-            self.qc_result = VesicleQCResult(config)
-
-        def export_accepted_radii(self, path):
-            observed["npy"] = path
-
-    monkeypatch.setattr(
-        vesedge_cli.VesicleEdges,
-        "from_checkpoint",
-        lambda path: FakeEdges(),
-    )
-
-    def open_frames(path):
-        observed["source_path"] = path
-        return OnDemandFrameSequence(path)
-
-    monkeypatch.setattr(
-        vesedge_cli,
-        "open_checkpoint_frames",
-        open_frames,
-    )
-    args = _qc_args(tmp_path / "qc", checkpoint)
-    args.internal_vesicle_qc = True
-    config = vesedge_cli._qc_config_from_args(args)
-
-    row = vesedge_cli.process_qc_file(checkpoint, args, config)
-
-    assert observed["source_path"] == source.resolve()
-    assert row["status"] == "ok"
-
-
 def test_process_qc_file_preserves_relative_output_path(tmp_path, monkeypatch):
     """Test recursive QC outputs preserve checkpoint subdirectories."""
     observed = {}
@@ -490,13 +443,7 @@ def test_process_qc_file_returns_load_error_summary(tmp_path, monkeypatch):
         "area_rejected": 0,
         "minimum_radius_rejected": 0,
         "singleton_deviation_rejected": 0,
-        "internal_vesicle_trajectory_rejected": False,
-        "internal_vesicle_inspected": False,
-        "internal_vesicle_area_fraction": "",
-        "internal_vesicle_positive_frame_fraction": "",
-        "internal_vesicle_valid_frame_count": "",
-        "internal_vesicle_valid_frame_fraction": "",
-        "internal_vesicle_reason": "",
+        "localized_deviation_rejected": 0,
         "accepted": 0,
         "accepted_fraction": 0.0,
         "status": "load_error",

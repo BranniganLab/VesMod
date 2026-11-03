@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..models import EdgeDetection, TrajectoryQCFlag
+    from ..models import EdgeDetection
     from ..vesicle_edges import VesicleEdges
     from .qc_checks import Frames
 
@@ -42,7 +42,7 @@ class QCCheck(ABC):
     ) -> object | None:
         """Evaluate detections and optionally return check-owned diagnostics."""
 
-    def trajectory_flags(self, result: object | None) -> frozenset[TrajectoryQCFlag | str]:
+    def trajectory_flags(self, result: object | None) -> frozenset[str]:
         """Return whole-recording rejection reasons represented by the result."""
         return frozenset()
 

@@ -113,12 +113,6 @@ class QCFlag(Enum):
     SINGLETON_DEVIATION = auto()
 
 
-class TrajectoryQCFlag(Enum):
-    """Reasons a complete vesicle trajectory may fail quality control."""
-
-    INTERNAL_VESICLE = auto()
-
-
 @dataclass
 class EdgeQC:
     """
@@ -139,9 +133,6 @@ class EdgeQC:
     relative_area_deviation : float | None
         Absolute fractional deviation from the trajectory median contour area.
         None if area QC has not been run.
-    internal_vesicle_score : float | None
-        Fraction of radial directions containing evidence of a larger outer
-        membrane. None when internal-vesicle QC did not inspect this frame.
     localized_deviation_score : float | None
         Maximum normalized residual from the low-order localized-deviation
         baseline. None when localized-deviation QC has not been run.
@@ -163,7 +154,6 @@ class EdgeQC:
             "localized_deviation_support_samples",
             "singleton_count",
             "singleton_score",
-            "internal_vesicle_score",
         }
         if name in supported_diagnostics:
             return self.diagnostics.get(name)
@@ -235,14 +225,14 @@ class VesicleQCResult:
     results : Mapping[str, object]
         Typed results keyed by the registered check name. Each check module
         owns the result type it places in this mapping.
-    trajectory_flags : frozenset[TrajectoryQCFlag]
+    trajectory_flags : frozenset[str]
         Failures that apply to the complete video rather than individual
         detected frames.
     """
 
     config: VesicleQCConfig
     results: Mapping[str, object] = field(default_factory=dict)
-    trajectory_flags: frozenset[TrajectoryQCFlag | str] = frozenset()
+    trajectory_flags: frozenset[str] = frozenset()
 
     def __post_init__(self) -> None:
         """Freeze the check-keyed result collection."""
@@ -254,7 +244,7 @@ class VesicleQCResult:
 
     def __getattr__(self, name: str) -> object:
         """Provide read-only access for established built-in result keys."""
-        if name in self.results or name in {"curvature", "area", "internal_vesicle"}:
+        if name in self.results or name in {"curvature", "area"}:
             return self.results.get(name)
         raise AttributeError(name)
 

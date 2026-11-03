@@ -8,9 +8,9 @@ import numpy as np
 
 from dataclasses import dataclass
 
-from ..contract import QCCheck
-from ...contour_geometry import contour_area
-from ...models import EdgeDetection, QCFlag
+from ..qc.contract import QCCheck
+from ..contour_geometry import contour_area
+from ..models import EdgeDetection, QCFlag
 from vesmod.validation import require_fraction
 
 
@@ -19,7 +19,7 @@ class AreaQCConfig:
     """Configuration owned by the contour-area QC check."""
 
     max_relative_deviation: float = 0.25
-    enabled: bool = True
+    enabled: bool = False
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "max_relative_deviation", require_fraction(self.max_relative_deviation, "max_relative_deviation", include_one=False))
@@ -234,17 +234,21 @@ class AreaDeviationCheck(QCCheck):
                 "contour area. Default: 0.25."
             ),
         )
-        parser.add_argument(
-            "--no-area-qc",
-            action="store_true",
-            help="Disable trajectory-level contour-area deviation QC.",
+        toggle = parser.add_mutually_exclusive_group()
+        toggle.add_argument(
+            "--area-qc", dest="area_qc", action="store_true",
+            help="Enable experimental contour-area deviation QC.",
+        )
+        toggle.add_argument(
+            "--no-area-qc", dest="area_qc", action="store_false", default=False,
+            help="Disable experimental contour-area deviation QC (default).",
         )
 
     def config_from_args(self, args):
         """Build settings from parsed command-line options."""
         return AreaQCConfig(
             max_relative_deviation=args.max_relative_area_deviation,
-            enabled=not args.no_area_qc,
+            enabled=getattr(args, "area_qc", False),
         )
 
     summary_order = 1

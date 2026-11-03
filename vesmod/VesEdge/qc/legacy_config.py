@@ -1,8 +1,8 @@
 """Translate historical flat QC configurations into check-owned settings."""
 
-from ..experimental.internal_vesicle_qc import InternalVesicleQCConfig
-from .checks.area_qc import AreaQCConfig
+from ..experimental.area_qc import AreaQCConfig
 from .checks.edge_filtering import CurvatureQCConfig
+from .checks.localized_deviation_qc import LocalizedDeviationQCConfig
 
 
 def migrate_flat_config(values: dict) -> dict:
@@ -24,11 +24,8 @@ def migrate_flat_config(values: dict) -> dict:
     unknown = set(values) - legacy_fields
     if unknown:
         raise TypeError(f"Unexpected QC configuration field: {sorted(unknown)[0]}")
-    if "internal_vesicle_min_separation_pixels" in values:
-        raise ValueError(
-            "Legacy internal_vesicle_min_separation_pixels cannot be converted "
-            "without a contour radius; use internal_vesicle_min_separation_fraction."
-        )
+    if values.get("enable_internal_vesicle_qc", False):
+        raise ValueError("Inner-vesicle selection QC was removed and cannot be replayed.")
     values = {
         "curvature": CurvatureQCConfig(
             threshold=values["curvature_threshold"],
@@ -38,18 +35,15 @@ def migrate_flat_config(values: dict) -> dict:
             max_relative_deviation=values.get("max_relative_area_deviation", 0.25),
             enabled=values.get("enable_area_qc", True),
         ),
-        "internal_vesicle": InternalVesicleQCConfig(
-            enabled=values.get("enable_internal_vesicle_qc", False),
-            max_area_fraction=values.get("max_internal_vesicle_area_fraction", 0.5),
-            min_radius_ratio=values.get("internal_vesicle_min_radius_ratio", 1.15),
-            min_separation_fraction=values.get("internal_vesicle_min_separation_fraction", 0.4),
-            gradient_ratio=values.get("internal_vesicle_gradient_ratio", 0.5),
-            max_radial_deviation_fraction=values.get("internal_vesicle_max_radial_deviation_fraction", 0.15),
-            min_angular_coverage=values.get("internal_vesicle_min_angular_coverage", 0.6),
-            max_frames=values.get("internal_vesicle_max_frames", 20),
-            min_valid_frames=values.get("internal_vesicle_min_valid_frames", 3),
-            min_valid_frame_fraction=values.get("internal_vesicle_min_valid_frame_fraction", 0.5),
-            min_frame_fraction=values.get("internal_vesicle_min_frame_fraction", 0.5),
-        ),
+        "localized_deviation": LocalizedDeviationQCConfig(enabled=False),
     }
     return values
+
+
+def discard_removed_check(values: dict) -> None:
+    """Ignore recorded disabled settings for the deleted check."""
+    if "internal_vesicle" not in values:
+        return
+    settings = values.pop("internal_vesicle")
+    if not isinstance(settings, dict) or settings.get("enabled", False) is not False:
+        raise ValueError("Inner-vesicle selection QC was removed and cannot be replayed.")
