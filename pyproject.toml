@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "VesMod"
-version = "1.0.0"
+version = "0.6.1"
 description = "Extract the bending modulus from a video of a vesicle."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -52,6 +52,3 @@ edgemod = "vesmod.cli.edgemod_cli:main"
 
 [tool.setuptools]
 packages = { find = { include = ["vesmod", "vesmod.*"] } }
-
-[tool.setuptools.package-data]
-vesmod = ["py.typed"]

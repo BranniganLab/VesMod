@@ -1,0 +1,54 @@
+name: Check release metadata
+
+on:
+  pull_request:
+    paths:
+      - pyproject.toml
+      - vesmod/__init__.py
+      - .github/workflows/check_release_metadata.yml
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  verify-wheel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Build and install the wheel
+        run: |
+          python -m pip wheel --no-deps --wheel-dir dist .
+          python -m pip install --no-deps dist/*.whl
+      - name: Check the installed version against the release tag
+        # Import the installed wheel outside the checkout.
+        working-directory: ${{ runner.temp }}
+        run: |
+          python - <<'PY'
+          import os
+          from importlib.metadata import version
+
+          import vesmod
+
+          wheel_version = version("VesMod")
+          if vesmod.__version__ != wheel_version:
+              raise SystemExit(
+                  f"vesmod.__version__ is {vesmod.__version__}, "
+                  f"but the wheel version is {wheel_version}."
+              )
+
+          if os.environ.get("GITHUB_REF_TYPE") == "tag":
+              tag = os.environ["GITHUB_REF_NAME"]
+              if tag != f"v{wheel_version}":
+                  raise SystemExit(
+                      f"Release tag {tag} does not match wheel version {wheel_version}. "
+                      "Set the version in pyproject.toml before tagging a release."
+                  )
+
+          print(f"Verified VesMod {wheel_version}.")
+          PY
