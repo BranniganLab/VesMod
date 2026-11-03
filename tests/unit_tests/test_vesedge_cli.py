@@ -3,13 +3,15 @@
 import argparse
 from contextlib import nullcontext
 import json
+import re
+import shlex
 import sys
 from pathlib import Path
 
 import numpy as np
 import pytest
 
-from vesmod.VesEdge.models import QCFlag, VesicleQCResult
+from vesmod.VesEdge.models import EdgeDetection, ImageContour, QCFlag, VesicleQCResult
 from vesmod.VesEdge.experimental.area_qc import _save_area_qc_plot, _write_area_qc_csv
 from vesmod.VesEdge.experimental.minimum_radius_qc import _write_minimum_radius_qc_csv
 from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
@@ -723,3 +725,40 @@ def test_minimum_radius_qc_diagnostics_preserve_frame_measurements(tmp_path):
     _write_minimum_radius_qc_csv(csv_path, FakeEdges())
     csv_text = csv_path.read_text()
     assert "4,2.5,True" in csv_text
+
+
+def test_readme_cli_and_python_qc_accept_the_same_frames(tmp_path, monkeypatch):
+    """Run the documented QC examples on contours that separate both cutoffs."""
+    readme = (Path(__file__).resolve().parents[2] / "README.md").read_text(encoding="utf-8")
+    commands = re.findall(r"^```bash\n(vesedge qc .*?)\n```", readme, re.M | re.S)
+    python_blocks = re.findall(r"^```python\n(.*?)\n```", readme, re.M | re.S)
+    python_qc = next(block for block in python_blocks if "permissive_qc =" in block)
+
+    monkeypatch.chdir(tmp_path)
+    checkpoint = Path("checkpoints/sample.npz")
+    checkpoint.parent.mkdir()
+    radii = np.full((3, 120), 10.0)
+    radii[1, 0] *= 1.034
+    radii[2, 0] *= 1.08
+    contours = [ImageContour((0.0, 0.0), row) for row in radii]
+    VesicleEdges(
+        EdgeExtractionConfig(n_angular_samples=120),
+        [EdgeDetection(contour, contour) for contour in contours],
+    ).save_checkpoint(checkpoint)
+
+    assert len(commands) == 2
+    for command in commands:
+        monkeypatch.setattr(sys, "argv", shlex.split(command.replace("\\\n", "")))
+        assert vesedge_cli.main() == 0
+
+    namespace = {}
+    exec(compile(python_qc, "README.md", "exec"), namespace)
+    for directory, python_output, config_name, count in (
+        ("qc_standard", "sample.npy", "qc_config", 1),
+        ("qc_permissive", "sample_permissive.npy", "permissive_qc", 2),
+    ):
+        output_dir = Path("results") / directory
+        manifest = json.loads((output_dir / "vesedge_qc.json").read_text(encoding="utf-8"))
+        assert manifest["qc_config"] == namespace[config_name].to_dict()
+        np.testing.assert_array_equal(np.load(output_dir / "sample.npy"), np.load(python_output))
+        np.testing.assert_array_equal(np.load(python_output), radii[:count])

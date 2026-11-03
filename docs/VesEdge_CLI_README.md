@@ -328,7 +328,7 @@ vesedge qc "./checkpoints" \
     --output-dir ./results/no_curvature
 ```
 
-With curvature QC disabled, localized-deviation QC and any explicitly enabled experimental checks still apply.
+With curvature QC disabled, localized-deviation QC and any explicitly enabled experimental checks still apply. See the [threshold migration notes](VesEdge_extraction_defaults_migration.md#curvature-qc-thresholds) for converting older cutoffs.
 
 ## Experimental Minimum Contour Radius QC
 

@@ -157,7 +157,7 @@ vesedge extract "sample.nd2" \
     --output-dir ./checkpoints
 
 vesedge qc "./checkpoints" \
-    --curvature-threshold 10 \
+    --curvature-threshold 21.520619405632544 \
     --output-dir ./results/qc_standard
 ```
 

@@ -43,3 +43,17 @@ vesedge extract "sample.nd2" \
 ```
 
 The effective sample count and spatial calibration continue to be stored in each extraction checkpoint, together with the new calibration provenance field.
+
+## Curvature QC thresholds
+
+The current score divides the largest absolute wrapped second difference of
+the median-radius-normalized contour by the squared angular spacing in
+radians. Older thresholds applied to the second difference directly. For a
+contour sampled at `N` evenly spaced angles, convert an old threshold by
+dividing it by `(2 * pi / N)**2`. For example, `0.059` at 120 angular samples
+becomes `21.520619405632544`, the current standard cutoff. Use the angular
+sample count of the old analysis when converting its threshold.
+
+`--no-curvature-qc` disables the curvature check alone. Localized-deviation QC
+is enabled by default and can be disabled independently with
+`--no-localized-deviation-qc`. Any experimental checks you enabled still apply.

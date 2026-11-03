@@ -134,6 +134,9 @@ Use a dedicated output directory for each QC configuration:
 ```bash
 vesedge qc "./checkpoints" \
     --curvature-threshold 21.520619405632544 \
+    --localized-deviation-qc \
+    --localized-deviation-order 3 \
+    --max-localized-deviation-residual-fraction 0.05 \
     --output-dir ./results/qc_standard
 ```
 
@@ -156,6 +159,9 @@ For example:
 ```bash
 vesedge qc "./checkpoints" \
     --curvature-threshold 32.46298468904425 \
+    --localized-deviation-qc \
+    --localized-deviation-order 3 \
+    --max-localized-deviation-residual-fraction 0.05 \
     --output-dir ./results/qc_permissive
 ```
 
@@ -195,10 +201,9 @@ Fixed output is written as `<input>.json`; experimental dynamic output is writte
 The Python API exposes the same separation between extraction, QC, stable physical fitting, and experimental analysis.
 
 ```python
+from pathlib import Path
+
 from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
-from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
-from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
-from vesmod.VesEdge.vesicle_edges import VesicleEdges
 from vesmod.VesEdge.vesicle_video import VesicleVideo
 from vesmod.VesEdge.extraction.edge_extractor import extract_edge_from_frame
 
@@ -212,20 +217,36 @@ edges = video.extract_edges(
     ),
 )
 
-edges.save_checkpoint("sample.npz")
+Path("checkpoints").mkdir(exist_ok=True)
+edges.save_checkpoint("checkpoints/sample.npz")
 ```
 
-Reload the checkpoint and apply QC later:
+Reload the checkpoint and apply the same two QC configurations used in the CLI workflow.
 
 ```python
-edges = VesicleEdges.from_checkpoint("sample.npz")
+from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
+from vesmod.VesEdge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
+from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
+from vesmod.VesEdge.vesicle_edges import VesicleEdges
 
-qc_config = VesicleQCConfig(
-    curvature=CurvatureQCConfig(),
+edges = VesicleEdges.from_checkpoint("checkpoints/sample.npz")
+localized_deviation = LocalizedDeviationQCConfig(
+    enabled=True, order=3, max_residual_fraction=0.05,
 )
 
+qc_config = VesicleQCConfig(
+    curvature=CurvatureQCConfig(threshold=21.520619405632544, enabled=True),
+    localized_deviation=localized_deviation,
+)
 edges.run_qc(qc_config)
 edges.export_accepted_radii("sample.npy")
+
+permissive_qc = VesicleQCConfig(
+    curvature=CurvatureQCConfig(threshold=32.46298468904425, enabled=True),
+    localized_deviation=localized_deviation,
+)
+edges.run_qc(permissive_qc)
+edges.export_accepted_radii("sample_permissive.npy")
 ```
 
 After a completed QC run, `edges.qc_result` contains the aggregate result for the `VesicleQCConfig` that was applied. Per-detection QC annotations remain available on each `EdgeDetection.qc`. `export_accepted_radii()` writes the analysis-contour radii from all accepted detections, converted to microns, as the `.npy` handoff to EdgeMod.
