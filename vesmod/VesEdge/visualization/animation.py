@@ -14,11 +14,11 @@ from matplotlib.axes import Axes
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
-from .models import EdgeDetection
+from ..models import EdgeDetection
 
 if TYPE_CHECKING:
-    from .vesicle_edges import VesicleEdges
-    from .vesicle_video import VesicleVideo
+    from ..vesicle_edges import VesicleEdges
+    from ..vesicle_video import VesicleVideo
 
 
 class AnimationPanel(Protocol):

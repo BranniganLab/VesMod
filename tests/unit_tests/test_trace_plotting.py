@@ -10,19 +10,17 @@ matplotlib.use("Agg")
 import numpy as np
 import pytest
 
-from vesmod.VesEdge import (
-    EdgeDetection,
-    EdgeExtractionConfig,
+from vesmod.VesEdge.models import EdgeDetection, ImageContour, VesicleQCResult
+from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
+from vesmod.VesEdge.visualization.trace_plotting import (
     EdgeTracePlotConfig,
-    ImageContour,
-    VesicleEdges,
-    VesicleQCConfig,
-    VesicleQCResult,
     centered_contour_coordinates,
     contour_center_of_mass,
     plot_edge_traces,
     select_trace_detections,
 )
+from vesmod.VesEdge.vesicle_edges import VesicleEdges
+from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
 from vesmod.cli import trace_plot_cli
 
 

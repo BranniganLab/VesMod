@@ -11,8 +11,8 @@ from matplotlib.cm import ScalarMappable
 import numpy as np
 from numpy.typing import NDArray
 
-from .models import EdgeDetection, ImageContour
-from .vesicle_edges import VesicleEdges
+from ..models import EdgeDetection, ImageContour
+from ..vesicle_edges import VesicleEdges
 
 
 @dataclass(frozen=True)

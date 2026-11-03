@@ -5,21 +5,17 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from vesmod.VesEdge import (
-    OnDemandFrameSequence,
-    RecordedQCSelection,
-    VesicleEdges,
-    VesicleVideo,
-    load_recorded_qc,
-    make_vesicle_gif,
-    replay_recorded_qc,
-)
+from vesmod.VesEdge.io.frame_source import OnDemandFrameSequence
+from vesmod.VesEdge.qc.qc_replay import RecordedQCSelection, load_recorded_qc, replay_recorded_qc
+from vesmod.VesEdge.vesicle_edges import VesicleEdges
+from vesmod.VesEdge.vesicle_video import VesicleVideo
+from vesmod.VesEdge.visualization.animation import make_vesicle_gif
 
-from vesmod.io import (
-    map_output_path,
+from vesmod.VesEdge.io.checkpoint_sources import (
     open_checkpoint_frames,
     resolve_source_path,
 )
+from vesmod.io.path_mapping import map_output_path
 from vesmod.cli.batch_policy import add_batch_policy_argument, exit_code, report_batch_summary
 from vesmod.cli.input_selection import InputPathsAction, select_input_files
 

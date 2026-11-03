@@ -199,14 +199,12 @@ Fixed output is written as `<input>.json`; experimental dynamic output is writte
 The Python API exposes the same separation between extraction, QC, stable physical fitting, and experimental analysis.
 
 ```python
-from vesmod.VesEdge import (
-    EdgeExtractionConfig,
-    VesicleQCConfig,
-    CurvatureQCConfig,
-    VesicleEdges,
-    VesicleVideo,
-    extract_edge_from_frame,
-)
+from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
+from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
+from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
+from vesmod.VesEdge.vesicle_edges import VesicleEdges
+from vesmod.VesEdge.vesicle_video import VesicleVideo
+from vesmod.VesEdge.extraction.edge_extractor import extract_edge_from_frame
 
 video = VesicleVideo(frames)
 edges = video.extract_edges(

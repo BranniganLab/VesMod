@@ -9,12 +9,12 @@ from typing import Iterable
 
 import numpy as np
 
-from vesmod.io import map_output_path
+from vesmod.io.path_mapping import map_output_path
 
-from .frame_source import OnDemandFrameSequence
+from ..io.frame_source import OnDemandFrameSequence
 from .qc_checks import QC_CHECKS
 from .qc_config import VesicleQCConfig
-from .vesicle_edges import VesicleEdges
+from ..vesicle_edges import VesicleEdges
 
 
 @dataclass(frozen=True)

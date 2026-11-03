@@ -8,7 +8,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from vesmod.VesEdge import VesicleQCConfig, load_recorded_qc
+from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
+from vesmod.VesEdge.qc.qc_replay import load_recorded_qc
 from vesmod.cli import gif_cli, vesedge_cli
 
 

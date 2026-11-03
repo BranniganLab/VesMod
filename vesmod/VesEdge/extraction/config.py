@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Configuration façade for VesEdge extraction and quality control."""
+"""Settings for extracting and sampling vesicle contours."""
 
 from dataclasses import dataclass
 
@@ -32,14 +32,3 @@ class EdgeExtractionConfig:
         if count <= 0:
             raise ValueError("n_angular_samples must be positive.")
         object.__setattr__(self, "n_angular_samples", count)
-
-
-# These re-exports are a public convenience only. Concrete QC schemas live
-# beside the checks that validate and consume them.
-from .area_qc import AreaQCConfig  # noqa: E402
-from .edge_filtering import CurvatureQCConfig  # noqa: E402
-from .experimental.internal_vesicle_qc import InternalVesicleQCConfig  # noqa: E402
-from .localized_deviation_qc import LocalizedDeviationQCConfig  # noqa: E402
-from .minimum_radius_qc import MinimumRadiusQCConfig  # noqa: E402
-from .qc_config import VesicleQCConfig  # noqa: E402
-from .singleton_qc import SingletonDeviationQCConfig  # noqa: E402

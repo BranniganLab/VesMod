@@ -4,12 +4,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
-from vesmod.VesEdge import (
+from vesmod.VesEdge.visualization.animation import (
     TimeSeriesAnimationPanel,
     VesicleAnimationPanel,
-    VesicleVideo,
     make_gif,
 )
+from vesmod.VesEdge.vesicle_video import VesicleVideo
 
 
 def test_vesicle_animation_panel_delegates_to_frame_renderer(monkeypatch):
@@ -21,7 +21,7 @@ def test_vesicle_animation_panel_delegates_to_frame_renderer(monkeypatch):
         observed.append((video_arg, axis, frame_index, edges, kwargs))
 
     monkeypatch.setattr(
-        "vesmod.VesEdge.animation.draw_vesicle_frame",
+        "vesmod.VesEdge.visualization.animation.draw_vesicle_frame",
         fake_draw_vesicle_frame,
     )
     panel = VesicleAnimationPanel(video)
@@ -51,7 +51,7 @@ def test_vesicle_animation_panel_maps_selected_animation_frames(monkeypatch):
         observed.append((video_arg, axis, frame_index, edges, kwargs))
 
     monkeypatch.setattr(
-        "vesmod.VesEdge.animation.draw_vesicle_frame",
+        "vesmod.VesEdge.visualization.animation.draw_vesicle_frame",
         fake_draw_vesicle_frame,
     )
     decorator = object()
@@ -153,7 +153,7 @@ def test_make_gif_draws_synchronized_panels(monkeypatch, tmp_path):
             return None
 
     monkeypatch.setattr(
-        "vesmod.VesEdge.animation.FuncAnimation",
+        "vesmod.VesEdge.visualization.animation.FuncAnimation",
         FakeAnimation,
     )
     panels = [FakePanel("vesicle"), FakePanel("area")]
@@ -198,7 +198,7 @@ def test_make_gif_places_four_synchronized_panels_in_two_by_two_layout(
             return None
 
     monkeypatch.setattr(
-        "vesmod.VesEdge.animation.FuncAnimation",
+        "vesmod.VesEdge.visualization.animation.FuncAnimation",
         FakeAnimation,
     )
     panel_names = ("old-a", "new-a", "old-b", "new-b")
@@ -269,7 +269,7 @@ def test_make_gif_can_draw_a_transformed_custom_panel(monkeypatch, tmp_path):
             return None
 
     monkeypatch.setattr(
-        "vesmod.VesEdge.animation.FuncAnimation",
+        "vesmod.VesEdge.visualization.animation.FuncAnimation",
         FakeAnimation,
     )
 
@@ -302,7 +302,7 @@ def test_make_gif_closes_figure_when_save_raises(monkeypatch, tmp_path):
             raise RuntimeError("save failed")
 
     monkeypatch.setattr(
-        "vesmod.VesEdge.animation.FuncAnimation",
+        "vesmod.VesEdge.visualization.animation.FuncAnimation",
         FakeAnimation,
     )
 

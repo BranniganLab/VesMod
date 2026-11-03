@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from vesmod.VesEdge.edge_filtering import check_curvature
+from vesmod.VesEdge.qc.checks.edge_filtering import check_curvature
 from vesmod.VesEdge.models import EdgeDetection, ImageContour, QCFlag
 
 

@@ -3,12 +3,10 @@
 import numpy as np
 import pytest
 
-from vesmod.VesEdge import (
-    EdgeExtractionConfig,
-    QCFlag,
-    VesicleEdges,
-    VesicleQCConfig,
-)
+from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
+from vesmod.VesEdge.models import QCFlag
+from vesmod.VesEdge.vesicle_edges import VesicleEdges
+from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
 from vesmod.VesEdge.models import (
     EdgeDetection,
     EdgeDetectionFailure,

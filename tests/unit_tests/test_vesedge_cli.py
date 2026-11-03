@@ -9,12 +9,10 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from vesmod.VesEdge import (
-    EdgeExtractionConfig,
-    OnDemandFrameSequence,
-    VesicleEdges,
-    VesicleQCConfig,
-)
+from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
+from vesmod.VesEdge.io.frame_source import OnDemandFrameSequence
+from vesmod.VesEdge.vesicle_edges import VesicleEdges
+from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
 from vesmod.cli import vesedge_cli
 
 
@@ -26,7 +24,7 @@ def _extract_args(tmp_path=None, input_path=Path("sample.nd2")) -> argparse.Name
         no_gif=True,
         overwrite=True,
         extractor_file=None,
-        extractor="vesmod.VesEdge:extract_edge_from_frame",
+        extractor="vesmod.VesEdge.extraction.edge_extractor:extract_edge_from_frame",
         extractor_name="extract_edge_from_frame",
         downsample=False,
         n_samples=120,

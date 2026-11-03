@@ -7,8 +7,8 @@ from pathlib import Path
 import numpy as np
 from numpy.typing import NDArray
 
-from .config import EdgeExtractionConfig
-from .models import (
+from ..extraction.config import EdgeExtractionConfig
+from ..models import (
     EdgeDetection,
     EdgeDetectionFailure,
     EdgeResult,

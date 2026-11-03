@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .models import EdgeDetection, QCFlag
+from ...models import EdgeDetection, QCFlag
 from vesmod.validation import require_nonnegative_real
 
 

@@ -6,7 +6,7 @@ from vesmod.VesEdge.contour_geometry import (
     fit_radial_baseline,
     radial_contour_centroid,
 )
-from vesmod.VesEdge.vesicle_video_utils import zero_out_all_but_lowest_n_modes
+from vesmod.VesEdge.extraction.vesicle_video_utils import zero_out_all_but_lowest_n_modes
 
 
 def test_shared_baseline_retains_only_requested_harmonics():

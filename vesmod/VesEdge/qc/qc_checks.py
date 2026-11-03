@@ -7,31 +7,31 @@ from typing import Protocol
 
 from numpy.typing import NDArray
 
-from .area_qc import AreaQCConfig, check_area_deviation
-from .edge_filtering import CurvatureQCConfig, CurvatureQCResult, check_curvature
-from .experimental.internal_vesicle_qc import (
+from .checks.area_qc import AreaQCConfig, check_area_deviation
+from .checks.edge_filtering import CurvatureQCConfig, CurvatureQCResult, check_curvature
+from ..experimental.internal_vesicle_qc import (
     InternalVesicleQCConfig,
     InternalVesicleQCResult,
     check_internal_vesicle_selection,
 )
-from .frame_source import OnDemandFrameSequence
-from .localized_deviation_qc import (
+from ..io.frame_source import OnDemandFrameSequence
+from .checks.localized_deviation_qc import (
     LocalizedDeviationQCConfig,
     LocalizedDeviationQCResult,
     check_localized_deviation,
 )
-from .minimum_radius_qc import (
+from .checks.minimum_radius_qc import (
     MinimumRadiusQCConfig,
     MinimumRadiusQCResult,
     check_minimum_radius,
 )
 from .qc_config import VesicleQCConfig
-from .singleton_qc import (
+from .checks.singleton_qc import (
     SingletonDeviationQCConfig,
     SingletonDeviationQCResult,
     check_singleton_deviation,
 )
-from .models import EdgeDetection, QCFlag, TrajectoryQCFlag
+from ..models import EdgeDetection, QCFlag, TrajectoryQCFlag
 
 
 Frames = OnDemandFrameSequence | NDArray | None

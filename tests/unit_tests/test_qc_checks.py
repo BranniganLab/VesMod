@@ -4,13 +4,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from vesmod.VesEdge import VesicleQCConfig
-from vesmod.VesEdge.config import (
-    AreaQCConfig,
-    CurvatureQCConfig,
-    InternalVesicleQCConfig,
-)
-from vesmod.VesEdge import qc_checks
+from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
+from vesmod.VesEdge.qc.checks.area_qc import AreaQCConfig
+from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
+from vesmod.VesEdge.experimental.internal_vesicle_qc import InternalVesicleQCConfig
+from vesmod.VesEdge.qc import qc_checks
 
 
 def test_builtin_qc_check_order_is_explicit():

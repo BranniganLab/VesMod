@@ -10,7 +10,7 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.ndimage import gaussian_filter1d, map_coordinates, median_filter
 
-from ..area_qc import contour_area
+from ..qc.checks.area_qc import contour_area
 from ..models import EdgeDetection
 from vesmod.validation import (
     require_fraction,
@@ -20,7 +20,7 @@ from vesmod.validation import (
 )
 
 if TYPE_CHECKING:
-    from ..frame_source import OnDemandFrameSequence
+    from ..io.frame_source import OnDemandFrameSequence
 
 
 @dataclass(frozen=True)
@@ -207,7 +207,7 @@ def check_internal_vesicle_selection(
     config: InternalVesicleQCConfig,
 ) -> InternalVesicleQCResult:
     """Evaluate persistent selection of a smaller vesicle within a larger one."""
-    from ..frame_source import as_frame_source
+    from ..io.frame_source import as_frame_source
 
     frame_sequence = as_frame_source(frames)
     frame_count, height, width = frame_sequence.shape

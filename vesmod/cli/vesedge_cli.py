@@ -12,22 +12,20 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 
-from vesmod.VesEdge import (
-    AreaQCConfig,
-    LocalizedDeviationQCConfig,
-    CurvatureQCConfig,
-    MinimumRadiusQCConfig,
-    SingletonDeviationQCConfig,
-    EdgeExtractionConfig,
-    VesicleQCConfig,
-    QCFlag,
-    TrajectoryQCFlag,
-    VesicleEdges,
-    VesicleVideo,
-    open_frame_source,
-)
-from vesmod.VesEdge.experimental import InternalVesicleQCConfig
-from vesmod.io import map_output_path, open_checkpoint_frames, resolve_source_path
+from vesmod.VesEdge.qc.checks.area_qc import AreaQCConfig
+from vesmod.VesEdge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
+from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
+from vesmod.VesEdge.qc.checks.minimum_radius_qc import MinimumRadiusQCConfig
+from vesmod.VesEdge.qc.checks.singleton_qc import SingletonDeviationQCConfig
+from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
+from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
+from vesmod.VesEdge.models import QCFlag, TrajectoryQCFlag
+from vesmod.VesEdge.vesicle_edges import VesicleEdges
+from vesmod.VesEdge.vesicle_video import VesicleVideo
+from vesmod.VesEdge.io.frame_source import open_frame_source
+from vesmod.VesEdge.experimental.internal_vesicle_qc import InternalVesicleQCConfig
+from vesmod.VesEdge.io.checkpoint_sources import open_checkpoint_frames, resolve_source_path
+from vesmod.io.path_mapping import map_output_path
 from vesmod.cli import internal_structures_cli
 from vesmod.cli.gif_cli import add_gif_parser, run_gif
 from vesmod.cli.trace_plot_cli import add_trace_plot_parser, run_trace_plot
@@ -132,7 +130,7 @@ def _add_extract_parser(subparsers) -> None:
     )
     parser.add_argument(
         "--extractor",
-        default="vesmod.VesEdge:extract_edge_from_frame",
+        default="vesmod.VesEdge.extraction.edge_extractor:extract_edge_from_frame",
         help=(
             "Edge extractor as 'module:function'. The function must accept one "
             "2D frame and return (r_vals, vesicle_center)."

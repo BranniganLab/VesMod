@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from vesmod.VesEdge.vesicle_video_utils import (
+from vesmod.VesEdge.extraction.vesicle_video_utils import (
     convert_to_cartesian,
     convert_to_polar,
     downsample_to_new_indices,

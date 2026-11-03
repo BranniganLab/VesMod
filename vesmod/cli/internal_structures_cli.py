@@ -10,17 +10,13 @@ from pathlib import Path
 
 import numpy as np
 
-from vesmod.VesEdge import (
-    EdgeDetection,
-    RecordedQCSelection,
-    VesicleEdges,
-    VesicleQCConfig,
-    VesicleVideo,
-    load_recorded_qc,
-    make_vesicle_gif,
-    replay_recorded_qc,
-)
-from vesmod.VesEdge.experimental import (
+from vesmod.VesEdge.models import EdgeDetection
+from vesmod.VesEdge.qc.qc_replay import RecordedQCSelection, load_recorded_qc, replay_recorded_qc
+from vesmod.VesEdge.vesicle_edges import VesicleEdges
+from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
+from vesmod.VesEdge.vesicle_video import VesicleVideo
+from vesmod.VesEdge.visualization.animation import make_vesicle_gif
+from vesmod.VesEdge.experimental.internal_structures import (
     InternalStructureConfig,
     InternalStructureFrameResult,
     detect_internal_structures,
@@ -33,12 +29,12 @@ from vesmod.cli.path_utils import (
     _relative_input_path,
     remove_manifest_artifacts,
 )
-from vesmod.io import (
+from vesmod.VesEdge.io.checkpoint_sources import (
     build_video_filename_index,
-    map_output_path,
     open_checkpoint_frames,
     resolve_source_path,
 )
+from vesmod.io.path_mapping import map_output_path
 from vesmod.cli.batch_policy import (
     add_batch_policy_argument,
     exit_code,

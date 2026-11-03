@@ -1,8 +1,8 @@
 import pytest
 import numpy as np
 
-from vesmod.VesEdge import edge_extractor
-from vesmod.VesEdge.edge_extractor import (
+from vesmod.VesEdge.extraction import edge_extractor
+from vesmod.VesEdge.extraction.edge_extractor import (
     approximate_vesicle_com,
     extract_edge_from_frame,
 )
