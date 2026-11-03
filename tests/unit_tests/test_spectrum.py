@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 # tests/test_spectrum.py
 import json
+import subprocess
+import sys
 from types import SimpleNamespace
 
 from spectrum_fixture import SyntheticSpectrum
@@ -20,6 +22,28 @@ from vesmod.VesEdge import (
     VesicleQCConfig,
 )
 from vesmod.VesEdge.models import ImageContour
+
+
+def test_array_and_file_spectra_do_not_import_microscopy_modules(tmp_path):
+    """Check imports in a fresh process because this module imports VesEdge."""
+    script = """
+from pathlib import Path
+import sys
+
+import numpy as np
+from vesmod.EdgeMod import Spectrum
+
+radii = np.full((3, 120), 2.0)
+path = Path("edges.npy")
+np.save(path, radii)
+for spectrum in (Spectrum.from_radii(radii), Spectrum(path), Spectrum(str(path))):
+    assert spectrum.r0 == 2.0
+
+microscopy = {"vesmod.VesEdge", "nd2", "cv2", "skimage"}
+loaded = microscopy.intersection(sys.modules)
+assert not loaded, f"Unexpected microscopy imports: {sorted(loaded)}"
+"""
+    subprocess.run([sys.executable, "-c", script], cwd=tmp_path, check=True)
 
 
 def test_init_from_npy_calculates_r0_avg_amps2_and_integer_modes(tmp_path):

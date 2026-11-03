@@ -7,10 +7,13 @@ fits a fixed q interval supplied through :class:`SpectrumFitConfig`. Optional or
 experimental procedures may choose those bounds before calling the core fit,
 but ``Spectrum`` itself does not depend on any range-selection strategy.
 """
-from pathlib import Path
+from __future__ import annotations
+
 import json
+from pathlib import Path
+from typing import TYPE_CHECKING
+
 import numpy as np
-from vesmod.VesEdge import VesicleEdges
 from vesmod.validation import require_finite_array, require_numeric_array
 from .spectrum_plotting import (
     SpectrumPlotData,
@@ -28,6 +31,10 @@ from .spectrum_utils import (
     calc_tension_from_reduced_tension,
     fit_spectrum_lmfit,
 )
+
+
+if TYPE_CHECKING:
+    from vesmod.VesEdge.vesicle_edges import VesicleEdges
 
 
 class Spectrum:
@@ -57,9 +64,7 @@ class Spectrum:
 
         ``calculator`` supplies the contour-to-power calculation.
         """
-        if isinstance(edges_over_time, VesicleEdges):
-            input_data = edges_over_time.accepted_radii_microns
-        elif isinstance(edges_over_time, (Path, str)):
+        if isinstance(edges_over_time, (Path, str)):
             if isinstance(edges_over_time, str):
                 edges_over_time = Path(edges_over_time)
             if not edges_over_time.is_file():
@@ -68,9 +73,13 @@ class Spectrum:
                 raise ValueError("edges_over_time must end in .npy")
             input_data = np.load(edges_over_time)
         else:
-            raise TypeError(
-                "edges_over_time must be a str, pathlib Path, or VesicleEdges."
-            )
+            from vesmod.VesEdge.vesicle_edges import VesicleEdges
+
+            if not isinstance(edges_over_time, VesicleEdges):
+                raise TypeError(
+                    "edges_over_time must be a str, pathlib Path, or VesicleEdges."
+                )
+            input_data = edges_over_time.accepted_radii_microns
 
         self._initialize_from_radii(input_data, frame_cutoff, calculator)
 
