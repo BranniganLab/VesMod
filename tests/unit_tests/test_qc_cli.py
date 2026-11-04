@@ -13,7 +13,7 @@ import pytest
 from vesmod.VesEdge.experimental.area_qc import AreaQCConfig, AreaQCResult
 from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
 from vesmod.VesEdge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
-from vesmod.VesEdge.models import EdgeDetection, ImageContour, QCFlag, VesicleQCResult
+from vesmod.VesEdge.models import EdgeDetection, ImageContour, VesicleQCResult
 from vesmod.VesEdge.experimental.area_qc import _save_area_qc_plot, _write_area_qc_csv
 from vesmod.VesEdge.experimental.minimum_radius_qc import _write_minimum_radius_qc_csv
 from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
@@ -546,7 +546,7 @@ def test_area_qc_diagnostics_preserve_frame_measurements(tmp_path):
 
     class Detection:
         frame_index = 4
-        qc = argparse.Namespace(flags={QCFlag.AREA_DEVIATION})
+        qc = argparse.Namespace(flags={'area'})
 
     class FakeEdges:
         successful_detections = [Detection()]
@@ -581,7 +581,7 @@ def test_minimum_radius_qc_diagnostics_preserve_frame_measurements(tmp_path):
         frame_index = 4
         qc = argparse.Namespace(
             diagnostics={"median_radius_pixels": 2.5},
-            flags={QCFlag.MINIMUM_RADIUS},
+            flags={'minimum_radius'},
         )
 
     class FakeEdges:

@@ -807,7 +807,9 @@ Put the check and its configuration in a module under
 `vesmod/VesEdge/qc/checks/`. Implement
 [`QCCheck`](../vesmod/VesEdge/qc/contract.py) and add one instance to the ordered
 [`QC_CHECKS` registry](../vesmod/VesEdge/qc/qc_registry.py). For a frame
-rejection, add the check's name to that detection's QC flags. For a recording
+rejection, add the check's name as a string to that detection's QC flags.
+Define that name in the check module and reuse it for the check's `name`
+attribute. The shared data models accept any check name. For a recording
 rejection, return a reason from `trajectory_flags`. Set `requires_source_video_frames`
 when the check needs the original images.
 

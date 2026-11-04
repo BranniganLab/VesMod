@@ -7,13 +7,16 @@ from dataclasses import dataclass
 import numpy as np
 
 from ..contract import QCCheck
-from ...models import EdgeDetection, QCFlag
+from ...models import EdgeDetection
 from ...contour_geometry import measure_wrapped_finite_second_difference
 from vesmod.validation import require_nonnegative_real
 
 
 
 DEFAULT_CURVATURE_THRESHOLD = 21.520619405632544
+
+
+CHECK_NAME = "curvature"
 
 
 @dataclass(frozen=True)
@@ -68,7 +71,7 @@ def check_curvature(
 
     if not np.all(np.isfinite(finite_second_difference)):
         edge.qc.diagnostics["curvature_score"] = np.nan
-        edge.qc.flags.add(QCFlag.CURVATURE)
+        edge.qc.flags.add(CHECK_NAME)
         return
 
     curvature_score = float(
@@ -77,15 +80,15 @@ def check_curvature(
     edge.qc.diagnostics["curvature_score"] = curvature_score
 
     if curvature_score > threshold:
-        edge.qc.flags.add(QCFlag.CURVATURE)
+        edge.qc.flags.add(CHECK_NAME)
     else:
-        edge.qc.flags.discard(QCFlag.CURVATURE)
+        edge.qc.flags.discard(CHECK_NAME)
 
 
 class CurvatureCheck(QCCheck):
     """Apply curvature-score quality control to individual detections."""
 
-    name = "curvature"
+    name = CHECK_NAME
     config_type = CurvatureQCConfig
     requires_source_video_frames = False
 
@@ -112,7 +115,7 @@ class CurvatureCheck(QCCheck):
         )
         return CurvatureQCResult(
             scores=scores,
-            rejected_count=sum(QCFlag.CURVATURE in detection.qc.flags for detection in detections),
+            rejected_count=sum(CHECK_NAME in detection.qc.flags for detection in detections),
         )
 
     def add_cli_arguments(self, parser) -> None:
@@ -147,7 +150,7 @@ class CurvatureCheck(QCCheck):
         """Count frames rejected by this check."""
         return {
             "curvature_rejected": sum(
-                QCFlag.CURVATURE in detection.qc.flags
+                CHECK_NAME in detection.qc.flags
                 for detection in edges.successful_detections
             )
         }

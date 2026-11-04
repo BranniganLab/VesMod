@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from vesmod.VesEdge.models import EdgeDetection, ImageContour, QCFlag
+from vesmod.VesEdge.models import EdgeDetection, ImageContour
 from vesmod.VesEdge.contour_geometry import contour_area
 from vesmod.VesEdge.experimental.area_qc import check_area_deviation
 
@@ -42,9 +42,9 @@ def test_area_qc_uses_trajectory_median_and_flags_both_directions():
 
     assert result.reference_area_pixels2 == pytest.approx(100.0)
     assert result.rejected_count == 2
-    assert QCFlag.AREA_DEVIATION in detections[2].qc.flags
-    assert QCFlag.AREA_DEVIATION in detections[3].qc.flags
-    assert QCFlag.AREA_DEVIATION not in detections[0].qc.flags
+    assert 'area' in detections[2].qc.flags
+    assert 'area' in detections[3].qc.flags
+    assert 'area' not in detections[0].qc.flags
 
 
 def test_area_qc_accepts_detection_exactly_on_boundary():
@@ -71,15 +71,15 @@ def test_area_qc_preserves_existing_qc_flags():
         _edge_with_area(100.0),
         _edge_with_area(40.0),
     ]
-    detections[0].qc.flags.add(QCFlag.CURVATURE)
+    detections[0].qc.flags.add('curvature')
 
     check_area_deviation(
         detections,
         max_relative_deviation=0.25,
     )
 
-    assert QCFlag.CURVATURE in detections[0].qc.flags
-    assert QCFlag.AREA_DEVIATION in detections[2].qc.flags
+    assert 'curvature' in detections[0].qc.flags
+    assert 'area' in detections[2].qc.flags
 
 
 def test_area_qc_excludes_curvature_failures_from_reference():
@@ -89,7 +89,7 @@ def test_area_qc_excludes_curvature_failures_from_reference():
         _edge_with_area(100.0),
         _edge_with_area(102.0),
     ]
-    detections[0].qc.flags.add(QCFlag.CURVATURE)
+    detections[0].qc.flags.add('curvature')
 
     result = check_area_deviation(
         detections,
@@ -97,7 +97,7 @@ def test_area_qc_excludes_curvature_failures_from_reference():
     )
 
     assert result.reference_area_pixels2 == pytest.approx(101.0)
-    assert QCFlag.AREA_DEVIATION not in detections[0].qc.flags
+    assert 'area' not in detections[0].qc.flags
     assert detections[0].qc.diagnostics["area_pixels2"] == pytest.approx(400.0)
     assert all(edge.qc.passed for edge in detections[1:])
 
@@ -106,7 +106,7 @@ def test_area_qc_has_no_reference_when_curvature_rejects_every_frame():
     """Test area QC does not fall back to curvature-rejected contours."""
     detections = [_edge_with_area(100.0), _edge_with_area(400.0)]
     for detection in detections:
-        detection.qc.flags.add(QCFlag.CURVATURE)
+        detection.qc.flags.add('curvature')
 
     result = check_area_deviation(
         detections,
@@ -118,6 +118,6 @@ def test_area_qc_has_no_reference_when_curvature_rejects_every_frame():
     assert result.rejected_count == 0
     assert all(edge.qc.diagnostics.get("area_pixels2") is not None for edge in detections)
     assert all(
-        QCFlag.AREA_DEVIATION not in edge.qc.flags
+        'area' not in edge.qc.flags
         for edge in detections
     )

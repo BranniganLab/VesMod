@@ -7,7 +7,6 @@ import numpy as np
 import pytest
 
 from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
-from vesmod.VesEdge.models import QCFlag
 from vesmod.VesEdge.vesicle_edges import VesicleEdges
 from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
 from vesmod.VesEdge.models import (
@@ -187,28 +186,28 @@ def test_run_qc_can_recover_previous_curvature_rejection(extraction_config):
     assert edge_results.qc_result is not None
     assert edge_results.qc_result.get_result("curvature") is not None
     assert edge_results.qc_result.get_result("curvature").rejected_count == 1
-    assert QCFlag.CURVATURE in detection.qc.flags
+    assert 'curvature' in detection.qc.flags
 
     edge_results.run_qc(permissive)
 
     assert edge_results.qc_result is not None
     assert edge_results.qc_result.get_result("curvature") is not None
     assert edge_results.qc_result.get_result("curvature").rejected_count == 0
-    assert QCFlag.CURVATURE not in detection.qc.flags
+    assert 'curvature' not in detection.qc.flags
     assert detection.qc.passed
 
 
 def test_run_qc_clears_stale_qc_state(edges, qc_config):
     """Test that a new QC run discards prior per-detection QC state."""
     first = edges.successful_detections[0]
-    first.qc.flags.add(QCFlag.CURVATURE)
+    first.qc.flags.add('curvature')
     first.qc.diagnostics["curvature_score"] = 999.0
 
     edges.run_qc(qc_config)
 
     assert edges.qc_result is not None
     assert first.qc.diagnostics["curvature_score"] == pytest.approx(0.0)
-    assert QCFlag.CURVATURE not in first.qc.flags
+    assert 'curvature' not in first.qc.flags
 
 
 def test_export_accepted_radii_requires_qc(tmp_path, edges):
@@ -418,7 +417,7 @@ def test_run_qc_applies_area_deviation_and_records_summary(extraction_config):
     assert edge_results.qc_result.get_result("area").reference_area_pixels2 == pytest.approx(
         100.0 * np.pi
     )
-    assert QCFlag.AREA_DEVIATION in edge_results.detections[2].qc.flags
+    assert 'area' in edge_results.detections[2].qc.flags
     assert edge_results.accepted_detections == edge_results.detections[:2]
 
 

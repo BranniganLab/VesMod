@@ -5,7 +5,7 @@ import pytest
 
 from vesmod.VesEdge.experimental.area_qc import AreaQCConfig
 from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
-from vesmod.VesEdge.models import EdgeDetection, ImageContour, QCFlag
+from vesmod.VesEdge.models import EdgeDetection, ImageContour
 from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
 from vesmod.VesEdge.qc.checks.localized_deviation_qc import (
     LocalizedDeviationQCConfig,
@@ -40,7 +40,7 @@ def test_localized_deviation_qc_accepts_smooth_contour():
 
     edges.run_qc(qc_config())
 
-    assert QCFlag.LOCALIZED_DEVIATION not in detection.qc.flags
+    assert 'localized_deviation' not in detection.qc.flags
     assert detection.qc.diagnostics["localized_deviation_score"] == pytest.approx(0.0)
 
 
@@ -57,7 +57,7 @@ def test_localized_deviation_qc_rejects_localized_deviation():
     with pytest.raises(ValueError, match="no frames passed"):
         edges.run_qc(qc_config())
 
-    assert QCFlag.LOCALIZED_DEVIATION in detection.qc.flags
+    assert 'localized_deviation' in detection.qc.flags
     assert detection.qc.diagnostics.get("localized_deviation_score") > 0.05
 
 
@@ -92,4 +92,4 @@ def test_localized_deviation_primary_threshold_is_inclusive(monkeypatch):
         max_residual_fraction=0.05,
     )
 
-    assert QCFlag.LOCALIZED_DEVIATION in detection.qc.flags
+    assert 'localized_deviation' in detection.qc.flags

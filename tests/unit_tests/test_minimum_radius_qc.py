@@ -7,7 +7,6 @@ from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
 from vesmod.VesEdge.experimental.minimum_radius_qc import MinimumRadiusQCConfig
 from vesmod.VesEdge.vesicle_edges import VesicleEdges
 from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
-from vesmod.VesEdge.models import QCFlag
 from vesmod.VesEdge.experimental.minimum_radius_qc import check_minimum_radius
 
 
@@ -20,13 +19,13 @@ def test_minimum_radius_qc_rejects_collapsed_contour():
     detection = edge([1.0, 2.0, 3.0, 4.0])
     check_minimum_radius(detection, 5.0)
     assert detection.qc.diagnostics["median_radius_pixels"] == 2.5
-    assert QCFlag.MINIMUM_RADIUS in detection.qc.flags
+    assert 'minimum_radius' in detection.qc.flags
 
 
 def test_minimum_radius_qc_accepts_threshold_boundary():
     detection = edge([5.0] * 8)
     check_minimum_radius(detection, 5.0)
-    assert QCFlag.MINIMUM_RADIUS not in detection.qc.flags
+    assert 'minimum_radius' not in detection.qc.flags
 
 
 def test_minimum_radius_qc_is_disabled_by_orchestration_config():
@@ -39,7 +38,7 @@ def test_minimum_radius_qc_is_disabled_by_orchestration_config():
 
     edges.run_qc(config)
 
-    assert QCFlag.MINIMUM_RADIUS not in detection.qc.flags
+    assert 'minimum_radius' not in detection.qc.flags
 
 
 @pytest.mark.parametrize(
@@ -56,4 +55,4 @@ def test_minimum_radius_qc_rejects_invalid_radii(invalid_radius):
 
     check_minimum_radius(detection, 5.0)
 
-    assert QCFlag.MINIMUM_RADIUS in detection.qc.flags
+    assert 'minimum_radius' in detection.qc.flags

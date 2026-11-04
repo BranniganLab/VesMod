@@ -18,14 +18,7 @@ from .io.frame_source import (
     as_frame_source,
     open_frame_source,
 )
-from .models import (
-    EdgeDetection,
-    EdgeDetectionFailure,
-    EdgeResult,
-    ImageContour,
-    QCFlag,
-    VesicleQCResult,
-)
+from .models import EdgeDetection, EdgeDetectionFailure, EdgeResult, ImageContour, VesicleQCResult
 from .vesicle_edges import VesicleEdges
 from .vesicle_video import VesicleVideo
 from .qc.qc_config import VesicleQCConfig
@@ -55,7 +48,6 @@ __all__ = [
     "ImageContour",
     "LocalizedDeviationQCConfig",
     "OnDemandFrameSequence",
-    "QCFlag",
     "QCReplayResult",
     "RadialBaselineFit",
     "RecordedQCSelection",

@@ -21,11 +21,7 @@ from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
 from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
 from vesmod.VesEdge.vesicle_video import VesicleVideo
 from vesmod.VesEdge.extraction.edge_extractor import extract_edge_from_frame
-from vesmod.VesEdge.models import (
-    EdgeDetection,
-    EdgeDetectionFailure,
-    QCFlag,
-)
+from vesmod.VesEdge.models import EdgeDetection, EdgeDetectionFailure
 
 
 def _get_sample_video_paths():
@@ -121,7 +117,7 @@ def test_only_curvature_qc_was_run(filename, sample_edges):
         if isinstance(result, EdgeDetectionFailure):
             continue
         assert result.qc.diagnostics.get("curvature_score") is not None
-        assert result.qc.flags <= {QCFlag.CURVATURE}
+        assert result.qc.flags <= {'curvature'}
 
 
 def test_extraction_quality(request, filename, sample_edges):

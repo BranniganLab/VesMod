@@ -7,8 +7,11 @@ from dataclasses import dataclass
 import numpy as np
 
 from ..qc.contract import QCCheck
-from ..models import EdgeDetection, QCFlag
+from ..models import EdgeDetection
 from vesmod.validation import require_nonnegative_real
+
+
+CHECK_NAME = "minimum_radius"
 
 
 @dataclass(frozen=True)
@@ -45,11 +48,11 @@ def check_minimum_radius(edge: EdgeDetection, min_median_radius_pixels: float) -
     median = float(np.median(radii)) if radii.size else float("nan")
     edge.qc.diagnostics["median_radius_pixels"] = median
     if not np.all(np.isfinite(radii)) or np.any(radii <= 0):
-        edge.qc.flags.add(QCFlag.MINIMUM_RADIUS)
+        edge.qc.flags.add(CHECK_NAME)
     elif median < min_median_radius_pixels:
-        edge.qc.flags.add(QCFlag.MINIMUM_RADIUS)
+        edge.qc.flags.add(CHECK_NAME)
     else:
-        edge.qc.flags.discard(QCFlag.MINIMUM_RADIUS)
+        edge.qc.flags.discard(CHECK_NAME)
 
 
 def _write_minimum_radius_qc_csv(path: Path, edges) -> None:
@@ -70,7 +73,7 @@ def _write_minimum_radius_qc_csv(path: Path, edges) -> None:
                     "frame_index": detection.frame_index,
                     "median_radius_pixels": detection.qc.diagnostics.get("median_radius_pixels"),
                     "minimum_radius_rejected": (
-                        QCFlag.MINIMUM_RADIUS in detection.qc.flags
+                        CHECK_NAME in detection.qc.flags
                     ),
                 }
             )
@@ -79,7 +82,7 @@ def _write_minimum_radius_qc_csv(path: Path, edges) -> None:
 class MinimumRadiusCheck(QCCheck):
     """Apply the configured minimum-radius check to each detection."""
 
-    name = "minimum_radius"
+    name = CHECK_NAME
     config_type = MinimumRadiusQCConfig
     requires_source_video_frames = False
 
@@ -108,7 +111,7 @@ class MinimumRadiusCheck(QCCheck):
                 for detection in detections
             ),
             rejected_count=sum(
-                QCFlag.MINIMUM_RADIUS in detection.qc.flags
+                CHECK_NAME in detection.qc.flags
                 for detection in detections
             ),
         )
@@ -144,7 +147,7 @@ class MinimumRadiusCheck(QCCheck):
         """Count frames rejected by this check."""
         return {
             "minimum_radius_rejected": sum(
-                QCFlag.MINIMUM_RADIUS in detection.qc.flags
+                CHECK_NAME in detection.qc.flags
                 for detection in edges.successful_detections
             )
         }

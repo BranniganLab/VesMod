@@ -10,8 +10,11 @@ from dataclasses import dataclass
 
 from ..qc.contract import QCCheck
 from ..contour_geometry import contour_area
-from ..models import EdgeDetection, QCFlag
+from ..models import EdgeDetection
 from vesmod.validation import require_fraction
+
+
+CHECK_NAME = "area"
 
 
 @dataclass(frozen=True)
@@ -82,7 +85,7 @@ def check_area_deviation(
         dtype=np.float64,
     )
     eligible = np.asarray(
-        [QCFlag.CURVATURE not in edge.qc.flags for edge in detections],
+        ['curvature' not in edge.qc.flags for edge in detections],
         dtype=bool,
     )
     reference_candidates = areas[
@@ -105,7 +108,7 @@ def check_area_deviation(
         edge.qc.diagnostics["area_pixels2"] = float(area)
         edge.qc.diagnostics["relative_area_deviation"] = float(deviation)
         if not is_eligible:
-            edge.qc.flags.discard(QCFlag.AREA_DEVIATION)
+            edge.qc.flags.discard(CHECK_NAME)
             continue
         exceeds_threshold = (
             deviation > max_relative_deviation
@@ -117,12 +120,12 @@ def check_area_deviation(
             )
         )
         if not np.isfinite(deviation) or exceeds_threshold:
-            edge.qc.flags.add(QCFlag.AREA_DEVIATION)
+            edge.qc.flags.add(CHECK_NAME)
         else:
-            edge.qc.flags.discard(QCFlag.AREA_DEVIATION)
+            edge.qc.flags.discard(CHECK_NAME)
 
     rejected_count = sum(
-        QCFlag.AREA_DEVIATION in edge.qc.flags
+        CHECK_NAME in edge.qc.flags
         for edge in detections
     )
     return AreaQCResult(
@@ -183,7 +186,7 @@ def _write_area_qc_csv(path: Path, edges) -> None:
                 "area_pixels2": area,
                 "relative_area_deviation": deviation,
                 "area_rejected": (
-                    QCFlag.AREA_DEVIATION in detection.qc.flags
+                    CHECK_NAME in detection.qc.flags
                 ),
             }
         )
@@ -204,7 +207,7 @@ def _write_area_qc_csv(path: Path, edges) -> None:
 class AreaDeviationCheck(QCCheck):
     """Apply trajectory-wide area-deviation quality control."""
 
-    name = "area"
+    name = CHECK_NAME
     config_type = AreaQCConfig
     requires_source_video_frames = False
 
@@ -258,7 +261,7 @@ class AreaDeviationCheck(QCCheck):
         """Count frames rejected by this check."""
         return {
             "area_rejected": sum(
-                QCFlag.AREA_DEVIATION in detection.qc.flags
+                CHECK_NAME in detection.qc.flags
                 for detection in edges.successful_detections
             )
         }

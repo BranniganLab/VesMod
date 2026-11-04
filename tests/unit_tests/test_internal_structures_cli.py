@@ -13,7 +13,7 @@ import sys
 import numpy as np
 import pytest
 
-from vesmod.VesEdge.models import EdgeDetection, ImageContour, QCFlag
+from vesmod.VesEdge.models import EdgeDetection, ImageContour
 from vesmod.VesEdge.qc.qc_replay import RecordedQCSelection
 from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
 from vesmod.VesEdge.experimental.internal_structures import InternalStructureRegion
@@ -323,7 +323,7 @@ def test_process_checkpoint_does_not_measure_qc_rejected_frame(
         qc_result = None
 
         def run_qc(self, config):
-            detection.qc.flags.add(next(iter(QCFlag)))
+            detection.qc.flags.add("test_rejection")
             self.qc_result = argparse.Namespace(passed=True)
             raise ValueError("no frames passed quality control")
 

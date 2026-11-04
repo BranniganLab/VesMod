@@ -9,7 +9,6 @@ results, and quality-control results.
 
 from dataclasses import dataclass, field
 from typing import Mapping
-from enum import Enum, auto
 
 import numpy as np
 from numpy.typing import NDArray
@@ -103,25 +102,16 @@ class ImageContour:
         return np.append(y_vals, y_vals[0])
 
 
-class QCFlag(Enum):
-    """Reasons a successfully extracted frame may fail quality control."""
-
-    CURVATURE = auto()
-    AREA_DEVIATION = auto()
-    MINIMUM_RADIUS = auto()
-    LOCALIZED_DEVIATION = auto()
-    SINGLETON_DEVIATION = auto()
-
-
 @dataclass
 class EdgeQC:
     """Quality-control flags and check-owned measurements for one detection.
 
-    Each check stores its measurements in `diagnostics`. A detection passes
-    when `flags` is empty.
+    Each check records its registry name in `flags` when it rejects a frame
+    and stores measurements in `diagnostics`. A detection passes when
+    `flags` is empty.
     """
 
-    flags: set[QCFlag | str] = field(default_factory=set)
+    flags: set[str] = field(default_factory=set)
     diagnostics: dict[str, object] = field(default_factory=dict)
 
     @property

@@ -4,9 +4,12 @@ from dataclasses import dataclass
 
 import numpy as np
 from ..contract import QCCheck
-from ...models import EdgeDetection, QCFlag
+from ...models import EdgeDetection
 from ...contour_geometry import fit_radial_baseline
 from vesmod.validation import require_integer_valued, require_nonnegative_real
+
+
+CHECK_NAME = "localized_deviation"
 
 
 @dataclass(frozen=True)
@@ -110,15 +113,15 @@ def check_localized_deviation(
         )
     edge.qc.diagnostics["localized_deviation_support_samples"] = support
     if rejected:
-        edge.qc.flags.add(QCFlag.LOCALIZED_DEVIATION)
+        edge.qc.flags.add(CHECK_NAME)
     else:
-        edge.qc.flags.discard(QCFlag.LOCALIZED_DEVIATION)
+        edge.qc.flags.discard(CHECK_NAME)
 
 
 class LocalizedDeviationCheck(QCCheck):
     """Apply localized-deviation quality control to each detection."""
 
-    name = "localized_deviation"
+    name = CHECK_NAME
     config_type = LocalizedDeviationQCConfig
     requires_source_video_frames = False
 
@@ -158,7 +161,7 @@ class LocalizedDeviationCheck(QCCheck):
                 for detection in detections
             ),
             rejected_count=sum(
-                QCFlag.LOCALIZED_DEVIATION in detection.qc.flags
+                CHECK_NAME in detection.qc.flags
                 for detection in detections
             ),
         )
@@ -217,7 +220,7 @@ class LocalizedDeviationCheck(QCCheck):
         """Count frames rejected by localized-deviation QC."""
         return {
             "localized_deviation_rejected": sum(
-                QCFlag.LOCALIZED_DEVIATION in detection.qc.flags
+                CHECK_NAME in detection.qc.flags
                 for detection in edges.successful_detections
             )
         }

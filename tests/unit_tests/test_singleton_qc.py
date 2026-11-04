@@ -4,7 +4,7 @@ import numpy as np
 from vesmod.VesEdge.experimental.singleton_qc import SingletonDeviationQCConfig
 from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
 from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
-from vesmod.VesEdge.models import EdgeQC, EdgeDetection, ImageContour, QCFlag
+from vesmod.VesEdge.models import EdgeQC, EdgeDetection, ImageContour
 
 
 def make_edge(radii):
@@ -22,7 +22,7 @@ def test_singleton_qc_rejects_narrow_excursion_and_registry_runs_it():
     )
     from vesmod.VesEdge.qc.qc_checks import run_configured_qc_checks
     run_configured_qc_checks([edge], config)
-    assert QCFlag.SINGLETON_DEVIATION in edge.qc.flags
+    assert 'singleton_deviation' in edge.qc.flags
     assert edge.qc.diagnostics["singleton_count"] == 1
 
 
@@ -36,4 +36,4 @@ def test_singleton_qc_preserves_broad_shape():
     )
     from vesmod.VesEdge.qc.qc_checks import run_configured_qc_checks
     run_configured_qc_checks([edge], config)
-    assert QCFlag.SINGLETON_DEVIATION not in edge.qc.flags
+    assert 'singleton_deviation' not in edge.qc.flags

@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from vesmod.VesEdge.qc.checks.edge_filtering import check_curvature
-from vesmod.VesEdge.models import EdgeDetection, ImageContour, QCFlag
+from vesmod.VesEdge.models import EdgeDetection, ImageContour
 
 
 def _make_edge(
@@ -31,7 +31,7 @@ def test_check_curvature_accepts_smooth_contour():
     check_curvature(edge, threshold=0.1)
 
     assert edge.qc.diagnostics["curvature_score"] == pytest.approx(0.0)
-    assert QCFlag.CURVATURE not in edge.qc.flags
+    assert 'curvature' not in edge.qc.flags
 
 
 def test_check_curvature_rejects_large_local_deviation():
@@ -42,7 +42,7 @@ def test_check_curvature_rejects_large_local_deviation():
     check_curvature(edge, threshold=0.1)
 
     assert edge.qc.diagnostics.get("curvature_score") >= 1.0
-    assert QCFlag.CURVATURE in edge.qc.flags
+    assert 'curvature' in edge.qc.flags
 
 
 def test_curvature_score_is_invariant_to_uniform_contour_scaling():
@@ -71,7 +71,7 @@ def test_check_curvature_accepts_score_equal_to_threshold():
 
     check_curvature(edge, threshold=threshold)
 
-    assert QCFlag.CURVATURE not in edge.qc.flags
+    assert 'curvature' not in edge.qc.flags
 
 
 def test_curvature_score_is_invariant_to_angular_sampling_resolution():

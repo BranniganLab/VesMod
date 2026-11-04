@@ -3,11 +3,7 @@
 import numpy as np
 import pytest
 
-from vesmod.VesEdge.models import (
-    EdgeQC,
-    ImageContour,
-    QCFlag,
-)
+from vesmod.VesEdge.models import EdgeQC, ImageContour
 
 
 def test_image_contour_theta_is_evenly_spaced():
@@ -91,7 +87,7 @@ def test_edge_qc_passed_reflects_flags():
 
     assert qc.passed
 
-    qc.flags.add(QCFlag.CURVATURE)
+    qc.flags.add('curvature')
 
     assert not qc.passed
 
@@ -101,7 +97,7 @@ def test_edge_qc_instances_do_not_share_flags():
     first = EdgeQC()
     second = EdgeQC()
 
-    first.flags.add(QCFlag.CURVATURE)
+    first.flags.add('curvature')
 
-    assert QCFlag.CURVATURE in first.flags
-    assert QCFlag.CURVATURE not in second.flags
+    assert 'curvature' in first.flags
+    assert 'curvature' not in second.flags

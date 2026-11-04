@@ -16,7 +16,7 @@ import pytest
 
 from vesmod.EdgeMod import Spectrum, SpectrumFitConfig
 from vesmod.EdgeMod.spectrum_utils import MiniSpectrum
-from vesmod.VesEdge.models import EdgeDetection, EdgeDetectionFailure, QCFlag
+from vesmod.VesEdge.models import EdgeDetection, EdgeDetectionFailure
 from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
 from vesmod.VesEdge.vesicle_edges import VesicleEdges
 from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
@@ -95,7 +95,7 @@ def test_init_from_vesicle_edges_uses_only_accepted_detections():
         [accepted, rejected, EdgeDetectionFailure("failure")],
     )
     edges.run_qc(qc_config)
-    rejected.qc.flags.add(QCFlag.CURVATURE)
+    rejected.qc.flags.add('curvature')
 
     spectrum = Spectrum(edges)
 

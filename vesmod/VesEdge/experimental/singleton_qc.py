@@ -6,8 +6,11 @@ import numpy as np
 
 from ..qc.contract import QCCheck
 from ..contour_geometry import fit_radial_baseline
-from ..models import EdgeDetection, QCFlag
+from ..models import EdgeDetection
 from vesmod.validation import require_integer_valued, require_nonnegative_real
+
+
+CHECK_NAME = "singleton_deviation"
 
 
 @dataclass(frozen=True)
@@ -72,14 +75,14 @@ def check_singleton_deviation(
     edge.qc.diagnostics["singleton_count"] = singleton_count
     edge.qc.diagnostics["singleton_score"] = float(np.max(residual)) if residual.size else 0.0
     if singleton_count:
-        edge.qc.flags.add(QCFlag.SINGLETON_DEVIATION)
+        edge.qc.flags.add(CHECK_NAME)
     else:
-        edge.qc.flags.discard(QCFlag.SINGLETON_DEVIATION)
+        edge.qc.flags.discard(CHECK_NAME)
 
 
 class SingletonDeviationCheck(QCCheck):
     """Apply narrow singleton-deviation QC to each detection."""
-    name = "singleton_deviation"
+    name = CHECK_NAME
     config_type = SingletonDeviationQCConfig
     requires_source_video_frames = False
 
@@ -111,7 +114,7 @@ class SingletonDeviationCheck(QCCheck):
                 for detection in detections
             ),
             rejected_count=sum(
-                QCFlag.SINGLETON_DEVIATION in detection.qc.flags
+                CHECK_NAME in detection.qc.flags
                 for detection in detections
             ),
         )
@@ -139,7 +142,7 @@ class SingletonDeviationCheck(QCCheck):
         """Count frames rejected by this check."""
         return {
             "singleton_deviation_rejected": sum(
-                QCFlag.SINGLETON_DEVIATION in detection.qc.flags
+                CHECK_NAME in detection.qc.flags
                 for detection in edges.successful_detections
             )
         }
