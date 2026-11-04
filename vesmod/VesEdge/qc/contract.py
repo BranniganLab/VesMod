@@ -19,7 +19,7 @@ class QCCheck(ABC):
 
     name: str
     config_type: type
-    requires_frames = False
+    requires_source_video_frames = False
     summary_order = 5
     summary_defaults: Mapping[str, object] = {}
     diagnostic_writers: tuple[tuple[str, Callable[[Path, VesicleEdges], None]], ...] = ()

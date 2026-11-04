@@ -31,7 +31,7 @@ def test_registry_runs_enabled_checks_in_declared_order(monkeypatch):
     calls = []
 
     class Check:
-        requires_frames = False
+        requires_source_video_frames = False
 
         def __init__(self, name):
             self.name = name
@@ -67,7 +67,7 @@ def test_one_registration_drives_cli_reports_and_replay(tmp_path, monkeypatch):
     class ExampleCheck(QCCheck):
         name = "example"
         config_type = ExampleConfig
-        requires_frames = True
+        requires_source_video_frames = True
         summary_defaults = {"example_rejected": 0}
         diagnostic_writers = ((".example.csv", write_diagnostic),)
 
@@ -118,7 +118,7 @@ def test_one_registration_drives_cli_reports_and_replay(tmp_path, monkeypatch):
 
     selection = load_recorded_qc(output, [checkpoint])
     assert selection.config.get_config("example") == ExampleConfig(enabled=True)
-    assert selection.requires_frames
+    assert selection.requires_source_video_frames
     edges = VesicleEdges.from_checkpoint(checkpoint)
     assert replay_recorded_qc(edges, checkpoint, selection, frames=frames).accepted_count == 1
     assert edges.successful_detections[0].qc.flags == {"example"}

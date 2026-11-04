@@ -120,7 +120,7 @@ class LocalizedDeviationCheck(QCCheck):
 
     name = "localized_deviation"
     config_type = LocalizedDeviationQCConfig
-    requires_frames = False
+    requires_source_video_frames = False
 
     def default_config(self):
         return LocalizedDeviationQCConfig()

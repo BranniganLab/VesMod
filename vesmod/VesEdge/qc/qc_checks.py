@@ -36,11 +36,11 @@ QC_CHECKS: tuple[QCCheck, ...] = (
 )
 
 
-def checks_requiring_frames(config: VesicleQCConfig) -> tuple[QCCheck, ...]:
+def checks_requiring_source_video_frames(config: VesicleQCConfig) -> tuple[QCCheck, ...]:
     """Return enabled checks that need source images."""
     return tuple(
         check for check in QC_CHECKS
-        if check.requires_frames and check.enabled(config.get_config(check.name))
+        if check.requires_source_video_frames and check.enabled(config.get_config(check.name))
     )
 
 
@@ -56,7 +56,7 @@ def run_configured_qc_checks(
         check_config = config.get_config(check.name)
         if not check.enabled(check_config):
             continue
-        if check.requires_frames and frames is None:
+        if check.requires_source_video_frames and frames is None:
             raise ValueError(
                 f"{check.name.replace('_', '-').capitalize()} QC is enabled "
                 "but source video frames were not supplied."

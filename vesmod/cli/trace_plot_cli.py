@@ -78,7 +78,7 @@ def _load_edges_and_qc(
     selection = load_recorded_qc(qc_dir, [checkpoint])
     if source_path is None and edges.source_path is not None:
         source_path = Path(edges.source_path)
-    if selection.requires_frames:
+    if selection.requires_source_video_frames:
         if source_path is None:
             source_path = resolve_source_path(edges.source_path, checkpoint)
         with open_checkpoint_frames(source_path) as frames:

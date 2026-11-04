@@ -140,7 +140,7 @@ def test_process_trace_plot_records_checkpoint_source_path(tmp_path, monkeypatch
         source_path=tmp_path / "sample.nd2",
         extraction_config=SimpleNamespace(pixels_per_micron=2.0),
     )
-    selection = SimpleNamespace(requires_frames=False)
+    selection = SimpleNamespace(requires_source_video_frames=False)
 
     monkeypatch.setattr(
         trace_plot_cli.VesicleEdges,

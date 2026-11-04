@@ -81,7 +81,7 @@ class SingletonDeviationCheck(QCCheck):
     """Apply narrow singleton-deviation QC to each detection."""
     name = "singleton_deviation"
     config_type = SingletonDeviationQCConfig
-    requires_frames = False
+    requires_source_video_frames = False
 
     def default_config(self):
         return SingletonDeviationQCConfig()

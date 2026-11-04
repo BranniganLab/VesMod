@@ -468,7 +468,7 @@ def process_qc_file(
     qc_error = ""
     try:
         frames = None
-        frame_checks = qc_checks.checks_requiring_frames(qc_config)
+        frame_checks = qc_checks.checks_requiring_source_video_frames(qc_config)
         if frame_checks:
             if edges.source_path is None:
                 names = ", ".join(check.name.replace("_", "-") for check in frame_checks)

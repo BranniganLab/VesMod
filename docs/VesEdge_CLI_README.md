@@ -808,7 +808,7 @@ Put the check and its configuration in a module under
 [`QCCheck`](../vesmod/VesEdge/qc/contract.py) and add one instance to the ordered
 [`QC_CHECKS` registry](../vesmod/VesEdge/qc/qc_checks.py). For a frame
 rejection, add the check's name to that detection's QC flags. For a recording
-rejection, return a reason from `trajectory_flags`. Set `requires_frames`
+rejection, return a reason from `trajectory_flags`. Set `requires_source_video_frames`
 when the check needs the original images.
 
 The same registration drives command-line options, configuration recorded

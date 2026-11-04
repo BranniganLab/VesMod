@@ -12,7 +12,7 @@ import numpy as np
 from vesmod.io.path_mapping import map_output_path
 
 from ..io.frame_source import OnDemandFrameSequence
-from .qc_checks import checks_requiring_frames
+from .qc_checks import checks_requiring_source_video_frames
 from .qc_config import VesicleQCConfig
 from ..vesicle_edges import VesicleEdges
 
@@ -31,9 +31,9 @@ class RecordedQCSelection:
         return self.provenance_path.parent
 
     @property
-    def requires_frames(self) -> bool:
+    def requires_source_video_frames(self) -> bool:
         """Return whether any enabled recorded check consumes source images."""
-        return bool(checks_requiring_frames(self.config))
+        return bool(checks_requiring_source_video_frames(self.config))
 
     def validate_checkpoints(self, checkpoints: Iterable[Path]) -> None:
         """Require every requested checkpoint to be in the recorded manifest."""
@@ -101,14 +101,14 @@ def replay_recorded_qc(
     """Replay recorded QC and optionally verify its filtered NumPy output."""
     checkpoint = checkpoint.resolve()
     selection.validate_checkpoints((checkpoint,))
-    if selection.requires_frames and frames is None:
+    if selection.requires_source_video_frames and frames is None:
         raise ValueError(
             f"Recorded QC for {checkpoint} requires source video frames."
         )
 
     previous_result = edges.qc_result
     try:
-        if selection.requires_frames:
+        if selection.requires_source_video_frames:
             edges.run_qc(selection.config, frames)
         else:
             edges.run_qc(selection.config)

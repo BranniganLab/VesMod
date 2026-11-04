@@ -206,7 +206,7 @@ class AreaDeviationCheck(QCCheck):
 
     name = "area"
     config_type = AreaQCConfig
-    requires_frames = False
+    requires_source_video_frames = False
 
     def default_config(self):
         return AreaQCConfig()
