@@ -5,6 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from argparse import ArgumentParser, Namespace
 from collections.abc import Callable, Mapping
+from dataclasses import asdict
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -21,16 +22,15 @@ class QCCheck(ABC):
     config_type: type
     requires_source_video_frames = False
     summary_order = 5
-    summary_defaults: Mapping[str, object] = {}
     diagnostic_writers: tuple[tuple[str, Callable[[Path, VesicleEdges], None]], ...] = ()
 
-    @abstractmethod
     def default_config(self) -> object:
-        """Return validated settings for use when the caller omits this check."""
+        """Construct settings using the configuration class's defaults."""
+        return self.config_type()
 
-    @abstractmethod
-    def config_to_dict(self, config: object) -> dict:
-        """Serialize settings for replay."""
+    def config_to_dict(self, config) -> dict:
+        """Serialize dataclass settings for replay."""
+        return asdict(config)
 
     def enabled(self, config) -> bool:
         """Return whether the check's configuration enables it."""
@@ -53,6 +53,16 @@ class QCCheck(ABC):
         """Construct validated settings from command-line arguments."""
         return self.default_config()
 
+    @property
+    def summary_defaults(self) -> Mapping[str, object]:
+        """Declare the default column for this check's rejected-frame count."""
+        return {f"{self.name}_rejected": 0}
+
     def summary_values(self, edges: VesicleEdges) -> dict[str, object]:
-        """Return measured values for the check's declared summary columns."""
-        return {}
+        """Count frames whose rejection flags contain this check's name."""
+        return {
+            f"{self.name}_rejected": sum(
+                self.name in detection.qc.flags
+                for detection in edges.successful_detections
+            )
+        }

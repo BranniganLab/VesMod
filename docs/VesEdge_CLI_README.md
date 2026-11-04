@@ -813,6 +813,13 @@ attribute. The shared data models accept any check name. For a recording
 rejection, return a reason from `trajectory_flags`. Set `requires_source_video_frames`
 when the check needs the original images.
 
+`QCCheck` supplies configuration construction and dataclass serialization,
+reads the configuration's `enabled` flag, and counts rejected frames in
+`<check_name>_rejected`. It defaults to operating on contours without source
+images. Override these methods or defaults when a check needs different
+behavior. A custom summary can override both `summary_defaults` and
+`summary_values`.
+
 The same registration drives command-line options, configuration recorded
 for replay, and any summary columns or diagnostic writers the check declares.
 See the [registration test](../tests/unit_tests/test_qc_checks.py) for an

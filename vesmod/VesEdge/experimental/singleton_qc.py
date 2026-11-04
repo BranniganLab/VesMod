@@ -84,14 +84,6 @@ class SingletonDeviationCheck(QCCheck):
     """Apply narrow singleton-deviation QC to each detection."""
     name = CHECK_NAME
     config_type = SingletonDeviationQCConfig
-    requires_source_video_frames = False
-
-    def default_config(self):
-        return SingletonDeviationQCConfig()
-
-    def config_to_dict(self, config):
-        return {"enabled": config.enabled, "order": config.order, "min_residual_fraction": config.min_residual_fraction, "max_width_samples": config.max_width_samples}
-
     def run(self, detections, config, frames) -> SingletonDeviationQCResult:
         """Apply singleton-deviation QC to each detection."""
         del frames
@@ -132,13 +124,3 @@ class SingletonDeviationCheck(QCCheck):
         )
 
     summary_order = 3
-    summary_defaults = {"singleton_deviation_rejected": 0}
-
-    def summary_values(self, edges):
-        """Count frames rejected by this check."""
-        return {
-            "singleton_deviation_rejected": sum(
-                CHECK_NAME in detection.qc.flags
-                for detection in edges.successful_detections
-            )
-        }

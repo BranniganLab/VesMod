@@ -68,14 +68,7 @@ def test_one_registration_drives_cli_reports_and_replay(tmp_path, monkeypatch):
         name = "example"
         config_type = ExampleConfig
         requires_source_video_frames = True
-        summary_defaults = {"example_rejected": 0}
         diagnostic_writers = ((".example.csv", write_diagnostic),)
-
-        def default_config(self):
-            return ExampleConfig()
-
-        def config_to_dict(self, config):
-            return {"enabled": config.enabled}
 
         def add_cli_arguments(self, parser):
             parser.add_argument("--example-qc", action="store_true")
@@ -88,9 +81,6 @@ def test_one_registration_drives_cli_reports_and_replay(tmp_path, monkeypatch):
             assert frames[0].shape == (4, 4)
             detections[0].qc.flags.add(self.name)
             return 1
-
-        def summary_values(self, edges):
-            return {"example_rejected": edges.qc_result.get_result(self.name)}
 
     monkeypatch.setattr(qc_registry, "QC_CHECKS", (*qc_registry.QC_CHECKS, ExampleCheck()))
     checkpoint = tmp_path / "sample.npz"

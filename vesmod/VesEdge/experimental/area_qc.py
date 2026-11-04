@@ -209,14 +209,6 @@ class AreaDeviationCheck(QCCheck):
 
     name = CHECK_NAME
     config_type = AreaQCConfig
-    requires_source_video_frames = False
-
-    def default_config(self):
-        return AreaQCConfig()
-
-    def config_to_dict(self, config):
-        return {"max_relative_deviation": config.max_relative_deviation, "enabled": config.enabled}
-
     def run(self, detections, config, frames):
         """Evaluate area deviation across the detection trajectory."""
         del frames
@@ -251,17 +243,6 @@ class AreaDeviationCheck(QCCheck):
         )
 
     summary_order = 1
-    summary_defaults = {"area_rejected": 0}
-
-    def summary_values(self, edges):
-        """Count frames rejected by this check."""
-        return {
-            "area_rejected": sum(
-                CHECK_NAME in detection.qc.flags
-                for detection in edges.successful_detections
-            )
-        }
-
     diagnostic_writers = (
         ('.area_qc.png', _save_area_qc_plot),
         ('.area_qc.csv', _write_area_qc_csv),

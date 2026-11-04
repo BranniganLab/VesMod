@@ -84,15 +84,6 @@ class MinimumRadiusCheck(QCCheck):
 
     name = CHECK_NAME
     config_type = MinimumRadiusQCConfig
-    requires_source_video_frames = False
-
-
-    def default_config(self):
-        return MinimumRadiusQCConfig()
-
-    def config_to_dict(self, config):
-        return {"enabled": config.enabled, "min_median_radius_pixels": config.min_median_radius_pixels}
-
     def run(self, detections, config, frames) -> MinimumRadiusQCResult:
         """Apply the minimum-radius check to each detection."""
         del frames
@@ -137,17 +128,6 @@ class MinimumRadiusCheck(QCCheck):
         )
 
     summary_order = 2
-    summary_defaults = {"minimum_radius_rejected": 0}
-
-    def summary_values(self, edges):
-        """Count frames rejected by this check."""
-        return {
-            "minimum_radius_rejected": sum(
-                CHECK_NAME in detection.qc.flags
-                for detection in edges.successful_detections
-            )
-        }
-
     diagnostic_writers = (
         ('.minimum_radius_qc.csv', _write_minimum_radius_qc_csv),
     )

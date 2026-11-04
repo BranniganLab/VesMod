@@ -123,19 +123,6 @@ class LocalizedDeviationCheck(QCCheck):
 
     name = CHECK_NAME
     config_type = LocalizedDeviationQCConfig
-    requires_source_video_frames = False
-
-    def default_config(self):
-        return LocalizedDeviationQCConfig()
-    def config_to_dict(self, config):
-        return {
-            "enabled": config.enabled,
-            "order": config.order,
-            "max_residual_fraction": config.max_residual_fraction,
-            "support_residual_fraction": config.support_residual_fraction,
-            "max_support_samples": config.max_support_samples,
-        }
-
     def run(self, detections, config, frames) -> LocalizedDeviationQCResult:
         """Apply the localized-deviation check to each detection."""
         del frames
@@ -210,13 +197,3 @@ class LocalizedDeviationCheck(QCCheck):
         )
 
 
-    summary_defaults = {"localized_deviation_rejected": 0}
-
-    def summary_values(self, edges):
-        """Count frames rejected by localized-deviation QC."""
-        return {
-            "localized_deviation_rejected": sum(
-                CHECK_NAME in detection.qc.flags
-                for detection in edges.successful_detections
-            )
-        }

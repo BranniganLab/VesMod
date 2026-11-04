@@ -90,14 +90,6 @@ class CurvatureCheck(QCCheck):
 
     name = CHECK_NAME
     config_type = CurvatureQCConfig
-    requires_source_video_frames = False
-
-    def default_config(self):
-        return CurvatureQCConfig()
-
-    def config_to_dict(self, config):
-        return {"threshold": config.threshold, "enabled": config.enabled}
-
     def run(self, detections, config, frames):
         """Record curvature scores and flags for each detection."""
         del frames
@@ -140,13 +132,3 @@ class CurvatureCheck(QCCheck):
         )
 
     summary_order = 0
-    summary_defaults = {"curvature_rejected": 0}
-
-    def summary_values(self, edges):
-        """Count frames rejected by this check."""
-        return {
-            "curvature_rejected": sum(
-                CHECK_NAME in detection.qc.flags
-                for detection in edges.successful_detections
-            )
-        }
