@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from ..qc_check import QCCheck
+from ..qc_result import QCResult
 from ...contour_geometry import fit_radial_baseline
 from ...models import EdgeDetection
 from vesmod.validation import require_integer_valued, require_nonnegative_real
@@ -34,15 +35,6 @@ class SingletonDeviationQCConfig:
         object.__setattr__(self, "order", order)
         object.__setattr__(self, "max_width_samples", width)
         object.__setattr__(self, "min_residual_fraction", require_nonnegative_real(self.min_residual_fraction, "min_residual_fraction"))
-
-
-@dataclass(frozen=True)
-class SingletonDeviationQCResult:
-    """Per-trajectory outcome produced by singleton-deviation QC."""
-
-    scores: tuple[float, ...]
-    counts: tuple[int, ...]
-    rejected_count: int
 
 
 def check_singleton_deviation(
@@ -83,8 +75,9 @@ def check_singleton_deviation(
 class SingletonDeviationCheck(QCCheck):
     """Apply narrow singleton-deviation QC to each detection."""
     name = CHECK_NAME
+    diagnostic_fields = ('singleton_score', 'singleton_count')
     config_type = SingletonDeviationQCConfig
-    def run(self, detections, config, frames) -> SingletonDeviationQCResult:
+    def run(self, detections, config, frames) -> QCResult:
         """Apply singleton-deviation QC to each detection."""
         del frames
         for detection in detections:
@@ -92,20 +85,7 @@ class SingletonDeviationCheck(QCCheck):
                 detection,
                 config.order, config.min_residual_fraction, config.max_width_samples,
             )
-        return SingletonDeviationQCResult(
-            scores=tuple(
-                float(detection.qc.diagnostics["singleton_score"])
-                for detection in detections
-            ),
-            counts=tuple(
-                int(detection.qc.diagnostics["singleton_count"])
-                for detection in detections
-            ),
-            rejected_count=sum(
-                CHECK_NAME in detection.qc.flags
-                for detection in detections
-            ),
-        )
+        return self.make_result(detections)
 
     def add_cli_arguments(self, parser) -> None:
         """Register command-line options for this check."""

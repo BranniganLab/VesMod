@@ -117,15 +117,15 @@ def _run_pipeline(case_name: str, tmp_path: Path) -> dict[str, np.ndarray]:
     results.update(
         {
             "qc_curvature_scores": np.asarray(
-                edges.qc_result.get_result("curvature").scores,
+                edges.qc_result.get_result("curvature").diagnostics["curvature_score"],
                 dtype=float,
             ),
             "qc_areas_pixels2": np.asarray(
-                area_result.areas_pixels2,
+                area_result.diagnostics["area_pixels2"],
                 dtype=float,
             ),
             "qc_relative_area_deviations": np.asarray(
-                area_result.relative_deviations,
+                area_result.diagnostics["relative_area_deviation"],
                 dtype=float,
             ),
             "qc_accepted_frame_indices": np.asarray(

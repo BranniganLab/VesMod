@@ -117,7 +117,7 @@ def test_run_qc_records_aggregate_results(edges, qc_config):
     assert edges.qc_result.config is qc_config
     assert edges.qc_config is qc_config
     assert edges.qc_result.get_result("curvature") is not None
-    assert len(edges.qc_result.get_result("curvature").scores) == 2
+    assert len(edges.qc_result.get_result("curvature").diagnostics["curvature_score"]) == 2
     assert edges.qc_result.get_result("curvature").rejected_count == 0
     assert edges.qc_result.get_result("area") is not None
     assert edges.qc_result.get_result("area").rejected_count == 0
@@ -414,7 +414,7 @@ def test_run_qc_applies_area_deviation_and_records_summary(extraction_config):
 
     assert edge_results.qc_result.get_result("area") is not None
     assert edge_results.qc_result.get_result("area").rejected_count == 1
-    assert edge_results.qc_result.get_result("area").reference_area_pixels2 == pytest.approx(
+    assert edge_results.qc_result.get_result("area").extras["reference_area_pixels2"] == pytest.approx(
         100.0 * np.pi
     )
     assert 'area' in edge_results.detections[2].qc.flags

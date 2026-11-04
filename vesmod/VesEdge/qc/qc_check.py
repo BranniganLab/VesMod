@@ -9,6 +9,8 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from .qc_result import QCResult
+
 if TYPE_CHECKING:
     from ..models import EdgeDetection
     from ..vesicle_edges import VesicleEdges
@@ -23,6 +25,8 @@ class QCCheck(ABC):
     command-line options or different reporting behavior.
     """
 
+    diagnostic_fields: tuple[str, ...] = ()
+    extra_result_fields: tuple[str, ...] = ()
     requires_source_video_frames = False
     summary_order = 5
     diagnostic_writers: tuple[tuple[str, Callable[[Path, VesicleEdges], None]], ...] = ()
@@ -54,20 +58,37 @@ class QCCheck(ABC):
     @abstractmethod
     def run(
         self, detections: list[EdgeDetection], config: object, frames: Frames,
-    ) -> object | None:
-        """Evaluate detections, record rejections, and return diagnostics.
+    ) -> QCResult:
+        """Return standard decisions and declared measurements for every frame.
 
-        `detections` contains successful contour extractions, `config` is
-        this check's settings object, and `frames` provides source images
-        when supplied. Record frame rejections in `detection.qc.flags` and
-        measurements in `detection.qc.diagnostics`. Return the check's
-        aggregate result, or `None` when there is no aggregate result.
+        The runner validates the result and applies its decisions and
+        diagnostics to the detections. Source images are supplied in frames
+        when requested by requires_source_video_frames.
         """
         raise NotImplementedError
 
-    def trajectory_flags(self, result: object | None) -> frozenset[str]:
-        """Override to return whole-recording rejection reasons for the result."""
-        return frozenset()
+    def make_result(self, detections, *, extras=None) -> QCResult:
+        """Collect this check's decisions and declared measurements."""
+        return QCResult.from_detections(
+            self.name, detections, self.diagnostic_fields, extras=extras,
+        )
+
+    def validate_result(self, result: QCResult) -> None:
+        """Require standard decisions and explicitly declared measurements."""
+        if type(result) is not QCResult:
+            raise TypeError(f"{self.name} must return a QCResult.")
+        if result.check_name != self.name:
+            raise ValueError(f"QC result name must be {self.name!r}.")
+        if set(result.diagnostics) != set(self.diagnostic_fields):
+            raise ValueError(f"{self.name} result diagnostics do not match diagnostic_fields.")
+        if set(result.extras) != set(self.extra_result_fields):
+            raise ValueError(f"{self.name} result extras do not match extra_result_fields.")
+
+    def result_from_dict(self, values: dict) -> QCResult:
+        """Load standard result data and check its declared measurements."""
+        result = QCResult.from_dict(values)
+        self.validate_result(result)
+        return result
 
     def add_cli_arguments(self, parser: ArgumentParser) -> None:
         """Override to add command-line options for this check."""

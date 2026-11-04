@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 import numpy as np
 from ..qc_check import QCCheck
+from ..qc_result import QCResult
 from ...models import EdgeDetection
 from ...contour_geometry import fit_radial_baseline
 from vesmod.validation import require_integer_valued, require_nonnegative_real
@@ -62,15 +63,6 @@ class LocalizedDeviationQCConfig:
             object.__setattr__(self, "max_support_samples", support)
 
 
-@dataclass(frozen=True)
-class LocalizedDeviationQCResult:
-    """Per-trajectory outcome produced by localized-deviation QC."""
-
-    scores: tuple[float, ...]
-    support_samples: tuple[int | None, ...]
-    rejected_count: int
-
-
 def check_localized_deviation(
     edge: EdgeDetection,
     order: int,
@@ -122,8 +114,9 @@ class LocalizedDeviationCheck(QCCheck):
     """Apply localized-deviation quality control to each detection."""
 
     name = CHECK_NAME
+    diagnostic_fields = ('localized_deviation_score', 'localized_deviation_support_samples')
     config_type = LocalizedDeviationQCConfig
-    def run(self, detections, config, frames) -> LocalizedDeviationQCResult:
+    def run(self, detections, config, frames) -> QCResult:
         """Apply the localized-deviation check to each detection."""
         del frames
         for detection in detections:
@@ -134,20 +127,7 @@ class LocalizedDeviationCheck(QCCheck):
                 config.support_residual_fraction,
                 config.max_support_samples,
             )
-        return LocalizedDeviationQCResult(
-            scores=tuple(
-                float(detection.qc.diagnostics["localized_deviation_score"])
-                for detection in detections
-            ),
-            support_samples=tuple(
-                detection.qc.diagnostics["localized_deviation_support_samples"]
-                for detection in detections
-            ),
-            rejected_count=sum(
-                CHECK_NAME in detection.qc.flags
-                for detection in detections
-            ),
-        )
+        return self.make_result(detections)
 
     def add_cli_arguments(self, parser) -> None:
         """Register command-line options for this check."""

@@ -7,10 +7,10 @@ from dataclasses import dataclass
 import numpy as np
 
 from ..qc_check import QCCheck
+from ..qc_result import QCResult
 from ...models import EdgeDetection
 from ...contour_geometry import measure_wrapped_finite_second_difference
 from vesmod.validation import require_nonnegative_real
-
 
 
 DEFAULT_CURVATURE_THRESHOLD = 21.520619405632544
@@ -30,14 +30,6 @@ class CurvatureQCConfig:
         object.__setattr__(self, "threshold", require_nonnegative_real(self.threshold, "threshold"))
         if not isinstance(self.enabled, bool):
             raise TypeError("enabled must be a bool.")
-
-
-@dataclass(frozen=True)
-class CurvatureQCResult:
-    """Per-trajectory outcome produced by the curvature QC check."""
-
-    scores: tuple[float, ...]
-    rejected_count: int
 
 
 def check_curvature(
@@ -89,8 +81,9 @@ class CurvatureCheck(QCCheck):
     """Apply curvature-score quality control to individual detections."""
 
     name = CHECK_NAME
+    diagnostic_fields = ('curvature_score',)
     config_type = CurvatureQCConfig
-    def run(self, detections, config, frames):
+    def run(self, detections, config, frames) -> QCResult:
         """Record curvature scores and flags for each detection."""
         del frames
         for detection in detections:
@@ -101,10 +94,7 @@ class CurvatureCheck(QCCheck):
             else float("nan")
             for detection in detections
         )
-        return CurvatureQCResult(
-            scores=scores,
-            rejected_count=sum(CHECK_NAME in detection.qc.flags for detection in detections),
-        )
+        return self.make_result(detections)
 
     def add_cli_arguments(self, parser) -> None:
         """Register command-line options for this check."""

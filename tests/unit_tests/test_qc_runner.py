@@ -1,6 +1,7 @@
 """Tests for composable VesEdge QC-check orchestration."""
 
 from dataclasses import dataclass
+import json
 import csv
 import sys
 from types import SimpleNamespace
@@ -12,6 +13,7 @@ from vesmod.VesEdge.qc import qc_runner, qc_registry
 from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
 from vesmod.VesEdge.models import EdgeDetection, ImageContour
 from vesmod.VesEdge.qc.qc_check import QCCheck
+from vesmod.VesEdge.qc.qc_result import QCResult
 from vesmod.VesEdge.qc.qc_replay import load_recorded_qc, replay_recorded_qc
 from vesmod.VesEdge.vesicle_edges import VesicleEdges
 from vesmod.cli import vesedge_cli
@@ -30,7 +32,9 @@ def test_builtin_qc_check_order_is_explicit():
 def test_registry_runs_enabled_checks_in_declared_order(monkeypatch):
     calls = []
 
-    class Check:
+    class Check(QCCheck):
+        config_type = object
+        name = "test"
         requires_source_video_frames = False
 
         def __init__(self, name):
@@ -39,12 +43,9 @@ def test_registry_runs_enabled_checks_in_declared_order(monkeypatch):
         def enabled(self, config):
             return True
 
-        def trajectory_flags(self, result):
-            return frozenset()
-
         def run(self, detections, config, frames):
             calls.append(self.name)
-            return qc_runner.QCCheckOutcome()
+            return QCResult(check_name=self.name, frame_indices=(), rejected=())
 
     monkeypatch.setattr(qc_registry, "QC_CHECKS", (Check("first"), Check("second")))
 
@@ -61,13 +62,15 @@ def test_one_registration_drives_cli_reports_and_replay(tmp_path, monkeypatch):
         enabled: bool = False
 
     def write_diagnostic(path, edges):
-        rejected = edges.qc_result.get_result("example")
+        rejected = edges.qc_result.get_result("example").rejected_count
         path.write_text(f"rejected\n{rejected}\n", encoding="utf-8")
 
     class ExampleCheck(QCCheck):
         name = "example"
         config_type = ExampleConfig
         requires_source_video_frames = True
+        diagnostic_fields = ("example_score",)
+        extra_result_fields = ("image_shape",)
         diagnostic_writers = ((".example.csv", write_diagnostic),)
 
         def add_cli_arguments(self, parser):
@@ -79,8 +82,13 @@ def test_one_registration_drives_cli_reports_and_replay(tmp_path, monkeypatch):
         def run(self, detections, config, frames):
             assert frames is not None
             assert frames[0].shape == (4, 4)
-            detections[0].qc.flags.add(self.name)
-            return 1
+            return QCResult(
+                check_name=self.name,
+                frame_indices=tuple(edge.frame_index for edge in detections),
+                rejected=(True, False),
+                diagnostics={"example_score": (1.0, 0.0)},
+                extras={"image_shape": [4, 4]},
+            )
 
     monkeypatch.setattr(qc_registry, "QC_CHECKS", (*qc_registry.QC_CHECKS, ExampleCheck()))
     checkpoint = tmp_path / "sample.npz"
@@ -109,3 +117,8 @@ def test_one_registration_drives_cli_reports_and_replay(tmp_path, monkeypatch):
     edges = VesicleEdges.from_checkpoint(checkpoint)
     assert replay_recorded_qc(edges, checkpoint, selection, frames=frames).accepted_count == 1
     assert edges.successful_detections[0].qc.flags == {"example"}
+    restored = type(edges.qc_result).from_dict(
+        json.loads(json.dumps(edges.qc_result.to_dict(), allow_nan=False))
+    )
+    assert restored.to_dict() == edges.qc_result.to_dict()
+    assert restored.get_result("example").extras == {"image_shape": [4, 4]}

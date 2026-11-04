@@ -138,15 +138,10 @@ class VesicleEdges:
         ]
         try:
             self._reset_qc()
-            outcome = run_configured_qc_checks(
+            self.qc_result = run_configured_qc_checks(
                 self.successful_detections,
                 config,
                 frames,
-            )
-            self.qc_result = VesicleQCResult(
-                config=config,
-                results=outcome.results,
-                trajectory_flags=outcome.trajectory_flags,
             )
         except Exception:
             self.qc_result = previous_result

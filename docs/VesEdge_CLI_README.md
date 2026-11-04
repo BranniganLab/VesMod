@@ -803,6 +803,9 @@ If VesEdge contributes to a publication, please cite the associated manuscript a
 
 ## Adding a built-in QC check
 
+See the [QC developer guide](QC_checks.md) for required result fields,
+measurement declarations, and serialization.
+
 Put the check and its configuration in a module under
 `vesmod/VesEdge/qc/checks/`, or `vesmod/VesEdge/qc/experimental/` for an
 experimental method. Implement
@@ -811,7 +814,7 @@ experimental method. Implement
 rejection, add the check's name as a string to that detection's QC flags.
 Define that name in the check module and reuse it for the check's `name`
 attribute. The shared data models accept any check name. For a recording
-rejection, return a reason from `trajectory_flags`. Set `requires_source_video_frames`
+rejection, include a reason in `QCResult.trajectory_flags`. Set `requires_source_video_frames`
 when the check needs the original images.
 
 A check must define `name`, `config_type`, and `run()`. The first two can be

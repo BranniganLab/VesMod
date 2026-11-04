@@ -10,9 +10,10 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from vesmod.VesEdge.qc.experimental.area_qc import AreaQCConfig, AreaQCResult
+from vesmod.VesEdge.qc.experimental.area_qc import AreaQCConfig
 from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
 from vesmod.VesEdge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
+from vesmod.VesEdge.qc.qc_result import QCResult
 from vesmod.VesEdge.models import EdgeDetection, ImageContour, VesicleQCResult
 from vesmod.VesEdge.qc.experimental.area_qc import _save_area_qc_plot, _write_area_qc_csv
 from vesmod.VesEdge.qc.experimental.minimum_radius_qc import _write_minimum_radius_qc_csv
@@ -551,11 +552,11 @@ def test_area_qc_diagnostics_preserve_frame_measurements(tmp_path):
     class FakeEdges:
         successful_detections = [Detection()]
         qc_result = VesicleQCResult(
-            results={"area": AreaQCResult(
-                areas_pixels2=(25.0,),
-                reference_area_pixels2=100.0,
-                relative_deviations=(0.75,),
-                rejected_count=1,
+            frame_indices=(4,),
+            results={"area": QCResult(
+                check_name="area", frame_indices=(4,), rejected=(True,),
+                diagnostics={"area_pixels2": (25.0,), "relative_area_deviation": (0.75,)},
+                extras={"reference_area_pixels2": 100.0},
             )},
             config=VesicleQCConfig(
                 curvature=CurvatureQCConfig(threshold=5.0, enabled=True),

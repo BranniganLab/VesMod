@@ -9,7 +9,7 @@ from vesmod.VesEdge.models import EdgeQC, EdgeDetection, ImageContour
 
 def make_edge(radii):
     contour = ImageContour(origin=(0, 0), r=np.asarray(radii))
-    return EdgeDetection(full_contour=contour, analysis_contour=contour, qc=EdgeQC())
+    return EdgeDetection(full_contour=contour, analysis_contour=contour, qc=EdgeQC(), frame_index=0)
 
 
 def test_singleton_qc_rejects_narrow_excursion_and_registry_runs_it():

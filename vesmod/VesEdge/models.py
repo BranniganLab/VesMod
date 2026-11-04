@@ -20,6 +20,7 @@ from vesmod.validation import (
 )
 
 from .qc.qc_config import VesicleQCConfig
+from .qc.qc_result import QCResult
 
 
 @dataclass(frozen=True)
@@ -177,25 +178,95 @@ class VesicleQCResult:
     ----------
     config : VesicleQCConfig
         Configuration used for the QC run.
-    results : Mapping[str, object]
-        Typed results keyed by the registered check name. Each check module
-        owns the result type it places in this mapping.
+    results : Mapping[str, QCResult]
+        Standard results keyed by the registered check name. Each check module
+        declares the measurements it includes.
+    frame_indices : tuple[int, ...]
+        Source-frame indices of all successfully extracted contours evaluated.
     trajectory_flags : frozenset[str]
         Failures that apply to the complete video rather than individual
         detected frames.
     """
 
     config: VesicleQCConfig
-    results: Mapping[str, object] = field(default_factory=dict)
-    trajectory_flags: frozenset[str] = frozenset()
+    results: Mapping[str, QCResult] = field(default_factory=dict)
+    frame_indices: tuple[int, ...] = ()
 
     def __post_init__(self) -> None:
-        """Freeze the check-keyed result collection."""
+        """Validate source-frame identity and the common result structure."""
+        frame_indices = tuple(self.frame_indices)
+        for name, result in self.results.items():
+            if type(result) is not QCResult:
+                raise TypeError("Every check must provide a QCResult.")
+            if result.check_name != name:
+                raise ValueError("QC result keys must match their check names.")
+            if result.frame_indices != frame_indices:
+                raise ValueError("All QC results must describe the aggregate source frames.")
+        common = QCResult(
+            check_name="aggregate", frame_indices=frame_indices,
+            rejected=tuple(False for _ in frame_indices),
+        )
+        object.__setattr__(self, "frame_indices", common.frame_indices)
         object.__setattr__(self, "results", dict(self.results))
 
-    def get_result(self, name: str) -> object | None:
+    def get_result(self, name: str) -> QCResult | None:
         """Return a registered check's result, if that check produced one."""
         return self.results.get(name)
+
+    def to_dict(self) -> dict:
+        """Serialize the configuration and standard check results."""
+        return {
+            "config": self.config.to_dict(),
+            "results": {name: result.to_dict() for name, result in self.results.items()},
+            "frame_indices": list(self.frame_indices),
+            "trajectory_flags": sorted(self.trajectory_flags),
+        }
+
+    @classmethod
+    def from_dict(cls, values: dict) -> "VesicleQCResult":
+        """Load the current result format through registered check declarations."""
+        from .qc.qc_registry import QC_CHECKS
+
+        if not isinstance(values, dict) or set(values) != {"config", "results", "frame_indices", "trajectory_flags"}:
+            raise ValueError("Invalid VesicleQCResult fields.")
+        config = VesicleQCConfig.from_dict(values["config"])
+        checks = {check.name: check for check in QC_CHECKS}
+        saved_results = values["results"]
+        expected = {name for name, check in checks.items() if check.enabled(config.get_config(name))}
+        if not isinstance(saved_results, dict) or set(saved_results) != expected:
+            raise ValueError("Saved QC results must match the enabled checks.")
+        results = {
+            name: checks[name].result_from_dict(data)
+            for name, data in saved_results.items()
+        }
+        recorded = cls(
+            config=config, results=results, frame_indices=tuple(values["frame_indices"]),
+        )
+        if not isinstance(values["trajectory_flags"], list):
+            raise ValueError("Saved trajectory flags must be a list of strings.")
+        if sorted(recorded.trajectory_flags) != values["trajectory_flags"]:
+            raise ValueError("Saved trajectory flags do not match check results.")
+        return recorded
+
+    @property
+    def trajectory_flags(self) -> frozenset[str]:
+        """Collect recording-level rejection reasons from the check results."""
+        return frozenset(
+            flag for result in self.results.values() for flag in result.trajectory_flags
+        )
+
+    @property
+    def accepted_frame_indices(self) -> tuple[int, ...]:
+        """Return source frames accepted by every enabled check."""
+        if self.trajectory_flags:
+            return ()
+        rejected = {
+            index
+            for result in self.results.values()
+            for index, failed in zip(result.frame_indices, result.rejected, strict=True)
+            if failed
+        }
+        return tuple(index for index in self.frame_indices if index not in rejected)
 
     @property
     def passed(self) -> bool:

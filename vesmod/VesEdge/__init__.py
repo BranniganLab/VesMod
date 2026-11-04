@@ -10,7 +10,7 @@ from .visualization.animation import (
 )
 from .extraction.config import EdgeExtractionConfig
 from .extraction.edge_extractor import extract_edge_from_frame
-from .qc.checks.edge_filtering import CurvatureQCConfig, CurvatureQCResult
+from .qc.checks.edge_filtering import CurvatureQCConfig
 from .qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig, check_localized_deviation
 from .contour_geometry import RadialBaselineFit, contour_area, fit_radial_baseline
 from .io.frame_source import (
@@ -22,6 +22,7 @@ from .models import EdgeDetection, EdgeDetectionFailure, EdgeResult, ImageContou
 from .vesicle_edges import VesicleEdges
 from .vesicle_video import VesicleVideo
 from .qc.qc_config import VesicleQCConfig
+from .qc.qc_result import QCResult
 from .qc.qc_replay import (
     QCReplayResult,
     RecordedQCSelection,
@@ -39,7 +40,6 @@ from .visualization.trace_plotting import (
 __all__ = [
     "AnimationPanel",
     "CurvatureQCConfig",
-    "CurvatureQCResult",
     "EdgeDetection",
     "EdgeDetectionFailure",
     "EdgeExtractionConfig",
@@ -56,6 +56,7 @@ __all__ = [
     "VesicleEdges",
     "VesicleQCConfig",
     "VesicleQCResult",
+    "QCResult",
     "VesicleVideo",
     "as_frame_source",
     "centered_contour_coordinates",

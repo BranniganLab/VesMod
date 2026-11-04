@@ -2,25 +2,16 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from numpy.typing import NDArray
 
 from ..io.frame_source import OnDemandFrameSequence
-from ..models import EdgeDetection
+from ..models import EdgeDetection, VesicleQCResult
 from . import qc_registry
 from .qc_check import QCCheck
 from .qc_config import VesicleQCConfig
 
 
 Frames = OnDemandFrameSequence | NDArray | None
-
-
-@dataclass(frozen=True)
-class QCCheckOutcome:
-    """Results returned by registered checks and trajectory flags."""
-
-    results: dict[str, object] = field(default_factory=dict)
-    trajectory_flags: frozenset[str] = frozenset()
 
 
 def checks_requiring_source_video_frames(config: VesicleQCConfig) -> tuple[QCCheck, ...]:
@@ -35,10 +26,9 @@ def run_configured_qc_checks(
     detections: list[EdgeDetection],
     config: VesicleQCConfig,
     frames: Frames = None,
-) -> QCCheckOutcome:
+) -> VesicleQCResult:
     """Run the explicit ordered registry and combine aggregate outcomes."""
     results = {}
-    trajectory_flags = set()
     for check in qc_registry.QC_CHECKS:
         check_config = config.get_config(check.name)
         if not check.enabled(check_config):
@@ -49,7 +39,19 @@ def run_configured_qc_checks(
                 "but source video frames were not supplied."
             )
         result = check.run(detections, check_config, frames)
-        if result is not None:
-            results[check.name] = result
-        trajectory_flags.update(check.trajectory_flags(result))
-    return QCCheckOutcome(results, frozenset(trajectory_flags))
+        check.validate_result(result)
+        if result.frame_indices != tuple(edge.frame_index for edge in detections):
+            raise ValueError(f"{check.name} must return decisions for every supplied source frame.")
+        for index, detection in enumerate(detections):
+            if result.rejected[index]:
+                detection.qc.flags.add(check.name)
+            else:
+                detection.qc.flags.discard(check.name)
+            detection.qc.diagnostics.update({
+                name: values[index] for name, values in result.diagnostics.items()
+            })
+        results[check.name] = result
+    return VesicleQCResult(
+        config=config, results=results,
+        frame_indices=tuple(edge.frame_index for edge in detections),
+    )

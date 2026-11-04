@@ -9,6 +9,7 @@ import numpy as np
 from dataclasses import dataclass
 
 from ..qc_check import QCCheck
+from ..qc_result import QCResult
 from ...contour_geometry import contour_area
 from ...models import EdgeDetection
 from vesmod.validation import require_fraction
@@ -31,8 +32,8 @@ class AreaQCConfig:
 
 
 @dataclass(frozen=True)
-class AreaQCResult:
-    """Per-trajectory outcome produced by the contour-area QC check."""
+class AreaMeasurements:
+    """Area measurements calculated before assembling a standard QC result."""
 
     areas_pixels2: tuple[float, ...]
     reference_area_pixels2: float
@@ -43,7 +44,7 @@ class AreaQCResult:
 def check_area_deviation(
     detections: list[EdgeDetection],
     max_relative_deviation: float,
-) -> AreaQCResult:
+) -> AreaMeasurements:
     """Flag contours that deviate from the trajectory median enclosed area.
 
     A detection fails only when its absolute fractional area deviation is
@@ -59,7 +60,7 @@ def check_area_deviation(
 
     Returns
     -------
-    AreaQCResult
+    AreaMeasurements
         Areas, trajectory reference, deviations, and rejection count. The
         reference area and deviations are ``nan`` when no curvature-passing
         contour has a finite, positive area; non-finite and nonpositive areas
@@ -124,18 +125,11 @@ def check_area_deviation(
         else:
             edge.qc.flags.discard(CHECK_NAME)
 
-    rejected_count = sum(
-        CHECK_NAME in edge.qc.flags
-        for edge in detections
-    )
-    return AreaQCResult(
-        areas_pixels2=tuple(float(area) for area in areas),
+    return AreaMeasurements(
+        areas_pixels2=tuple(float(value) for value in areas),
         reference_area_pixels2=reference_area,
-        relative_deviations=tuple(
-            float(deviation)
-            for deviation in deviations
-        ),
-        rejected_count=rejected_count,
+        relative_deviations=tuple(float(value) for value in deviations),
+        rejected_count=sum(CHECK_NAME in edge.qc.flags for edge in detections),
     )
 
 
@@ -147,8 +141,10 @@ def _save_area_qc_plot(path: Path, edges) -> None:
     config = edges.qc_result.config
     detections = edges.successful_detections
     frame_indices = [edge.frame_index for edge in detections]
-    areas = area_result.areas_pixels2
-    reference = area_result.reference_area_pixels2
+    areas = area_result.diagnostics["area_pixels2"]
+    reference = area_result.extras["reference_area_pixels2"]
+    if reference is None:
+        reference = float("nan")
     deviation = config.area.max_relative_deviation
     lower_bound = reference * (1 - deviation)
     upper_bound = reference * (1 + deviation)
@@ -176,8 +172,8 @@ def _write_area_qc_csv(path: Path, edges) -> None:
     rows = []
     for detection, area, deviation in zip(
         edges.successful_detections,
-        area_result.areas_pixels2,
-        area_result.relative_deviations,
+        area_result.diagnostics["area_pixels2"],
+        area_result.diagnostics["relative_area_deviation"],
         strict=True,
     ):
         rows.append(
@@ -208,11 +204,16 @@ class AreaDeviationCheck(QCCheck):
     """Apply trajectory-wide area-deviation quality control."""
 
     name = CHECK_NAME
+    diagnostic_fields = ('area_pixels2', 'relative_area_deviation')
+    extra_result_fields = ('reference_area_pixels2',)
     config_type = AreaQCConfig
-    def run(self, detections, config, frames):
+    def run(self, detections, config, frames) -> QCResult:
         """Evaluate area deviation across the detection trajectory."""
         del frames
-        return check_area_deviation(detections, config.max_relative_deviation)
+        measurement = check_area_deviation(detections, config.max_relative_deviation)
+        return self.make_result(
+            detections, extras={"reference_area_pixels2": measurement.reference_area_pixels2},
+        )
 
     def add_cli_arguments(self, parser) -> None:
         """Register command-line options for this check."""

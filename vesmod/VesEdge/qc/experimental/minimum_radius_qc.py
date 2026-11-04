@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from ..qc_check import QCCheck
+from ..qc_result import QCResult
 from ...models import EdgeDetection
 from vesmod.validation import require_nonnegative_real
 
@@ -25,14 +26,6 @@ class MinimumRadiusQCConfig:
         if not isinstance(self.enabled, bool):
             raise TypeError("enabled must be a bool.")
         object.__setattr__(self, "min_median_radius_pixels", require_nonnegative_real(self.min_median_radius_pixels, "min_median_radius_pixels"))
-
-
-@dataclass(frozen=True)
-class MinimumRadiusQCResult:
-    """Per-trajectory outcome produced by the minimum-radius QC check."""
-
-    median_radii_pixels: tuple[float, ...]
-    rejected_count: int
 
 
 def check_minimum_radius(edge: EdgeDetection, min_median_radius_pixels: float) -> None:
@@ -83,8 +76,9 @@ class MinimumRadiusCheck(QCCheck):
     """Apply the configured minimum-radius check to each detection."""
 
     name = CHECK_NAME
+    diagnostic_fields = ('median_radius_pixels',)
     config_type = MinimumRadiusQCConfig
-    def run(self, detections, config, frames) -> MinimumRadiusQCResult:
+    def run(self, detections, config, frames) -> QCResult:
         """Apply the minimum-radius check to each detection."""
         del frames
         for detection in detections:
@@ -92,16 +86,7 @@ class MinimumRadiusCheck(QCCheck):
                 detection,
                 min_median_radius_pixels=config.min_median_radius_pixels,
             )
-        return MinimumRadiusQCResult(
-            median_radii_pixels=tuple(
-                float(detection.qc.diagnostics["median_radius_pixels"])
-                for detection in detections
-            ),
-            rejected_count=sum(
-                CHECK_NAME in detection.qc.flags
-                for detection in detections
-            ),
-        )
+        return self.make_result(detections)
 
     def add_cli_arguments(self, parser) -> None:
         """Register command-line options for this check."""
