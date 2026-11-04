@@ -93,10 +93,6 @@ class MinimumRadiusCheck(QCCheck):
     def config_to_dict(self, config):
         return {"enabled": config.enabled, "min_median_radius_pixels": config.min_median_radius_pixels}
 
-    def enabled(self, config) -> bool:
-        """Return whether minimum-radius quality control is enabled."""
-        return config.enabled
-
     def run(self, detections, config, frames) -> MinimumRadiusQCResult:
         """Apply the minimum-radius check to each detection."""
         del frames

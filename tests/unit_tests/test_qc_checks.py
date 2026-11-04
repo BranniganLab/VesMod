@@ -77,9 +77,6 @@ def test_one_registration_drives_cli_reports_and_replay(tmp_path, monkeypatch):
         def config_to_dict(self, config):
             return {"enabled": config.enabled}
 
-        def enabled(self, config):
-            return config.enabled
-
         def add_cli_arguments(self, parser):
             parser.add_argument("--example-qc", action="store_true")
 

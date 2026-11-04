@@ -98,10 +98,6 @@ class CurvatureCheck(QCCheck):
     def config_to_dict(self, config):
         return {"threshold": config.threshold, "enabled": config.enabled}
 
-    def enabled(self, config) -> bool:
-        """Return whether curvature quality control is enabled."""
-        return config.enabled
-
     def run(self, detections, config, frames):
         """Record curvature scores and flags for each detection."""
         del frames

@@ -136,10 +136,6 @@ class LocalizedDeviationCheck(QCCheck):
             "max_support_samples": config.max_support_samples,
         }
 
-    def enabled(self, config) -> bool:
-        """Return whether localized-deviation quality control is enabled."""
-        return config.enabled
-
     def run(self, detections, config, frames) -> LocalizedDeviationQCResult:
         """Apply the localized-deviation check to each detection."""
         del frames

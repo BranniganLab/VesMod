@@ -32,9 +32,9 @@ class QCCheck(ABC):
     def config_to_dict(self, config: object) -> dict:
         """Serialize settings for replay."""
 
-    @abstractmethod
-    def enabled(self, config: object) -> bool:
-        """Return whether the check should run."""
+    def enabled(self, config) -> bool:
+        """Return whether the check's configuration enables it."""
+        return config.enabled
 
     @abstractmethod
     def run(

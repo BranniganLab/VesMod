@@ -217,10 +217,6 @@ class AreaDeviationCheck(QCCheck):
     def config_to_dict(self, config):
         return {"max_relative_deviation": config.max_relative_deviation, "enabled": config.enabled}
 
-    def enabled(self, config) -> bool:
-        """Return whether area-deviation quality control is enabled."""
-        return config.enabled
-
     def run(self, detections, config, frames):
         """Evaluate area deviation across the detection trajectory."""
         del frames

@@ -92,10 +92,6 @@ class SingletonDeviationCheck(QCCheck):
     def config_to_dict(self, config):
         return {"enabled": config.enabled, "order": config.order, "min_residual_fraction": config.min_residual_fraction, "max_width_samples": config.max_width_samples}
 
-    def enabled(self, config) -> bool:
-        """Return whether singleton-deviation QC is enabled."""
-        return config.enabled
-
     def run(self, detections, config, frames) -> SingletonDeviationQCResult:
         """Apply singleton-deviation QC to each detection."""
         del frames
