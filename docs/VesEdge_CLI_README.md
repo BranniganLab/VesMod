@@ -805,7 +805,7 @@ If VesEdge contributes to a publication, please cite the associated manuscript a
 
 Put the check and its configuration in a module under
 `vesmod/VesEdge/qc/checks/`. Implement
-[`QCCheck`](../vesmod/VesEdge/qc/contract.py) and add one instance to the ordered
+[`QCCheck`](../vesmod/VesEdge/qc/qc_check.py) and add one instance to the ordered
 [`QC_CHECKS` registry](../vesmod/VesEdge/qc/qc_registry.py). For a frame
 rejection, add the check's name as a string to that detection's QC flags.
 Define that name in the check module and reuse it for the check's `name`
@@ -828,5 +828,5 @@ behavior. A custom summary can override both `summary_defaults` and
 
 The same registration drives command-line options, configuration recorded
 for replay, and any summary columns or diagnostic writers the check declares.
-See the [registration test](../tests/unit_tests/test_qc_checks.py) for an
+See the [registration test](../tests/unit_tests/test_qc_runner.py) for an
 image-based example that runs through the CLI and replays the saved settings.

@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ..contract import QCCheck
+from ..qc_check import QCCheck
 from ...models import EdgeDetection
 from ...contour_geometry import measure_wrapped_finite_second_difference
 from vesmod.validation import require_nonnegative_real

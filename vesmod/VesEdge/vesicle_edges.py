@@ -20,7 +20,7 @@ from .models import (
     EdgeResult,
     VesicleQCResult,
 )
-from .qc.qc_checks import run_configured_qc_checks
+from .qc.qc_runner import run_configured_qc_checks
 from .qc.qc_config import VesicleQCConfig
 
 

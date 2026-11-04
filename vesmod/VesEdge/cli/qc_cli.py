@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 
 from vesmod.VesEdge.io.checkpoint_sources import open_checkpoint_frames, resolve_source_path
-from vesmod.VesEdge.qc import qc_checks, qc_registry
+from vesmod.VesEdge.qc import qc_runner, qc_registry
 from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
 from vesmod.VesEdge.vesicle_edges import VesicleEdges
 from vesmod.cli.batch_policy import (
@@ -234,7 +234,7 @@ def process_qc_file(
     qc_error = ""
     try:
         frames = None
-        frame_checks = qc_checks.checks_requiring_source_video_frames(qc_config)
+        frame_checks = qc_runner.checks_requiring_source_video_frames(qc_config)
         if frame_checks:
             if edges.source_path is None:
                 names = ", ".join(check.name.replace("_", "-") for check in frame_checks)

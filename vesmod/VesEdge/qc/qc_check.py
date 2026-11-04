@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from ..models import EdgeDetection
     from ..vesicle_edges import VesicleEdges
-    from .qc_checks import Frames
+    from .qc_runner import Frames
 
 
 class QCCheck(ABC):

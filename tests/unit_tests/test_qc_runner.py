@@ -8,10 +8,10 @@ from types import SimpleNamespace
 import numpy as np
 
 
-from vesmod.VesEdge.qc import qc_checks, qc_registry
+from vesmod.VesEdge.qc import qc_runner, qc_registry
 from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
 from vesmod.VesEdge.models import EdgeDetection, ImageContour
-from vesmod.VesEdge.qc.contract import QCCheck
+from vesmod.VesEdge.qc.qc_check import QCCheck
 from vesmod.VesEdge.qc.qc_replay import load_recorded_qc, replay_recorded_qc
 from vesmod.VesEdge.vesicle_edges import VesicleEdges
 from vesmod.cli import vesedge_cli
@@ -44,11 +44,11 @@ def test_registry_runs_enabled_checks_in_declared_order(monkeypatch):
 
         def run(self, detections, config, frames):
             calls.append(self.name)
-            return qc_checks.QCCheckOutcome()
+            return qc_runner.QCCheckOutcome()
 
     monkeypatch.setattr(qc_registry, "QC_CHECKS", (Check("first"), Check("second")))
 
-    qc_checks.run_configured_qc_checks([], SimpleNamespace(get_config=lambda name: None))
+    qc_runner.run_configured_qc_checks([], SimpleNamespace(get_config=lambda name: None))
 
     assert calls == ["first", "second"]
 

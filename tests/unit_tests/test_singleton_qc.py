@@ -20,7 +20,7 @@ def test_singleton_qc_rejects_narrow_excursion_and_registry_runs_it():
         curvature=CurvatureQCConfig(threshold=1, enabled=False),
         singleton_deviation=SingletonDeviationQCConfig(enabled=True),
     )
-    from vesmod.VesEdge.qc.qc_checks import run_configured_qc_checks
+    from vesmod.VesEdge.qc.qc_runner import run_configured_qc_checks
     run_configured_qc_checks([edge], config)
     assert 'singleton_deviation' in edge.qc.flags
     assert edge.qc.diagnostics["singleton_count"] == 1
@@ -34,6 +34,6 @@ def test_singleton_qc_preserves_broad_shape():
         curvature=CurvatureQCConfig(threshold=1, enabled=False),
         singleton_deviation=SingletonDeviationQCConfig(enabled=True),
     )
-    from vesmod.VesEdge.qc.qc_checks import run_configured_qc_checks
+    from vesmod.VesEdge.qc.qc_runner import run_configured_qc_checks
     run_configured_qc_checks([edge], config)
     assert 'singleton_deviation' not in edge.qc.flags

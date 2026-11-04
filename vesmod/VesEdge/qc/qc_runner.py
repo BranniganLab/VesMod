@@ -1,4 +1,4 @@
-"""Execute and deserialize registered VesEdge quality-control checks."""
+"""Execute registered VesEdge quality-control checks."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from numpy.typing import NDArray
 from ..io.frame_source import OnDemandFrameSequence
 from ..models import EdgeDetection
 from . import qc_registry
-from .contract import QCCheck
+from .qc_check import QCCheck
 from .qc_config import VesicleQCConfig
 
 
@@ -53,20 +53,3 @@ def run_configured_qc_checks(
             results[check.name] = result
         trajectory_flags.update(check.trajectory_flags(result))
     return QCCheckOutcome(results, frozenset(trajectory_flags))
-
-
-def config_from_dict(values: dict) -> VesicleQCConfig:
-    """Deserialize check-keyed configuration."""
-    specs = {check.name: check for check in qc_registry.QC_CHECKS}
-    unknown = set(values) - set(specs)
-    if unknown:
-        raise TypeError(f"Unexpected QC configuration field: {sorted(unknown)[0]}")
-    parsed = {
-        name: (
-            spec.config_type(**values[name])
-            if name in values
-            else spec.default_config()
-        )
-        for name, spec in specs.items()
-    }
-    return VesicleQCConfig(checks=parsed)
