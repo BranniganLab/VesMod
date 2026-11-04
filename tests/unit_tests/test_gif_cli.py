@@ -1,5 +1,8 @@
 """Tests for standalone VesEdge GIF generation."""
 
+from vesmod.VesEdge.experimental.area_qc import AreaQCConfig
+from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
+from vesmod.VesEdge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
 import argparse
 import json
 import sys
@@ -70,10 +73,8 @@ def test_load_qc_selection_uses_recorded_provenance(tmp_path):
     provenance = {
         "checkpoint_manifest": [str(checkpoint.resolve())],
         "qc_config": {
-            "curvature_threshold": 8.0,
-            "enable_curvature_qc": True,
-            "max_relative_area_deviation": 0.4,
-            "enable_area_qc": False,
+            "curvature": {"threshold": 8.0, "enabled": True},
+            "area": {"max_relative_deviation": 0.4, "enabled": False},
         }
     }
     (tmp_path / "vesedge_qc.json").write_text(
@@ -103,7 +104,11 @@ def test_apply_recorded_qc_verifies_paired_array(tmp_path):
     np.save(qc_path, expected)
     provenance = {
         "checkpoint_manifest": [str(checkpoint.resolve())],
-        "qc_config": VesicleQCConfig(curvature_threshold=5.0).to_dict(),
+        "qc_config": VesicleQCConfig(
+            curvature=CurvatureQCConfig(threshold=5.0, enabled=True),
+            area=AreaQCConfig(max_relative_deviation=0.25, enabled=True),
+            localized_deviation=LocalizedDeviationQCConfig(enabled=False),
+        ).to_dict(),
     }
     (qc_dir / "vesedge_qc.json").write_text(json.dumps(provenance))
     selection = load_recorded_qc(qc_dir, [checkpoint])
@@ -137,7 +142,11 @@ def test_apply_recorded_qc_allows_all_rejected_without_array(tmp_path):
     qc_dir.mkdir()
     (qc_dir / "vesedge_qc.json").write_text(json.dumps({
         "checkpoint_manifest": [str(checkpoint.resolve())],
-        "qc_config": VesicleQCConfig(curvature_threshold=5.0).to_dict(),
+        "qc_config": VesicleQCConfig(
+            curvature=CurvatureQCConfig(threshold=5.0, enabled=True),
+            area=AreaQCConfig(max_relative_deviation=0.25, enabled=True),
+            localized_deviation=LocalizedDeviationQCConfig(enabled=False),
+        ).to_dict(),
     }))
     selection = load_recorded_qc(qc_dir, [checkpoint])
     frames = np.zeros((2, 3, 4))

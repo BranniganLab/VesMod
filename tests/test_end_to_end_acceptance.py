@@ -8,6 +8,9 @@ QC, spectrum construction, and physical fitting.
 
 from __future__ import annotations
 
+from vesmod.VesEdge.experimental.area_qc import AreaQCConfig
+from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
+from vesmod.VesEdge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
 from dataclasses import asdict
 import hashlib
 import json
@@ -37,10 +40,9 @@ EXTRACTION_CONFIG = EdgeExtractionConfig(
     calibration_source="measured",
 )
 QC_CONFIG = VesicleQCConfig(
-    curvature_threshold=21.520619405632544,
-    enable_curvature_qc=True,
-    max_relative_area_deviation=0.25,
-    enable_area_qc=True,
+    curvature=CurvatureQCConfig(threshold=21.520619405632544, enabled=True),
+    area=AreaQCConfig(max_relative_deviation=0.25, enabled=True),
+    localized_deviation=LocalizedDeviationQCConfig(enabled=False),
 )
 FIT_CONFIG = SpectrumFitConfig(
     lower_bound=3,
@@ -111,11 +113,11 @@ def _run_pipeline(case_name: str, tmp_path: Path) -> dict[str, np.ndarray]:
     edges.run_qc(QC_CONFIG)
 
     successful = edges.successful_detections
-    area_result = edges.qc_result.area
+    area_result = edges.qc_result.for_check("area")
     results.update(
         {
             "qc_curvature_scores": np.asarray(
-                edges.qc_result.curvature.scores,
+                edges.qc_result.for_check("curvature").scores,
                 dtype=float,
             ),
             "qc_areas_pixels2": np.asarray(
@@ -181,49 +183,6 @@ def _assert_matches_reference(
     with np.load(reference_path, allow_pickle=False) as stored:
         expected = {key: stored[key] for key in stored.files}
 
-    # Schema-v1 references created before calibration provenance was added do
-    # not contain this metadata field. Treat the known acceptance calibration
-    # as measured during the migration; regenerated references write it
-    # explicitly and therefore bypass this compatibility path.
-    expected_metadata = json.loads(expected["metadata_json"].item())
-    metadata_migrated = False
-    if "calibration_source" not in expected_metadata["extraction_config"]:
-        expected_metadata["extraction_config"]["calibration_source"] = (
-            EXTRACTION_CONFIG.calibration_source
-        )
-        metadata_migrated = True
-
-    # Schema-v1 references use the former flat QC schema and may also predate
-    # optional internal-vesicle QC. Translate them through the same migration
-    # boundary used for runtime provenance.
-    expected_qc_config = expected_metadata["qc_config"]
-    legacy_curvature_threshold = expected_qc_config.get("curvature_threshold")
-    migrated_qc_config = VesicleQCConfig.from_dict(expected_qc_config).to_dict()
-    if (
-        legacy_curvature_threshold is not None
-        and not np.isclose(
-            legacy_curvature_threshold,
-            QC_CONFIG.curvature.threshold,
-        )
-    ):
-        # Older references stored the unscaled finite difference at the
-        # historical 120-sample threshold scale. Convert their stored scores
-        # while retaining the reference file as a valid migration fixture.
-        expected["qc_curvature_scores"] = (
-            expected["qc_curvature_scores"]
-            * (120.0 / (2.0 * np.pi)) ** 2
-        )
-        expected_metadata["qc_config"] = QC_CONFIG.to_dict()
-        metadata_migrated = True
-    elif expected_qc_config != migrated_qc_config:
-        expected_metadata["qc_config"] = migrated_qc_config
-        metadata_migrated = True
-
-    if metadata_migrated:
-        expected["metadata_json"] = np.asarray(
-            json.dumps(expected_metadata, sort_keys=True)
-        )
-
     assert measured.keys() == expected.keys()
     exact_keys = {
         "metadata_json",
@@ -262,33 +221,6 @@ def _assert_matches_reference(
         )
 
 
-def test_legacy_acceptance_metadata_compatibility_is_still_needed():
-    """Fail once all references contain the current metadata fields."""
-    regenerated = []
-    required_qc_keys = set(asdict(QC_CONFIG))
-    for _, reference_name in ACCEPTANCE_CASES:
-        reference_path = _reference_path(reference_name)
-        if not reference_path.is_file():
-            continue
-        with np.load(reference_path, allow_pickle=False) as stored:
-            metadata = json.loads(stored["metadata_json"].item())
-        if (
-            "calibration_source" in metadata["extraction_config"]
-            and required_qc_keys.issubset(metadata["qc_config"])
-        ):
-            regenerated.append(reference_path.name)
-
-    if regenerated:
-        pytest.fail(
-            "Acceptance reference metadata has been regenerated "
-            f"for: {', '.join(regenerated)}. The temporary compatibility code "
-            "is now obsolete. Remove the schema-v1 compatibility block in "
-            "_assert_matches_reference() that inserts calibration_source when "
-            "it is missing, then remove this test "
-            "(test_legacy_acceptance_metadata_compatibility_is_still_needed). "
-            "After removing both, rerun the full test suite and commit those "
-            "cleanup changes together with the regenerated acceptance reference."
-        )
 
 
 @pytest.mark.parametrize(

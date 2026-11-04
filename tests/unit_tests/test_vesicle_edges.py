@@ -1,5 +1,8 @@
 """Unit tests for vesicle_edges.py."""
 
+from vesmod.VesEdge.experimental.area_qc import AreaQCConfig
+from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
+from vesmod.VesEdge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
 import numpy as np
 import pytest
 
@@ -38,7 +41,9 @@ def extraction_config():
 def qc_config():
     """Return permissive frame-level QC settings."""
     return VesicleQCConfig(
-        curvature_threshold=100.0,
+        curvature=CurvatureQCConfig(threshold=100.0, enabled=True),
+        area=AreaQCConfig(max_relative_deviation=0.25, enabled=True),
+        localized_deviation=LocalizedDeviationQCConfig(enabled=False),
     )
 
 
@@ -112,11 +117,11 @@ def test_run_qc_records_aggregate_results(edges, qc_config):
     assert edges.qc_result is not None
     assert edges.qc_result.config is qc_config
     assert edges.qc_config is qc_config
-    assert edges.qc_result.curvature is not None
-    assert len(edges.qc_result.curvature.scores) == 2
-    assert edges.qc_result.curvature.rejected_count == 0
-    assert edges.qc_result.area is not None
-    assert edges.qc_result.area.rejected_count == 0
+    assert edges.qc_result.for_check("curvature") is not None
+    assert len(edges.qc_result.for_check("curvature").scores) == 2
+    assert edges.qc_result.for_check("curvature").rejected_count == 0
+    assert edges.qc_result.for_check("area") is not None
+    assert edges.qc_result.for_check("area").rejected_count == 0
 
 
 def test_run_qc_restores_previous_state_when_a_check_errors(edges, qc_config, monkeypatch):
@@ -166,27 +171,29 @@ def test_run_qc_can_recover_previous_curvature_rejection(extraction_config):
         detections=[detection],
     )
     strict = VesicleQCConfig(
-        curvature_threshold=1.0,
+        curvature=CurvatureQCConfig(threshold=1.0, enabled=True),
+        area=AreaQCConfig(max_relative_deviation=0.25, enabled=True),
+        localized_deviation=LocalizedDeviationQCConfig(enabled=False),
     )
     permissive = VesicleQCConfig(
-        # The normalized score for this one-bin spike is approximately 1,459
-        # at 120 samples; 100 was the pre-normalization scale.
-        curvature_threshold=2000.0,
+        curvature=CurvatureQCConfig(threshold=2000.0, enabled=True),
+        area=AreaQCConfig(max_relative_deviation=0.25, enabled=True),
+        localized_deviation=LocalizedDeviationQCConfig(enabled=False),
     )
 
     with pytest.raises(ValueError, match="no frames passed quality control"):
         edge_results.run_qc(strict)
     assert edge_results.qc_config is strict
     assert edge_results.qc_result is not None
-    assert edge_results.qc_result.curvature is not None
-    assert edge_results.qc_result.curvature.rejected_count == 1
+    assert edge_results.qc_result.for_check("curvature") is not None
+    assert edge_results.qc_result.for_check("curvature").rejected_count == 1
     assert QCFlag.CURVATURE in detection.qc.flags
 
     edge_results.run_qc(permissive)
 
     assert edge_results.qc_result is not None
-    assert edge_results.qc_result.curvature is not None
-    assert edge_results.qc_result.curvature.rejected_count == 0
+    assert edge_results.qc_result.for_check("curvature") is not None
+    assert edge_results.qc_result.for_check("curvature").rejected_count == 0
     assert QCFlag.CURVATURE not in detection.qc.flags
     assert detection.qc.passed
 
@@ -195,12 +202,12 @@ def test_run_qc_clears_stale_qc_state(edges, qc_config):
     """Test that a new QC run discards prior per-detection QC state."""
     first = edges.successful_detections[0]
     first.qc.flags.add(QCFlag.CURVATURE)
-    first.qc.curvature_score = 999.0
+    first.qc.diagnostics["curvature_score"] = 999.0
 
     edges.run_qc(qc_config)
 
     assert edges.qc_result is not None
-    assert first.qc.curvature_score == pytest.approx(0.0)
+    assert first.qc.diagnostics["curvature_score"] == pytest.approx(0.0)
     assert QCFlag.CURVATURE not in first.qc.flags
 
 
@@ -226,8 +233,9 @@ def test_export_accepted_radii_saves_only_accepted_in_microns(
         detections=[accepted, rejected],
     )
     config = VesicleQCConfig(
-        curvature_threshold=1.0,
-        enable_area_qc=False,
+        curvature=CurvatureQCConfig(threshold=1.0, enabled=True),
+        area=AreaQCConfig(max_relative_deviation=0.25, enabled=False),
+        localized_deviation=LocalizedDeviationQCConfig(enabled=False),
     )
     edge_results.run_qc(config)
 
@@ -274,7 +282,7 @@ def test_checkpoint_round_trip_preserves_extraction_not_qc(
     assert isinstance(loaded.detections[2], EdgeDetection)
     assert [result.frame_index for result in loaded.detections] == [0, 1, 2]
     assert all(
-        detection.qc.curvature_score is None
+        detection.qc.diagnostics.get("curvature_score") is None
         for detection in loaded.successful_detections
     )
     np.testing.assert_array_equal(
@@ -375,7 +383,9 @@ def test_from_checkpoint_can_be_re_qced_with_new_settings(
 
     loaded = VesicleEdges.from_checkpoint(tmp_path / "sample.npz")
     new_config = VesicleQCConfig(
-        curvature_threshold=100.0,
+        curvature=CurvatureQCConfig(threshold=100.0, enabled=True),
+        area=AreaQCConfig(max_relative_deviation=0.25, enabled=True),
+        localized_deviation=LocalizedDeviationQCConfig(enabled=False),
     )
     loaded.run_qc(new_config)
 
@@ -397,14 +407,15 @@ def test_run_qc_applies_area_deviation_and_records_summary(extraction_config):
 
     edge_results.run_qc(
         VesicleQCConfig(
-            curvature_threshold=100.0,
-            max_relative_area_deviation=0.25,
+            curvature=CurvatureQCConfig(threshold=100.0, enabled=True),
+            area=AreaQCConfig(max_relative_deviation=0.25, enabled=True),
+            localized_deviation=LocalizedDeviationQCConfig(enabled=False),
         )
     )
 
-    assert edge_results.qc_result.area is not None
-    assert edge_results.qc_result.area.rejected_count == 1
-    assert edge_results.qc_result.area.reference_area_pixels2 == pytest.approx(
+    assert edge_results.qc_result.for_check("area") is not None
+    assert edge_results.qc_result.for_check("area").rejected_count == 1
+    assert edge_results.qc_result.for_check("area").reference_area_pixels2 == pytest.approx(
         100.0 * np.pi
     )
     assert QCFlag.AREA_DEVIATION in edge_results.detections[2].qc.flags
@@ -424,14 +435,15 @@ def test_run_qc_can_disable_area_deviation(extraction_config):
 
     edge_results.run_qc(
         VesicleQCConfig(
-            curvature_threshold=100.0,
-            enable_area_qc=False,
+            curvature=CurvatureQCConfig(threshold=100.0, enabled=True),
+            area=AreaQCConfig(max_relative_deviation=0.25, enabled=False),
+            localized_deviation=LocalizedDeviationQCConfig(enabled=False),
         )
     )
 
-    assert edge_results.qc_result.area is None
+    assert edge_results.qc_result.for_check("area") is None
     assert len(edge_results.accepted_detections) == 3
     assert all(
-        detection.qc.area_pixels2 is None
+        detection.qc.diagnostics.get("area_pixels2") is None
         for detection in edge_results.successful_detections
     )

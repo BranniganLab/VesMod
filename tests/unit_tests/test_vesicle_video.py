@@ -155,7 +155,7 @@ def test_extract_edges_does_not_run_qc(video, extraction_config):
 
     assert edges.qc_config is None
     assert all(
-        detection.qc.curvature_score is None
+        detection.qc.diagnostics.get("curvature_score") is None
         for detection in edges.successful_detections
     )
 

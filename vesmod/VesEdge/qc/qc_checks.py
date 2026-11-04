@@ -69,29 +69,8 @@ def run_configured_qc_checks(
 
 
 def config_from_dict(values: dict) -> VesicleQCConfig:
-    """Deserialize current nested data or the previous explicit schema."""
+    """Deserialize check-keyed configuration."""
     specs = {check.name: check for check in QC_CHECKS}
-    if "curvature_threshold" in values:
-        from .legacy_config import migrate_flat_config
-
-        return VesicleQCConfig(checks=migrate_flat_config(values))
-    values = dict(values)
-    from .legacy_config import discard_removed_check
-
-    discard_removed_check(values)
-    aliases = {
-        "radius": "minimum_radius",
-        "baseline": "localized_deviation",
-        "singleton": "singleton_deviation",
-    }
-    for alias, name in aliases.items():
-        if alias not in values:
-            continue
-        if name in values:
-            raise TypeError(
-                f"QC configuration cannot contain both {alias} and {name}."
-            )
-        values[name] = values.pop(alias)
     unknown = set(values) - set(specs)
     if unknown:
         raise TypeError(f"Unexpected QC configuration field: {sorted(unknown)[0]}")

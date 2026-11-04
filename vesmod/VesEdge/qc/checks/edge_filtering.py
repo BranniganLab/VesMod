@@ -124,9 +124,7 @@ class CurvatureCheck(QCCheck):
             help=(
                 "Maximum dimensionless angular-resolution-normalized wrapped "
                 "finite second difference of the median-radius-normalized "
-                "contour allowed by curvature QC. The default threshold "
-                "21.520619405632544 is calibrated to the historical 120-sample "
-                "score scale."
+                "contour allowed by curvature QC. Default: 21.520619405632544."
             ),
         )
         parser.add_argument(

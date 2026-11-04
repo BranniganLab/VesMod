@@ -115,49 +115,14 @@ class QCFlag(Enum):
 
 @dataclass
 class EdgeQC:
-    """
-    Quality-control information associated with one detected edge.
+    """Quality-control flags and check-owned measurements for one detection.
 
-    Attributes
-    ----------
-    flags : set[QCFlag]
-        QC checks that the edge has failed.
-    curvature_score : float | None
-        Angular-resolution-normalized maximum absolute wrapped finite second
-        difference of the median-radius-normalized analysis contour. The
-        angular spacing is measured in radians, and the score is dimensionless.
-        None if curvature QC has not been run.
-    area_pixels2 : float | None
-        Area enclosed by the native contour in squared pixels. None if area QC
-        has not been run.
-    relative_area_deviation : float | None
-        Absolute fractional deviation from the trajectory median contour area.
-        None if area QC has not been run.
-    localized_deviation_score : float | None
-        Maximum normalized residual from the low-order localized-deviation
-        baseline. None when localized-deviation QC has not been run.
-    passed : bool
-        Whether the edge has passed all QC checks that have been run.
+    Each check stores its measurements in `diagnostics`. A detection passes
+    when `flags` is empty.
     """
 
     flags: set[QCFlag | str] = field(default_factory=set)
     diagnostics: dict[str, object] = field(default_factory=dict)
-
-    def __getattr__(self, name: str) -> object:
-        """Read a check-owned diagnostic retained in the generic store."""
-        supported_diagnostics = {
-            "curvature_score",
-            "area_pixels2",
-            "relative_area_deviation",
-            "median_radius_pixels",
-            "localized_deviation_score",
-            "localized_deviation_support_samples",
-            "singleton_count",
-            "singleton_score",
-        }
-        if name in supported_diagnostics:
-            return self.diagnostics.get(name)
-        raise AttributeError(name)
 
     @property
     def passed(self) -> bool:
@@ -241,12 +206,6 @@ class VesicleQCResult:
     def for_check(self, name: str) -> object | None:
         """Return a registered check's result, if that check produced one."""
         return self.results.get(name)
-
-    def __getattr__(self, name: str) -> object:
-        """Provide read-only access for established built-in result keys."""
-        if name in self.results or name in {"curvature", "area"}:
-            return self.results.get(name)
-        raise AttributeError(name)
 
     @property
     def passed(self) -> bool:

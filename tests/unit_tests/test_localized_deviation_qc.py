@@ -26,11 +26,7 @@ def qc_config():
     return VesicleQCConfig(
         curvature=CurvatureQCConfig(0.0, enabled=False),
         area=AreaQCConfig(enabled=False),
-        baseline=LocalizedDeviationQCConfig(
-            enabled=True,
-            order=3,
-            max_residual_fraction=0.05,
-        ),
+        localized_deviation=LocalizedDeviationQCConfig(enabled=True, order=3, max_residual_fraction=0.05),
     )
 
 
@@ -45,7 +41,7 @@ def test_localized_deviation_qc_accepts_smooth_contour():
     edges.run_qc(qc_config())
 
     assert QCFlag.LOCALIZED_DEVIATION not in detection.qc.flags
-    assert detection.qc.localized_deviation_score == pytest.approx(0.0)
+    assert detection.qc.diagnostics["localized_deviation_score"] == pytest.approx(0.0)
 
 
 def test_localized_deviation_qc_rejects_localized_deviation():
@@ -62,7 +58,7 @@ def test_localized_deviation_qc_rejects_localized_deviation():
         edges.run_qc(qc_config())
 
     assert QCFlag.LOCALIZED_DEVIATION in detection.qc.flags
-    assert detection.qc.localized_deviation_score > 0.05
+    assert detection.qc.diagnostics.get("localized_deviation_score") > 0.05
 
 
 def test_support_aware_localized_qc_rejects_narrow_moderate_lobe():
@@ -73,18 +69,13 @@ def test_support_aware_localized_qc_rejects_narrow_moderate_lobe():
     config = VesicleQCConfig(
         curvature=CurvatureQCConfig(0.0, enabled=False),
         area=AreaQCConfig(enabled=False),
-        baseline=LocalizedDeviationQCConfig(
-            enabled=True,
-            max_residual_fraction=0.05,
-            support_residual_fraction=0.03,
-            max_support_samples=4,
-        ),
+        localized_deviation=LocalizedDeviationQCConfig(enabled=True, max_residual_fraction=0.05, support_residual_fraction=0.03, max_support_samples=4),
     )
 
     with pytest.raises(ValueError, match="no frames passed"):
         VesicleEdges(EdgeExtractionConfig(), [detection]).run_qc(config)
 
-    assert detection.qc.localized_deviation_support_samples <= 4
+    assert detection.qc.diagnostics.get("localized_deviation_support_samples") <= 4
 
 
 def test_localized_deviation_primary_threshold_is_inclusive(monkeypatch):

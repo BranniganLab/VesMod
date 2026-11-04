@@ -159,42 +159,10 @@ def test_vesicle_qc_config_requires_boolean_enable_flags(factory):
         factory()
 
 
-def test_vesicle_qc_config_migrates_legacy_flat_dictionary():
-    """Old provenance is translated at the deserialization boundary."""
-    config = VesicleQCConfig.from_dict(
-        {
-            "curvature_threshold": 7.0,
-            "enable_area_qc": False,
-        }
-    )
-
-    assert config.curvature.threshold == 7.0
-    assert not config.area.enabled
 
 
-def test_vesicle_qc_config_accepts_legacy_radius_alias():
-    """Legacy nested radius provenance maps to minimum_radius."""
-    config = VesicleQCConfig.from_dict(
-        {
-            "curvature": {"threshold": 5.0},
-            "radius": {"enabled": True, "min_median_radius_pixels": 3.0},
-        }
-    )
-
-    assert config.minimum_radius.enabled
-    assert config.minimum_radius.min_median_radius_pixels == 3.0
 
 
-def test_vesicle_qc_config_rejects_radius_alias_collision():
-    """Both nested radius spellings cannot be supplied together."""
-    with pytest.raises(TypeError, match="both radius and minimum_radius"):
-        VesicleQCConfig.from_dict(
-            {
-                "curvature": {"threshold": 5.0},
-                "radius": {},
-                "minimum_radius": {},
-            }
-        )
 
 
 def test_vesicle_qc_config_uses_registered_defaults_for_omitted_checks():
@@ -209,10 +177,6 @@ def test_vesicle_qc_config_uses_registered_defaults_for_omitted_checks():
     assert config.area.max_relative_deviation == pytest.approx(0.4)
 
 
-def test_vesicle_qc_config_rejects_numeric_positional_config_with_extra_values():
-    """Legacy numeric curvature input cannot silently discard positional data."""
-    with pytest.raises(TypeError, match="only positional"):
-        VesicleQCConfig(0.1, AreaQCConfig())
 
 
 def test_vesicle_qc_config_contains_independent_check_configs():
@@ -220,7 +184,7 @@ def test_vesicle_qc_config_contains_independent_check_configs():
     curvature = CurvatureQCConfig(5.0, enabled=False)
     area = AreaQCConfig(0.4)
 
-    config = VesicleQCConfig(curvature, area)
+    config = VesicleQCConfig(curvature=curvature, area=area)
 
     assert config.curvature is curvature
     assert config.area is area
@@ -241,13 +205,3 @@ def test_vesicle_qc_config_rejects_unknown_or_mixed_nested_fields(values):
 
 
 
-def test_removed_inner_vesicle_settings_in_old_manifests():
-    """Replay can ignore disabled settings but must reject a removed active check."""
-    config = VesicleQCConfig.from_dict({"internal_vesicle": {"enabled": False}})
-    assert "internal_vesicle" not in config.to_dict()
-    with pytest.raises(ValueError, match="was removed"):
-        VesicleQCConfig.from_dict({"internal_vesicle": {"enabled": True}})
-    with pytest.raises(ValueError, match="was removed"):
-        VesicleQCConfig.from_dict({
-            "curvature_threshold": 5.0, "enable_internal_vesicle_qc": True,
-        })

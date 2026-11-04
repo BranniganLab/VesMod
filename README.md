@@ -97,7 +97,7 @@ vesedge extract "./videos" \
     --output-dir ./checkpoints
 ```
 
-Calibration is required explicitly. For intentionally uncalibrated or dimensionless workflows, use `--assume-one-pixel-per-micron`. Angular sampling defaults to 120, matching the Python API; use `--n-angular-samples native` to retain the extractor's native sampling. See the [extraction-default migration guide](docs/VesEdge_extraction_defaults_migration.md) for older CLI invocations.
+Calibration is required explicitly. For intentionally uncalibrated or dimensionless workflows, use `--assume-one-pixel-per-micron`. Angular sampling defaults to 120, matching the Python API; use `--n-angular-samples native` to retain the extractor's native sampling.
 
 This creates one reusable `.npz` checkpoint per input video:
 
@@ -332,7 +332,6 @@ so VesMod does not convert it to SI surface tension.
 | Component | Documentation |
 | --- | --- |
 | VesEdge | [VesEdge CLI guide](docs/VesEdge_CLI_README.md) |
-| VesEdge extraction migration | [Explicit calibration and angular sampling](docs/VesEdge_extraction_defaults_migration.md) |
 | EdgeMod | [EdgeMod CLI guide](docs/EdgeMod_CLI_README.md) |
 
 ---

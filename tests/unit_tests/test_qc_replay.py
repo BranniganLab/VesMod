@@ -1,5 +1,8 @@
 """Tests for recorded VesEdge QC replay."""
 
+from vesmod.VesEdge.experimental.area_qc import AreaQCConfig
+from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
+from vesmod.VesEdge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
 import json
 
 import numpy as np
@@ -10,7 +13,11 @@ from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
 
 
 def _selection(tmp_path, checkpoint, config=None):
-    config = config or VesicleQCConfig(curvature_threshold=5.0)
+    config = config or VesicleQCConfig(
+        curvature=CurvatureQCConfig(threshold=5.0, enabled=True),
+        area=AreaQCConfig(max_relative_deviation=0.25, enabled=True),
+        localized_deviation=LocalizedDeviationQCConfig(enabled=False),
+    )
     provenance_path = tmp_path / "qc" / "vesedge_qc.json"
     provenance_path.parent.mkdir()
     provenance_path.write_text(json.dumps({

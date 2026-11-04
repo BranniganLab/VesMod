@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 # tests/test_spectrum.py
+from vesmod.VesEdge.experimental.area_qc import AreaQCConfig
+from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
+from vesmod.VesEdge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
 import json
 import subprocess
 import sys
@@ -78,9 +81,9 @@ def test_init_from_vesicle_edges_uses_only_accepted_detections():
         n_angular_samples=4,
     )
     qc_config = VesicleQCConfig(
-        curvature_threshold=10.0,
-        enable_curvature_qc=False,
-        enable_area_qc=False,
+        curvature=CurvatureQCConfig(threshold=10.0, enabled=False),
+        area=AreaQCConfig(max_relative_deviation=0.25, enabled=False),
+        localized_deviation=LocalizedDeviationQCConfig(enabled=False),
     )
 
     accepted_contour = ImageContour((0.0, 0.0), np.full(4, 4.0))

@@ -1,5 +1,8 @@
 """Tests for the experimental internal-structure CLI command."""
 
+from vesmod.VesEdge.experimental.area_qc import AreaQCConfig
+from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
+from vesmod.VesEdge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
 import argparse
 from contextlib import nullcontext
 import csv
@@ -285,8 +288,7 @@ def test_load_qc_selection_reconstructs_recorded_config(tmp_path):
             {
                 "checkpoint_manifest": [str(checkpoint.resolve())],
                 "qc_config": {
-                    "curvature_threshold": 7.0,
-                    "enable_curvature_qc": True,
+                    "curvature": {"threshold": 7.0, "enabled": True},
                 },
             }
         ),
@@ -352,7 +354,11 @@ def test_process_checkpoint_does_not_measure_qc_rejected_frame(
         internal_structures_cli.config_from_args(args),
         RecordedQCSelection(
             tmp_path / "qc" / "vesedge_qc.json",
-            VesicleQCConfig(curvature_threshold=5.0),
+            VesicleQCConfig(
+                curvature=CurvatureQCConfig(threshold=5.0, enabled=True),
+                area=AreaQCConfig(max_relative_deviation=0.25, enabled=True),
+                localized_deviation=LocalizedDeviationQCConfig(enabled=False),
+            ),
             frozenset({checkpoint.resolve()}),
         ),
     )

@@ -1,5 +1,8 @@
 """Unit tests for the VesEdge command-line interface."""
 
+from vesmod.VesEdge.experimental.area_qc import AreaQCConfig, AreaQCResult
+from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
+from vesmod.VesEdge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
 import argparse
 from contextlib import nullcontext
 import json
@@ -136,10 +139,10 @@ def test_qc_parser_accepts_singleton_deviation_options(monkeypatch, tmp_path):
     assert args.min_singleton_deviation_residual_fraction == pytest.approx(0.08)
     assert args.max_singleton_deviation_width_samples == 3
     config = vesedge_cli._qc_config_from_args(args)
-    assert config.singleton.enabled
-    assert config.singleton.order == 4
-    assert config.singleton.min_residual_fraction == pytest.approx(0.08)
-    assert config.singleton.max_width_samples == 3
+    assert config.singleton_deviation.enabled
+    assert config.singleton_deviation.order == 4
+    assert config.singleton_deviation.min_residual_fraction == pytest.approx(0.08)
+    assert config.singleton_deviation.max_width_samples == 3
 
 
 def test_qc_parser_accepts_localized_deviation_support_options(
@@ -456,7 +459,7 @@ def test_process_qc_file_returns_load_error_summary(tmp_path, monkeypatch):
 def test_write_qc_provenance_rejects_different_configuration(tmp_path):
     """Test a QC directory cannot silently mix configurations."""
     checkpoint = tmp_path / "sample.npz"
-    config = VesicleQCConfig(5.0)
+    config = VesicleQCConfig(curvature=CurvatureQCConfig(threshold=5.0))
     vesedge_cli._write_qc_provenance(
         tmp_path,
         config,
@@ -466,7 +469,7 @@ def test_write_qc_provenance_rejects_different_configuration(tmp_path):
         overwrite=False,
     )
 
-    different = VesicleQCConfig(8.0)
+    different = VesicleQCConfig(curvature=CurvatureQCConfig(threshold=8.0))
     with pytest.raises(ValueError, match="different input selection or QC configuration"):
         vesedge_cli._write_qc_provenance(
             tmp_path,
@@ -483,7 +486,7 @@ def test_write_qc_provenance_records_manifest_and_recursive_setting(tmp_path):
     input_root = tmp_path / "checkpoints"
     first = input_root / "a.npz"
     second = input_root / "nested" / "b.npz"
-    config = VesicleQCConfig(5.0)
+    config = VesicleQCConfig(curvature=CurvatureQCConfig(threshold=5.0))
 
     vesedge_cli._write_qc_provenance(
         tmp_path / "qc",
@@ -504,7 +507,7 @@ def test_overwrite_incompatible_provenance_removes_stale_outputs(tmp_path):
     """Test incompatible overwrite clears only recorded QC artifacts."""
     output_dir = tmp_path / "qc"
     checkpoint = tmp_path / "sample.npz"
-    config = VesicleQCConfig(5.0)
+    config = VesicleQCConfig(curvature=CurvatureQCConfig(threshold=5.0))
     vesedge_cli._write_qc_provenance(
         output_dir,
         config,
@@ -524,7 +527,7 @@ def test_overwrite_incompatible_provenance_removes_stale_outputs(tmp_path):
     provenance["managed_artifacts"] = ["nested/orphan.npy"]
     provenance_path.write_text(json.dumps(provenance), encoding="utf-8")
 
-    different = VesicleQCConfig(8.0)
+    different = VesicleQCConfig(curvature=CurvatureQCConfig(threshold=8.0))
     vesedge_cli._write_qc_provenance(
         output_dir,
         different,
@@ -545,7 +548,7 @@ def test_matching_qc_overwrite_replaces_provenance_after_cleanup(tmp_path):
     """Test a matching overwrite cleans once and writes new provenance."""
     output_dir = tmp_path / "qc"
     checkpoint = tmp_path / "sample.npz"
-    config = VesicleQCConfig(5.0)
+    config = VesicleQCConfig(curvature=CurvatureQCConfig(threshold=5.0))
     vesedge_cli._write_qc_provenance(
         output_dir, config, checkpoint, False, [checkpoint], overwrite=False
     )
@@ -686,15 +689,17 @@ def test_area_qc_diagnostics_preserve_frame_measurements(tmp_path):
 
     class FakeEdges:
         successful_detections = [Detection()]
-        qc_result = argparse.Namespace(
-            area=argparse.Namespace(
+        qc_result = VesicleQCResult(
+            results={"area": AreaQCResult(
                 areas_pixels2=(25.0,),
                 reference_area_pixels2=100.0,
                 relative_deviations=(0.75,),
-            ),
+                rejected_count=1,
+            )},
             config=VesicleQCConfig(
-                curvature_threshold=5.0,
-                max_relative_area_deviation=0.25,
+                curvature=CurvatureQCConfig(threshold=5.0, enabled=True),
+                area=AreaQCConfig(max_relative_deviation=0.25, enabled=True),
+                localized_deviation=LocalizedDeviationQCConfig(enabled=False),
             ),
         )
 
@@ -714,7 +719,7 @@ def test_minimum_radius_qc_diagnostics_preserve_frame_measurements(tmp_path):
     class Detection:
         frame_index = 4
         qc = argparse.Namespace(
-            median_radius_pixels=2.5,
+            diagnostics={"median_radius_pixels": 2.5},
             flags={QCFlag.MINIMUM_RADIUS},
         )
 

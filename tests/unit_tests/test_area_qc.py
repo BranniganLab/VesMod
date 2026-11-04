@@ -98,7 +98,7 @@ def test_area_qc_excludes_curvature_failures_from_reference():
 
     assert result.reference_area_pixels2 == pytest.approx(101.0)
     assert QCFlag.AREA_DEVIATION not in detections[0].qc.flags
-    assert detections[0].qc.area_pixels2 == pytest.approx(400.0)
+    assert detections[0].qc.diagnostics["area_pixels2"] == pytest.approx(400.0)
     assert all(edge.qc.passed for edge in detections[1:])
 
 
@@ -116,7 +116,7 @@ def test_area_qc_has_no_reference_when_curvature_rejects_every_frame():
     assert np.isnan(result.reference_area_pixels2)
     assert all(np.isnan(value) for value in result.relative_deviations)
     assert result.rejected_count == 0
-    assert all(edge.qc.area_pixels2 is not None for edge in detections)
+    assert all(edge.qc.diagnostics.get("area_pixels2") is not None for edge in detections)
     assert all(
         QCFlag.AREA_DEVIATION not in edge.qc.flags
         for edge in detections

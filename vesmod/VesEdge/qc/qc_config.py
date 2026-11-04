@@ -18,35 +18,14 @@ class VesicleQCConfig:
 
     def __init__(
         self,
-        *legacy_args: object,
+        *,
         checks: Mapping[str, object] | None = None,
         **values: object,
     ) -> None:
         """Create a configuration from check-keyed or named check values."""
-        if legacy_args:
-            if checks is not None or values:
-                raise TypeError(
-                    "Positional QC configuration cannot be combined with keywords."
-                )
-            if len(legacy_args) > 2:
-                raise TypeError("At most curvature and area are positional.")
-            names = ("curvature", "area")
-            if isinstance(legacy_args[0], (int, float)):
-                if len(legacy_args) != 1:
-                    raise TypeError(
-                        "A numeric legacy curvature threshold must be the only "
-                        "positional QC configuration."
-                    )
-                values = {"curvature_threshold": legacy_args[0]}
-            else:
-                values = dict(zip(names, legacy_args, strict=False))
         if checks is not None and values:
             raise TypeError("checks cannot be combined with named QC configurations.")
-        if checks is None and "curvature_threshold" in values:
-            migrated = _config_from_dict(values)
-            object.__setattr__(self, "checks", dict(migrated.checks))
-            return
-        supplied = _canonicalize_keys(dict(checks) if checks is not None else values)
+        supplied = dict(checks) if checks is not None else values
         specs = _specifications()
         unknown = set(supplied) - set(specs)
         if unknown:
@@ -70,8 +49,7 @@ class VesicleQCConfig:
             raise KeyError(f"Unknown VesEdge QC check: {name}") from error
 
     def __getattr__(self, name: str) -> object:
-        """Provide read-only named access for established built-in checks."""
-        name = _ALIASES.get(name, name)
+        """Provide read-only named access for registered checks."""
         if name in self.checks:
             return self.checks[name]
         raise AttributeError(name)
@@ -85,7 +63,7 @@ class VesicleQCConfig:
 
     @classmethod
     def from_dict(cls, values: dict) -> "VesicleQCConfig":
-        """Deserialize current nested configuration or explicit legacy data."""
+        """Deserialize check-keyed configuration."""
         if not isinstance(values, dict):
             raise TypeError("QC configuration must be a dictionary.")
         return _config_from_dict(values)
@@ -102,19 +80,3 @@ def _config_from_dict(values: dict) -> VesicleQCConfig:
 
     return config_from_dict(values)
 
-
-_ALIASES = {
-    "baseline": "localized_deviation",
-    "singleton": "singleton_deviation",
-    "radius": "minimum_radius",
-}
-
-
-def _canonicalize_keys(values: Mapping[str, object]) -> dict[str, object]:
-    canonical: dict[str, object] = {}
-    for name, value in values.items():
-        target = _ALIASES.get(name, name)
-        if target in canonical:
-            raise TypeError(f"QC configuration cannot contain both aliases for {target}.")
-        canonical[target] = value
-    return canonical

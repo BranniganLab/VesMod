@@ -200,7 +200,7 @@ There is no silent `1 pixel / micron` CLI default. Workflows that intentionally 
 vesedge extract "sample.nd2" --assume-one-pixel-per-micron
 ```
 
-New checkpoints record whether the calibration was `measured` or `assumed`. Older checkpoints remain loadable and use `unspecified` because that provenance was not recorded historically.
+Checkpoints record whether calibration was `measured` or `assumed`.
 
 ## Angular Sampling
 
@@ -221,8 +221,6 @@ vesedge extract "sample.nd2" \
     --pixels-per-micron 13.44 \
     --n-angular-samples native
 ```
-
-The previous coupled `--downsample --n-samples N` interface has been removed. See [VesEdge extraction-default migration](VesEdge_extraction_defaults_migration.md) for migration examples.
 
 ## Extraction Algorithm
 
@@ -328,7 +326,7 @@ vesedge qc "./checkpoints" \
     --output-dir ./results/no_curvature
 ```
 
-With curvature QC disabled, localized-deviation QC and any explicitly enabled experimental checks still apply. See the [threshold migration notes](VesEdge_extraction_defaults_migration.md#curvature-qc-thresholds) for converting older cutoffs.
+With curvature QC disabled, localized-deviation QC and any explicitly enabled experimental checks still apply.
 
 ## Experimental Minimum Contour Radius QC
 
@@ -478,9 +476,6 @@ This file records:
 - `localized_deviation.order`, `localized_deviation.max_residual_fraction`, and
   `localized_deviation.enabled`;
 - the settings for the experimental singleton-deviation check under `singleton_deviation`.
-
-Older manifests with inner-vesicle selection disabled can still be replayed.
-Manifests that enabled the removed check require a new QC run.
 
 Consequently, recursive and non-recursive runs, or runs resolving to different checkpoint sets, have different provenance even if their QC thresholds are identical.
 

@@ -19,7 +19,7 @@ def edge(radii):
 def test_minimum_radius_qc_rejects_collapsed_contour():
     detection = edge([1.0, 2.0, 3.0, 4.0])
     check_minimum_radius(detection, 5.0)
-    assert detection.qc.median_radius_pixels == 2.5
+    assert detection.qc.diagnostics["median_radius_pixels"] == 2.5
     assert QCFlag.MINIMUM_RADIUS in detection.qc.flags
 
 

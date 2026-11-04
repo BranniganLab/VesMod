@@ -7,6 +7,9 @@ These tests run curvature QC so reference acceptance rates remain comparable
 with the established quality checks.
 """
 
+from vesmod.VesEdge.experimental.area_qc import AreaQCConfig
+from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
+from vesmod.VesEdge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
 import json
 import math
 from pathlib import Path
@@ -78,9 +81,9 @@ def sample_edges(filename, processed_sample_edges):
         n_angular_samples=120,
     )
     qc_config = VesicleQCConfig(
-        curvature_threshold=21.520619405632544,
-        enable_curvature_qc=True,
-        enable_area_qc=False,
+        curvature=CurvatureQCConfig(threshold=21.520619405632544, enabled=True),
+        area=AreaQCConfig(max_relative_deviation=0.25, enabled=False),
+        localized_deviation=LocalizedDeviationQCConfig(enabled=False),
     )
 
     video = VesicleVideo(np.load(path))
@@ -117,7 +120,7 @@ def test_only_curvature_qc_was_run(filename, sample_edges):
     for result in sample_edges.detections:
         if isinstance(result, EdgeDetectionFailure):
             continue
-        assert result.qc.curvature_score is not None
+        assert result.qc.diagnostics.get("curvature_score") is not None
         assert result.qc.flags <= {QCFlag.CURVATURE}
 
 

@@ -1,5 +1,8 @@
 """Tests for VesEdge contour trace overlays."""
 
+from vesmod.VesEdge.experimental.area_qc import AreaQCConfig
+from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
+from vesmod.VesEdge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
 import json
 from types import SimpleNamespace
 
@@ -34,7 +37,11 @@ def _edges():
         for index in range(3)
     ]
     edges = VesicleEdges(EdgeExtractionConfig(pixels_per_micron=2), detections)
-    edges.qc_result = VesicleQCResult(config=VesicleQCConfig(curvature_threshold=1))
+    edges.qc_result = VesicleQCResult(config=VesicleQCConfig(
+        curvature=CurvatureQCConfig(threshold=1, enabled=True),
+        area=AreaQCConfig(max_relative_deviation=0.25, enabled=True),
+        localized_deviation=LocalizedDeviationQCConfig(enabled=False),
+    ))
     return edges
 
 

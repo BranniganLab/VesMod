@@ -16,18 +16,24 @@ def test_singleton_qc_rejects_narrow_excursion_and_registry_runs_it():
     radii = np.full(120, 40.0)
     radii[30] = 45.0
     edge = make_edge(radii)
-    config = VesicleQCConfig(curvature=CurvatureQCConfig(threshold=1, enabled=False), singleton=SingletonDeviationQCConfig(enabled=True))
+    config = VesicleQCConfig(
+        curvature=CurvatureQCConfig(threshold=1, enabled=False),
+        singleton_deviation=SingletonDeviationQCConfig(enabled=True),
+    )
     from vesmod.VesEdge.qc.qc_checks import run_configured_qc_checks
     run_configured_qc_checks([edge], config)
     assert QCFlag.SINGLETON_DEVIATION in edge.qc.flags
-    assert edge.qc.singleton_count == 1
+    assert edge.qc.diagnostics["singleton_count"] == 1
 
 
 def test_singleton_qc_preserves_broad_shape():
     radii = np.full(120, 40.0)
     radii[25:35] = 45.0
     edge = make_edge(radii)
-    config = VesicleQCConfig(curvature=CurvatureQCConfig(threshold=1, enabled=False), singleton=SingletonDeviationQCConfig(enabled=True))
+    config = VesicleQCConfig(
+        curvature=CurvatureQCConfig(threshold=1, enabled=False),
+        singleton_deviation=SingletonDeviationQCConfig(enabled=True),
+    )
     from vesmod.VesEdge.qc.qc_checks import run_configured_qc_checks
     run_configured_qc_checks([edge], config)
     assert QCFlag.SINGLETON_DEVIATION not in edge.qc.flags
