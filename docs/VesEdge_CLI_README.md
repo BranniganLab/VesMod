@@ -813,6 +813,12 @@ attribute. The shared data models accept any check name. For a recording
 rejection, return a reason from `trajectory_flags`. Set `requires_source_video_frames`
 when the check needs the original images.
 
+A check must define `name`, `config_type`, and `run()`. The first two can be
+class attributes. `QCCheck` declares them and `run()` as abstract, so Python
+prevents a check with missing required members from being instantiated.
+`add_cli_arguments()` is an optional empty hook. Override it together with
+`config_from_args()` to support command-line settings.
+
 `QCCheck` supplies configuration construction and dataclass serialization,
 reads the configuration's `enabled` flag, and counts rejected frames in
 `<check_name>_rejected`. It defaults to operating on contours without source

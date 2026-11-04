@@ -16,13 +16,28 @@ if TYPE_CHECKING:
 
 
 class QCCheck(ABC):
-    """Own check settings, evaluation, and any command-line reporting."""
+    """Own check settings, evaluation, and any command-line reporting.
 
-    name: str
-    config_type: type
+    Subclasses must define `name`, `config_type`, and `run`. The first two
+    can be class attributes. Override optional hooks when the check needs
+    command-line options or different reporting behavior.
+    """
+
     requires_source_video_frames = False
     summary_order = 5
     diagnostic_writers: tuple[tuple[str, Callable[[Path, VesicleEdges], None]], ...] = ()
+
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        """Define the unique registry name as a class attribute or property."""
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def config_type(self) -> type:
+        """Define the settings class as a class attribute or property."""
+        raise NotImplementedError
 
     def default_config(self) -> object:
         """Construct settings using the configuration class's defaults."""
@@ -40,14 +55,23 @@ class QCCheck(ABC):
     def run(
         self, detections: list[EdgeDetection], config: object, frames: Frames,
     ) -> object | None:
-        """Evaluate detections and optionally return check-owned diagnostics."""
+        """Evaluate detections, record rejections, and return diagnostics.
+
+        `detections` contains successful contour extractions, `config` is
+        this check's settings object, and `frames` provides source images
+        when supplied. Record frame rejections in `detection.qc.flags` and
+        measurements in `detection.qc.diagnostics`. Return the check's
+        aggregate result, or `None` when there is no aggregate result.
+        """
+        raise NotImplementedError
 
     def trajectory_flags(self, result: object | None) -> frozenset[str]:
-        """Return whole-recording rejection reasons represented by the result."""
+        """Override to return whole-recording rejection reasons for the result."""
         return frozenset()
 
     def add_cli_arguments(self, parser: ArgumentParser) -> None:
-        """Register any command-line options for this check."""
+        """Override to add command-line options for this check."""
+        pass
 
     def config_from_args(self, args: Namespace) -> object:
         """Construct validated settings from command-line arguments."""
