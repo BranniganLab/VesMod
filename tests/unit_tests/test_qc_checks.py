@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import numpy as np
 
 
-from vesmod.VesEdge.qc import qc_checks
+from vesmod.VesEdge.qc import qc_checks, qc_registry
 from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
 from vesmod.VesEdge.models import EdgeDetection, ImageContour
 from vesmod.VesEdge.qc.contract import QCCheck
@@ -18,7 +18,7 @@ from vesmod.cli import vesedge_cli
 
 
 def test_builtin_qc_check_order_is_explicit():
-    assert [check.name for check in qc_checks.QC_CHECKS] == [
+    assert [check.name for check in qc_registry.QC_CHECKS] == [
         "curvature",
         "minimum_radius",
         "localized_deviation",
@@ -46,7 +46,7 @@ def test_registry_runs_enabled_checks_in_declared_order(monkeypatch):
             calls.append(self.name)
             return qc_checks.QCCheckOutcome()
 
-    monkeypatch.setattr(qc_checks, "QC_CHECKS", (Check("first"), Check("second")))
+    monkeypatch.setattr(qc_registry, "QC_CHECKS", (Check("first"), Check("second")))
 
     qc_checks.run_configured_qc_checks([], SimpleNamespace(get_config=lambda name: None))
 
@@ -95,7 +95,7 @@ def test_one_registration_drives_cli_reports_and_replay(tmp_path, monkeypatch):
         def summary_values(self, edges):
             return {"example_rejected": edges.qc_result.get_result(self.name)}
 
-    monkeypatch.setattr(qc_checks, "QC_CHECKS", (*qc_checks.QC_CHECKS, ExampleCheck()))
+    monkeypatch.setattr(qc_registry, "QC_CHECKS", (*qc_registry.QC_CHECKS, ExampleCheck()))
     checkpoint = tmp_path / "sample.npz"
     source = tmp_path / "source.npy"
     frames = np.zeros((2, 4, 4))

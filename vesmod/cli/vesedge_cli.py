@@ -12,7 +12,7 @@ from pathlib import Path
 
 
 from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
-from vesmod.VesEdge.qc import qc_checks
+from vesmod.VesEdge.qc import qc_checks, qc_registry
 from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
 from vesmod.VesEdge.vesicle_edges import VesicleEdges
 from vesmod.VesEdge.vesicle_video import VesicleVideo
@@ -176,7 +176,7 @@ def _add_qc_parser(subparsers) -> None:
         ),
     )
     add_batch_policy_argument(parser)
-    for check in qc_checks.QC_CHECKS:
+    for check in qc_registry.QC_CHECKS:
         check.add_cli_arguments(parser)
     parser.add_argument(
         "--overwrite",
@@ -300,7 +300,7 @@ def _qc_config_from_args(args: argparse.Namespace) -> VesicleQCConfig:
     """Build the QC configuration requested on the command line."""
     return VesicleQCConfig(checks={
         check.name: check.config_from_args(args)
-        for check in qc_checks.QC_CHECKS
+        for check in qc_registry.QC_CHECKS
     })
 
 
@@ -505,7 +505,7 @@ def process_qc_file(
         qc_error,
     )
     if edges.qc_result is not None:
-        for check in qc_checks.QC_CHECKS:
+        for check in qc_registry.QC_CHECKS:
             if edges.qc_result.get_result(check.name) is None:
                 continue
             for suffix, write in check.diagnostic_writers:
@@ -545,7 +545,7 @@ def _record_qc_artifacts(
 def _check_summary(edges: VesicleEdges | None = None) -> dict:
     """Collect registered check columns and, when available, their values."""
     values = {}
-    for check in sorted(qc_checks.QC_CHECKS, key=lambda check: check.summary_order):
+    for check in sorted(qc_registry.QC_CHECKS, key=lambda check: check.summary_order):
         values.update(check.summary_defaults)
         if edges is not None:
             values.update(check.summary_values(edges))

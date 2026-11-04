@@ -1,4 +1,4 @@
-"""Ordered registry and execution of VesEdge quality-control checks."""
+"""Execute and deserialize registered VesEdge quality-control checks."""
 
 from __future__ import annotations
 
@@ -7,11 +7,7 @@ from numpy.typing import NDArray
 
 from ..io.frame_source import OnDemandFrameSequence
 from ..models import EdgeDetection
-from ..experimental.area_qc import AreaDeviationCheck
-from .checks.edge_filtering import CurvatureCheck
-from .checks.localized_deviation_qc import LocalizedDeviationCheck
-from ..experimental.minimum_radius_qc import MinimumRadiusCheck
-from ..experimental.singleton_qc import SingletonDeviationCheck
+from . import qc_registry
 from .contract import QCCheck
 from .qc_config import VesicleQCConfig
 
@@ -27,19 +23,10 @@ class QCCheckOutcome:
     trajectory_flags: frozenset[str] = frozenset()
 
 
-QC_CHECKS: tuple[QCCheck, ...] = (
-    CurvatureCheck(),
-    MinimumRadiusCheck(),
-    LocalizedDeviationCheck(),
-    SingletonDeviationCheck(),
-    AreaDeviationCheck(),
-)
-
-
 def checks_requiring_source_video_frames(config: VesicleQCConfig) -> tuple[QCCheck, ...]:
     """Return enabled checks that need source images."""
     return tuple(
-        check for check in QC_CHECKS
+        check for check in qc_registry.QC_CHECKS
         if check.requires_source_video_frames and check.enabled(config.get_config(check.name))
     )
 
@@ -52,7 +39,7 @@ def run_configured_qc_checks(
     """Run the explicit ordered registry and combine aggregate outcomes."""
     results = {}
     trajectory_flags = set()
-    for check in QC_CHECKS:
+    for check in qc_registry.QC_CHECKS:
         check_config = config.get_config(check.name)
         if not check.enabled(check_config):
             continue
@@ -70,7 +57,7 @@ def run_configured_qc_checks(
 
 def config_from_dict(values: dict) -> VesicleQCConfig:
     """Deserialize check-keyed configuration."""
-    specs = {check.name: check for check in QC_CHECKS}
+    specs = {check.name: check for check in qc_registry.QC_CHECKS}
     unknown = set(values) - set(specs)
     if unknown:
         raise TypeError(f"Unexpected QC configuration field: {sorted(unknown)[0]}")

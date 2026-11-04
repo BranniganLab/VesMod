@@ -70,9 +70,9 @@ class VesicleQCConfig:
 
 
 def _specifications():
-    from .qc_checks import QC_CHECKS
+    from . import qc_registry
 
-    return {spec.name: spec for spec in QC_CHECKS}
+    return {spec.name: spec for spec in qc_registry.QC_CHECKS}
 
 
 def _config_from_dict(values: dict) -> VesicleQCConfig:
