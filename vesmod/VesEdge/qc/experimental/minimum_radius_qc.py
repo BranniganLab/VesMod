@@ -28,24 +28,27 @@ class MinimumRadiusQCConfig:
         object.__setattr__(self, "min_median_radius_pixels", require_nonnegative_real(self.min_median_radius_pixels, "min_median_radius_pixels"))
 
 
-def check_minimum_radius(edge: EdgeDetection, min_median_radius_pixels: float) -> None:
-    """Reject contours containing invalid or exceptionally small radii.
-
-    The median native contour radius is recorded for diagnostics. Any
-    nonfinite or nonpositive sample fails immediately; otherwise a contour
-    fails when its median radius is below the configured pixel threshold.
-    """
+def check_minimum_radius(
+    detections: list[EdgeDetection], min_median_radius_pixels: float,
+) -> QCResult:
+    """Reject invalid radii or medians below the configured pixel threshold."""
     if not np.isfinite(min_median_radius_pixels) or min_median_radius_pixels < 0:
         raise ValueError("min_median_radius_pixels must be finite and non-negative.")
-    radii = np.asarray(edge.full_contour.r, dtype=float)
-    median = float(np.median(radii)) if radii.size else float("nan")
-    edge.qc.diagnostics["median_radius_pixels"] = median
-    if not np.all(np.isfinite(radii)) or np.any(radii <= 0):
-        edge.qc.flags.add(CHECK_NAME)
-    elif median < min_median_radius_pixels:
-        edge.qc.flags.add(CHECK_NAME)
-    else:
-        edge.qc.flags.discard(CHECK_NAME)
+    medians, rejected = [], []
+    for edge in detections:
+        radii = np.asarray(edge.full_contour.r, dtype=float)
+        median = float(np.median(radii)) if radii.size else float("nan")
+        medians.append(median)
+        rejected.append(bool(
+            not radii.size or not np.all(np.isfinite(radii))
+            or np.any(radii <= 0) or median < min_median_radius_pixels
+        ))
+    return QCResult(
+        check_name=CHECK_NAME,
+        frame_indices=tuple(edge.frame_index for edge in detections),
+        rejected=tuple(rejected),
+        diagnostics={"median_radius_pixels": tuple(medians)},
+    )
 
 
 def _write_minimum_radius_qc_csv(path: Path, edges) -> None:
@@ -60,14 +63,16 @@ def _write_minimum_radius_qc_csv(path: Path, edges) -> None:
             ],
         )
         writer.writeheader()
-        for detection in edges.successful_detections:
+        result = edges.qc_result.get_result(CHECK_NAME)
+        for frame_index, median, rejected in zip(
+            result.frame_indices, result.diagnostics["median_radius_pixels"],
+            result.rejected, strict=True,
+        ):
             writer.writerow(
                 {
-                    "frame_index": detection.frame_index,
-                    "median_radius_pixels": detection.qc.diagnostics.get("median_radius_pixels"),
-                    "minimum_radius_rejected": (
-                        CHECK_NAME in detection.qc.flags
-                    ),
+                    "frame_index": frame_index,
+                    "median_radius_pixels": median,
+                    "minimum_radius_rejected": rejected,
                 }
             )
 
@@ -78,15 +83,11 @@ class MinimumRadiusCheck(QCCheck):
     name = CHECK_NAME
     diagnostic_fields = ('median_radius_pixels',)
     config_type = MinimumRadiusQCConfig
+
     def run(self, detections, config, frames) -> QCResult:
         """Apply the minimum-radius check to each detection."""
         del frames
-        for detection in detections:
-            check_minimum_radius(
-                detection,
-                min_median_radius_pixels=config.min_median_radius_pixels,
-            )
-        return self.make_result(detections)
+        return check_minimum_radius(detections, config.min_median_radius_pixels)
 
     def add_cli_arguments(self, parser) -> None:
         """Register command-line options for this check."""

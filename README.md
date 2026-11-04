@@ -249,7 +249,7 @@ edges.run_qc(permissive_qc)
 edges.export_accepted_radii("sample_permissive.npy")
 ```
 
-After a completed QC run, `edges.qc_result` contains the aggregate result for the `VesicleQCConfig` that was applied. Per-detection QC annotations remain available on each `EdgeDetection.qc`. `export_accepted_radii()` writes the analysis-contour radii from all accepted detections, converted to microns, as the `.npy` handoff to EdgeMod.
+After a completed QC run, `edges.qc_result` contains the aggregate result for the `VesicleQCConfig` that was applied. `edges.qc_result.rejected_by(frame_index)` reports the checks that rejected a source frame, and `diagnostics_for_frame(frame_index)` returns its measurements grouped by check. The final selection is available as `accepted_frame_indices`; see the [QC guide](docs/QC_checks.md#combining-decisions) to combine failures with an explicit rejection rule. `export_accepted_radii()` writes the analysis-contour radii from all accepted detections, converted to microns, as the `.npy` handoff to EdgeMod.
 
 Fit the accepted contours with the stable core EdgeMod API:
 

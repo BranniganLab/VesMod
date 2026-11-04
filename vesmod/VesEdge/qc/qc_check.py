@@ -61,17 +61,11 @@ class QCCheck(ABC):
     ) -> QCResult:
         """Return standard decisions and declared measurements for every frame.
 
-        The runner validates the result and applies its decisions and
-        diagnostics to the detections. Source images are supplied in frames
-        when requested by requires_source_video_frames.
+        Evaluate every detection independently of other checks and do not
+        modify detections. The runner validates and collects the result. Source
+        images are supplied when requires_source_video_frames is True.
         """
         raise NotImplementedError
-
-    def make_result(self, detections, *, extras=None) -> QCResult:
-        """Collect this check's decisions and declared measurements."""
-        return QCResult.from_detections(
-            self.name, detections, self.diagnostic_fields, extras=extras,
-        )
 
     def validate_result(self, result: QCResult) -> None:
         """Require standard decisions and explicitly declared measurements."""
@@ -104,10 +98,6 @@ class QCCheck(ABC):
         return {f"{self.name}_rejected": 0}
 
     def summary_values(self, edges: VesicleEdges) -> dict[str, object]:
-        """Count frames whose rejection flags contain this check's name."""
-        return {
-            f"{self.name}_rejected": sum(
-                self.name in detection.qc.flags
-                for detection in edges.successful_detections
-            )
-        }
+        """Count this check's individual frame rejections."""
+        result = None if edges.qc_result is None else edges.qc_result.get_result(self.name)
+        return {f"{self.name}_rejected": 0 if result is None else result.rejected_count}

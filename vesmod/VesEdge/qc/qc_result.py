@@ -82,22 +82,6 @@ class QCResult:
         """Return the number of individually rejected frames."""
         return sum(self.rejected)
 
-    @classmethod
-    def from_detections(
-        cls, check_name, detections, diagnostic_fields=(), *, extras=None,
-    ) -> QCResult:
-        """Collect a check's decisions and declared diagnostics from detections."""
-        return cls(
-            check_name=check_name,
-            frame_indices=tuple(edge.frame_index for edge in detections),
-            rejected=tuple(check_name in edge.qc.flags for edge in detections),
-            diagnostics={
-                name: tuple(edge.qc.diagnostics[name] for edge in detections)
-                for name in diagnostic_fields
-            },
-            extras={} if extras is None else extras,
-        )
-
     def to_dict(self) -> dict:
         """Return JSON data with all standard fields explicitly present."""
         return {

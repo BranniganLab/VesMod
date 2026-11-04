@@ -18,7 +18,7 @@ from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
 def edge(radii):
     """Build a detection with identical native and analysis contours."""
     contour = ImageContour((10.0, 10.0), np.asarray(radii, dtype=float))
-    return EdgeDetection(contour, contour)
+    return EdgeDetection(contour, contour, frame_index=0)
 
 
 def qc_config():
@@ -40,8 +40,8 @@ def test_localized_deviation_qc_accepts_smooth_contour():
 
     edges.run_qc(qc_config())
 
-    assert 'localized_deviation' not in detection.qc.flags
-    assert detection.qc.diagnostics["localized_deviation_score"] == pytest.approx(0.0)
+    assert not edges.qc_result.rejected_by(0)
+    assert edges.qc_result.diagnostics_for_frame(0)["localized_deviation"]["localized_deviation_score"] == pytest.approx(0.0)
 
 
 def test_localized_deviation_qc_rejects_localized_deviation():
@@ -57,8 +57,8 @@ def test_localized_deviation_qc_rejects_localized_deviation():
     with pytest.raises(ValueError, match="no frames passed"):
         edges.run_qc(qc_config())
 
-    assert 'localized_deviation' in detection.qc.flags
-    assert detection.qc.diagnostics.get("localized_deviation_score") > 0.05
+    assert "localized_deviation" in edges.qc_result.rejected_by(0)
+    assert edges.qc_result.diagnostics_for_frame(0)["localized_deviation"]["localized_deviation_score"] > 0.05
 
 
 def test_support_aware_localized_qc_rejects_narrow_moderate_lobe():
@@ -73,9 +73,10 @@ def test_support_aware_localized_qc_rejects_narrow_moderate_lobe():
     )
 
     with pytest.raises(ValueError, match="no frames passed"):
-        VesicleEdges(EdgeExtractionConfig(), [detection]).run_qc(config)
+        edges = VesicleEdges(EdgeExtractionConfig(), [detection])
+        edges.run_qc(config)
 
-    assert detection.qc.diagnostics.get("localized_deviation_support_samples") <= 4
+    assert edges.qc_result.diagnostics_for_frame(0)["localized_deviation"]["localized_deviation_support_samples"] <= 4
 
 
 def test_localized_deviation_primary_threshold_is_inclusive(monkeypatch):
@@ -86,10 +87,10 @@ def test_localized_deviation_primary_threshold_is_inclusive(monkeypatch):
         lambda radii, order: type("Fit", (), {"values": np.full(32, 9.5)})(),
     )
 
-    check_localized_deviation(
-        detection,
+    result = check_localized_deviation(
+        [detection],
         order=3,
         max_residual_fraction=0.05,
     )
 
-    assert 'localized_deviation' in detection.qc.flags
+    assert result.rejected[0]

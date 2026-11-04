@@ -127,26 +127,17 @@ def test_run_qc_restores_previous_state_when_a_check_errors(edges, qc_config, mo
     """A failed QC attempt cannot leave partially updated edge state."""
     edges.run_qc(qc_config)
     previous_result = edges.qc_result
-    previous_edge_qc = [edge.qc for edge in edges.successful_detections]
-    def fail_after_reset(detections, config, frames):
-        assert detections[0].qc is not previous_edge_qc[0]
+    def fail_without_modifying_detections(detections, config, frames):
+        assert not hasattr(detections[0], "qc")
         raise ValueError("check failed")
 
     monkeypatch.setattr(
-        "vesmod.VesEdge.vesicle_edges.run_configured_qc_checks", fail_after_reset,
+        "vesmod.VesEdge.vesicle_edges.run_configured_qc_checks", fail_without_modifying_detections,
     )
     with pytest.raises(ValueError, match="check failed"):
         edges.run_qc(qc_config)
 
     assert edges.qc_result is previous_result
-    assert all(
-        edge.qc is expected
-        for edge, expected in zip(
-            edges.successful_detections,
-            previous_edge_qc,
-            strict=True,
-        )
-    )
 
 
 def test_run_qc_preserves_frame_indices(edges, qc_config):
@@ -186,28 +177,24 @@ def test_run_qc_can_recover_previous_curvature_rejection(extraction_config):
     assert edge_results.qc_result is not None
     assert edge_results.qc_result.get_result("curvature") is not None
     assert edge_results.qc_result.get_result("curvature").rejected_count == 1
-    assert 'curvature' in detection.qc.flags
+    assert "curvature" in edge_results.qc_result.rejected_by(0)
 
     edge_results.run_qc(permissive)
 
     assert edge_results.qc_result is not None
     assert edge_results.qc_result.get_result("curvature") is not None
     assert edge_results.qc_result.get_result("curvature").rejected_count == 0
-    assert 'curvature' not in detection.qc.flags
-    assert detection.qc.passed
+    assert "curvature" not in edge_results.qc_result.rejected_by(0)
+    assert edge_results.qc_result.accepted_frame_indices == (0,)
 
 
-def test_run_qc_clears_stale_qc_state(edges, qc_config):
-    """Test that a new QC run discards prior per-detection QC state."""
-    first = edges.successful_detections[0]
-    first.qc.flags.add('curvature')
-    first.qc.diagnostics["curvature_score"] = 999.0
-
+def test_run_qc_replaces_the_previous_result(edges, qc_config):
     edges.run_qc(qc_config)
-
-    assert edges.qc_result is not None
-    assert first.qc.diagnostics["curvature_score"] == pytest.approx(0.0)
-    assert 'curvature' not in first.qc.flags
+    previous = edges.qc_result
+    edges.run_qc(qc_config)
+    assert edges.qc_result is not previous
+    assert edges.qc_result.to_dict() == previous.to_dict()
+    assert all(not hasattr(edge, "qc") for edge in edges.successful_detections)
 
 
 def test_export_accepted_radii_requires_qc(tmp_path, edges):
@@ -280,10 +267,6 @@ def test_checkpoint_round_trip_preserves_extraction_not_qc(
     assert loaded.detections[1].error == "bad frame"
     assert isinstance(loaded.detections[2], EdgeDetection)
     assert [result.frame_index for result in loaded.detections] == [0, 1, 2]
-    assert all(
-        detection.qc.diagnostics.get("curvature_score") is None
-        for detection in loaded.successful_detections
-    )
     np.testing.assert_array_equal(
         loaded.successful_detections[0].analysis_contour.r,
         first.analysis_contour.r,
@@ -417,7 +400,7 @@ def test_run_qc_applies_area_deviation_and_records_summary(extraction_config):
     assert edge_results.qc_result.get_result("area").extras["reference_area_pixels2"] == pytest.approx(
         100.0 * np.pi
     )
-    assert 'area' in edge_results.detections[2].qc.flags
+    assert "area" in edge_results.qc_result.rejected_by(2)
     assert edge_results.accepted_detections == edge_results.detections[:2]
 
 
@@ -442,7 +425,4 @@ def test_run_qc_can_disable_area_deviation(extraction_config):
 
     assert edge_results.qc_result.get_result("area") is None
     assert len(edge_results.accepted_detections) == 3
-    assert all(
-        detection.qc.diagnostics.get("area_pixels2") is None
-        for detection in edge_results.successful_detections
-    )
+    assert "area" not in edge_results.qc_result.diagnostics_for_frame(0)

@@ -129,11 +129,7 @@ def _run_pipeline(case_name: str, tmp_path: Path) -> dict[str, np.ndarray]:
                 dtype=float,
             ),
             "qc_accepted_frame_indices": np.asarray(
-                [
-                    detection.frame_index
-                    for detection in successful
-                    if detection.qc.passed
-                ],
+                edges.qc_result.accepted_frame_indices,
                 dtype=np.int64,
             ),
             "qc_accepted_radii_microns": edges.accepted_radii_microns,

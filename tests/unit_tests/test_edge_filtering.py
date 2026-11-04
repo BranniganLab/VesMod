@@ -22,16 +22,17 @@ def _make_edge(
     return EdgeDetection(
         ImageContour(origin, radii.copy()),
         ImageContour(origin, radii.copy()),
+        frame_index=0,
     )
 
 
 def test_check_curvature_accepts_smooth_contour():
     """Test that a constant-radius contour passes curvature QC."""
     edge = _make_edge()
-    check_curvature(edge, threshold=0.1)
+    result = check_curvature([edge], threshold=0.1)
 
-    assert edge.qc.diagnostics["curvature_score"] == pytest.approx(0.0)
-    assert 'curvature' not in edge.qc.flags
+    assert result.diagnostics["curvature_score"][0] == pytest.approx(0.0)
+    assert not result.rejected[0]
 
 
 def test_check_curvature_rejects_large_local_deviation():
@@ -39,10 +40,10 @@ def test_check_curvature_rejects_large_local_deviation():
     edge = _make_edge()
     edge.analysis_contour.r[3] = 20.0
 
-    check_curvature(edge, threshold=0.1)
+    result = check_curvature([edge], threshold=0.1)
 
-    assert edge.qc.diagnostics.get("curvature_score") >= 1.0
-    assert 'curvature' in edge.qc.flags
+    assert result.diagnostics["curvature_score"][0] >= 1.0
+    assert result.rejected[0]
 
 
 def test_curvature_score_is_invariant_to_uniform_contour_scaling():
@@ -52,10 +53,10 @@ def test_curvature_score_is_invariant_to_uniform_contour_scaling():
     second = _make_edge(radius=100.0)
     second.analysis_contour.r[3] = 120.0
 
-    check_curvature(first, threshold=np.finfo(float).max)
-    check_curvature(second, threshold=np.finfo(float).max)
+    first_result = check_curvature([first], threshold=np.finfo(float).max)
+    second_result = check_curvature([second], threshold=np.finfo(float).max)
 
-    assert first.qc.diagnostics["curvature_score"] == pytest.approx(second.qc.diagnostics.get("curvature_score"))
+    assert first_result.diagnostics["curvature_score"][0] == pytest.approx(second_result.diagnostics["curvature_score"][0])
 
 
 def test_check_curvature_accepts_score_equal_to_threshold():
@@ -63,15 +64,15 @@ def test_check_curvature_accepts_score_equal_to_threshold():
     edge = _make_edge()
     edge.analysis_contour.r[3] = 20.0
 
-    check_curvature(
-        edge,
+    result = check_curvature(
+        [edge],
         threshold=np.finfo(float).max,
     )
-    threshold = edge.qc.diagnostics.get("curvature_score")
+    threshold = result.diagnostics["curvature_score"][0]
 
-    check_curvature(edge, threshold=threshold)
+    result = check_curvature([edge], threshold=threshold)
 
-    assert 'curvature' not in edge.qc.flags
+    assert not result.rejected[0]
 
 
 def test_curvature_score_is_invariant_to_angular_sampling_resolution():
@@ -85,13 +86,14 @@ def test_curvature_score_is_invariant_to_angular_sampling_resolution():
         return EdgeDetection(
             ImageContour((0.0, 0.0), radii.copy()),
             ImageContour((0.0, 0.0), radii.copy()),
+            frame_index=0,
         )
 
     scores = []
     for n_samples in (80, 120, 240, 360):
         edge = make_contour(n_samples)
-        check_curvature(edge, threshold=np.finfo(float).max)
-        scores.append(edge.qc.diagnostics.get("curvature_score"))
+        result = check_curvature([edge], threshold=np.finfo(float).max)
+        scores.append(result.diagnostics["curvature_score"][0])
 
     # The finite-difference approximation converges with resolution, rather
     # than producing bitwise-identical values at every sample count.

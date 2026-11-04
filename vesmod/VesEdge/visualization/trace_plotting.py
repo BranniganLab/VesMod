@@ -115,12 +115,13 @@ def select_trace_detections(
             f"frame index must be between 0 and {len(edges.detections) - 1}."
         )
 
+    accepted = set(edges.qc_result.accepted_frame_indices)
     selected: list[EdgeDetection] = []
     for index in sorted(indices):
         result = edges.detections[index]
         if not isinstance(result, EdgeDetection):
             raise ValueError(f"Source frame {index} has no extracted contour.")
-        if not result.qc.passed:
+        if index not in accepted:
             raise ValueError(f"Source frame {index} was rejected by QC.")
         selected.append(result)
     return selected

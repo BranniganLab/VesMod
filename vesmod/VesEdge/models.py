@@ -104,24 +104,6 @@ class ImageContour:
 
 
 @dataclass
-class EdgeQC:
-    """Quality-control flags and check-owned measurements for one detection.
-
-    Each check records its registry name in `flags` when it rejects a frame
-    and stores measurements in `diagnostics`. A detection passes when
-    `flags` is empty.
-    """
-
-    flags: set[str] = field(default_factory=set)
-    diagnostics: dict[str, object] = field(default_factory=dict)
-
-    @property
-    def passed(self) -> bool:
-        """Return whether the edge has passed all QC checks run so far."""
-        return not self.flags
-
-
-@dataclass
 class EdgeDetection:
     """
     Successfully detected vesicle edge from one video frame.
@@ -134,8 +116,6 @@ class EdgeDetection:
         Contour used for subsequent analysis. If downsampling was requested,
         this is the downsampled contour. Otherwise, this is the same contour
         as `full_contour`.
-    qc : EdgeQC
-        Quality-control information associated with this detection.
     frame_index : int | None
         Zero-based source video frame index. None only for legacy/manually
         constructed results that have not yet been associated with a
@@ -144,7 +124,6 @@ class EdgeDetection:
 
     full_contour: ImageContour
     analysis_contour: ImageContour
-    qc: EdgeQC = field(default_factory=EdgeQC)
     frame_index: int | None = field(default=None, kw_only=True)
 
 
@@ -257,16 +236,34 @@ class VesicleQCResult:
 
     @property
     def accepted_frame_indices(self) -> tuple[int, ...]:
-        """Return source frames accepted by every enabled check."""
+        """Return source frames accepted by the configured rejection rule."""
         if self.trajectory_flags:
             return ()
-        rejected = {
-            index
-            for result in self.results.values()
-            for index, failed in zip(result.frame_indices, result.rejected, strict=True)
-            if failed
-        }
+        from .qc.acceptance import rejected_frame_indices
+
+        rejected = rejected_frame_indices(self.results, self.config.reject_when)
         return tuple(index for index in self.frame_indices if index not in rejected)
+
+    def rejected_by(self, frame_index: int) -> frozenset[str]:
+        """Return checks that rejected this source frame, regardless of the rule."""
+        position = self._frame_position(frame_index)
+        return frozenset(
+            name for name, result in self.results.items() if result.rejected[position]
+        )
+
+    def diagnostics_for_frame(self, frame_index: int) -> dict[str, dict[str, object]]:
+        """Return this frame's measurements grouped by check name."""
+        position = self._frame_position(frame_index)
+        return {
+            name: {key: column[position] for key, column in result.diagnostics.items()}
+            for name, result in self.results.items()
+        }
+
+    def _frame_position(self, frame_index: int) -> int:
+        try:
+            return self.frame_indices.index(frame_index)
+        except ValueError as error:
+            raise KeyError(f"Frame {frame_index} was not evaluated by this QC run.") from error
 
     @property
     def passed(self) -> bool:

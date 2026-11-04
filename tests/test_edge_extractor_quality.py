@@ -116,14 +116,14 @@ def test_only_curvature_qc_was_run(filename, sample_edges):
     for result in sample_edges.detections:
         if isinstance(result, EdgeDetectionFailure):
             continue
-        assert result.qc.diagnostics.get("curvature_score") is not None
-        assert result.qc.flags <= {'curvature'}
+        assert sample_edges.qc_result.diagnostics_for_frame(result.frame_index)["curvature"]["curvature_score"] is not None
+        assert sample_edges.qc_result.rejected_by(result.frame_index) <= {'curvature'}
 
 
 def test_extraction_quality(request, filename, sample_edges):
     """Compare the fraction of usable frames with the stored reference value."""
     n_usable_frames = sum(
-        isinstance(result, EdgeDetection) and result.qc.passed
+        isinstance(result, EdgeDetection) and result.frame_index in sample_edges.qc_result.accepted_frame_indices
         for result in sample_edges.detections
     )
     meas_pct_usbl_frames = n_usable_frames / len(sample_edges.detections)

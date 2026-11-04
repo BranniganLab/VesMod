@@ -173,7 +173,7 @@ def test_process_qc_file_runs_qc_and_saves_filtered_output(tmp_path, monkeypatch
 
     class Detection:
         def __init__(self):
-            self.qc = argparse.Namespace(flags=set(), passed=True)
+            self.frame_index = 0
 
     class FakeEdges:
         def __init__(self):
@@ -183,7 +183,7 @@ def test_process_qc_file_runs_qc_and_saves_filtered_output(tmp_path, monkeypatch
 
         def run_qc(self, config):
             observed["qc_config"] = config
-            self.qc_result = VesicleQCResult(config)
+            self.qc_result = VesicleQCResult(config, frame_indices=(0, 1))
 
         def export_accepted_radii(self, path):
             observed["npy"] = path
@@ -212,7 +212,7 @@ def test_process_qc_file_preserves_relative_output_path(tmp_path, monkeypatch):
 
     class Detection:
         def __init__(self):
-            self.qc = argparse.Namespace(flags=set(), passed=True)
+            self.frame_index = 0
 
     class FakeEdges:
         detections = [Detection()]
@@ -220,7 +220,7 @@ def test_process_qc_file_preserves_relative_output_path(tmp_path, monkeypatch):
         qc_result = None
 
         def run_qc(self, config):
-            pass
+            self.qc_result = VesicleQCResult(config, frame_indices=(0,))
 
         def export_accepted_radii(self, path):
             observed["npy"] = path
@@ -250,7 +250,7 @@ def test_process_qc_file_records_zero_accepted_frames(
 
     class Detection:
         def __init__(self):
-            self.qc = argparse.Namespace(flags=set(), passed=False)
+            self.frame_index = 0
 
     class FakeEdges:
         def __init__(self):
@@ -547,7 +547,6 @@ def test_area_qc_diagnostics_preserve_frame_measurements(tmp_path):
 
     class Detection:
         frame_index = 4
-        qc = argparse.Namespace(flags={'area'})
 
     class FakeEdges:
         successful_detections = [Detection()]
@@ -578,15 +577,14 @@ def test_area_qc_diagnostics_preserve_frame_measurements(tmp_path):
 def test_minimum_radius_qc_diagnostics_preserve_frame_measurements(tmp_path):
     """Test radius QC writes exact per-frame measurements and flags."""
 
-    class Detection:
-        frame_index = 4
-        qc = argparse.Namespace(
-            diagnostics={"median_radius_pixels": 2.5},
-            flags={'minimum_radius'},
-        )
-
     class FakeEdges:
-        successful_detections = (Detection(),)
+        qc_result = VesicleQCResult(
+            config=VesicleQCConfig(), frame_indices=(4,),
+            results={"minimum_radius": QCResult(
+                check_name="minimum_radius", frame_indices=(4,), rejected=(True,),
+                diagnostics={"median_radius_pixels": (2.5,)},
+            )},
+        )
 
     csv_path = tmp_path / "sample.minimum_radius_qc.csv"
     _write_minimum_radius_qc_csv(csv_path, FakeEdges())

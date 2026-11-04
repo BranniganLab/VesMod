@@ -116,7 +116,7 @@ def test_one_registration_drives_cli_reports_and_replay(tmp_path, monkeypatch):
     assert selection.requires_source_video_frames
     edges = VesicleEdges.from_checkpoint(checkpoint)
     assert replay_recorded_qc(edges, checkpoint, selection, frames=frames).accepted_count == 1
-    assert edges.successful_detections[0].qc.flags == {"example"}
+    assert edges.qc_result.rejected_by(0) == {"example"}
     restored = type(edges.qc_result).from_dict(
         json.loads(json.dumps(edges.qc_result.to_dict(), allow_nan=False))
     )

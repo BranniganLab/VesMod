@@ -31,21 +31,11 @@ class AreaQCConfig:
             raise TypeError("enabled must be a bool.")
 
 
-@dataclass(frozen=True)
-class AreaMeasurements:
-    """Area measurements calculated before assembling a standard QC result."""
-
-    areas_pixels2: tuple[float, ...]
-    reference_area_pixels2: float
-    relative_deviations: tuple[float, ...]
-    rejected_count: int
-
-
 def check_area_deviation(
     detections: list[EdgeDetection],
     max_relative_deviation: float,
-) -> AreaMeasurements:
-    """Flag contours that deviate from the trajectory median enclosed area.
+) -> QCResult:
+    """Evaluate contours against the trajectory median enclosed area.
 
     A detection fails only when its absolute fractional area deviation is
     strictly greater than max_relative_deviation. A detection exactly on
@@ -60,11 +50,10 @@ def check_area_deviation(
 
     Returns
     -------
-    AreaMeasurements
-        Areas, trajectory reference, deviations, and rejection count. The
-        reference area and deviations are ``nan`` when no curvature-passing
-        contour has a finite, positive area; non-finite and nonpositive areas
-        are excluded from the reference candidates.
+    QCResult
+        Areas in pixels squared, fractional deviations, and the reference
+        area. Every finite, positive contour area contributes to the median,
+        independently of other checks. An unavailable reference is None.
 
     Raises
     ------
@@ -85,13 +74,7 @@ def check_area_deviation(
         [contour_area(edge.full_contour.r) for edge in detections],
         dtype=np.float64,
     )
-    eligible = np.asarray(
-        ['curvature' not in edge.qc.flags for edge in detections],
-        dtype=bool,
-    )
-    reference_candidates = areas[
-        eligible & np.isfinite(areas) & (areas > 0)
-    ]
+    reference_candidates = areas[np.isfinite(areas) & (areas > 0)]
     if reference_candidates.size:
         reference_area = float(np.median(reference_candidates))
         deviations = np.abs(areas - reference_area) / reference_area
@@ -99,37 +82,21 @@ def check_area_deviation(
         reference_area = float("nan")
         deviations = np.full(areas.shape, np.nan, dtype=np.float64)
 
-    for edge, area, deviation, is_eligible in zip(
-        detections,
-        areas,
-        deviations,
-        eligible,
-        strict=True,
-    ):
-        edge.qc.diagnostics["area_pixels2"] = float(area)
-        edge.qc.diagnostics["relative_area_deviation"] = float(deviation)
-        if not is_eligible:
-            edge.qc.flags.discard(CHECK_NAME)
-            continue
-        exceeds_threshold = (
-            deviation > max_relative_deviation
-            and not np.isclose(
-                deviation,
-                max_relative_deviation,
-                rtol=1e-12,
-                atol=1e-15,
-            )
-        )
-        if not np.isfinite(deviation) or exceeds_threshold:
-            edge.qc.flags.add(CHECK_NAME)
-        else:
-            edge.qc.flags.discard(CHECK_NAME)
-
-    return AreaMeasurements(
-        areas_pixels2=tuple(float(value) for value in areas),
-        reference_area_pixels2=reference_area,
-        relative_deviations=tuple(float(value) for value in deviations),
-        rejected_count=sum(CHECK_NAME in edge.qc.flags for edge in detections),
+    rejected = (
+        ~np.isfinite(deviations) | (areas <= 0)
+        | ((deviations > max_relative_deviation) & ~np.isclose(
+            deviations, max_relative_deviation, rtol=1e-12, atol=1e-15,
+        ))
+    )
+    return QCResult(
+        check_name=CHECK_NAME,
+        frame_indices=tuple(edge.frame_index for edge in detections),
+        rejected=tuple(bool(value) for value in rejected),
+        diagnostics={
+            "area_pixels2": tuple(areas),
+            "relative_area_deviation": tuple(deviations),
+        },
+        extras={"reference_area_pixels2": reference_area},
     )
 
 
@@ -139,8 +106,7 @@ def _save_area_qc_plot(path: Path, edges) -> None:
 
     area_result = edges.qc_result.get_result("area")
     config = edges.qc_result.config
-    detections = edges.successful_detections
-    frame_indices = [edge.frame_index for edge in detections]
+    frame_indices = area_result.frame_indices
     areas = area_result.diagnostics["area_pixels2"]
     reference = area_result.extras["reference_area_pixels2"]
     if reference is None:
@@ -170,20 +136,19 @@ def _write_area_qc_csv(path: Path, edges) -> None:
     """Write exact per-frame contour-area QC measurements."""
     area_result = edges.qc_result.get_result("area")
     rows = []
-    for detection, area, deviation in zip(
-        edges.successful_detections,
+    for frame_index, area, deviation, rejected in zip(
+        area_result.frame_indices,
         area_result.diagnostics["area_pixels2"],
         area_result.diagnostics["relative_area_deviation"],
+        area_result.rejected,
         strict=True,
     ):
         rows.append(
             {
-                "frame_index": detection.frame_index,
+                "frame_index": frame_index,
                 "area_pixels2": area,
                 "relative_area_deviation": deviation,
-                "area_rejected": (
-                    CHECK_NAME in detection.qc.flags
-                ),
+                "area_rejected": rejected,
             }
         )
     with path.open("w", newline="", encoding="utf-8") as output_file:
@@ -207,13 +172,11 @@ class AreaDeviationCheck(QCCheck):
     diagnostic_fields = ('area_pixels2', 'relative_area_deviation')
     extra_result_fields = ('reference_area_pixels2',)
     config_type = AreaQCConfig
+
     def run(self, detections, config, frames) -> QCResult:
         """Evaluate area deviation across the detection trajectory."""
         del frames
-        measurement = check_area_deviation(detections, config.max_relative_deviation)
-        return self.make_result(
-            detections, extras={"reference_area_pixels2": measurement.reference_area_pixels2},
-        )
+        return check_area_deviation(detections, config.max_relative_deviation)
 
     def add_cli_arguments(self, parser) -> None:
         """Register command-line options for this check."""

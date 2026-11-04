@@ -41,7 +41,7 @@ def _edges():
         curvature=CurvatureQCConfig(threshold=1, enabled=True),
         area=AreaQCConfig(max_relative_deviation=0.25, enabled=True),
         localized_deviation=LocalizedDeviationQCConfig(enabled=False),
-    ))
+    ), frame_indices=(0, 1, 2))
     return edges
 
 

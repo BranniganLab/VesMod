@@ -395,6 +395,7 @@ def process_checkpoint(
         print(f"Failed to analyze {_display_path(checkpoint_path)}: {message}")
         return _error_summary(relative_path, message)
 
+    accepted = None if qc_selection is None else set(edges.qc_result.accepted_frame_indices)
     frame_rows = []
     region_rows = []
     results: dict[int, InternalStructureFrameResult] = {}
@@ -406,9 +407,7 @@ def process_checkpoint(
                 _frame_error_row(frame_index, "extraction_failure", edge_result.error)
             )
             continue
-        if qc_selection is not None and (
-            not edges.qc_result.passed or not edge_result.qc.passed
-        ):
+        if accepted is not None and frame_index not in accepted:
             frame_rows.append(
                 _frame_error_row(frame_index, "qc_rejected", "")
             )

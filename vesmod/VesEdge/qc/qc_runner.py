@@ -42,14 +42,6 @@ def run_configured_qc_checks(
         check.validate_result(result)
         if result.frame_indices != tuple(edge.frame_index for edge in detections):
             raise ValueError(f"{check.name} must return decisions for every supplied source frame.")
-        for index, detection in enumerate(detections):
-            if result.rejected[index]:
-                detection.qc.flags.add(check.name)
-            else:
-                detection.qc.flags.discard(check.name)
-            detection.qc.diagnostics.update({
-                name: values[index] for name, values in result.diagnostics.items()
-            })
         results[check.name] = result
     return VesicleQCResult(
         config=config, results=results,

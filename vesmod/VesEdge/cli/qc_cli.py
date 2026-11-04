@@ -10,6 +10,7 @@ from pathlib import Path
 from vesmod.VesEdge.io.checkpoint_sources import open_checkpoint_frames, resolve_source_path
 from vesmod.VesEdge.qc import qc_runner, qc_registry
 from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
+from vesmod.VesEdge.qc.acceptance import AnyFailed, AllFailed
 from vesmod.VesEdge.vesicle_edges import VesicleEdges
 from vesmod.cli.batch_policy import (
     add_batch_policy_argument,
@@ -52,6 +53,16 @@ def add_parser(subparsers) -> None:
             "qc_summary.csv. Use a separate directory for each QC configuration."
         ),
     )
+    rules = parser.add_mutually_exclusive_group()
+    names = tuple(check.name for check in qc_registry.QC_CHECKS)
+    rules.add_argument(
+        "--reject-if-any-fail", nargs="+", choices=names, metavar="CHECK",
+        help="Reject a frame if any named check fails; all named checks must be enabled.",
+    )
+    rules.add_argument(
+        "--reject-if-all-fail", nargs="+", choices=names, metavar="CHECK",
+        help="Reject a frame only if all named checks fail; all named checks must be enabled.",
+    )
     add_batch_policy_argument(parser)
     for check in qc_registry.QC_CHECKS:
         check.add_cli_arguments(parser)
@@ -64,10 +75,17 @@ def add_parser(subparsers) -> None:
 
 def _qc_config_from_args(args: argparse.Namespace) -> VesicleQCConfig:
     """Build the QC configuration requested on the command line."""
-    return VesicleQCConfig(checks={
-        check.name: check.config_from_args(args)
-        for check in qc_registry.QC_CHECKS
-    })
+    any_checks = getattr(args, "reject_if_any_fail", None)
+    all_checks = getattr(args, "reject_if_all_fail", None)
+    rule = None
+    if any_checks:
+        rule = AnyFailed(*any_checks)
+    elif all_checks:
+        rule = AllFailed(*all_checks)
+    return VesicleQCConfig(
+        checks={check.name: check.config_from_args(args) for check in qc_registry.QC_CHECKS},
+        reject_when=rule,
+    )
 
 
 def _qc_provenance(
@@ -176,8 +194,7 @@ def _qc_summary(
     """Build a summary row for one QCed checkpoint."""
     successful = edges.successful_detections
     accepted = (
-        0 if edges.qc_result is not None and not edges.qc_result.passed
-        else sum(detection.qc.passed for detection in successful)
+        0 if edges.qc_result is None else len(edges.qc_result.accepted_frame_indices)
     )
     return {
         "file": str(_relative_input_path(path, input_path)),

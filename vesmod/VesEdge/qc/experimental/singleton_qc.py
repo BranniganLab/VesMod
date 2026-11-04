@@ -37,13 +37,7 @@ class SingletonDeviationQCConfig:
         object.__setattr__(self, "min_residual_fraction", require_nonnegative_real(self.min_residual_fraction, "min_residual_fraction"))
 
 
-def check_singleton_deviation(
-    edge: EdgeDetection,
-    order: int,
-    min_residual_fraction: float,
-    max_width_samples: int,
-) -> None:
-    """Reject contours containing narrow excursions from a smooth baseline."""
+def _singleton_measurements(edge, order, min_residual_fraction, max_width_samples):
     radii = np.asarray(edge.analysis_contour.r, dtype=float)
     median = float(np.median(radii))
     baseline = fit_radial_baseline(radii, order).values
@@ -64,12 +58,28 @@ def check_singleton_deviation(
     widths = [width for start, width in runs if start < radii.size and start + width > radii.size]
     widths.extend(width for start, width in runs if start < radii.size and start + width <= radii.size)
     singleton_count = sum(width <= max_width_samples for width in widths)
-    edge.qc.diagnostics["singleton_count"] = singleton_count
-    edge.qc.diagnostics["singleton_score"] = float(np.max(residual)) if residual.size else 0.0
-    if singleton_count:
-        edge.qc.flags.add(CHECK_NAME)
-    else:
-        edge.qc.flags.discard(CHECK_NAME)
+    score = float(np.max(residual)) if residual.size else 0.0
+    return singleton_count, score
+
+
+def check_singleton_deviation(
+    detections: list[EdgeDetection], order: int,
+    min_residual_fraction: float, max_width_samples: int,
+) -> QCResult:
+    """Return narrow-excursion decisions, fractional scores, and counts."""
+    measured = [
+        _singleton_measurements(edge, order, min_residual_fraction, max_width_samples)
+        for edge in detections
+    ]
+    return QCResult(
+        check_name=CHECK_NAME,
+        frame_indices=tuple(edge.frame_index for edge in detections),
+        rejected=tuple(count > 0 for count, _ in measured),
+        diagnostics={
+            "singleton_score": tuple(score for _, score in measured),
+            "singleton_count": tuple(count for count, _ in measured),
+        },
+    )
 
 
 class SingletonDeviationCheck(QCCheck):
@@ -77,15 +87,13 @@ class SingletonDeviationCheck(QCCheck):
     name = CHECK_NAME
     diagnostic_fields = ('singleton_score', 'singleton_count')
     config_type = SingletonDeviationQCConfig
+
     def run(self, detections, config, frames) -> QCResult:
         """Apply singleton-deviation QC to each detection."""
         del frames
-        for detection in detections:
-            check_singleton_deviation(
-                detection,
-                config.order, config.min_residual_fraction, config.max_width_samples,
-            )
-        return self.make_result(detections)
+        return check_singleton_deviation(
+            detections, config.order, config.min_residual_fraction, config.max_width_samples,
+        )
 
     def add_cli_arguments(self, parser) -> None:
         """Register command-line options for this check."""

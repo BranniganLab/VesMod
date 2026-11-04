@@ -82,7 +82,7 @@ def test_init_from_vesicle_edges_uses_only_accepted_detections():
     )
     qc_config = VesicleQCConfig(
         curvature=CurvatureQCConfig(threshold=10.0, enabled=False),
-        area=AreaQCConfig(max_relative_deviation=0.25, enabled=False),
+        area=AreaQCConfig(max_relative_deviation=0.25, enabled=True),
         localized_deviation=LocalizedDeviationQCConfig(enabled=False),
     )
 
@@ -92,10 +92,9 @@ def test_init_from_vesicle_edges_uses_only_accepted_detections():
     rejected = EdgeDetection(rejected_contour, rejected_contour)
     edges = VesicleEdges(
         extraction_config,
-        [accepted, rejected, EdgeDetectionFailure("failure")],
+        [accepted, EdgeDetection(accepted_contour, accepted_contour), rejected, EdgeDetectionFailure("failure")],
     )
     edges.run_qc(qc_config)
-    rejected.qc.flags.add('curvature')
 
     spectrum = Spectrum(edges)
 

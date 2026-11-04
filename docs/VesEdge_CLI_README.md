@@ -746,7 +746,7 @@ edges.run_qc(
 edges.export_accepted_radii("sample.npy")
 ```
 
-A completed run is summarized by `edges.qc_result`; individual detections retain their check-specific diagnostics and pass/fail flags through `EdgeDetection.qc`. `export_accepted_radii()` writes all accepted analysis-contour radii in microns as the `.npy` handoff to EdgeMod.
+A completed run is recorded in `edges.qc_result`. Its `rejected_by(frame_index)` method reports individual check failures, `diagnostics_for_frame(frame_index)` returns measurements grouped by check, and `accepted_frame_indices` gives the final selection under the configured rejection rule. `export_accepted_radii()` writes all accepted analysis-contour radii in microns as the `.npy` handoff to EdgeMod.
 
 Visualization is kept separate from `VesicleVideo`. Use `draw_vesicle_frame(...)` or `make_vesicle_gif(...)` from `vesmod.VesEdge` when combining source frames with extracted-edge overlays.
 
@@ -801,6 +801,29 @@ GMM-based population QC has been removed because a minority radius distribution 
 
 If VesEdge contributes to a publication, please cite the associated manuscript and software repository.
 
+## Choosing how check failures are combined
+
+By default, a frame is rejected if any enabled check fails. To reject only
+when both curvature and area fail:
+
+```bash
+vesedge qc ./checkpoints --area-qc \
+    --reject-if-all-fail curvature area \
+    --output-dir ./results/qc_both
+```
+
+Use `--reject-if-any-fail curvature area` to reject if either named check
+fails. Every named check must be enabled. An explicit rule uses only the
+named checks for frame selection; other enabled checks still produce results
+and contribute their own rejection counts to the summary. A recording-level
+rejection from any enabled check always rejects the recording. The two rule
+options are mutually exclusive. Rules and check settings are saved together
+in `vesedge_qc.json` and reused by downstream commands.
+
+Area QC calculates its reference as the median of all finite, positive
+contour areas, independently of curvature decisions. See the
+[QC guide](QC_checks.md#combining-decisions) for the corresponding Python API.
+
 ## Adding a built-in QC check
 
 See the [QC developer guide](QC_checks.md) for required result fields,
@@ -810,12 +833,12 @@ Put the check and its configuration in a module under
 `vesmod/VesEdge/qc/checks/`, or `vesmod/VesEdge/qc/experimental/` for an
 experimental method. Implement
 [`QCCheck`](../vesmod/VesEdge/qc/qc_check.py) and add one instance to the ordered
-[`QC_CHECKS` registry](../vesmod/VesEdge/qc/qc_registry.py). For a frame
-rejection, add the check's name as a string to that detection's QC flags.
-Define that name in the check module and reuse it for the check's `name`
-attribute. The shared data models accept any check name. For a recording
-rejection, include a reason in `QCResult.trajectory_flags`. Set `requires_source_video_frames`
-when the check needs the original images.
+[`QC_CHECKS` registry](../vesmod/VesEdge/qc/qc_registry.py). Return a
+`QCResult` with one rejection decision per supplied detection and declared
+diagnostic measurements. Checks evaluate contours independently and do not
+modify detections. For recording rejection, include a reason in
+`QCResult.trajectory_flags`. Set `requires_source_video_frames` when the check
+needs the original images.
 
 A check must define `name`, `config_type`, and `run()`. The first two can be
 class attributes. `QCCheck` declares them and `run()` as abstract, so Python

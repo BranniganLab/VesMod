@@ -124,11 +124,9 @@ def test_invalid_check_result_restores_the_previous_completed_run(monkeypatch, m
     )
     edges.run_qc(VesicleQCConfig())
     previous = edges.qc_result
-    previous_frames = [edge.qc for edge in edges.successful_detections]
 
     class InvalidCheck(ScoreCheck):
         def run(self, detections, config, frames):
-            detections[0].qc.flags.add(self.name)
             if malformed == "none":
                 return None
             indices = (0,) if malformed == "missing_frame" else (0, 1)
@@ -144,9 +142,7 @@ def test_invalid_check_result_restores_the_previous_completed_run(monkeypatch, m
     with pytest.raises((TypeError, ValueError)):
         edges.run_qc(VesicleQCConfig())
     assert edges.qc_result is previous
-    assert all(edge.qc is saved for edge, saved in zip(
-        edges.successful_detections, previous_frames, strict=True,
-    ))
+    assert all(not hasattr(edge, "qc") for edge in edges.successful_detections)
 
 
 def test_runner_retains_a_completed_recording_rejection(monkeypatch):
@@ -168,4 +164,4 @@ def test_runner_retains_a_completed_recording_rejection(monkeypatch):
         edges.run_qc(VesicleQCConfig())
     assert edges.qc_result.trajectory_flags == frozenset({"unstable"})
     assert edges.qc_result.accepted_frame_indices == ()
-    assert edges.successful_detections[0].qc.passed
+    assert not edges.qc_result.rejected_by(0)
