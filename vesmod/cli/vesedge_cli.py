@@ -11,7 +11,8 @@ from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
 from vesmod.VesEdge.vesicle_video import VesicleVideo
 from vesmod.VesEdge.io.frame_source import open_frame_source
 from vesmod.io.path_mapping import map_output_path
-from vesmod.cli import internal_structures_cli, qc_cli
+from vesmod.VesEdge.cli import qc_cli
+from vesmod.cli import internal_structures_cli
 from vesmod.cli.gif_cli import add_gif_parser, run_gif
 from vesmod.cli.trace_plot_cli import add_trace_plot_parser, run_trace_plot
 from vesmod.cli.batch_policy import (
