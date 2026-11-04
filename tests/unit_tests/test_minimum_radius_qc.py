@@ -4,10 +4,10 @@ import pytest
 from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
 from vesmod.VesEdge.models import EdgeDetection, ImageContour
 from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
-from vesmod.VesEdge.experimental.minimum_radius_qc import MinimumRadiusQCConfig
+from vesmod.VesEdge.qc.experimental.minimum_radius_qc import MinimumRadiusQCConfig
 from vesmod.VesEdge.vesicle_edges import VesicleEdges
 from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
-from vesmod.VesEdge.experimental.minimum_radius_qc import check_minimum_radius
+from vesmod.VesEdge.qc.experimental.minimum_radius_qc import check_minimum_radius
 
 
 def edge(radii):

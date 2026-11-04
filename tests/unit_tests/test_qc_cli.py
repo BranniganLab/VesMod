@@ -10,12 +10,12 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from vesmod.VesEdge.experimental.area_qc import AreaQCConfig, AreaQCResult
+from vesmod.VesEdge.qc.experimental.area_qc import AreaQCConfig, AreaQCResult
 from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
 from vesmod.VesEdge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
 from vesmod.VesEdge.models import EdgeDetection, ImageContour, VesicleQCResult
-from vesmod.VesEdge.experimental.area_qc import _save_area_qc_plot, _write_area_qc_csv
-from vesmod.VesEdge.experimental.minimum_radius_qc import _write_minimum_radius_qc_csv
+from vesmod.VesEdge.qc.experimental.area_qc import _save_area_qc_plot, _write_area_qc_csv
+from vesmod.VesEdge.qc.experimental.minimum_radius_qc import _write_minimum_radius_qc_csv
 from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
 from vesmod.VesEdge.vesicle_edges import VesicleEdges
 from vesmod.VesEdge.qc.qc_config import VesicleQCConfig

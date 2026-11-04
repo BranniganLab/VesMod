@@ -1,7 +1,7 @@
 """Tests for singleton-deviation QC and registry integration."""
 import numpy as np
 
-from vesmod.VesEdge.experimental.singleton_qc import SingletonDeviationQCConfig
+from vesmod.VesEdge.qc.experimental.singleton_qc import SingletonDeviationQCConfig
 from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
 from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
 from vesmod.VesEdge.models import EdgeQC, EdgeDetection, ImageContour

@@ -8,9 +8,9 @@ import numpy as np
 
 from dataclasses import dataclass
 
-from ..qc.qc_check import QCCheck
-from ..contour_geometry import contour_area
-from ..models import EdgeDetection
+from ..qc_check import QCCheck
+from ...contour_geometry import contour_area
+from ...models import EdgeDetection
 from vesmod.validation import require_fraction
 
 

@@ -8,7 +8,7 @@ QC, spectrum construction, and physical fitting.
 
 from __future__ import annotations
 
-from vesmod.VesEdge.experimental.area_qc import AreaQCConfig
+from vesmod.VesEdge.qc.experimental.area_qc import AreaQCConfig
 from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
 from vesmod.VesEdge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
 from dataclasses import asdict

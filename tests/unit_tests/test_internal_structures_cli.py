@@ -1,6 +1,6 @@
 """Tests for the experimental internal-structure CLI command."""
 
-from vesmod.VesEdge.experimental.area_qc import AreaQCConfig
+from vesmod.VesEdge.qc.experimental.area_qc import AreaQCConfig
 from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
 from vesmod.VesEdge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
 import argparse

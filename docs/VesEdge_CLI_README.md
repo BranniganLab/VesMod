@@ -804,7 +804,8 @@ If VesEdge contributes to a publication, please cite the associated manuscript a
 ## Adding a built-in QC check
 
 Put the check and its configuration in a module under
-`vesmod/VesEdge/qc/checks/`. Implement
+`vesmod/VesEdge/qc/checks/`, or `vesmod/VesEdge/qc/experimental/` for an
+experimental method. Implement
 [`QCCheck`](../vesmod/VesEdge/qc/qc_check.py) and add one instance to the ordered
 [`QC_CHECKS` registry](../vesmod/VesEdge/qc/qc_registry.py). For a frame
 rejection, add the check's name as a string to that detection's QC flags.
