@@ -41,7 +41,7 @@ class VesicleQCConfig:
                 )
         object.__setattr__(self, "checks", dict(normalized))
 
-    def for_check(self, name: str) -> object:
+    def get_config(self, name: str) -> object:
         """Return the typed configuration registered under ``name``."""
         try:
             return self.checks[name]

@@ -140,7 +140,7 @@ def _save_area_qc_plot(path: Path, edges) -> None:
     """Plot contour area by source frame with configured acceptance bounds."""
     import matplotlib.pyplot as plt
 
-    area_result = edges.qc_result.for_check("area")
+    area_result = edges.qc_result.get_result("area")
     config = edges.qc_result.config
     detections = edges.successful_detections
     frame_indices = [edge.frame_index for edge in detections]
@@ -169,7 +169,7 @@ def _save_area_qc_plot(path: Path, edges) -> None:
 
 def _write_area_qc_csv(path: Path, edges) -> None:
     """Write exact per-frame contour-area QC measurements."""
-    area_result = edges.qc_result.for_check("area")
+    area_result = edges.qc_result.get_result("area")
     rows = []
     for detection, area, deviation in zip(
         edges.successful_detections,

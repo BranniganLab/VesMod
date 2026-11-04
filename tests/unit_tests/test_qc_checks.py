@@ -48,7 +48,7 @@ def test_registry_runs_enabled_checks_in_declared_order(monkeypatch):
 
     monkeypatch.setattr(qc_checks, "QC_CHECKS", (Check("first"), Check("second")))
 
-    qc_checks.run_configured_qc_checks([], SimpleNamespace(for_check=lambda name: None))
+    qc_checks.run_configured_qc_checks([], SimpleNamespace(get_config=lambda name: None))
 
     assert calls == ["first", "second"]
 
@@ -61,7 +61,7 @@ def test_one_registration_drives_cli_reports_and_replay(tmp_path, monkeypatch):
         enabled: bool = False
 
     def write_diagnostic(path, edges):
-        rejected = edges.qc_result.for_check("example")
+        rejected = edges.qc_result.get_result("example")
         path.write_text(f"rejected\n{rejected}\n", encoding="utf-8")
 
     class ExampleCheck(QCCheck):
@@ -93,7 +93,7 @@ def test_one_registration_drives_cli_reports_and_replay(tmp_path, monkeypatch):
             return 1
 
         def summary_values(self, edges):
-            return {"example_rejected": edges.qc_result.for_check(self.name)}
+            return {"example_rejected": edges.qc_result.get_result(self.name)}
 
     monkeypatch.setattr(qc_checks, "QC_CHECKS", (*qc_checks.QC_CHECKS, ExampleCheck()))
     checkpoint = tmp_path / "sample.npz"
@@ -117,7 +117,7 @@ def test_one_registration_drives_cli_reports_and_replay(tmp_path, monkeypatch):
     assert (output / "sample.example.csv").read_text(encoding="utf-8") == "rejected\n1\n"
 
     selection = load_recorded_qc(output, [checkpoint])
-    assert selection.config.for_check("example") == ExampleConfig(enabled=True)
+    assert selection.config.get_config("example") == ExampleConfig(enabled=True)
     assert selection.requires_frames
     edges = VesicleEdges.from_checkpoint(checkpoint)
     assert replay_recorded_qc(edges, checkpoint, selection, frames=frames).accepted_count == 1

@@ -70,7 +70,7 @@ qc_config = VesicleQCConfig(
 
 # edges = VesicleEdges.from_checkpoint("YOUR/PATH/HERE/sample.npz")
 # edges.run_qc(qc_config)
-# print(edges.qc_result.for_check("curvature"))
+# print(edges.qc_result.get_result("curvature"))
 # edges.export_accepted_radii("YOUR/PATH/HERE/results/qc_standard/sample.npy")
 
 # Evaluate the same checkpoint again without rerunning extraction.

@@ -506,7 +506,7 @@ def process_qc_file(
     )
     if edges.qc_result is not None:
         for check in qc_checks.QC_CHECKS:
-            if edges.qc_result.for_check(check.name) is None:
+            if edges.qc_result.get_result(check.name) is None:
                 continue
             for suffix, write in check.diagnostic_writers:
                 diagnostic_path = output_path.with_suffix(suffix)

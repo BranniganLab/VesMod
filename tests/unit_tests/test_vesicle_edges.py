@@ -117,11 +117,11 @@ def test_run_qc_records_aggregate_results(edges, qc_config):
     assert edges.qc_result is not None
     assert edges.qc_result.config is qc_config
     assert edges.qc_config is qc_config
-    assert edges.qc_result.for_check("curvature") is not None
-    assert len(edges.qc_result.for_check("curvature").scores) == 2
-    assert edges.qc_result.for_check("curvature").rejected_count == 0
-    assert edges.qc_result.for_check("area") is not None
-    assert edges.qc_result.for_check("area").rejected_count == 0
+    assert edges.qc_result.get_result("curvature") is not None
+    assert len(edges.qc_result.get_result("curvature").scores) == 2
+    assert edges.qc_result.get_result("curvature").rejected_count == 0
+    assert edges.qc_result.get_result("area") is not None
+    assert edges.qc_result.get_result("area").rejected_count == 0
 
 
 def test_run_qc_restores_previous_state_when_a_check_errors(edges, qc_config, monkeypatch):
@@ -185,15 +185,15 @@ def test_run_qc_can_recover_previous_curvature_rejection(extraction_config):
         edge_results.run_qc(strict)
     assert edge_results.qc_config is strict
     assert edge_results.qc_result is not None
-    assert edge_results.qc_result.for_check("curvature") is not None
-    assert edge_results.qc_result.for_check("curvature").rejected_count == 1
+    assert edge_results.qc_result.get_result("curvature") is not None
+    assert edge_results.qc_result.get_result("curvature").rejected_count == 1
     assert QCFlag.CURVATURE in detection.qc.flags
 
     edge_results.run_qc(permissive)
 
     assert edge_results.qc_result is not None
-    assert edge_results.qc_result.for_check("curvature") is not None
-    assert edge_results.qc_result.for_check("curvature").rejected_count == 0
+    assert edge_results.qc_result.get_result("curvature") is not None
+    assert edge_results.qc_result.get_result("curvature").rejected_count == 0
     assert QCFlag.CURVATURE not in detection.qc.flags
     assert detection.qc.passed
 
@@ -413,9 +413,9 @@ def test_run_qc_applies_area_deviation_and_records_summary(extraction_config):
         )
     )
 
-    assert edge_results.qc_result.for_check("area") is not None
-    assert edge_results.qc_result.for_check("area").rejected_count == 1
-    assert edge_results.qc_result.for_check("area").reference_area_pixels2 == pytest.approx(
+    assert edge_results.qc_result.get_result("area") is not None
+    assert edge_results.qc_result.get_result("area").rejected_count == 1
+    assert edge_results.qc_result.get_result("area").reference_area_pixels2 == pytest.approx(
         100.0 * np.pi
     )
     assert QCFlag.AREA_DEVIATION in edge_results.detections[2].qc.flags
@@ -441,7 +441,7 @@ def test_run_qc_can_disable_area_deviation(extraction_config):
         )
     )
 
-    assert edge_results.qc_result.for_check("area") is None
+    assert edge_results.qc_result.get_result("area") is None
     assert len(edge_results.accepted_detections) == 3
     assert all(
         detection.qc.diagnostics.get("area_pixels2") is None

@@ -113,11 +113,11 @@ def _run_pipeline(case_name: str, tmp_path: Path) -> dict[str, np.ndarray]:
     edges.run_qc(QC_CONFIG)
 
     successful = edges.successful_detections
-    area_result = edges.qc_result.for_check("area")
+    area_result = edges.qc_result.get_result("area")
     results.update(
         {
             "qc_curvature_scores": np.asarray(
-                edges.qc_result.for_check("curvature").scores,
+                edges.qc_result.get_result("curvature").scores,
                 dtype=float,
             ),
             "qc_areas_pixels2": np.asarray(

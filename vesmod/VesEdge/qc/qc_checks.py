@@ -40,7 +40,7 @@ def checks_requiring_frames(config: VesicleQCConfig) -> tuple[QCCheck, ...]:
     """Return enabled checks that need source images."""
     return tuple(
         check for check in QC_CHECKS
-        if check.requires_frames and check.enabled(config.for_check(check.name))
+        if check.requires_frames and check.enabled(config.get_config(check.name))
     )
 
 
@@ -53,7 +53,7 @@ def run_configured_qc_checks(
     results = {}
     trajectory_flags = set()
     for check in QC_CHECKS:
-        check_config = config.for_check(check.name)
+        check_config = config.get_config(check.name)
         if not check.enabled(check_config):
             continue
         if check.requires_frames and frames is None:

@@ -203,7 +203,7 @@ class VesicleQCResult:
         """Freeze the check-keyed result collection."""
         object.__setattr__(self, "results", dict(self.results))
 
-    def for_check(self, name: str) -> object | None:
+    def get_result(self, name: str) -> object | None:
         """Return a registered check's result, if that check produced one."""
         return self.results.get(name)
 
