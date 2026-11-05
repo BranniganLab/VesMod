@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Mapping
 
-from .acceptance import AnyFailed, AllFailed, rule_from_dict
+from .acceptance_rules import AnyFailed, AllFailed, rule_from_dict
 
 
 @dataclass(frozen=True, init=False)

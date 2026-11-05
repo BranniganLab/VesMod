@@ -23,7 +23,7 @@ from .vesicle_edges import VesicleEdges
 from .vesicle_video import VesicleVideo
 from .qc.qc_config import VesicleQCConfig
 from .qc.qc_result import QCResult
-from .qc.acceptance import AnyFailed, AllFailed
+from .qc.acceptance_rules import AnyFailed, AllFailed
 from .qc.qc_replay import (
     QCReplayResult,
     RecordedQCSelection,

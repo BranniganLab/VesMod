@@ -239,7 +239,7 @@ class VesicleQCResult:
         """Return source frames accepted by the configured rejection rule."""
         if self.trajectory_flags:
             return ()
-        from .qc.acceptance import rejected_frame_indices
+        from .qc.acceptance_rules import rejected_frame_indices
 
         rejected = rejected_frame_indices(self.results, self.config.reject_when)
         return tuple(index for index in self.frame_indices if index not in rejected)

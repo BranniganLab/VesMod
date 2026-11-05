@@ -91,7 +91,7 @@ The separate `reject_when` setting determines how their frame decisions are
 combined. By default, a frame is rejected if any enabled check rejects it.
 
 ```python
-from vesmod.VesEdge.qc.acceptance import AnyFailed, AllFailed
+from vesmod.VesEdge.qc.acceptance_rules import AnyFailed, AllFailed
 from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
 from vesmod.VesEdge.qc.experimental.area_qc import AreaQCConfig
 
