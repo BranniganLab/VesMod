@@ -1,4 +1,4 @@
-"""Unit tests for the VesEdge command-line interface."""
+"""Tests for the VesEdge extraction command."""
 
 import argparse
 from contextlib import nullcontext
@@ -8,6 +8,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from vesmod.VesEdge.cli import extraction_cli
 from vesmod.cli import vesedge_cli
 
 
@@ -57,7 +58,7 @@ def test_iter_input_files_accepts_case_insensitive_suffixes(tmp_path):
     upper.touch()
     ignored.touch()
 
-    paths = vesedge_cli.iter_input_files(tmp_path, ".npz", recursive=False)
+    paths = extraction_cli.iter_input_files(tmp_path, ".npz", recursive=False)
 
     assert paths == sorted([lower, upper])
 
@@ -69,8 +70,8 @@ def test_output_base_preserves_relative_subdirectories(tmp_path):
     second = input_root / "b" / "sample.nd2"
     output_dir = tmp_path / "outputs"
 
-    first_output = vesedge_cli._output_base(first, input_root, output_dir)
-    second_output = vesedge_cli._output_base(second, input_root, output_dir)
+    first_output = extraction_cli._output_base(first, input_root, output_dir)
+    second_output = extraction_cli._output_base(second, input_root, output_dir)
 
     assert first_output == output_dir / "a" / "sample"
     assert second_output == output_dir / "b" / "sample"
@@ -88,18 +89,18 @@ def test_process_extract_file_reports_failure_and_returns(monkeypatch, capsys):
 
     path = Path("failed.nd2")
     monkeypatch.setattr(
-        vesedge_cli,
+        extraction_cli,
         "open_frame_source",
         lambda input_path: nullcontext(np.zeros((1, 10, 10))),
     )
     monkeypatch.setattr(
-        vesedge_cli,
+        extraction_cli,
         "load_extractor_from_module",
         lambda import_string: object(),
     )
-    monkeypatch.setattr(vesedge_cli, "VesicleVideo", FailingVideo)
+    monkeypatch.setattr(extraction_cli, "VesicleVideo", FailingVideo)
 
-    vesedge_cli.process_extract_file(path, _extract_args(input_path=path))
+    extraction_cli.process_extract_file(path, _extract_args(input_path=path))
 
     captured = capsys.readouterr()
     assert (
@@ -132,18 +133,18 @@ def test_process_extract_file_saves_checkpoint_without_running_qc(
 
     path = Path("sample.nd2")
     monkeypatch.setattr(
-        vesedge_cli,
+        extraction_cli,
         "open_frame_source",
         lambda input_path: nullcontext(np.zeros((1, 10, 10))),
     )
     monkeypatch.setattr(
-        vesedge_cli,
+        extraction_cli,
         "load_extractor_from_module",
         lambda import_string: object(),
     )
-    monkeypatch.setattr(vesedge_cli, "VesicleVideo", SuccessfulVideo)
+    monkeypatch.setattr(extraction_cli, "VesicleVideo", SuccessfulVideo)
 
-    vesedge_cli.process_extract_file(path, _extract_args(tmp_path, path))
+    extraction_cli.process_extract_file(path, _extract_args(tmp_path, path))
 
     assert observed["checkpoint"] == tmp_path / "sample.npz"
     assert observed["extraction_config"].pixels_per_micron == 1.0

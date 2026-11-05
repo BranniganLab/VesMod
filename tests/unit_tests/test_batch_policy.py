@@ -19,16 +19,16 @@ def test_batch_policy_defaults_to_keep_going():
 def test_extract_batch_counts_skips_separately(monkeypatch, capsys):
     from pathlib import Path
     from argparse import Namespace
-    import vesmod.cli.vesedge_cli as vesedge_cli
+    from vesmod.VesEdge.cli import extraction_cli
 
     paths = [Path("one.nd2"), Path("two.nd2"), Path("three.nd2")]
     monkeypatch.setattr(
-        vesedge_cli,
+        extraction_cli,
         "select_input_files",
         lambda *args, **kwargs: (paths, Path("inputs")),
     )
     monkeypatch.setattr(
-        vesedge_cli,
+        extraction_cli,
         "process_extract_file",
         lambda path, args: {paths[0]: None, paths[1]: True, paths[2]: False}[path],
     )
@@ -39,7 +39,7 @@ def test_extract_batch_counts_skips_separately(monkeypatch, capsys):
         error_policy="keep-going",
     )
 
-    assert vesedge_cli._run_extract(args) == 1
+    assert extraction_cli.run(args) == 1
     assert "processed=3 succeeded=1 skipped=1 failed=1" in capsys.readouterr().err
 
 
@@ -73,5 +73,5 @@ def test_gif_batch_classifies_skip_and_failure_separately(monkeypatch, capsys, t
         error_policy="keep-going",
     )
 
-    assert gif_cli.run_gif(args) == 1
+    assert gif_cli.run(args) == 1
     assert "processed=3 succeeded=1 skipped=1 failed=1" in capsys.readouterr().err

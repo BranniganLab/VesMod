@@ -6,7 +6,7 @@ from pathlib import Path
 
 import numpy as np
 
-from vesmod.cli import vesedge_cli
+from vesmod.VesEdge.cli import extraction_cli
 
 
 def test_process_extract_file_sets_source_path_on_video(tmp_path, monkeypatch):
@@ -28,16 +28,16 @@ def test_process_extract_file_sets_source_path_on_video(tmp_path, monkeypatch):
 
     path = tmp_path / "sample.nd2"
     monkeypatch.setattr(
-        vesedge_cli,
+        extraction_cli,
         "open_frame_source",
         lambda input_path: nullcontext(np.zeros((1, 10, 10))),
     )
     monkeypatch.setattr(
-        vesedge_cli,
+        extraction_cli,
         "load_extractor_from_module",
         lambda import_string: object(),
     )
-    monkeypatch.setattr(vesedge_cli, "VesicleVideo", FakeVideo)
+    monkeypatch.setattr(extraction_cli, "VesicleVideo", FakeVideo)
 
     args = argparse.Namespace(
         input_path=path,
@@ -52,7 +52,7 @@ def test_process_extract_file_sets_source_path_on_video(tmp_path, monkeypatch):
         pixels_per_micron=1.0,
     )
 
-    vesedge_cli.process_extract_file(path, args)
+    extraction_cli.process_extract_file(path, args)
 
     assert observed["source_path"] == Path(path)
     assert observed["checkpoint"] == tmp_path / "checkpoints" / "sample.npz"
