@@ -857,3 +857,11 @@ The same registration drives command-line options, configuration recorded
 for replay, and any summary columns or diagnostic writers the check declares.
 See the [registration test](../tests/unit_tests/test_qc_runner.py) for an
 image-based example that runs through the CLI and replays the saved settings.
+
+## CLI module ownership
+
+The QC and trace-plot command implementations live in `vesmod/VesEdge/cli/`.
+The experimental internal-structures command lives in
+`vesmod/VesEdge/experimental/cli/internal_structures_cli.py`, alongside the
+experimental method it exposes. `vesmod/cli/vesedge_cli.py` registers these
+commands and dispatches to their implementations.
