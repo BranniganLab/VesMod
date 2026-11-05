@@ -627,3 +627,14 @@ def test_readme_cli_and_python_qc_accept_the_same_frames(tmp_path, monkeypatch):
         assert manifest["qc_config"] == namespace[config_name].to_dict()
         np.testing.assert_array_equal(np.load(output_dir / "sample.npy"), np.load(python_output))
         np.testing.assert_array_equal(np.load(python_output), radii[:count])
+
+
+def test_qc_cli_warns_for_exact_old_curvature_default(monkeypatch, tmp_path):
+    monkeypatch.setattr(sys, "argv", [
+        "vesedge", "qc", "checkpoints", "--output-dir", str(tmp_path),
+        "--curvature-threshold", "0.059",
+    ])
+    args = vesedge_cli.parse_args()
+    with pytest.warns(UserWarning, match=r"0\.059 appears to be an old default value.*normalized"):
+        config = qc_cli._qc_config_from_args(args)
+    assert config.curvature.threshold == 0.059

@@ -3,6 +3,7 @@
 """Quality-control algorithms for VesEdge edge detections."""
 
 from dataclasses import dataclass
+import warnings
 
 import numpy as np
 
@@ -21,7 +22,7 @@ CHECK_NAME = "curvature"
 
 @dataclass(frozen=True)
 class CurvatureQCConfig:
-    """Configuration owned by the curvature QC check."""
+    """Curvature settings; warn when threshold is exactly the old default 0.059."""
 
     threshold: float = DEFAULT_CURVATURE_THRESHOLD
     enabled: bool = True
@@ -30,6 +31,13 @@ class CurvatureQCConfig:
         object.__setattr__(self, "threshold", require_nonnegative_real(self.threshold, "threshold"))
         if not isinstance(self.enabled, bool):
             raise TypeError("enabled must be a bool.")
+        if self.threshold == 0.059:
+            warnings.warn(
+                "Curvature threshold 0.059 appears to be an old default value. "
+                "Curvature is now normalized. Consider updating your threshold.",
+                UserWarning,
+                stacklevel=3,
+            )
 
 
 def check_curvature(

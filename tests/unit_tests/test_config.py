@@ -1,5 +1,7 @@
 """Unit tests for VesEdge configuration models."""
 
+import warnings
+
 import numpy as np
 import pytest
 
@@ -205,3 +207,33 @@ def test_vesicle_qc_config_rejects_unknown_or_mixed_nested_fields(values):
 
 
 
+
+
+@pytest.mark.parametrize("threshold", [0.059, np.float64(0.059)])
+def test_curvature_config_warns_for_exact_old_default_without_changing_it(threshold):
+    with pytest.warns(UserWarning, match=r"0\.059 appears to be an old default value.*normalized"):
+        config = CurvatureQCConfig(threshold=threshold)
+    assert config.threshold == 0.059
+
+
+@pytest.mark.parametrize("threshold", [
+    np.nextafter(0.059, 0.0),
+    np.nextafter(0.059, 1.0),
+    0.089,
+    0.0,
+    21.520619405632544,
+])
+def test_curvature_config_does_not_warn_for_other_thresholds(threshold):
+    with warnings.catch_warnings(record=True) as recorded:
+        warnings.simplefilter("always")
+        config = CurvatureQCConfig(threshold=threshold)
+    assert not recorded
+    assert config.threshold == threshold
+
+
+def test_loading_saved_qc_config_warns_for_exact_old_curvature_default():
+    values = VesicleQCConfig().to_dict()
+    values["curvature"]["threshold"] = 0.059
+    with pytest.warns(UserWarning, match="Consider updating your threshold"):
+        config = VesicleQCConfig.from_dict(values)
+    assert config.curvature.threshold == 0.059
