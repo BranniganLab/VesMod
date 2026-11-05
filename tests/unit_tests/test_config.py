@@ -1,14 +1,15 @@
 """Unit tests for VesEdge configuration models."""
 
+import warnings
+
 import numpy as np
 import pytest
 
-from vesmod.VesEdge.qc.checks.area_qc import AreaQCConfig
+from vesmod.VesEdge.qc.experimental.area_qc import AreaQCConfig
 from vesmod.VesEdge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
 from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
 from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
 from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
-from vesmod.VesEdge.experimental.internal_vesicle_qc import InternalVesicleQCConfig
 
 
 def test_edge_extraction_config_requires_positive_pixels_per_micron():
@@ -152,7 +153,6 @@ def test_vesicle_qc_config_normalizes_numeric_thresholds():
     [
         lambda: CurvatureQCConfig(5.0, enabled=1),
         lambda: AreaQCConfig(enabled=1),
-        lambda: InternalVesicleQCConfig(enabled=1),
     ],
 )
 def test_vesicle_qc_config_requires_boolean_enable_flags(factory):
@@ -161,42 +161,10 @@ def test_vesicle_qc_config_requires_boolean_enable_flags(factory):
         factory()
 
 
-def test_vesicle_qc_config_migrates_legacy_flat_dictionary():
-    """Old provenance is translated at the deserialization boundary."""
-    config = VesicleQCConfig.from_dict(
-        {
-            "curvature_threshold": 7.0,
-            "enable_area_qc": False,
-        }
-    )
-
-    assert config.curvature.threshold == 7.0
-    assert not config.area.enabled
 
 
-def test_vesicle_qc_config_accepts_legacy_radius_alias():
-    """Legacy nested radius provenance maps to minimum_radius."""
-    config = VesicleQCConfig.from_dict(
-        {
-            "curvature": {"threshold": 5.0},
-            "radius": {"enabled": True, "min_median_radius_pixels": 3.0},
-        }
-    )
-
-    assert config.minimum_radius.enabled
-    assert config.minimum_radius.min_median_radius_pixels == 3.0
 
 
-def test_vesicle_qc_config_rejects_radius_alias_collision():
-    """Both nested radius spellings cannot be supplied together."""
-    with pytest.raises(TypeError, match="both radius and minimum_radius"):
-        VesicleQCConfig.from_dict(
-            {
-                "curvature": {"threshold": 5.0},
-                "radius": {},
-                "minimum_radius": {},
-            }
-        )
 
 
 def test_vesicle_qc_config_uses_registered_defaults_for_omitted_checks():
@@ -205,28 +173,23 @@ def test_vesicle_qc_config_uses_registered_defaults_for_omitted_checks():
         {"area": {"enabled": False, "max_relative_deviation": 0.4}}
     )
 
-    assert config.curvature.threshold == pytest.approx(0.1)
-    assert not config.curvature.enabled
+    assert config.curvature.threshold == pytest.approx(21.520619405632544)
+    assert config.curvature.enabled
+    assert config.localized_deviation.enabled
     assert config.area.max_relative_deviation == pytest.approx(0.4)
 
 
-def test_vesicle_qc_config_rejects_numeric_positional_config_with_extra_values():
-    """Legacy numeric curvature input cannot silently discard positional data."""
-    with pytest.raises(TypeError, match="only positional"):
-        VesicleQCConfig(0.1, AreaQCConfig())
 
 
 def test_vesicle_qc_config_contains_independent_check_configs():
     """Each QC family is represented by its own immutable configuration."""
     curvature = CurvatureQCConfig(5.0, enabled=False)
     area = AreaQCConfig(0.4)
-    internal = InternalVesicleQCConfig(enabled=True, max_frames=4)
 
-    config = VesicleQCConfig(curvature, area, internal)
+    config = VesicleQCConfig(curvature=curvature, area=area)
 
     assert config.curvature is curvature
     assert config.area is area
-    assert config.internal_vesicle is internal
 
 
 @pytest.mark.parametrize(
@@ -243,12 +206,34 @@ def test_vesicle_qc_config_rejects_unknown_or_mixed_nested_fields(values):
         VesicleQCConfig.from_dict(values)
 
 
-def test_vesicle_qc_config_rejects_legacy_pixel_separation():
-    """A fixed pixel distance cannot be silently mapped to a relative one."""
-    with pytest.raises(ValueError, match="cannot be converted"):
-        VesicleQCConfig.from_dict(
-            {
-                "curvature_threshold": 5.0,
-                "internal_vesicle_min_separation_pixels": 5.0,
-            }
-        )
+
+
+
+@pytest.mark.parametrize("threshold", [0.059, np.float64(0.059)])
+def test_curvature_config_warns_for_exact_old_default_without_changing_it(threshold):
+    with pytest.warns(UserWarning, match=r"0\.059 appears to be an old default value.*normalized"):
+        config = CurvatureQCConfig(threshold=threshold)
+    assert config.threshold == 0.059
+
+
+@pytest.mark.parametrize("threshold", [
+    np.nextafter(0.059, 0.0),
+    np.nextafter(0.059, 1.0),
+    0.089,
+    0.0,
+    21.520619405632544,
+])
+def test_curvature_config_does_not_warn_for_other_thresholds(threshold):
+    with warnings.catch_warnings(record=True) as recorded:
+        warnings.simplefilter("always")
+        config = CurvatureQCConfig(threshold=threshold)
+    assert not recorded
+    assert config.threshold == threshold
+
+
+def test_loading_saved_qc_config_warns_for_exact_old_curvature_default():
+    values = VesicleQCConfig().to_dict()
+    values["curvature"]["threshold"] = 0.059
+    with pytest.warns(UserWarning, match="Consider updating your threshold"):
+        config = VesicleQCConfig.from_dict(values)
+    assert config.curvature.threshold == 0.059

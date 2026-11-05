@@ -1,5 +1,8 @@
 """Tests for the experimental internal-structure CLI command."""
 
+from vesmod.VesEdge.qc.experimental.area_qc import AreaQCConfig
+from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
+from vesmod.VesEdge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
 import argparse
 from contextlib import nullcontext
 import csv
@@ -10,11 +13,12 @@ import sys
 import numpy as np
 import pytest
 
-from vesmod.VesEdge.models import EdgeDetection, ImageContour, QCFlag
+from vesmod.VesEdge.models import EdgeDetection, ImageContour
 from vesmod.VesEdge.qc.qc_replay import RecordedQCSelection
 from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
 from vesmod.VesEdge.experimental.internal_structures import InternalStructureRegion
-from vesmod.cli import internal_structures_cli, vesedge_cli
+from vesmod.VesEdge.experimental.cli import internal_structures_cli
+from vesmod.cli import vesedge_cli
 
 
 def _args(tmp_path, checkpoint):
@@ -285,8 +289,7 @@ def test_load_qc_selection_reconstructs_recorded_config(tmp_path):
             {
                 "checkpoint_manifest": [str(checkpoint.resolve())],
                 "qc_config": {
-                    "curvature_threshold": 7.0,
-                    "enable_curvature_qc": True,
+                    "curvature": {"threshold": 7.0, "enabled": True},
                 },
             }
         ),
@@ -321,8 +324,7 @@ def test_process_checkpoint_does_not_measure_qc_rejected_frame(
         qc_result = None
 
         def run_qc(self, config):
-            detection.qc.flags.add(next(iter(QCFlag)))
-            self.qc_result = argparse.Namespace(passed=True)
+            self.qc_result = argparse.Namespace(passed=True, accepted_frame_indices=())
             raise ValueError("no frames passed quality control")
 
     monkeypatch.setattr(
@@ -352,7 +354,11 @@ def test_process_checkpoint_does_not_measure_qc_rejected_frame(
         internal_structures_cli.config_from_args(args),
         RecordedQCSelection(
             tmp_path / "qc" / "vesedge_qc.json",
-            VesicleQCConfig(curvature_threshold=5.0),
+            VesicleQCConfig(
+                curvature=CurvatureQCConfig(threshold=5.0, enabled=True),
+                area=AreaQCConfig(max_relative_deviation=0.25, enabled=True),
+                localized_deviation=LocalizedDeviationQCConfig(enabled=False),
+            ),
             frozenset({checkpoint.resolve()}),
         ),
     )

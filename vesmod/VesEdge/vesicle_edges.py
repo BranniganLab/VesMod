@@ -16,11 +16,10 @@ from .io.frame_source import OnDemandFrameSequence
 from .models import (
     EdgeDetection,
     EdgeDetectionFailure,
-    EdgeQC,
     EdgeResult,
     VesicleQCResult,
 )
-from .qc.qc_checks import run_configured_qc_checks
+from .qc.qc_runner import run_configured_qc_checks
 from .qc.qc_config import VesicleQCConfig
 
 
@@ -82,12 +81,11 @@ class VesicleEdges:
             raise ValueError(
                 "Quality control has not been run on these extracted edges."
             )
-        if not self.qc_result.passed:
-            return []
+        accepted = set(self.qc_result.accepted_frame_indices)
         return [
             detection
             for detection in self.successful_detections
-            if detection.qc.passed
+            if detection.frame_index in accepted
         ]
 
     @property
@@ -112,13 +110,11 @@ class VesicleEdges:
     ) -> None:
         """Run enabled QC checks on stored detections.
 
-        Existing QC state is cleared before every run. Supplying ``qc_config``
-        replaces the most recently completed configuration; omitting it reuses
+        Supplying ``qc_config`` replaces the most recently completed configuration; omitting it reuses
         that configuration. If a completed run rejects every detection, this
-        method raises ``ValueError`` but retains the newly applied configuration,
-        aggregate QC result, and per-detection QC flags for inspection.
-        If a check raises before producing a completed result, the previous
-        aggregate and per-frame QC state are restored.
+        method raises ``ValueError`` but retains the newly applied configuration
+        and aggregate QC result for inspection. If a check raises before
+        producing a completed result, the previous result remains available.
 
         Raises
         ------
@@ -132,38 +128,9 @@ class VesicleEdges:
             )
 
         self._validate_detection_lengths()
-        previous_result = self.qc_result
-        previous_edge_qc = [
-            detection.qc for detection in self.successful_detections
-        ]
-        try:
-            self._reset_qc()
-            outcome = run_configured_qc_checks(
-                self.successful_detections,
-                config,
-                frames,
-            )
-            self.qc_result = VesicleQCResult(
-                config=config,
-                results=outcome.results,
-                trajectory_flags=outcome.trajectory_flags,
-            )
-        except Exception:
-            self.qc_result = previous_result
-            for detection, edge_qc in zip(
-                self.successful_detections,
-                previous_edge_qc,
-                strict=True,
-            ):
-                detection.qc = edge_qc
-            raise
+        result = run_configured_qc_checks(self.successful_detections, config, frames)
+        self.qc_result = result
         self._validate_usable_detections()
-
-    def _reset_qc(self) -> None:
-        """Clear all previously derived quality-control state."""
-        self.qc_result = None
-        for detection in self.successful_detections:
-            detection.qc = EdgeQC()
 
     def _infer_frame_indices(self) -> None:
         """Infer missing frame indices and verify stored source-frame identity."""
@@ -207,10 +174,7 @@ class VesicleEdges:
             raise ValueError(
                 "Vesicle trajectory failed quality control."
             )
-        if not any(
-            detection.qc.passed
-            for detection in self.successful_detections
-        ):
+        if not self.qc_result.accepted_frame_indices:
             raise ValueError(
                 "Edge extraction produced detections, but no frames passed "
                 "quality control."

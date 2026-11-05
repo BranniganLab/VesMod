@@ -1,5 +1,8 @@
 """Tests for recorded VesEdge QC replay."""
 
+from vesmod.VesEdge.qc.experimental.area_qc import AreaQCConfig
+from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
+from vesmod.VesEdge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
 import json
 
 import numpy as np
@@ -7,13 +10,14 @@ import pytest
 
 from vesmod.VesEdge.qc.qc_replay import RecordedQCSelection, load_recorded_qc, replay_recorded_qc
 from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
-from vesmod.VesEdge.experimental.internal_vesicle_qc import (
-    InternalVesicleQCConfig,
-)
 
 
 def _selection(tmp_path, checkpoint, config=None):
-    config = config or VesicleQCConfig(curvature_threshold=5.0)
+    config = config or VesicleQCConfig(
+        curvature=CurvatureQCConfig(threshold=5.0, enabled=True),
+        area=AreaQCConfig(max_relative_deviation=0.25, enabled=True),
+        localized_deviation=LocalizedDeviationQCConfig(enabled=False),
+    )
     provenance_path = tmp_path / "qc" / "vesedge_qc.json"
     provenance_path.parent.mkdir()
     provenance_path.write_text(json.dumps({
@@ -50,27 +54,6 @@ def test_replay_does_not_supply_frames_to_image_independent_qc(tmp_path):
 
     assert result.accepted_count == 1
     assert not result.all_rejected
-
-
-def test_replay_supplies_frames_to_image_dependent_qc(tmp_path):
-    """Image-dependent replay receives the caller's already-opened frames."""
-    checkpoint = tmp_path / "sample.npz"
-    config = VesicleQCConfig(
-        internal_vesicle=InternalVesicleQCConfig(enabled=True)
-    )
-    selection = _selection(tmp_path, checkpoint, config)
-    frames = np.zeros((1, 4, 4))
-
-    class Edges:
-        qc_result = None
-        accepted_detections = [object()]
-
-        def run_qc(self, supplied_config, supplied_frames):
-            assert supplied_config is selection.config
-            assert supplied_frames is frames
-            self.qc_result = object()
-
-    replay_recorded_qc(Edges(), checkpoint, selection, frames=frames)
 
 
 def test_replay_preserves_failure_and_all_rejected_distinction(tmp_path):

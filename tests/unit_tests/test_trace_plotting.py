@@ -1,5 +1,8 @@
 """Tests for VesEdge contour trace overlays."""
 
+from vesmod.VesEdge.qc.experimental.area_qc import AreaQCConfig
+from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
+from vesmod.VesEdge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
 import json
 from types import SimpleNamespace
 
@@ -21,7 +24,7 @@ from vesmod.VesEdge.visualization.trace_plotting import (
 )
 from vesmod.VesEdge.vesicle_edges import VesicleEdges
 from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
-from vesmod.cli import trace_plot_cli
+from vesmod.VesEdge.cli import trace_plot_cli
 
 
 def _edges():
@@ -34,7 +37,11 @@ def _edges():
         for index in range(3)
     ]
     edges = VesicleEdges(EdgeExtractionConfig(pixels_per_micron=2), detections)
-    edges.qc_result = VesicleQCResult(config=VesicleQCConfig(curvature_threshold=1))
+    edges.qc_result = VesicleQCResult(config=VesicleQCConfig(
+        curvature=CurvatureQCConfig(threshold=1, enabled=True),
+        area=AreaQCConfig(max_relative_deviation=0.25, enabled=True),
+        localized_deviation=LocalizedDeviationQCConfig(enabled=False),
+    ), frame_indices=(0, 1, 2))
     return edges
 
 
@@ -133,7 +140,7 @@ def test_process_trace_plot_records_checkpoint_source_path(tmp_path, monkeypatch
         source_path=tmp_path / "sample.nd2",
         extraction_config=SimpleNamespace(pixels_per_micron=2.0),
     )
-    selection = SimpleNamespace(requires_frames=False)
+    selection = SimpleNamespace(requires_source_video_frames=False)
 
     monkeypatch.setattr(
         trace_plot_cli.VesicleEdges,

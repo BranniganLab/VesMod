@@ -5,10 +5,14 @@ Equivalent CLI workflow::
     vesedge extract ./videos --pixels-per-micron 13.44 \
         --n-angular-samples 120 --output-dir ./checkpoints
 
-    vesedge qc ./checkpoints --curvature-threshold 0.059 \
+    vesedge qc ./checkpoints --curvature-threshold 21.520619405632544 \
+        --localized-deviation-qc --localized-deviation-order 3 \
+        --max-localized-deviation-residual-fraction 0.05 \
         --output-dir ./results/qc_standard
 
-    vesedge qc ./checkpoints --curvature-threshold 0.089 \
+    vesedge qc ./checkpoints --curvature-threshold 32.46298468904425 \
+        --localized-deviation-qc --localized-deviation-order 3 \
+        --max-localized-deviation-residual-fraction 0.05 \
         --output-dir ./results/qc_permissive
 """
 
@@ -18,6 +22,7 @@ from pathlib import Path
 import nd2
 
 from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
+from vesmod.VesEdge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
 from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
 from vesmod.VesEdge.vesicle_edges import VesicleEdges
 from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
@@ -55,18 +60,23 @@ for file in glob.glob(fpath + "*.nd2", recursive=True):
 
 
 # Later, load the same checkpoint and evaluate it under any QC configuration.
+localized_deviation = LocalizedDeviationQCConfig(
+    enabled=True, order=3, max_residual_fraction=0.05,
+)
 qc_config = VesicleQCConfig(
-    curvature=CurvatureQCConfig(threshold=0.059),
+    curvature=CurvatureQCConfig(threshold=21.520619405632544, enabled=True),
+    localized_deviation=localized_deviation,
 )
 
 # edges = VesicleEdges.from_checkpoint("YOUR/PATH/HERE/sample.npz")
 # edges.run_qc(qc_config)
-# print(edges.qc_result.curvature)
+# print(edges.qc_result.get_result("curvature"))
 # edges.export_accepted_radii("YOUR/PATH/HERE/results/qc_standard/sample.npy")
 
 # Evaluate the same checkpoint again without rerunning extraction.
 # permissive_qc = VesicleQCConfig(
-#     curvature=CurvatureQCConfig(threshold=0.089),
+#     curvature=CurvatureQCConfig(threshold=32.46298468904425, enabled=True),
+#     localized_deviation=localized_deviation,
 # )
 # edges.run_qc(permissive_qc)
 # edges.export_accepted_radii("YOUR/PATH/HERE/results/qc_permissive/sample.npy")

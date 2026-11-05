@@ -226,26 +226,6 @@ def isolate_region_of_array(arr, mask_center, window_fraction, set_bg_to_nan=Fal
     return masked_copy
 
 
-def measure_wrapped_finite_second_difference(arr):
-    """
-    Wrap the array and measure its second difference.
-
-    Parameters
-    ----------
-    arr : numpy ndarray
-        1D array that you wish to take the second derivative of.
-
-    Returns
-    -------
-    second_deriv : numpy ndarray
-        The second derivative (curvature) of the input array.
-
-    """
-    wrapped_array = np.pad(arr, pad_width=2, mode='wrap')
-    second_deriv = np.diff(wrapped_array, n=2)[1: -1]
-    return second_deriv
-
-
 def downsample_to_new_indices(data: np.ndarray, index_floats: np.ndarray) -> np.ndarray:
     """
     Return values from a 1D array at float-valued indices using linear interpolation.

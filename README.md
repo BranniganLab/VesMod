@@ -97,7 +97,7 @@ vesedge extract "./videos" \
     --output-dir ./checkpoints
 ```
 
-Calibration is required explicitly. For intentionally uncalibrated or dimensionless workflows, use `--assume-one-pixel-per-micron`. Angular sampling defaults to 120, matching the Python API; use `--n-angular-samples native` to retain the extractor's native sampling. See the [extraction-default migration guide](docs/VesEdge_extraction_defaults_migration.md) for older CLI invocations.
+Calibration is required explicitly. For intentionally uncalibrated or dimensionless workflows, use `--assume-one-pixel-per-micron`. Angular sampling defaults to 120, matching the Python API; use `--n-angular-samples native` to retain the extractor's native sampling.
 
 This creates one reusable `.npz` checkpoint per input video:
 
@@ -127,13 +127,16 @@ The `qc` style requires a completed `vesedge qc` run and its output directory
 via `--qc-dir`; run that command after the next step. Add `--recursive` when the
 checkpoint input contains nested directories.
 
-### 3. Apply curvature QC
+### 3. Apply contour quality control
 
 Use a dedicated output directory for each QC configuration:
 
 ```bash
 vesedge qc "./checkpoints" \
     --curvature-threshold 21.520619405632544 \
+    --localized-deviation-qc \
+    --localized-deviation-order 3 \
+    --max-localized-deviation-residual-fraction 0.05 \
     --output-dir ./results/qc_standard
 ```
 
@@ -143,15 +146,11 @@ This creates:
 results/qc_standard/
 ├── sample01.npy
 ├── sample02.npy
-├── sample01.area_qc.csv
-├── sample01.area_qc.png
-├── sample02.area_qc.csv
-├── sample02.area_qc.png
 ├── vesedge_qc.json
 └── qc_summary.csv
 ```
 
-`vesedge_qc.json` records the exact QC configuration and input selection. `qc_summary.csv` reports extraction failures, curvature rejections, area-deviation rejections, optional internal-vesicle trajectory decisions, accepted-frame counts, and accepted fractions for each checkpoint. Experimental internal-vesicle QC is disabled by default; enable it with `--internal-vesicle-qc`. It first skips traced contours occupying at least half the image, then lazily samples smaller-contour videos for persistent evidence of a coherent larger enclosing membrane. A positive result rejects the trajectory without marking every constituent frame as individually defective. When area QC produces `qc_result.area`, each checkpoint also receives an `*.area_qc.csv` file containing its per-frame area measurements and an `*.area_qc.png` area-versus-frame diagnostic plot. These two files are not generated when area QC is disabled with `--no-area-qc`.
+`vesedge_qc.json` records the QC settings and input selection. Curvature and localized-deviation checks run by default. `qc_summary.csv` reports extraction failures, rejections, and accepted-frame counts and fractions. Experimental area-deviation QC is opt-in with `--area-qc` and adds a per-frame CSV and diagnostic plot.
 
 ### 4. Compare alternate QC configurations
 
@@ -160,6 +159,9 @@ For example:
 ```bash
 vesedge qc "./checkpoints" \
     --curvature-threshold 32.46298468904425 \
+    --localized-deviation-qc \
+    --localized-deviation-order 3 \
+    --max-localized-deviation-residual-fraction 0.05 \
     --output-dir ./results/qc_permissive
 ```
 
@@ -199,10 +201,9 @@ Fixed output is written as `<input>.json`; experimental dynamic output is writte
 The Python API exposes the same separation between extraction, QC, stable physical fitting, and experimental analysis.
 
 ```python
+from pathlib import Path
+
 from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
-from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
-from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
-from vesmod.VesEdge.vesicle_edges import VesicleEdges
 from vesmod.VesEdge.vesicle_video import VesicleVideo
 from vesmod.VesEdge.extraction.edge_extractor import extract_edge_from_frame
 
@@ -216,23 +217,39 @@ edges = video.extract_edges(
     ),
 )
 
-edges.save_checkpoint("sample.npz")
+Path("checkpoints").mkdir(exist_ok=True)
+edges.save_checkpoint("checkpoints/sample.npz")
 ```
 
-Reload the checkpoint and apply QC later:
+Reload the checkpoint and apply the same two QC configurations used in the CLI workflow.
 
 ```python
-edges = VesicleEdges.from_checkpoint("sample.npz")
+from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
+from vesmod.VesEdge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
+from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
+from vesmod.VesEdge.vesicle_edges import VesicleEdges
 
-qc_config = VesicleQCConfig(
-    curvature=CurvatureQCConfig(threshold=0.059),
+edges = VesicleEdges.from_checkpoint("checkpoints/sample.npz")
+localized_deviation = LocalizedDeviationQCConfig(
+    enabled=True, order=3, max_residual_fraction=0.05,
 )
 
+qc_config = VesicleQCConfig(
+    curvature=CurvatureQCConfig(threshold=21.520619405632544, enabled=True),
+    localized_deviation=localized_deviation,
+)
 edges.run_qc(qc_config)
 edges.export_accepted_radii("sample.npy")
+
+permissive_qc = VesicleQCConfig(
+    curvature=CurvatureQCConfig(threshold=32.46298468904425, enabled=True),
+    localized_deviation=localized_deviation,
+)
+edges.run_qc(permissive_qc)
+edges.export_accepted_radii("sample_permissive.npy")
 ```
 
-After a completed QC run, `edges.qc_result` contains the aggregate result for the `VesicleQCConfig` that was applied. Per-detection QC annotations remain available on each `EdgeDetection.qc`. `export_accepted_radii()` writes the analysis-contour radii from all accepted detections, converted to microns, as the `.npy` handoff to EdgeMod.
+After a completed QC run, `edges.qc_result` contains the aggregate result for the `VesicleQCConfig` that was applied. `edges.qc_result.rejected_by(frame_index)` reports the checks that rejected a source frame, and `diagnostics_for_frame(frame_index)` returns its measurements grouped by check. The final selection is available as `accepted_frame_indices`; see the [QC guide](docs/QC_checks.md#combining-decisions) to combine failures with an explicit rejection rule. `export_accepted_radii()` writes the analysis-contour radii from all accepted detections, converted to microns, as the `.npy` handoff to EdgeMod.
 
 Fit the accepted contours with the stable core EdgeMod API:
 
@@ -315,7 +332,6 @@ so VesMod does not convert it to SI surface tension.
 | Component | Documentation |
 | --- | --- |
 | VesEdge | [VesEdge CLI guide](docs/VesEdge_CLI_README.md) |
-| VesEdge extraction migration | [Explicit calibration and angular sampling](docs/VesEdge_extraction_defaults_migration.md) |
 | EdgeMod | [EdgeMod CLI guide](docs/EdgeMod_CLI_README.md) |
 
 ---

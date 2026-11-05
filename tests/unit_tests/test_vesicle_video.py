@@ -10,7 +10,7 @@ from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
 from vesmod.VesEdge.vesicle_edges import VesicleEdges
 from vesmod.VesEdge.vesicle_video import VesicleVideo
 from vesmod.VesEdge.visualization.animation import draw_vesicle_frame, make_vesicle_gif
-from vesmod.VesEdge.models import EdgeDetection, EdgeDetectionFailure, QCFlag
+from vesmod.VesEdge.models import EdgeDetection, EdgeDetectionFailure
 
 
 @pytest.fixture
@@ -154,10 +154,7 @@ def test_extract_edges_does_not_run_qc(video, extraction_config):
     edges = video.extract_edges(extractor, extraction_config)
 
     assert edges.qc_config is None
-    assert all(
-        detection.qc.curvature_score is None
-        for detection in edges.successful_detections
-    )
+    assert all(not hasattr(detection, "qc") for detection in edges.successful_detections)
 
 
 def test_compile_edge_detection_results_preserves_and_downsamples_contour(
@@ -211,11 +208,10 @@ def test_draw_vesicle_frame_composes_decorator_with_qc_colors(extraction_config)
         )
         for index in range(2)
     ]
-    detections[1].qc.flags.add(next(iter(QCFlag)))
 
     class FakeEdges:
         qc_config = object()
-        qc_result = SimpleNamespace(passed=True)
+        qc_result = SimpleNamespace(passed=True, accepted_frame_indices=(0,))
 
         def __init__(self, supplied_detections):
             self.detections = supplied_detections

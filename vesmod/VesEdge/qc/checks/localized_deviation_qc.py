@@ -3,16 +3,21 @@
 from dataclasses import dataclass
 
 import numpy as np
-from ...models import EdgeDetection, QCFlag
+from ..qc_check import QCCheck
+from ..qc_result import QCResult
+from ...models import EdgeDetection
 from ...contour_geometry import fit_radial_baseline
 from vesmod.validation import require_integer_valued, require_nonnegative_real
+
+
+CHECK_NAME = "localized_deviation"
 
 
 @dataclass(frozen=True)
 class LocalizedDeviationQCConfig:
     """Configuration owned by the localized-deviation QC check."""
 
-    enabled: bool = False
+    enabled: bool = True
     order: int = 3
     max_residual_fraction: float = 0.05
     support_residual_fraction: float | None = None
@@ -58,32 +63,12 @@ class LocalizedDeviationQCConfig:
             object.__setattr__(self, "max_support_samples", support)
 
 
-@dataclass(frozen=True)
-class LocalizedDeviationQCResult:
-    """Per-trajectory outcome produced by localized-deviation QC."""
-
-    scores: tuple[float, ...]
-    support_samples: tuple[int | None, ...]
-    rejected_count: int
-
-
-def check_localized_deviation(
-    edge: EdgeDetection,
-    order: int,
-    max_residual_fraction: float,
-    support_residual_fraction: float | None = None,
-    max_support_samples: int | None = None,
-) -> None:
-    """Reject contours whose largest baseline residual is excessive."""
-    if order < 0 or not np.isfinite(max_residual_fraction) or max_residual_fraction < 0:
-        raise ValueError("localized-deviation QC configuration must use finite non-negative values")
-    if (support_residual_fraction is None) != (max_support_samples is None):
-        raise ValueError("support residual and maximum support must be configured together")
+def _localized_measurements(edge, order, max_residual_fraction,
+                            support_residual_fraction, max_support_samples):
     radii = np.asarray(edge.analysis_contour.r, dtype=float)
     median = float(np.median(radii))
     fitted = fit_radial_baseline(radii, order).values
     score = float(np.max(np.abs(radii - fitted)) / median)
-    edge.qc.diagnostics["localized_deviation_score"] = score
     rejected = score >= max_residual_fraction
     support = None
     if support_residual_fraction is not None:
@@ -107,8 +92,97 @@ def check_localized_deviation(
         rejected = rejected or (
             score >= support_residual_fraction and support <= max_support_samples
         )
-    edge.qc.diagnostics["localized_deviation_support_samples"] = support
-    if rejected:
-        edge.qc.flags.add(QCFlag.LOCALIZED_DEVIATION)
-    else:
-        edge.qc.flags.discard(QCFlag.LOCALIZED_DEVIATION)
+    return bool(rejected), score, support
+
+
+def check_localized_deviation(
+    detections: list[EdgeDetection],
+    order: int,
+    max_residual_fraction: float,
+    support_residual_fraction: float | None = None,
+    max_support_samples: int | None = None,
+) -> QCResult:
+    """Return baseline-residual decisions, fractional scores, and support widths."""
+    if order < 0 or not np.isfinite(max_residual_fraction) or max_residual_fraction < 0:
+        raise ValueError("localized-deviation QC configuration must use finite non-negative values")
+    if (support_residual_fraction is None) != (max_support_samples is None):
+        raise ValueError("support residual and maximum support must be configured together")
+    measured = [
+        _localized_measurements(edge, order, max_residual_fraction,
+                                support_residual_fraction, max_support_samples)
+        for edge in detections
+    ]
+    return QCResult(
+        check_name=CHECK_NAME,
+        frame_indices=tuple(edge.frame_index for edge in detections),
+        rejected=tuple(row[0] for row in measured),
+        diagnostics={
+            "localized_deviation_score": tuple(row[1] for row in measured),
+            "localized_deviation_support_samples": tuple(row[2] for row in measured),
+        },
+    )
+
+
+class LocalizedDeviationCheck(QCCheck):
+    """Apply localized-deviation quality control to each detection."""
+
+    name = CHECK_NAME
+    diagnostic_fields = ('localized_deviation_score', 'localized_deviation_support_samples')
+    config_type = LocalizedDeviationQCConfig
+
+    def run(self, detections, config, frames) -> QCResult:
+        """Apply the localized-deviation check to each detection."""
+        del frames
+        return check_localized_deviation(
+            detections, config.order, config.max_residual_fraction,
+            config.support_residual_fraction, config.max_support_samples,
+        )
+
+    def add_cli_arguments(self, parser) -> None:
+        """Register command-line options for this check."""
+        toggle = parser.add_mutually_exclusive_group()
+        toggle.add_argument(
+            "--localized-deviation-qc", dest="localized_deviation_qc",
+            action="store_true", default=True, help="Enable localized-deviation QC (default).",
+        )
+        toggle.add_argument(
+            "--no-localized-deviation-qc", dest="localized_deviation_qc",
+            action="store_false", help="Disable localized-deviation QC.",
+        )
+        parser.add_argument("--localized-deviation-order", type=int, default=3, help="Fourier baseline order. Default: 3.")
+        parser.add_argument("--max-localized-deviation-residual-fraction", type=float, default=0.05, help="Maximum baseline residual divided by median radius. Default: 0.05.")
+        parser.add_argument(
+            "--localized-deviation-support-residual-fraction",
+            type=float,
+            default=None,
+            help=(
+                "Secondary residual fraction for support-aware localized-deviation "
+                "QC; requires --max-localized-deviation-support-samples."
+            ),
+        )
+        parser.add_argument(
+            "--max-localized-deviation-support-samples",
+            type=int,
+            default=None,
+            help="Maximum contiguous angular support at the secondary threshold.",
+        )
+
+    def config_from_args(self, args):
+        """Build settings from parsed command-line options."""
+        return LocalizedDeviationQCConfig(
+            enabled=getattr(args, "localized_deviation_qc", True),
+            order=getattr(args, "localized_deviation_order", 3),
+            max_residual_fraction=getattr(args, "max_localized_deviation_residual_fraction", 0.05),
+            support_residual_fraction=getattr(
+                args,
+                "localized_deviation_support_residual_fraction",
+                None,
+            ),
+            max_support_samples=getattr(
+                args,
+                "max_localized_deviation_support_samples",
+                None,
+            ),
+        )
+
+

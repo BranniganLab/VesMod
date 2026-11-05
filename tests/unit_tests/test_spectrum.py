@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 # tests/test_spectrum.py
+from vesmod.VesEdge.qc.experimental.area_qc import AreaQCConfig
+from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
+from vesmod.VesEdge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
 import json
 import subprocess
 import sys
@@ -13,7 +16,7 @@ import pytest
 
 from vesmod.EdgeMod import Spectrum, SpectrumFitConfig
 from vesmod.EdgeMod.spectrum_utils import MiniSpectrum
-from vesmod.VesEdge.models import EdgeDetection, EdgeDetectionFailure, QCFlag
+from vesmod.VesEdge.models import EdgeDetection, EdgeDetectionFailure
 from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
 from vesmod.VesEdge.vesicle_edges import VesicleEdges
 from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
@@ -78,9 +81,9 @@ def test_init_from_vesicle_edges_uses_only_accepted_detections():
         n_angular_samples=4,
     )
     qc_config = VesicleQCConfig(
-        curvature_threshold=10.0,
-        enable_curvature_qc=False,
-        enable_area_qc=False,
+        curvature=CurvatureQCConfig(threshold=10.0, enabled=False),
+        area=AreaQCConfig(max_relative_deviation=0.25, enabled=True),
+        localized_deviation=LocalizedDeviationQCConfig(enabled=False),
     )
 
     accepted_contour = ImageContour((0.0, 0.0), np.full(4, 4.0))
@@ -89,10 +92,9 @@ def test_init_from_vesicle_edges_uses_only_accepted_detections():
     rejected = EdgeDetection(rejected_contour, rejected_contour)
     edges = VesicleEdges(
         extraction_config,
-        [accepted, rejected, EdgeDetectionFailure("failure")],
+        [accepted, EdgeDetection(accepted_contour, accepted_contour), rejected, EdgeDetectionFailure("failure")],
     )
     edges.run_qc(qc_config)
-    rejected.qc.flags.add(QCFlag.CURVATURE)
 
     spectrum = Spectrum(edges)
 
