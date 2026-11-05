@@ -43,20 +43,20 @@ def _singleton_measurements(edge, order, min_residual_fraction, max_width_sample
     baseline = fit_radial_baseline(radii, order).values
     residual = np.abs(radii - baseline) / median
     above = residual >= min_residual_fraction
-    # Count contiguous threshold crossings on a circular contour.
-    doubled = np.concatenate((above, above))
-    runs = []
-    start = None
-    for index, value in enumerate(doubled):
-        if value and start is None:
-            start = index
-        elif not value and start is not None:
-            runs.append((start, index - start))
-            start = None
-    if start is not None:
-        runs.append((start, len(doubled) - start))
-    widths = [width for start, width in runs if start < radii.size and start + width > radii.size]
-    widths.extend(width for start, width in runs if start < radii.size and start + width <= radii.size)
+    # Start at a false sample so a circular excursion is never split.
+    if np.all(above):
+        widths = [radii.size]
+    else:
+        first_false = np.flatnonzero(~above)[0]
+        rotated = np.roll(above, -first_false)
+        widths = []
+        width = 0
+        for value in np.append(rotated, False):
+            if value:
+                width += 1
+            elif width:
+                widths.append(width)
+                width = 0
     singleton_count = sum(width <= max_width_samples for width in widths)
     score = float(np.max(residual)) if residual.size else 0.0
     return singleton_count, score
