@@ -46,7 +46,7 @@ def test_extract_batch_counts_skips_separately(monkeypatch, capsys):
 def test_gif_batch_classifies_skip_and_failure_separately(monkeypatch, capsys, tmp_path):
     from pathlib import Path
     from argparse import Namespace
-    import vesmod.cli.gif_cli as gif_cli
+    import vesmod.VesEdge.cli.gif_cli as gif_cli
 
     paths = [Path("one.npz"), Path("two.npz"), Path("three.npz")]
     monkeypatch.setattr(
