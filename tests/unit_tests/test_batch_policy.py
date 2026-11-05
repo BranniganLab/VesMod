@@ -73,5 +73,5 @@ def test_gif_batch_classifies_skip_and_failure_separately(monkeypatch, capsys, t
         error_policy="keep-going",
     )
 
-    assert gif_cli.run_gif(args) == 1
+    assert gif_cli.run(args) == 1
     assert "processed=3 succeeded=1 skipped=1 failed=1" in capsys.readouterr().err

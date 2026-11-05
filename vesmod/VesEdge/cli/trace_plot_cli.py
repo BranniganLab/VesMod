@@ -13,7 +13,7 @@ from vesmod.VesEdge.qc.qc_replay import load_recorded_qc, replay_recorded_qc
 from vesmod.VesEdge.io.checkpoint_sources import open_checkpoint_frames, resolve_source_path
 
 
-def add_trace_plot_parser(subparsers) -> None:
+def add_parser(subparsers) -> None:
     """Add the ``vesedge plot-traces`` parser."""
     parser = subparsers.add_parser(
         "plot-traces",
@@ -154,7 +154,7 @@ def process_trace_plot(args: argparse.Namespace) -> tuple[Path, Path]:
     return output, sidecar
 
 
-def run_trace_plot(args: argparse.Namespace) -> int:
+def run(args: argparse.Namespace) -> int:
     """Run the trace-overlay command."""
     output, sidecar = process_trace_plot(args)
     print(f"Saved trace overlay: {output}")

@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import argparse
 
-from vesmod.VesEdge.cli import extraction_cli, qc_cli
+from vesmod.VesEdge.cli import extraction_cli, gif_cli, qc_cli, trace_plot_cli
 from vesmod.VesEdge.experimental.cli import internal_structures_cli
-from vesmod.VesEdge.cli.gif_cli import add_gif_parser, run_gif
-from vesmod.VesEdge.cli.trace_plot_cli import add_trace_plot_parser, run_trace_plot
 
 
 def parse_args() -> argparse.Namespace:
@@ -22,8 +20,8 @@ def parse_args() -> argparse.Namespace:
     extraction_cli.add_parser(subparsers)
     qc_cli.add_parser(subparsers)
     internal_structures_cli.add_parser(subparsers)
-    add_gif_parser(subparsers)
-    add_trace_plot_parser(subparsers)
+    gif_cli.add_parser(subparsers)
+    trace_plot_cli.add_parser(subparsers)
     return parser.parse_args()
 
 
@@ -35,11 +33,11 @@ def main() -> int:
     elif args.command == "qc":
         return qc_cli.run(args)
     elif args.command == "gif":
-        return run_gif(args)
+        return gif_cli.run(args)
     elif args.command == "internal-structures":
         return internal_structures_cli.run(args)
     elif args.command == "plot-traces":
-        return run_trace_plot(args)
+        return trace_plot_cli.run(args)
     else:
         raise ValueError(f"Unknown VesEdge command: {args.command}")
 

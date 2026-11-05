@@ -253,4 +253,4 @@ def test_run_gif_requires_qc_directory_for_qc_style(tmp_path):
     args = _args(tmp_path, tmp_path / "sample.npz", style="qc")
 
     with pytest.raises(ValueError, match="--qc-dir is required"):
-        gif_cli.run_gif(args)
+        gif_cli.run(args)

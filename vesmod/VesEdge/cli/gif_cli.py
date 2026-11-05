@@ -20,7 +20,7 @@ from vesmod.cli.batch_policy import add_batch_policy_argument, exit_code, report
 from vesmod.cli.input_selection import InputPathsAction, select_input_files
 
 
-def add_gif_parser(subparsers) -> None:
+def add_parser(subparsers) -> None:
     """Add the standalone GIF-generation subcommand."""
     parser = subparsers.add_parser(
         "gif",
@@ -134,7 +134,7 @@ def process_gif_file(
     return True
 
 
-def run_gif(args: argparse.Namespace) -> int:
+def run(args: argparse.Namespace) -> int:
     """Generate the selected GIF style for every selected checkpoint."""
     if args.style == "qc" and args.qc_dir is None:
         raise ValueError("--qc-dir is required with --style qc.")
