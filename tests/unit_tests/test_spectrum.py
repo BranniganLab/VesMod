@@ -15,7 +15,7 @@ import numpy as np
 import pytest
 
 from vesmod.EdgeMod import Spectrum, SpectrumFitConfig
-from vesmod.EdgeMod.spectrum_utils import MiniSpectrum
+from vesmod.EdgeMod.range_selection import MiniSpectrum
 from vesmod.VesEdge.models import EdgeDetection, EdgeDetectionFailure
 from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
 from vesmod.VesEdge.vesicle_edges import VesicleEdges

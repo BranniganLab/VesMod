@@ -5,7 +5,8 @@ import numpy as np
 import pytest
 
 from vesmod.EdgeMod import Spectrum, SpectrumEnsemble, SpectrumFitConfig
-from vesmod.EdgeMod.spectrum_utils import MiniSpectrum, fit_spectrum_lmfit
+from vesmod.EdgeMod.range_selection import MiniSpectrum
+from vesmod.EdgeMod.spectrum_utils import fit_spectrum_lmfit
 
 
 @pytest.mark.parametrize('exposure,chi', [(0, None), (.030, None), (.030, 4.1e-9)])

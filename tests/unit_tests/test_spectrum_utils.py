@@ -9,9 +9,9 @@ import pytest
 from scipy.constants import Boltzmann
 from scipy.special import lpmv
 
+from vesmod.EdgeMod.range_selection import MiniSpectrum
 from vesmod.EdgeMod.spectrum_utils import (
     spherical_contour_spectrum,
-    MiniSpectrum,
     Nlq_Plq0_squared,
     calc_tension_from_reduced_tension,
     fit_spectrum_to_theory_lmfit,

@@ -14,8 +14,6 @@ from scipy.constants import Boltzmann
 from scipy.special import gammaln
 from lmfit import Model
 
-from .range_selection import MiniSpectrum as MiniSpectrum
-
 logger = logging.getLogger(__name__)
 
 

@@ -9,9 +9,9 @@ import pytest
 from lmfit import Parameters
 
 from vesmod.EdgeMod import Spectrum, SpectrumEnsemble, SpectrumFitConfig
+from vesmod.EdgeMod.range_selection import MiniSpectrum
 from vesmod.EdgeMod.spectrum_utils import (
     spherical_contour_spectrum,
-    MiniSpectrum,
     fit_spectrum_lmfit,
     fit_spectrum_to_theory_lmfit,
 )

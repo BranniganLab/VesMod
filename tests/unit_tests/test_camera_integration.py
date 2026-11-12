@@ -6,8 +6,9 @@ import pytest
 from scipy.constants import Boltzmann
 from scipy.integrate import quad
 from vesmod.EdgeMod import Spectrum, SpectrumFitConfig, SpectrumEnsemble
+from vesmod.EdgeMod.range_selection import MiniSpectrum
 from vesmod.EdgeMod.spectrum_utils import (
-    spherical_contour_spectrum, predict_spectrum, MiniSpectrum, exposure_power_factor, fit_spectrum_lmfit,
+    spherical_contour_spectrum, predict_spectrum, exposure_power_factor, fit_spectrum_lmfit,
 )
 
 

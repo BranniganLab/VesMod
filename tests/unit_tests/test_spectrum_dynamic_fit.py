@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 
 from vesmod.EdgeMod import Spectrum, SpectrumFitConfig
-from vesmod.EdgeMod.experimental import QMinusThreeRangeSelector
+from vesmod.EdgeMod.range_selection.experimental import QMinusThreeRangeSelector
 
 
 def _spectrum_with_power_law() -> Spectrum:
