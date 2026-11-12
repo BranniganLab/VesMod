@@ -9,7 +9,7 @@ from typing import Any
 import matplotlib.pyplot as plt
 import numpy as np
 
-from .spectrum_model import spherical_contour_spectrum
+from .spherical_spectrum import spherical_contour_spectrum
 
 
 @dataclass(frozen=True)

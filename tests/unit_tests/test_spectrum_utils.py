@@ -9,7 +9,7 @@ import pytest
 from scipy.constants import Boltzmann
 from scipy.special import lpmv
 
-from vesmod.EdgeMod.spectrum_model import (
+from vesmod.EdgeMod.spherical_spectrum import (
     spherical_contour_spectrum,
     Nlq_Plq0_squared,
     calc_tension_from_reduced_tension,

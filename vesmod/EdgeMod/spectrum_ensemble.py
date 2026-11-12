@@ -15,7 +15,7 @@ import numpy as np
 from vesmod.validation import require_positive_real
 from .range_selection.selection import select_manual_range, slice_fit_arrays
 from .fitting import fit_spectrum
-from .spectrum_model import configure_spectrum_model
+from .spherical_spectrum import configure_spectrum_model
 from .config import SpectrumFitConfig
 from .fit_result import EnsembleFit
 

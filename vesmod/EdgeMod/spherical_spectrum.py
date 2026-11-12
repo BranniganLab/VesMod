@@ -1,4 +1,4 @@
-"""Physical models for vesicle contour fluctuation spectra."""
+"""Spherical model for vesicle contour fluctuation spectra."""
 
 from functools import lru_cache
 from numbers import Integral, Real
