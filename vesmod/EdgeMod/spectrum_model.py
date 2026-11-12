@@ -1,103 +1,11 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Mon Apr  6 14:09:33 2026
+"""Physical models for vesicle contour fluctuation spectra."""
 
-@author: js2746
-"""
 from functools import lru_cache
 from numbers import Integral, Real
 import math
-import logging
 import numpy as np
 from scipy.constants import Boltzmann
 from scipy.special import gammaln
-from lmfit import Model
-
-logger = logging.getLogger(__name__)
-
-
-def _log_relative_rmse(result, powers):
-    """Report residual magnitude without applying fit acceptance criteria."""
-    measured = np.asarray(powers)
-    residuals = measured - np.asarray(result.best_fit)
-    rmse = np.sqrt(np.mean(residuals**2))
-    mean_power = np.mean(np.abs(measured))
-    relative_rmse = (rmse / mean_power if mean_power > 0
-                     else (np.nan if rmse == 0 else np.inf))
-    logger.info("Spectrum fit relative RMSE=%g", relative_rmse)
-
-
-def fit_spectrum_lmfit(modes, powers, lmax, free_sigma=False, weighted=False,
-                       *, sem=None, config=None, radii=None, expected_replica_count=None):
-    """Fit selected modes and powers, with optional per-mode replica SEM.
-
-    Radii in microns are required for every fit. The reduced-tension upper
-    bound is 100 * mean(radii)**2. For ensembles, the arithmetic mean of
-    the replica mean radii sets the bound on shared reduced tension.
-
-    Supply ``expected_replica_count`` when fitting
-    an averaged spectrum directly. This checks that there is one radius per
-    contributing replica; an averaged spectrum alone cannot reveal its count.
-    ``Spectrum`` and ``SpectrumEnsemble`` supply the count automatically.
-    """
-    radii = _validate_camera_radii(radii)
-    sigma_max = 100 * float(np.mean(radii))**2
-    model_function = spherical_contour_spectrum
-    if expected_replica_count is not None:
-        if (isinstance(expected_replica_count, (bool, np.bool_))
-                or not isinstance(expected_replica_count, (int, np.integer))
-                or expected_replica_count < 1):
-            raise ValueError("expected_replica_count must be a positive integer.")
-        if radii.size != expected_replica_count:
-            raise ValueError(
-                "Spectrum fitting requires one radius per replica: "
-                f"expected {expected_replica_count} radii, received {radii.size}. "
-                "Supply each replica's radius, rather than a mean radius."
-            )
-
-    if config is not None:
-        def configured_model(q, kC, sigma, lmax):
-            return predict_spectrum(q, kC, sigma, lmax, config=config, radii=radii)
-
-        model_function = configured_model
-
-    model = Model(model_function)
-    pars = model.make_params(kC={'value': 15, 'min': 1, 'max': 500, 'vary': True}, sigma={'value': 0, 'min': -100, 'max': sigma_max, 'vary': free_sigma}, lmax={'value': lmax, 'vary': False})
-
-    if config is not None and config.camera_integration:
-        # All spherical modes must be stable, including l=2 even if q=2
-        # is omitted from the fitted contour spectrum.
-        pars["sigma"].set(min=-6 + 1e-8)
-
-    fit_kwargs = {"q": modes, "params": pars, "max_nfev": 20000}
-    if weighted:
-        if sem is None:
-            raise ValueError("Replica SEM values are required for a weighted fit.")
-        uncertainties = np.asarray(sem, dtype=float)
-        amplitudes = np.asarray(powers, dtype=float)
-        if uncertainties.shape != amplitudes.shape:
-            raise ValueError("Replica SEM values must match the fitted amplitudes.")
-        if not np.all(np.isfinite(uncertainties)) or np.any(uncertainties <= 0):
-            raise ValueError(
-                "Replica SEM values must be finite and greater than zero "
-                "for every fitted mode."
-            )
-        fit_kwargs["weights"] = 1 / uncertainties
-
-    result = model.fit(powers, **fit_kwargs)
-    _log_relative_rmse(result, powers)
-    return result
-
-
-def fit_spectrum_to_theory_lmfit(
-    modes, powers, lmax, free_sigma=False, weighted=False, *, sem=None, radii
-):
-    """Fit selected contour modes and return bending modulus and reduced tension."""
-    result = fit_spectrum_lmfit(
-        modes, powers, lmax, free_sigma, weighted, sem=sem, radii=radii
-    )
-    return result.best_values["kC"], result.best_values["sigma"]
 
 
 def _validate_spherical_inputs(q, kC, sigma, lmax) -> list[int]:
@@ -202,7 +110,7 @@ def exposure_power_factor(x):
     return result
 
 
-def _validate_camera_radii(radii):
+def validate_vesicle_radii(radii):
     """Require positive radii in microns for fitting and camera averaging."""
     if radii is None:
         raise ValueError("Vesicle radii are required for spectrum fitting.")
@@ -235,7 +143,7 @@ def mode_relaxation_times(ell, kC, sigma, *, config, radii):
         _validate_spherical_inputs(modes, kC, sigma, max(modes, default=2)),
         dtype=float,
     )
-    radii_m = _validate_camera_radii(radii) * 1e-6
+    radii_m = validate_vesicle_radii(radii) * 1e-6
     _validate_relaxation_inputs(sigma, config)
     stiffness = (ell - 1) * (ell + 2) * (ell * (ell + 1) + sigma)
     rate_scale = kC * Boltzmann * config.temperature / (config.viscosity_out * radii_m**3)
@@ -282,7 +190,7 @@ def predict_spectrum(q, kC, sigma, lmax, *, config, radii=None):
     modes = _validate_spherical_inputs(q, kC, sigma, lmax)
     if not config.camera_integration:
         return spherical_contour_spectrum(modes, kC, sigma, lmax)
-    radii_m = _validate_camera_radii(radii) * 1e-6
+    radii_m = validate_vesicle_radii(radii) * 1e-6
     _validate_relaxation_inputs(sigma, config)
     rate_scale = kC * Boltzmann * config.temperature / (config.viscosity_out * radii_m**3)
     predictions = []
@@ -391,3 +299,16 @@ def calc_tension_from_reduced_tension(
     r0_meter2 = r0_meter ** 2                           # units of meters^2
     sigma = reduced_tension * kc * one_kBT / r0_meter2  # units of J/m^2 or N/m
     return sigma
+
+
+
+def configure_spectrum_model(config, radii):
+    """Bind the experimental settings and return a predictor and its tension floor."""
+    radii = tuple(radii)
+
+    def predict(q, kC, sigma, lmax):
+        return predict_spectrum(q, kC, sigma, lmax, config=config, radii=radii)
+
+    # Exposure averaging requires stability of the spherical l=2 mode.
+    sigma_min = -6 + 1e-8 if config.camera_integration else -100
+    return predict, sigma_min

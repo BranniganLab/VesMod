@@ -60,7 +60,7 @@ def test_selected_bounds_can_be_passed_to_core_physical_fit(monkeypatch):
         return SimpleNamespace(best_values={"kC": 20.0, "sigma": 2.0})
 
     monkeypatch.setattr(
-        "vesmod.EdgeMod.spectrum.fit_spectrum_lmfit",
+        "vesmod.EdgeMod.spectrum.fit_spectrum",
         fake_fit,
     )
     monkeypatch.setattr(

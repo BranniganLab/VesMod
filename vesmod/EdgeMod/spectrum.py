@@ -27,10 +27,8 @@ from .calculators import MeanSquaredPowerCalculator
 from .power_calculation import PowerCalculationResult, SpectrumCalculator
 from .fit_result import SpectrumFit
 from .range_selection.selection import select_manual_range, slice_fit_arrays
-from .spectrum_utils import (
-    calc_tension_from_reduced_tension,
-    fit_spectrum_lmfit,
-)
+from .fitting import fit_spectrum
+from .spectrum_model import calc_tension_from_reduced_tension, configure_spectrum_model
 
 
 if TYPE_CHECKING:
@@ -201,12 +199,15 @@ class Spectrum:
         if modes.size == 0:
             raise ValueError("Configured q range contains no spectrum modes.")
 
-        self.fit_result = fit_spectrum_lmfit(
+        radii = [self.r0]
+        predict, sigma_min = configure_spectrum_model(config, radii)
+        self.fit_result = fit_spectrum(
             modes,
             powers,
             config.lmax,
             config.free_sigma,
-            config=config, radii=[self.r0], expected_replica_count=1,
+            radii=radii, expected_replica_count=1,
+            predict=predict, sigma_min=sigma_min,
         )
 
         fitted_kc = self.fit_result.best_values["kC"]

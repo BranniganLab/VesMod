@@ -9,12 +9,14 @@ import pytest
 from scipy.constants import Boltzmann
 from scipy.special import lpmv
 
-from vesmod.EdgeMod.spectrum_utils import (
+from vesmod.EdgeMod.spectrum_model import (
     spherical_contour_spectrum,
     Nlq_Plq0_squared,
     calc_tension_from_reduced_tension,
-    fit_spectrum_to_theory_lmfit,
-    fit_spectrum_lmfit,
+)
+from vesmod.EdgeMod.fitting import (
+    fit_spectrum_to_theory,
+    fit_spectrum,
 )
 
 
@@ -133,14 +135,14 @@ def test_hss97_allows_q_equal_to_lmax():
     assert spherical_contour_spectrum(q=[q], kC=kC, sigma=sigma, lmax=q)[0] == pytest.approx(expected)
 
 
-def test_fit_spectrum_to_theory_lmfit_recovers_synthetic_kc_when_sigma_is_fixed():
+def test_fit_spectrum_to_theory_recovers_synthetic_kc_when_sigma_is_fixed():
     """Test that fitting synthetic spherical_contour_spectrum data with fixed sigma recovers the known kC used to generate the data."""
     modes = np.array([2, 3, 4, 5, 6])
     true_kc = 25.0
     lmax = 60
     avg_amps2 = np.array(spherical_contour_spectrum(modes, kC=true_kc, sigma=0.0, lmax=lmax))
 
-    kc, sigma = fit_spectrum_to_theory_lmfit(modes, avg_amps2, lmax=lmax, free_sigma=False, radii=[5.0])
+    kc, sigma = fit_spectrum_to_theory(modes, avg_amps2, lmax=lmax, free_sigma=False, radii=[5.0])
 
     assert kc == pytest.approx(true_kc, rel=1e-3)
     assert sigma == pytest.approx(0.0, abs=1e-10)
@@ -154,8 +156,8 @@ def test_weighted_fit_passes_inverse_sem_to_lmfit(monkeypatch):
         calls.update(kwargs)
         return SimpleNamespace(best_fit=np.asarray(data))
 
-    monkeypatch.setattr("vesmod.EdgeMod.spectrum_utils.Model.fit", fake_fit)
-    fit_spectrum_lmfit(
+    monkeypatch.setattr("vesmod.EdgeMod.fitting.Model.fit", fake_fit)
+    fit_spectrum(
         np.array([3, 4]), np.array([0.1, 0.2]), lmax=20,
         weighted=True, sem=np.array([0.01, 0.04]), radii=[5.0],
     )
@@ -170,12 +172,29 @@ def test_weighted_fit_passes_inverse_sem_to_lmfit(monkeypatch):
 def test_weighted_fit_rejects_missing_or_invalid_sem(monkeypatch, sem):
     """A requested weighted fit fails instead of silently becoming unweighted."""
     monkeypatch.setattr(
-        "vesmod.EdgeMod.spectrum_utils.Model.fit",
+        "vesmod.EdgeMod.fitting.Model.fit",
         lambda *args, **kwargs: pytest.fail("lmfit must not be called"),
     )
 
     with pytest.raises(ValueError, match="Replica SEM"):
-        fit_spectrum_lmfit(
+        fit_spectrum(
             np.array([3, 4]), np.array([0.1, 0.2]), lmax=20,
             weighted=True, sem=sem, radii=[5.0],
         )
+
+
+def test_fit_spectrum_uses_supplied_predictor():
+    """A model callable can be fitted without changing the optimizer."""
+    modes = np.arange(3, 8)
+
+    def predict(q, kC, sigma, lmax):
+        return kC / q**2 + sigma / lmax
+
+    powers = predict(modes, 23.0, 2.0, 50)
+    fit = fit_spectrum(
+        modes, powers, 50, free_sigma=True, radii=[5.0], predict=predict
+    )
+
+    assert fit.best_values["kC"] == pytest.approx(23.0)
+    assert fit.best_values["sigma"] == pytest.approx(2.0)
+    np.testing.assert_allclose(fit.eval(q=modes), powers)

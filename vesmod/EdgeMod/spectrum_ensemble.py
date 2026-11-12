@@ -14,7 +14,8 @@ behavior.
 import numpy as np
 from vesmod.validation import require_positive_real
 from .range_selection.selection import select_manual_range, slice_fit_arrays
-from .spectrum_utils import fit_spectrum_lmfit
+from .fitting import fit_spectrum
+from .spectrum_model import configure_spectrum_model
 from .config import SpectrumFitConfig
 from .fit_result import EnsembleFit
 
@@ -145,8 +146,6 @@ class SpectrumEnsemble:
             radius is None for radius in self.radii_list
         ):
             raise ValueError("Supply r0 for every replica to set the reduced-tension bound.")
-        fit_kwargs = {"config": config, "radii": self.radii_list,
-                         "expected_replica_count": len(self.spectra_list)}
         fit_mode_mask = select_manual_range(
             self.modes, config.lower_bound, config.upper_bound
         )
@@ -154,14 +153,18 @@ class SpectrumEnsemble:
         modes, powers, fit_sem = slice_fit_arrays(
             fit_mode_mask, self.modes, self.avg_amps2, sem=sem
         )
-        result = fit_spectrum_lmfit(
+        predict, sigma_min = configure_spectrum_model(config, self.radii_list)
+        result = fit_spectrum(
             modes,
             powers,
             config.lmax,
             free_sigma=config.free_sigma,
             weighted=weight_by_replica_sem,
             sem=fit_sem,
-            **fit_kwargs,
+            radii=self.radii_list,
+            expected_replica_count=len(self.spectra_list),
+            predict=predict,
+            sigma_min=sigma_min,
         )
         kC = result.best_values["kC"]
         reduced_sigma = result.best_values["sigma"]

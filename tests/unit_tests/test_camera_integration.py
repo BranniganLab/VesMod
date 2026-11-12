@@ -6,9 +6,13 @@ import pytest
 from scipy.constants import Boltzmann
 from scipy.integrate import quad
 from vesmod.EdgeMod import Spectrum, SpectrumFitConfig, SpectrumEnsemble
-from vesmod.EdgeMod.spectrum_utils import (
-    spherical_contour_spectrum, predict_spectrum, exposure_power_factor, fit_spectrum_lmfit,
+from vesmod.EdgeMod.spectrum_model import (
+    spherical_contour_spectrum,
+    predict_spectrum,
+    exposure_power_factor,
+    configure_spectrum_model,
 )
+from vesmod.EdgeMod.fitting import fit_spectrum
 
 
 @pytest.mark.parametrize('x', [0, 1e-9, 0.001, 0.5, 10, 100])
@@ -62,8 +66,9 @@ def test_fit_recovers_synthetic_parameters(free_sigma):
     q = np.arange(3, 11)
     sigma = 4 if free_sigma else 0
     measured = np.array(predict_spectrum(q, 25, sigma, 50, config=config, radii=[5]))
-    result = fit_spectrum_lmfit(q, measured, 50, sem=measured * .01,
-                                free_sigma=free_sigma, weighted=True, config=config, radii=[5])
+    predict, sigma_min = configure_spectrum_model(config, [5])
+    result = fit_spectrum(q, measured, 50, sem=measured * .01,
+                                free_sigma=free_sigma, weighted=True, predict=predict, sigma_min=sigma_min, radii=[5])
     assert result.best_values['kC'] == pytest.approx(25, rel=1e-5)
     assert result.best_values['sigma'] == pytest.approx(sigma, abs=1e-5)
     np.testing.assert_allclose(result.eval(q=q), measured, rtol=1e-6)
@@ -115,8 +120,8 @@ def test_corrected_plot_uses_corrected_prediction():
     config = SpectrumFitConfig(camera_integration=True, viscosity_in=.00102, viscosity_out=.00097, lmax=50, free_sigma=False, exposure_time=.030)
     q = np.arange(3, 8)
     measured = np.array(predict_spectrum(q, 25, 0, 50, config=config, radii=[5]))
-    result = fit_spectrum_lmfit(q, measured, 50,
-                                config=config, radii=[5])
+    predict, sigma_min = configure_spectrum_model(config, [5])
+    result = fit_spectrum(q, measured, 50, predict=predict, sigma_min=sigma_min, radii=[5])
     data = SpectrumPlotData(modes=q, avg_amps2=measured, fit_result=result,
                             lower_bound=3, upper_bound=8, lmax=50)
     figure, ax = plt.subplots()
@@ -136,12 +141,10 @@ def test_camera_requires_radius_and_stable_modes():
 
 @pytest.mark.parametrize("radii", [[10], [5, 10, 15]])
 def test_camera_fit_rejects_wrong_replica_radius_count(radii):
-    config = SpectrumFitConfig(camera_integration=True, viscosity_in=.00102, viscosity_out=.00097,
-                               exposure_time=.030)
     modes = np.arange(3, 8)
     powers = np.ones(5)
     with pytest.raises(ValueError, match="expected 2 radii, received"):
-        fit_spectrum_lmfit(modes, powers, 50, config=config, radii=radii,
+        fit_spectrum(modes, powers, 50, radii=radii,
                           expected_replica_count=2)
 
 
@@ -152,20 +155,19 @@ def test_camera_fit_accepts_matching_replica_radius_count(radii):
     q = np.arange(3, 8)
     power = predict_spectrum(q, 25, 0, 50,
                                               config=config, radii=radii)
-    result = fit_spectrum_lmfit(q, np.array(power), 50,
-                               config=config, radii=radii,
+    predict, sigma_min = configure_spectrum_model(config, radii)
+    result = fit_spectrum(q, np.array(power), 50,
+                               predict=predict, sigma_min=sigma_min, radii=radii,
                                expected_replica_count=len(radii))
     assert result.best_values["kC"] == pytest.approx(25, rel=1e-5)
 
 
 @pytest.mark.parametrize("count", [0, -1, True, 1.5])
 def test_camera_fit_rejects_invalid_expected_replica_count(count):
-    config = SpectrumFitConfig(camera_integration=True, viscosity_in=.00102, viscosity_out=.00097,
-                               exposure_time=.030)
     modes = np.arange(3, 8)
     powers = np.ones(5)
     with pytest.raises(ValueError, match="positive integer"):
-        fit_spectrum_lmfit(modes, powers, 50, config=config, radii=[5],
+        fit_spectrum(modes, powers, 50, radii=[5],
                           expected_replica_count=count)
 
 
@@ -195,7 +197,7 @@ def test_implemented_relaxation_matches_full_tau_expression(
     stiffness and rate_scale intermediates. Extended precision keeps reference
     rounding below the 5e-15 relative tolerance on float64 production values.
     """
-    import vesmod.EdgeMod.spectrum_utils as utils
+    import vesmod.EdgeMod.spectrum_model as utils
 
     radii_um = np.array([2.0, 5.0, 15.0, 50.0])
     config = SpectrumFitConfig(camera_integration=True,
@@ -242,7 +244,7 @@ def test_implemented_relaxation_matches_full_tau_expression(
 @pytest.mark.parametrize('eta_m', [0.0, 4.1e-9, 8e-8, 1.5e-6])
 def test_faizi2024_rates_match_equation_one(monkeypatch, eta_m):
     """Check all l=2..500 and SI units against the full published equation."""
-    import vesmod.EdgeMod.spectrum_utils as utils
+    import vesmod.EdgeMod.spectrum_model as utils
     config = SpectrumFitConfig(camera_integration=True, relaxation_model="solvent_and_membrane", exposure_time=.030, viscosity_out=.001, eta_m=eta_m)
     captured = []
     original = utils.exposure_power_factor
