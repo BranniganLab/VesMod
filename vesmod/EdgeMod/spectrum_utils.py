@@ -17,9 +17,9 @@ from lmfit import Model
 logger = logging.getLogger(__name__)
 
 
-def _log_relative_rmse(result, fitting_group):
+def _log_relative_rmse(result, powers):
     """Report residual magnitude without applying fit acceptance criteria."""
-    measured = np.asarray(fitting_group.avg_amps2)
+    measured = np.asarray(powers)
     residuals = measured - np.asarray(result.best_fit)
     rmse = np.sqrt(np.mean(residuals**2))
     mean_power = np.mean(np.abs(measured))
@@ -28,9 +28,9 @@ def _log_relative_rmse(result, fitting_group):
     logger.info("Spectrum fit relative RMSE=%g", relative_rmse)
 
 
-def fit_spectrum_lmfit(fitting_group, lmax, free_sigma=False, weighted=False,
-                       *, config=None, radii=None, expected_replica_count=None):
-    """Return the complete lmfit result for a theoretical spectrum fit.
+def fit_spectrum_lmfit(modes, powers, lmax, free_sigma=False, weighted=False,
+                       *, sem=None, config=None, radii=None, expected_replica_count=None):
+    """Fit selected modes and powers, with optional per-mode replica SEM.
 
     Radii in microns are required for every fit. The reduced-tension upper
     bound is 100 * mean(radii)**2. For ensembles, the arithmetic mean of
@@ -70,13 +70,12 @@ def fit_spectrum_lmfit(fitting_group, lmax, free_sigma=False, weighted=False,
         # is omitted from the fitted contour spectrum.
         pars["sigma"].set(min=-6 + 1e-8)
 
-    fit_kwargs = {"q": fitting_group.modes, "params": pars, "max_nfev": 20000}
+    fit_kwargs = {"q": modes, "params": pars, "max_nfev": 20000}
     if weighted:
-        uncertainties = fitting_group.avg_amps2_ste
-        if uncertainties is None:
+        if sem is None:
             raise ValueError("Replica SEM values are required for a weighted fit.")
-        uncertainties = np.asarray(uncertainties, dtype=float)
-        amplitudes = np.asarray(fitting_group.avg_amps2, dtype=float)
+        uncertainties = np.asarray(sem, dtype=float)
+        amplitudes = np.asarray(powers, dtype=float)
         if uncertainties.shape != amplitudes.shape:
             raise ValueError("Replica SEM values must match the fitted amplitudes.")
         if not np.all(np.isfinite(uncertainties)) or np.any(uncertainties <= 0):
@@ -86,41 +85,19 @@ def fit_spectrum_lmfit(fitting_group, lmax, free_sigma=False, weighted=False,
             )
         fit_kwargs["weights"] = 1 / uncertainties
 
-    result = model.fit(fitting_group.avg_amps2, **fit_kwargs)
-    _log_relative_rmse(result, fitting_group)
+    result = model.fit(powers, **fit_kwargs)
+    _log_relative_rmse(result, powers)
     return result
 
 
-def fit_spectrum_to_theory_lmfit(fitting_group, lmax, free_sigma=False, weighted=False, *, radii):
-    """
-    Fit a Mini_spectrum to the theory from Hackl, Seifert, and Sachmann 1997 \
-    using lmfit.
-
-    Parameters
-    ----------
-    fitting_group : namedtuple
-        Mini_spectrum containing modes, avg_amps2, and avg_amps2_ste of just the \
-        modes you wish to fit to.
-    lmax : int
-        Inclusive upper bound on the summation.
-
-    Returns
-    -------
-    kC : float
-        The kC, extracted from the fit of fitting_group to the theoretical \
-        expression.
-    pcov : ndarray
-        The covariance matrix.
-
-    """
+def fit_spectrum_to_theory_lmfit(
+    modes, powers, lmax, free_sigma=False, weighted=False, *, sem=None, radii
+):
+    """Fit selected contour modes and return bending modulus and reduced tension."""
     result = fit_spectrum_lmfit(
-        fitting_group,
-        lmax,
-        free_sigma,
-        weighted,
-        radii=radii,
+        modes, powers, lmax, free_sigma, weighted, sem=sem, radii=radii
     )
-    return result.best_values['kC'], result.best_values['sigma']
+    return result.best_values["kC"], result.best_values["sigma"]
 
 
 def _validate_spherical_inputs(q, kC, sigma, lmax) -> list[int]:

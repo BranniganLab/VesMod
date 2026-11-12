@@ -47,4 +47,4 @@ There are no normalization, calculator settings, calculator identity or calculat
 - Calculated arrays can be mutated in place, while their properties and metadata cannot be reassigned. Use a calculator to supply custom data during construction.
 - Exported Spectrum JSON uses `powers` instead of `avg_amps2`, with `power_definition`, `power_unit`, `reference_radius` and its `radius_unit` (with `r0` always in micrometers). There is no legacy alias or automatic migration reader. Existing JSON consumers must rename the key; `.npy` contour inputs are unchanged.
 
-`SpectrumEnsemble`, `MiniSpectrum` and plotting data records retain their existing attribute names in this component-only refactor. Pass `spectrum.powers` to their existing interfaces.
+`SpectrumEnsemble` and plotting data records retain their existing attribute names in this component-only refactor. Pass `spectrum.powers` to their existing interfaces.

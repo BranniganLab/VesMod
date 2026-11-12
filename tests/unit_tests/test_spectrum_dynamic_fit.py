@@ -53,8 +53,8 @@ def test_selected_bounds_can_be_passed_to_core_physical_fit(monkeypatch):
     )
     calls = {}
 
-    def fake_fit(fitting_range, lmax, free_sigma, **kwargs):
-        calls["modes"] = fitting_range.modes.copy()
+    def fake_fit(modes, powers, lmax, free_sigma, **kwargs):
+        calls["modes"] = modes.copy()
         calls["lmax"] = lmax
         calls["free_sigma"] = free_sigma
         return SimpleNamespace(best_values={"kC": 20.0, "sigma": 2.0})

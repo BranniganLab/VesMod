@@ -151,32 +151,6 @@ def test_kC_ste_returns_standard_error_of_replica_kC_values():
     assert avg.kC_ste == pytest.approx(expected)
 
 
-def test_isolate_mode_range_returns_selected_modes_and_average_amplitudes():
-    """Test that _isolate_mode_range keeps modes >= lower_bound and < upper_bound."""
-    avg = SpectrumEnsemble()
-
-    avg.add_spectrum(
-        avg_amps2=[10.0, 20.0, 30.0, 40.0], modes=[1, 2, 3, 4], kC=20.0
-    )
-    avg.add_spectrum(
-        avg_amps2=[20.0, 40.0, 60.0, 80.0], modes=[1, 2, 3, 4], kC=22.0
-    )
-
-    mini_spectrum = avg._isolate_mode_range(lower_bound=2, upper_bound=4)
-
-    np.testing.assert_array_equal(mini_spectrum.modes, np.array([2, 3]))
-    np.testing.assert_allclose(mini_spectrum.avg_amps2, np.array([30.0, 45.0]))
-    np.testing.assert_allclose(mini_spectrum.avg_amps2_ste, np.array([10.0, 15.0]))
-
-
-def test_isolate_mode_range_raises_error_when_no_modes_have_been_added():
-    """Test that _isolate_mode_range raises AttributeError before any spectrum has set modes."""
-    avg = SpectrumEnsemble()
-
-    with pytest.raises(AttributeError, match="There are no modes"):
-        avg._isolate_mode_range(lower_bound=2, upper_bound=4)
-
-
 @pytest.mark.parametrize("free_sigma", [True, False])
 def test_extract_kC_from_fit_uses_isolated_mode_range(monkeypatch, free_sigma):
     """The scalar helper passes the requested sigma option and ensemble slice."""
@@ -187,8 +161,8 @@ def test_extract_kC_from_fit_uses_isolated_mode_range(monkeypatch, free_sigma):
     avg.add_spectrum([20.0, 40.0, 60.0, 80.0], [1, 2, 3, 4], 22.0, r0=5.0)
     calls = {}
 
-    def fake_fit(group, lmax, free_sigma, weighted=False, **kwargs):
-        calls.update(group=group, lmax=lmax, free_sigma=free_sigma, weighted=weighted)
+    def fake_fit(modes, powers, lmax, free_sigma, weighted=False, *, sem=None, **kwargs):
+        calls.update(modes=modes, powers=powers, sem=sem, lmax=lmax, free_sigma=free_sigma, weighted=weighted)
         return SimpleNamespace(best_values={"kC": 123.0, "sigma": 0.0}, chisqr=1.0, redchi=1.0)
 
     monkeypatch.setattr("vesmod.EdgeMod.spectrum_ensemble.fit_spectrum_lmfit", fake_fit)
@@ -201,9 +175,9 @@ def test_extract_kC_from_fit_uses_isolated_mode_range(monkeypatch, free_sigma):
     assert calls["lmax"] == 700
     assert calls["free_sigma"] is free_sigma
     assert calls["weighted"] is False
-    np.testing.assert_array_equal(calls["group"].modes, np.array([2, 3]))
-    np.testing.assert_allclose(calls["group"].avg_amps2, np.array([30.0, 45.0]))
-    np.testing.assert_allclose(calls["group"].avg_amps2_ste, np.array([10.0, 15.0]))
+    np.testing.assert_array_equal(calls["modes"], np.array([2, 3]))
+    np.testing.assert_allclose(calls["powers"], np.array([30.0, 45.0]))
+    np.testing.assert_allclose(calls["sem"], np.array([10.0, 15.0]))
 
 def test_kC_property_returns_value_from_extract_kC_from_fit(monkeypatch):
     """Test that the kC property delegates to _extract_kC_from_fit."""
@@ -224,8 +198,8 @@ def test_extract_kc_from_fit_accepts_free_sigma_and_records_reduced_tension(monk
     config = SpectrumFitConfig(lmax=700, free_sigma=True, lower_bound=2, upper_bound=4)
     calls = {}
 
-    def fake_fit(group, lmax, free_sigma, weighted=False, **kwargs):
-        calls.update(group=group, lmax=lmax, free_sigma=free_sigma, weighted=weighted)
+    def fake_fit(modes, powers, lmax, free_sigma, weighted=False, *, sem=None, **kwargs):
+        calls.update(modes=modes, powers=powers, sem=sem, lmax=lmax, free_sigma=free_sigma, weighted=weighted)
         return SimpleNamespace(best_values={"kC": 123.0, "sigma": 4.5}, chisqr=2.5, redchi=2.5)
 
     monkeypatch.setattr("vesmod.EdgeMod.spectrum_ensemble.fit_spectrum_lmfit", fake_fit)
@@ -243,8 +217,8 @@ def test_extract_kc_from_fit_accepts_free_sigma_and_records_reduced_tension(monk
     assert calls["lmax"] == 700
     assert calls["free_sigma"] is True
     assert calls["weighted"] is True
-    np.testing.assert_array_equal(calls["group"].modes, np.array([2, 3]))
-    np.testing.assert_allclose(calls["group"].avg_amps2_ste, np.array([10.0, 15.0]))
+    np.testing.assert_array_equal(calls["modes"], np.array([2, 3]))
+    np.testing.assert_allclose(calls["sem"], np.array([10.0, 15.0]))
 
 @pytest.mark.parametrize("entry_point", ["extract_kc_from_fit", "_extract_kC_from_fit", "kC"])
 def test_ensemble_fit_defaults_to_free_sigma(monkeypatch, entry_point):
@@ -255,7 +229,7 @@ def test_ensemble_fit_defaults_to_free_sigma(monkeypatch, entry_point):
     avg.add_spectrum([10., 20., 30., 40., 50., 60., 70., 80.], range(1, 9), 20., r0=5.0)
     calls = {}
 
-    def fake_fit(group, lmax, free_sigma, weighted=False, **kwargs):
+    def fake_fit(modes, powers, lmax, free_sigma, weighted=False, *, sem=None, **kwargs):
         calls.update(free_sigma=free_sigma, weighted=weighted)
         return SimpleNamespace(best_values={"kC": 123.0, "sigma": 4.5}, chisqr=1.0, redchi=1.0)
 

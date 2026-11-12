@@ -6,7 +6,6 @@ import pytest
 from scipy.constants import Boltzmann
 from scipy.integrate import quad
 from vesmod.EdgeMod import Spectrum, SpectrumFitConfig, SpectrumEnsemble
-from vesmod.EdgeMod.range_selection import MiniSpectrum
 from vesmod.EdgeMod.spectrum_utils import (
     spherical_contour_spectrum, predict_spectrum, exposure_power_factor, fit_spectrum_lmfit,
 )
@@ -63,8 +62,8 @@ def test_fit_recovers_synthetic_parameters(free_sigma):
     q = np.arange(3, 11)
     sigma = 4 if free_sigma else 0
     measured = np.array(predict_spectrum(q, 25, sigma, 50, config=config, radii=[5]))
-    result = fit_spectrum_lmfit(MiniSpectrum(q, measured, measured * .01), 50,
-                                free_sigma, weighted=True, config=config, radii=[5])
+    result = fit_spectrum_lmfit(q, measured, 50, sem=measured * .01,
+                                free_sigma=free_sigma, weighted=True, config=config, radii=[5])
     assert result.best_values['kC'] == pytest.approx(25, rel=1e-5)
     assert result.best_values['sigma'] == pytest.approx(sigma, abs=1e-5)
     np.testing.assert_allclose(result.eval(q=q), measured, rtol=1e-6)
@@ -116,7 +115,7 @@ def test_corrected_plot_uses_corrected_prediction():
     config = SpectrumFitConfig(camera_integration=True, viscosity_in=.00102, viscosity_out=.00097, lmax=50, free_sigma=False, exposure_time=.030)
     q = np.arange(3, 8)
     measured = np.array(predict_spectrum(q, 25, 0, 50, config=config, radii=[5]))
-    result = fit_spectrum_lmfit(MiniSpectrum(q, measured, None), 50,
+    result = fit_spectrum_lmfit(q, measured, 50,
                                 config=config, radii=[5])
     data = SpectrumPlotData(modes=q, avg_amps2=measured, fit_result=result,
                             lower_bound=3, upper_bound=8, lmax=50)
@@ -139,9 +138,10 @@ def test_camera_requires_radius_and_stable_modes():
 def test_camera_fit_rejects_wrong_replica_radius_count(radii):
     config = SpectrumFitConfig(camera_integration=True, viscosity_in=.00102, viscosity_out=.00097,
                                exposure_time=.030)
-    group = MiniSpectrum(np.arange(3, 8), np.ones(5), None)
+    modes = np.arange(3, 8)
+    powers = np.ones(5)
     with pytest.raises(ValueError, match="expected 2 radii, received"):
-        fit_spectrum_lmfit(group, 50, config=config, radii=radii,
+        fit_spectrum_lmfit(modes, powers, 50, config=config, radii=radii,
                           expected_replica_count=2)
 
 
@@ -152,7 +152,7 @@ def test_camera_fit_accepts_matching_replica_radius_count(radii):
     q = np.arange(3, 8)
     power = predict_spectrum(q, 25, 0, 50,
                                               config=config, radii=radii)
-    result = fit_spectrum_lmfit(MiniSpectrum(q, np.array(power), None), 50,
+    result = fit_spectrum_lmfit(q, np.array(power), 50,
                                config=config, radii=radii,
                                expected_replica_count=len(radii))
     assert result.best_values["kC"] == pytest.approx(25, rel=1e-5)
@@ -162,9 +162,10 @@ def test_camera_fit_accepts_matching_replica_radius_count(radii):
 def test_camera_fit_rejects_invalid_expected_replica_count(count):
     config = SpectrumFitConfig(camera_integration=True, viscosity_in=.00102, viscosity_out=.00097,
                                exposure_time=.030)
-    group = MiniSpectrum(np.arange(3, 8), np.ones(5), None)
+    modes = np.arange(3, 8)
+    powers = np.ones(5)
     with pytest.raises(ValueError, match="positive integer"):
-        fit_spectrum_lmfit(group, 50, config=config, radii=[5],
+        fit_spectrum_lmfit(modes, powers, 50, config=config, radii=[5],
                           expected_replica_count=count)
 
 

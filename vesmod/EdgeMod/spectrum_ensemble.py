@@ -13,7 +13,7 @@ behavior.
 """
 import numpy as np
 from vesmod.validation import require_positive_real
-from .range_selection import MiniSpectrum, select_manual_range
+from .range_selection import select_manual_range, slice_fit_arrays
 from .spectrum_utils import fit_spectrum_lmfit
 from .config import SpectrumFitConfig
 from .fit_result import EnsembleFit
@@ -116,15 +116,6 @@ class SpectrumEnsemble:
         self.kC_list.append(kC)
         self.radii_list.append(r0)
 
-    def _isolate_mode_range(self, lower_bound: int, upper_bound: int) -> MiniSpectrum:
-        """Return ensemble modes with ``lower_bound <= q < upper_bound``."""
-        if self.modes is None:
-            raise AttributeError("There are no modes; Cannot return mode range.")
-        sem = self.avg_amps2_ste if len(self.spectra_list) >= 2 else None
-        return select_manual_range(
-            self.modes, self.avg_amps2, lower_bound, upper_bound, sem=sem
-        )
-
     def extract_kc_from_fit(
         self,
         config: SpectrumFitConfig | None = None,
@@ -156,15 +147,20 @@ class SpectrumEnsemble:
             raise ValueError("Supply r0 for every replica to set the reduced-tension bound.")
         fit_kwargs = {"config": config, "radii": self.radii_list,
                          "expected_replica_count": len(self.spectra_list)}
-        fitting_range = self._isolate_mode_range(
-            config.lower_bound,
-            config.upper_bound,
+        fit_mode_mask = select_manual_range(
+            self.modes, config.lower_bound, config.upper_bound
+        )
+        sem = self.avg_amps2_ste if len(self.spectra_list) >= 2 else None
+        modes, powers, fit_sem = slice_fit_arrays(
+            fit_mode_mask, self.modes, self.avg_amps2, sem=sem
         )
         result = fit_spectrum_lmfit(
-            fitting_range,
+            modes,
+            powers,
             config.lmax,
             free_sigma=config.free_sigma,
             weighted=weight_by_replica_sem,
+            sem=fit_sem,
             **fit_kwargs,
         )
         kC = result.best_values["kC"]

@@ -1,13 +1,17 @@
 """Select the measured Fourier modes to use in a spectrum fit."""
 
-from collections import namedtuple
 
-MiniSpectrum = namedtuple("MiniSpectrum", ["modes", "avg_amps2", "avg_amps2_ste"])
-
-
-def select_manual_range(modes, powers, lower_bound, upper_bound, *, sem=None):
-    """Slice measured powers and optional SEM to the user-supplied q interval."""
+def select_manual_range(modes, lower_bound, upper_bound):
+    """Return a Boolean array selecting modes in the user-supplied q interval."""
     if modes is None:
         raise AttributeError("There are no modes; Cannot return mode range.")
-    mask = (modes >= lower_bound) & (modes < upper_bound)
-    return MiniSpectrum(modes[mask], powers[mask], None if sem is None else sem[mask])
+    return (modes >= lower_bound) & (modes < upper_bound)
+
+
+def slice_fit_arrays(fit_mode_mask, modes, powers, *, sem=None):
+    """Apply one mode selection to powers and optional per-mode SEM."""
+    return (
+        modes[fit_mode_mask],
+        powers[fit_mode_mask],
+        None if sem is None else sem[fit_mode_mask],
+    )

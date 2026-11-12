@@ -9,7 +9,6 @@ import pytest
 from scipy.constants import Boltzmann
 from scipy.special import lpmv
 
-from vesmod.EdgeMod.range_selection import MiniSpectrum
 from vesmod.EdgeMod.spectrum_utils import (
     spherical_contour_spectrum,
     Nlq_Plq0_squared,
@@ -17,19 +16,6 @@ from vesmod.EdgeMod.spectrum_utils import (
     fit_spectrum_to_theory_lmfit,
     fit_spectrum_lmfit,
 )
-
-
-def test_mini_spectrum_stores_modes_avg_amps2_and_sem():
-    """Test that MiniSpectrum stores modes, mean amplitudes, and SEM values."""
-    modes = np.array([3, 4])
-    avg_amps2 = np.array([0.1, 0.2])
-    avg_amps2_ste = np.array([0.01, 0.02])
-
-    spectrum = MiniSpectrum(modes, avg_amps2, avg_amps2_ste)
-
-    assert spectrum.modes is modes
-    assert spectrum.avg_amps2 is avg_amps2
-    assert spectrum.avg_amps2_ste is avg_amps2_ste
 
 
 def test_calc_tension_from_reduced_tension_converts_microns_to_meters():
@@ -153,9 +139,8 @@ def test_fit_spectrum_to_theory_lmfit_recovers_synthetic_kc_when_sigma_is_fixed(
     true_kc = 25.0
     lmax = 60
     avg_amps2 = np.array(spherical_contour_spectrum(modes, kC=true_kc, sigma=0.0, lmax=lmax))
-    fitting_group = MiniSpectrum(modes, avg_amps2, None)
 
-    kc, sigma = fit_spectrum_to_theory_lmfit(fitting_group, lmax=lmax, free_sigma=False, radii=[5.0])
+    kc, sigma = fit_spectrum_to_theory_lmfit(modes, avg_amps2, lmax=lmax, free_sigma=False, radii=[5.0])
 
     assert kc == pytest.approx(true_kc, rel=1e-3)
     assert sigma == pytest.approx(0.0, abs=1e-10)
@@ -170,13 +155,10 @@ def test_weighted_fit_passes_inverse_sem_to_lmfit(monkeypatch):
         return SimpleNamespace(best_fit=np.asarray(data))
 
     monkeypatch.setattr("vesmod.EdgeMod.spectrum_utils.Model.fit", fake_fit)
-    spectrum = MiniSpectrum(
-        np.array([3, 4]),
-        np.array([0.1, 0.2]),
-        np.array([0.01, 0.04]),
+    fit_spectrum_lmfit(
+        np.array([3, 4]), np.array([0.1, 0.2]), lmax=20,
+        weighted=True, sem=np.array([0.01, 0.04]), radii=[5.0],
     )
-
-    fit_spectrum_lmfit(spectrum, lmax=20, weighted=True, radii=[5.0])
 
     np.testing.assert_allclose(calls["weights"], np.array([100.0, 25.0]))
 
@@ -191,7 +173,9 @@ def test_weighted_fit_rejects_missing_or_invalid_sem(monkeypatch, sem):
         "vesmod.EdgeMod.spectrum_utils.Model.fit",
         lambda *args, **kwargs: pytest.fail("lmfit must not be called"),
     )
-    spectrum = MiniSpectrum(np.array([3, 4]), np.array([0.1, 0.2]), sem)
 
     with pytest.raises(ValueError, match="Replica SEM"):
-        fit_spectrum_lmfit(spectrum, lmax=20, weighted=True, radii=[5.0])
+        fit_spectrum_lmfit(
+            np.array([3, 4]), np.array([0.1, 0.2]), lmax=20,
+            weighted=True, sem=sem, radii=[5.0],
+        )
