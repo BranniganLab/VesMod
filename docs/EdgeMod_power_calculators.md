@@ -37,14 +37,11 @@ Input radii are positive finite real values in micrometers, with shape `(frames,
 
 Results require unique integer modes, matching finite nonnegative powers, a positive reference radius, units and a power definition. Zero power is valid. Spectrum exposes `modes`, `powers`, `r0` and `power_definition` as read-only properties. To change the calculation, construct a new Spectrum. `r0` is the result's reference radius converted to micrometers; supported radius units are `um`, `m` and `nm`.
 
-There are no normalization, calculator settings, calculator identity or calculator version fields. Document custom conventions in the calculator's API. Existing physical routines still expect the historical dimensionless observable; metadata is not automatic adaptation of custom powers.
+Document custom conventions in the calculator's API. The physical fitter expects dimensionless contour powers, so a custom calculator must supply that observable to use the fitter.
 
-## Breaking migration
+## Using and exporting powers
 
-- Replace `Spectrum(..., power_definition="temporal_variance")` with `Spectrum(..., calculator=TemporalVarianceCalculator())`.
-- Replace `power_definition="mean_square"` with `calculator=MeanSquaredPowerCalculator()` or omit it.
-- Replace `spectrum.avg_amps2` with `spectrum.powers`.
-- Calculated arrays can be mutated in place, while their properties and metadata cannot be reassigned. Use a calculator to supply custom data during construction.
-- Exported Spectrum JSON uses `powers` instead of `avg_amps2`, with `power_definition`, `power_unit`, `reference_radius` and its `radius_unit` (with `r0` always in micrometers). There is no legacy alias or automatic migration reader. Existing JSON consumers must rename the key; `.npy` contour inputs are unchanged.
-
-`SpectrumEnsemble`, `MiniSpectrum` and plotting data records retain their existing attribute names in this component-only refactor. Pass `spectrum.powers` to their existing interfaces.
+- Read the measured powers from `spectrum.powers`. Pass them as `avg_amps2` to `SpectrumEnsemble.add_spectrum()` or `SpectrumPlotData`.
+- Use `calculator=TemporalVarianceCalculator()` for temporal variance. The default is `MeanSquaredPowerCalculator()`.
+- To supply custom powers during construction, pass a custom calculator.
+- Spectrum JSON stores measured powers under `powers` when arrays are included. It records `power_definition`, `power_unit`, `reference_radius`, and `radius_unit`. The `r0` value is in micrometers.

@@ -26,8 +26,8 @@ from .config import SpectrumFitConfig
 from .calculators import MeanSquaredPowerCalculator
 from .power_calculation import PowerCalculationResult, SpectrumCalculator
 from .fit_result import SpectrumFit
+from .range_selection.selection import select_manual_range, slice_fit_arrays
 from .spectrum_utils import (
-    MiniSpectrum,
     calc_tension_from_reduced_tension,
     fit_spectrum_lmfit,
 )
@@ -178,19 +178,6 @@ class Spectrum:
         """Read-only description of the calculated powers."""
         return self._calculation.power_definition
 
-    def isolate_mode_range(self, lower_bound: int, upper_bound: int) -> MiniSpectrum:
-        """Return modes with ``lower_bound <= q < upper_bound`` and amplitudes."""
-        if self.modes is None:
-            raise AttributeError("There are no modes; Cannot return mode range.")
-        mask1 = self.modes >= lower_bound
-        mask2 = self.modes < upper_bound
-        combined_mask = mask1 & mask2
-        return MiniSpectrum(
-            self.modes[combined_mask],
-            self.powers[combined_mask],
-            None,
-        )
-
     def extract_kc_from_fit(
         self,
         config: SpectrumFitConfig | None = None,
@@ -207,15 +194,16 @@ class Spectrum:
             raise TypeError("config must be a SpectrumFitConfig or None.")
 
         self.fit_result = None
-        fitting_range = self.isolate_mode_range(
-            config.lower_bound,
-            config.upper_bound,
+        fit_mode_mask = select_manual_range(
+            self.modes, config.lower_bound, config.upper_bound
         )
-        if fitting_range.modes.size == 0:
+        modes, powers, _ = slice_fit_arrays(fit_mode_mask, self.modes, self.powers)
+        if modes.size == 0:
             raise ValueError("Configured q range contains no spectrum modes.")
 
         self.fit_result = fit_spectrum_lmfit(
-            fitting_range,
+            modes,
+            powers,
             config.lmax,
             config.free_sigma,
             config=config, radii=[self.r0], expected_replica_count=1,

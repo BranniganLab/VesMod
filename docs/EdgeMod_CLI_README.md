@@ -4,7 +4,7 @@ EdgeMod fits membrane mechanical parameters from vesicle contour trajectories. I
 
 The **stable core EdgeMod API always fits explicit q bounds**. The default is the historical lower-inclusive, upper-exclusive interval `3 <= q < 8` (q = 3, 4, 5, 6, 7).
 
-Dynamic q-range selection is an **experimental feature**. It lives under `vesmod.EdgeMod.experimental` and is composed upstream of the stable physical fitter. The experimental selector chooses q bounds; the core `Spectrum` fitter does not know how those bounds were chosen.
+Dynamic q-range selection is an **experimental feature**. It lives under `vesmod.EdgeMod.range_selection.experimental` and is composed upstream of the stable physical fitter. The experimental selector chooses q bounds; the core `Spectrum` fitter does not know how those bounds were chosen.
 
 ## Features
 
@@ -296,7 +296,7 @@ The dynamic selector is deliberately imported from the experimental namespace:
 from dataclasses import replace
 
 from vesmod.EdgeMod import Spectrum, SpectrumFitConfig
-from vesmod.EdgeMod.experimental import QMinusThreeRangeSelector
+from vesmod.EdgeMod.range_selection.experimental import QMinusThreeRangeSelector
 
 spectrum = Spectrum("sample.npy")
 base_config = SpectrumFitConfig(

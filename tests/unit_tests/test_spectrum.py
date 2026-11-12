@@ -15,7 +15,7 @@ import numpy as np
 import pytest
 
 from vesmod.EdgeMod import Spectrum, SpectrumFitConfig
-from vesmod.EdgeMod.spectrum_utils import MiniSpectrum
+from vesmod.EdgeMod.range_selection.selection import select_manual_range, slice_fit_arrays
 from vesmod.VesEdge.models import EdgeDetection, EdgeDetectionFailure
 from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
 from vesmod.VesEdge.vesicle_edges import VesicleEdges
@@ -196,27 +196,21 @@ def test_calc_integer_modes_returns_positive_then_negative_fft_modes(tmp_path):
     )
 
 
-def test_isolate_mode_range_includes_lower_bound_and_excludes_upper_bound():
+def test_select_manual_range_includes_lower_bound_and_excludes_upper_bound():
     """Test lower-inclusive, upper-exclusive mode selection."""
-    spectrum = SyntheticSpectrum.__new__(SyntheticSpectrum)
-    spectrum.modes = np.array([-2, -1, 0, 1, 2, 3, 4])
-    spectrum.powers = np.array([20.0, 10.0, 0.0, 1.0, 2.0, 3.0, 4.0])
+    modes = np.array([-2, -1, 0, 1, 2, 3, 4])
+    powers = np.array([20.0, 10.0, 0.0, 1.0, 2.0, 3.0, 4.0])
+    fit_mode_mask = select_manual_range(modes, lower_bound=1, upper_bound=4)
 
-    isolated = spectrum.isolate_mode_range(lower_bound=1, upper_bound=4)
-
-    assert isinstance(isolated, MiniSpectrum)
-    np.testing.assert_array_equal(isolated.modes, np.array([1, 2, 3]))
-    np.testing.assert_array_equal(isolated.avg_amps2, np.array([1.0, 2.0, 3.0]))
-    assert isolated.avg_amps2_ste is None
+    selected_modes, selected_powers, sem = slice_fit_arrays(fit_mode_mask, modes, powers)
+    np.testing.assert_array_equal(selected_modes, [1, 2, 3])
+    np.testing.assert_array_equal(selected_powers, [1.0, 2.0, 3.0])
+    assert sem is None
 
 
-def test_isolate_mode_range_raises_when_modes_are_missing():
-    """Test that mode selection fails clearly when modes are unavailable."""
-    spectrum = SyntheticSpectrum.__new__(SyntheticSpectrum)
-    spectrum.modes = None
-    spectrum.powers = np.array([1.0])
+def test_select_manual_range_raises_when_modes_are_missing():
     with pytest.raises(AttributeError, match="There are no modes"):
-        spectrum.isolate_mode_range(1, 3)
+        select_manual_range(None, 1, 3)
 
 
 def test_extract_kc_from_fit_uses_config_and_saves_fit_results(monkeypatch):
@@ -231,9 +225,9 @@ def test_extract_kc_from_fit_uses_config_and_saves_fit_results(monkeypatch):
     spectrum.fit_results = []
     calls = {}
 
-    def fake_fit_spectrum_lmfit(fitting_range, lmax, free_sigma, **kwargs):
-        calls["modes"] = fitting_range.modes.copy()
-        calls["avg_amps2"] = fitting_range.avg_amps2.copy()
+    def fake_fit_spectrum_lmfit(modes, powers, lmax, free_sigma, **kwargs):
+        calls["modes"] = modes.copy()
+        calls["avg_amps2"] = powers.copy()
         calls["lmax"] = lmax
         calls["free_sigma"] = free_sigma
         return SimpleNamespace(best_values={"kC": 22.0, "sigma": 3.5})
@@ -292,8 +286,8 @@ def test_extract_kc_from_fit_uses_default_config(monkeypatch):
     spectrum.fit_results = []
     calls = {}
 
-    def fake_fit(fitting_range, lmax, free_sigma, **kwargs):
-        calls["modes"] = fitting_range.modes.copy()
+    def fake_fit(modes, powers, lmax, free_sigma, **kwargs):
+        calls["modes"] = modes.copy()
         calls["lmax"] = lmax
         calls["free_sigma"] = free_sigma
         return SimpleNamespace(best_values={"kC": 20.0, "sigma": 2.0})
