@@ -12,7 +12,7 @@ import sys
 import numpy as np
 
 from vesmod.EdgeMod import Spectrum, SpectrumFitConfig
-from vesmod.EdgeMod.experimental import (
+from vesmod.EdgeMod.range_selection.experimental import (
     DynamicRangeSelection,
     QMinusThreeRangeSelector,
 )

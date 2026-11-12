@@ -26,8 +26,8 @@ from .config import SpectrumFitConfig
 from .calculators import MeanSquaredPowerCalculator
 from .power_calculation import PowerCalculationResult, SpectrumCalculator
 from .fit_result import SpectrumFit
+from .range_selection import MiniSpectrum, select_manual_range
 from .spectrum_utils import (
-    MiniSpectrum,
     calc_tension_from_reduced_tension,
     fit_spectrum_lmfit,
 )
@@ -180,16 +180,7 @@ class Spectrum:
 
     def isolate_mode_range(self, lower_bound: int, upper_bound: int) -> MiniSpectrum:
         """Return modes with ``lower_bound <= q < upper_bound`` and amplitudes."""
-        if self.modes is None:
-            raise AttributeError("There are no modes; Cannot return mode range.")
-        mask1 = self.modes >= lower_bound
-        mask2 = self.modes < upper_bound
-        combined_mask = mask1 & mask2
-        return MiniSpectrum(
-            self.modes[combined_mask],
-            self.powers[combined_mask],
-            None,
-        )
+        return select_manual_range(self.modes, self.powers, lower_bound, upper_bound)
 
     def extract_kc_from_fit(
         self,

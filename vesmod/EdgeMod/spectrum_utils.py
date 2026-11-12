@@ -6,7 +6,6 @@ Created on Mon Apr  6 14:09:33 2026
 @author: js2746
 """
 from functools import lru_cache
-from collections import namedtuple
 from numbers import Integral, Real
 import math
 import logging
@@ -15,9 +14,9 @@ from scipy.constants import Boltzmann
 from scipy.special import gammaln
 from lmfit import Model
 
-logger = logging.getLogger(__name__)
+from .range_selection import MiniSpectrum as MiniSpectrum
 
-MiniSpectrum = namedtuple("MiniSpectrum", ['modes', 'avg_amps2', 'avg_amps2_ste'])
+logger = logging.getLogger(__name__)
 
 
 def _log_relative_rmse(result, fitting_group):

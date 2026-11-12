@@ -13,10 +13,8 @@ behavior.
 """
 import numpy as np
 from vesmod.validation import require_positive_real
-from vesmod.EdgeMod.spectrum_utils import (
-    fit_spectrum_lmfit,
-    MiniSpectrum,
-)
+from .range_selection import MiniSpectrum, select_manual_range
+from .spectrum_utils import fit_spectrum_lmfit
 from .config import SpectrumFitConfig
 from .fit_result import EnsembleFit
 
@@ -122,18 +120,9 @@ class SpectrumEnsemble:
         """Return ensemble modes with ``lower_bound <= q < upper_bound``."""
         if self.modes is None:
             raise AttributeError("There are no modes; Cannot return mode range.")
-        mask1 = self.modes >= lower_bound
-        mask2 = self.modes < upper_bound
-        combined_mask = mask1 & mask2
-        avg_amps2_ste = (
-            self.avg_amps2_ste[combined_mask]
-            if len(self.spectra_list) >= 2
-            else None
-        )
-        return MiniSpectrum(
-            self.modes[combined_mask],
-            self.avg_amps2[combined_mask],
-            avg_amps2_ste,
+        sem = self.avg_amps2_ste if len(self.spectra_list) >= 2 else None
+        return select_manual_range(
+            self.modes, self.avg_amps2, lower_bound, upper_bound, sem=sem
         )
 
     def extract_kc_from_fit(
