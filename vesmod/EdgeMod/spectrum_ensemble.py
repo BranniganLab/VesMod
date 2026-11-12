@@ -13,7 +13,7 @@ behavior.
 """
 import numpy as np
 from vesmod.validation import require_positive_real
-from .range_selection import select_manual_range, slice_fit_arrays
+from .range_selection.selection import select_manual_range, slice_fit_arrays
 from .spectrum_utils import fit_spectrum_lmfit
 from .config import SpectrumFitConfig
 from .fit_result import EnsembleFit

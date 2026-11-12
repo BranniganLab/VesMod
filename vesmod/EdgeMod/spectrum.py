@@ -26,7 +26,7 @@ from .config import SpectrumFitConfig
 from .calculators import MeanSquaredPowerCalculator
 from .power_calculation import PowerCalculationResult, SpectrumCalculator
 from .fit_result import SpectrumFit
-from .range_selection import select_manual_range, slice_fit_arrays
+from .range_selection.selection import select_manual_range, slice_fit_arrays
 from .spectrum_utils import (
     calc_tension_from_reduced_tension,
     fit_spectrum_lmfit,

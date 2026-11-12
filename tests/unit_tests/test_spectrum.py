@@ -15,7 +15,7 @@ import numpy as np
 import pytest
 
 from vesmod.EdgeMod import Spectrum, SpectrumFitConfig
-from vesmod.EdgeMod.range_selection import select_manual_range, slice_fit_arrays
+from vesmod.EdgeMod.range_selection.selection import select_manual_range, slice_fit_arrays
 from vesmod.VesEdge.models import EdgeDetection, EdgeDetectionFailure
 from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
 from vesmod.VesEdge.vesicle_edges import VesicleEdges
