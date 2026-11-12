@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from vesmod.EdgeMod import Spectrum, SpectrumFitConfig
-from vesmod.EdgeMod.spherical_spectrum import spherical_contour_spectrum, Nlq_Plq0_squared
+from vesmod.EdgeMod.spherical_model import spherical_contour_spectrum, Nlq_Plq0_squared
 
 
 @pytest.mark.parametrize(

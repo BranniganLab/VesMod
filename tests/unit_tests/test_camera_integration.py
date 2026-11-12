@@ -6,7 +6,7 @@ import pytest
 from scipy.constants import Boltzmann
 from scipy.integrate import quad
 from vesmod.EdgeMod import Spectrum, SpectrumFitConfig, SpectrumEnsemble
-from vesmod.EdgeMod.spherical_spectrum import (
+from vesmod.EdgeMod.spherical_model import (
     spherical_contour_spectrum,
     predict_spectrum,
     exposure_power_factor,
@@ -197,7 +197,7 @@ def test_implemented_relaxation_matches_full_tau_expression(
     stiffness and rate_scale intermediates. Extended precision keeps reference
     rounding below the 5e-15 relative tolerance on float64 production values.
     """
-    import vesmod.EdgeMod.spherical_spectrum as utils
+    import vesmod.EdgeMod.spherical_model as utils
 
     radii_um = np.array([2.0, 5.0, 15.0, 50.0])
     config = SpectrumFitConfig(camera_integration=True,
@@ -244,7 +244,7 @@ def test_implemented_relaxation_matches_full_tau_expression(
 @pytest.mark.parametrize('eta_m', [0.0, 4.1e-9, 8e-8, 1.5e-6])
 def test_faizi2024_rates_match_equation_one(monkeypatch, eta_m):
     """Check all l=2..500 and SI units against the full published equation."""
-    import vesmod.EdgeMod.spherical_spectrum as utils
+    import vesmod.EdgeMod.spherical_model as utils
     config = SpectrumFitConfig(camera_integration=True, relaxation_model="solvent_and_membrane", exposure_time=.030, viscosity_out=.001, eta_m=eta_m)
     captured = []
     original = utils.exposure_power_factor

@@ -28,7 +28,7 @@ from .power_calculation import PowerCalculationResult, SpectrumCalculator
 from .fit_result import SpectrumFit
 from .range_selection.selection import select_manual_range, slice_fit_arrays
 from .fitting import fit_spectrum
-from .spherical_spectrum import calc_tension_from_reduced_tension, configure_spectrum_model
+from .spherical_model import calc_tension_from_reduced_tension, configure_spectrum_model
 
 
 if TYPE_CHECKING:

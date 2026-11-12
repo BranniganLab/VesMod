@@ -250,7 +250,7 @@ def test_ensemble_fit_defaults_to_free_sigma(monkeypatch, entry_point):
 @pytest.mark.parametrize("free_sigma", [True, False])
 def test_ensemble_fit_recovers_synthetic_spectrum(free_sigma):
     """Default free and explicit fixed fits recover known spherical_contour_spectrum parameters."""
-    from vesmod.EdgeMod.spherical_spectrum import spherical_contour_spectrum
+    from vesmod.EdgeMod.spherical_model import spherical_contour_spectrum
 
     modes = np.arange(2, 10)
     expected_kc = 25.0

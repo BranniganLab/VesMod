@@ -5,7 +5,7 @@ import logging
 from lmfit import Model
 import numpy as np
 
-from .spherical_spectrum import spherical_contour_spectrum, validate_vesicle_radii
+from .spherical_model import spherical_contour_spectrum, validate_vesicle_radii
 
 logger = logging.getLogger(__name__)
 
