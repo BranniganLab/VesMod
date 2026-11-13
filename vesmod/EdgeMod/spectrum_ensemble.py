@@ -163,7 +163,7 @@ class SpectrumEnsemble:
             free_sigma=config.free_sigma,
             weighted=weight_by_replica_sem,
             sem=fit_sem,
-            predict=predict,
+            model=predict,
             kc_bounds=kc_bounds,
             sigma_bounds=sigma_bounds,
         )

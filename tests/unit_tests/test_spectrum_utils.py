@@ -192,7 +192,7 @@ def test_fit_spectrum_uses_supplied_predictor():
 
     powers = predict(modes, 23.0, 2.0, 50)
     fit = fit_spectrum(
-        modes, powers, 50, free_sigma=True, kc_bounds=(20, 30), sigma_bounds=(-3, 4), predict=predict
+        modes, powers, 50, free_sigma=True, kc_bounds=(20, 30), sigma_bounds=(-3, 4), model=predict
     )
 
     assert (fit.params["kC"].min, fit.params["kC"].max) == (20, 30)

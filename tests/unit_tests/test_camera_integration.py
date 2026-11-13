@@ -68,7 +68,7 @@ def test_fit_recovers_synthetic_parameters(free_sigma):
     measured = np.array(predict_spectrum(q, 25, sigma, 50, config=config, radii=[5]))
     predict, kc_bounds, sigma_bounds = configure_spectrum_model(config, [5])
     result = fit_spectrum(q, measured, 50, sem=measured * .01,
-                                free_sigma=free_sigma, weighted=True, predict=predict, kc_bounds=kc_bounds, sigma_bounds=sigma_bounds)
+                                free_sigma=free_sigma, weighted=True, model=predict, kc_bounds=kc_bounds, sigma_bounds=sigma_bounds)
     assert result.best_values['kC'] == pytest.approx(25, rel=1e-5)
     assert result.best_values['sigma'] == pytest.approx(sigma, abs=1e-5)
     np.testing.assert_allclose(result.eval(q=q), measured, rtol=1e-6)
@@ -121,7 +121,7 @@ def test_corrected_plot_uses_corrected_prediction():
     q = np.arange(3, 8)
     measured = np.array(predict_spectrum(q, 25, 0, 50, config=config, radii=[5]))
     predict, kc_bounds, sigma_bounds = configure_spectrum_model(config, [5])
-    result = fit_spectrum(q, measured, 50, predict=predict, kc_bounds=kc_bounds, sigma_bounds=sigma_bounds)
+    result = fit_spectrum(q, measured, 50, model=predict, kc_bounds=kc_bounds, sigma_bounds=sigma_bounds)
     data = SpectrumPlotData(modes=q, avg_amps2=measured, fit_result=result,
                             lower_bound=3, upper_bound=8, lmax=50)
     figure, ax = plt.subplots()
@@ -154,7 +154,7 @@ def test_camera_fit_accepts_matching_replica_radius_count(radii):
                                               config=config, radii=radii)
     predict, kc_bounds, sigma_bounds = configure_spectrum_model(config, radii, expected_replica_count=len(radii))
     result = fit_spectrum(q, np.array(power), 50,
-                               predict=predict, kc_bounds=kc_bounds, sigma_bounds=sigma_bounds)
+                               model=predict, kc_bounds=kc_bounds, sigma_bounds=sigma_bounds)
     assert result.best_values["kC"] == pytest.approx(25, rel=1e-5)
 
 

@@ -22,15 +22,15 @@ def _log_relative_rmse(result, powers):
 
 
 def fit_spectrum(modes, powers, lmax, free_sigma=False, weighted=False,
-                       *, kc_bounds, sigma_bounds, sem=None, predict=spherical_contour_spectrum):
+                       *, kc_bounds, sigma_bounds, sem=None, model=spherical_contour_spectrum):
     """Fit selected modes and powers, with optional per-mode replica SEM.
 
-    The predictor takes q, kC, sigma, and lmax and returns powers at q.
+    The model takes q, kC, sigma, and lmax and returns powers at q.
 
     Supply (minimum, maximum) pairs for kC and reduced tension.
     """
-    model = Model(predict)
-    pars = model.make_params(
+    lmfit_model = Model(model)
+    pars = lmfit_model.make_params(
         kC={"value": 15, "min": kc_bounds[0], "max": kc_bounds[1], "vary": True},
         sigma={"value": 0, "min": sigma_bounds[0], "max": sigma_bounds[1], "vary": free_sigma},
         lmax={"value": lmax, "vary": False},
@@ -51,7 +51,7 @@ def fit_spectrum(modes, powers, lmax, free_sigma=False, weighted=False,
             )
         fit_kwargs["weights"] = 1 / uncertainties
 
-    result = model.fit(powers, **fit_kwargs)
+    result = lmfit_model.fit(powers, **fit_kwargs)
     _log_relative_rmse(result, powers)
     return result
 
@@ -63,6 +63,6 @@ def fit_spectrum_to_theory(
     predict, kc_bounds, sigma_bounds = configure_spectrum_model(None, radii)
     result = fit_spectrum(
         modes, powers, lmax, free_sigma, weighted, sem=sem,
-        predict=predict, kc_bounds=kc_bounds, sigma_bounds=sigma_bounds,
+        model=predict, kc_bounds=kc_bounds, sigma_bounds=sigma_bounds,
     )
     return result.best_values["kC"], result.best_values["sigma"]

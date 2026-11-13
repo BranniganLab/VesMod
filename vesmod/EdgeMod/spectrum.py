@@ -208,7 +208,7 @@ class Spectrum:
             powers,
             config.lmax,
             config.free_sigma,
-            predict=predict, kc_bounds=kc_bounds, sigma_bounds=sigma_bounds,
+            model=predict, kc_bounds=kc_bounds, sigma_bounds=sigma_bounds,
         )
 
         fitted_kc = self.fit_result.best_values["kC"]
