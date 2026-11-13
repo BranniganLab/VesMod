@@ -62,13 +62,14 @@ def _camera_projection(q, lmax):
 
 
 def predict_spectrum(
-    q, kC, sigma, lmax, *, config, radii=None, relaxation=prepare_spherical_relaxation
+    q, kC, sigma, lmax, *, config, radii=None, relaxation=prepare_spherical_relaxation,
+    camera_integration=exposure_power_factor,
 ):
     """Predict dimensionless complex contour power for fitting or plotting.
 
     The equilibrium model, camera-integration toggle, and relaxation model
-    are explicit independent settings. Exposure averaging multiplies each
-    spherical-mode power by B(t_exp/tau_l) before contour projection. Ensemble
+    are explicit independent settings. The camera_integration callable maps each exposure/relaxation ratio
+    to a retained power fraction before contour projection. Ensemble
     predictions average equally across replica radii, with shared kC and
     reduced tension. Disabling camera integration needs no radii or solvent
     viscosities and returns the equilibrium spectrum exactly.
@@ -82,7 +83,7 @@ def predict_spectrum(
         ell, weights = _camera_projection(mode, int(lmax))
         stiffness = (ell - 1) * (ell + 2) * (ell * (ell + 1) + sigma)
         times = calculate_times(ell, stiffness)
-        retained = exposure_power_factor(config.exposure_time / times).mean(axis=0)
+        retained = camera_integration(config.exposure_time / times).mean(axis=0)
         predictions.append(float(np.sum(weights * retained / stiffness) / kC))
     return predictions
 
@@ -187,7 +188,8 @@ def calc_tension_from_reduced_tension(
 
 
 def configure_spectrum_model(
-    config, radii, *, expected_replica_count=None, relaxation=prepare_spherical_relaxation
+    config, radii, *, expected_replica_count=None, relaxation=prepare_spherical_relaxation,
+    camera_integration=exposure_power_factor,
 ):
     """Return a predictor and the bending-modulus and reduced-tension bounds."""
     radii = validate_vesicle_radii(radii)
@@ -208,7 +210,8 @@ def configure_spectrum_model(
     else:
         def predict(q, kC, sigma, lmax):
             return predict_spectrum(
-                q, kC, sigma, lmax, config=config, radii=radii, relaxation=relaxation
+                q, kC, sigma, lmax, config=config, radii=radii,
+                relaxation=relaxation, camera_integration=camera_integration,
             )
 
     # Exposure averaging requires stability of the spherical l=2 mode.

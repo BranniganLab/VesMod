@@ -176,7 +176,7 @@ def test_exposure_requires_explicit_viscosities(kwargs):
 @pytest.mark.parametrize("viscosities", [(.001, .001), (.00102, .00097), (.01, .0005)])
 @pytest.mark.parametrize("temperature", [280.0, 310.0])
 def test_implemented_relaxation_matches_full_tau_expression(
-    monkeypatch, kc_kbt, reduced_sigma, viscosities, temperature,
+    kc_kbt, reduced_sigma, viscosities, temperature,
 ):
     """Compare actual optimizer rates with the unfactored Faizi eq. 2.
 
@@ -190,7 +190,6 @@ def test_implemented_relaxation_matches_full_tau_expression(
     stiffness and rate_scale intermediates. Extended precision keeps reference
     rounding below the 5e-15 relative tolerance on float64 production values.
     """
-    import vesmod.EdgeMod.spherical_model as utils
 
     radii_um = np.array([2.0, 5.0, 15.0, 50.0])
     config = SpectrumFitConfig(camera_integration=True,
@@ -201,15 +200,14 @@ def test_implemented_relaxation_matches_full_tau_expression(
         viscosity_out=viscosities[1],
     )
     captured = []
-    original_factor = utils.exposure_power_factor
+    original_factor = exposure_power_factor
 
     def capture_exposure_ratio(x):
         captured.append(np.array(x, copy=True))
         return original_factor(x)
 
-    monkeypatch.setattr(utils, "exposure_power_factor", capture_exposure_ratio)
-    utils.predict_spectrum([2, 3], kc_kbt, reduced_sigma, 500,
-                       config=config, radii=radii_um)
+    predict_spectrum([2, 3], kc_kbt, reduced_sigma, 500,
+                       config=config, radii=radii_um, camera_integration=capture_exposure_ratio)
     assert len(captured) == 2
 
     # Full expression, without sharing any production relaxation helpers.
@@ -235,20 +233,18 @@ def test_implemented_relaxation_matches_full_tau_expression(
 
 
 @pytest.mark.parametrize('eta_m', [0.0, 4.1e-9, 8e-8, 1.5e-6])
-def test_faizi2024_rates_match_equation_one(monkeypatch, eta_m):
+def test_faizi2024_rates_match_equation_one(eta_m):
     """Check all l=2..500 and SI units against the full published equation."""
-    import vesmod.EdgeMod.spherical_model as utils
     config = SpectrumFitConfig(camera_integration=True, relaxation_model="solvent_and_membrane", exposure_time=.030, viscosity_out=.001, eta_m=eta_m)
     captured = []
-    original = utils.exposure_power_factor
+    original = exposure_power_factor
 
     def capture(x):
         captured.append(x.copy())
         return original(x)
 
-    monkeypatch.setattr(utils, 'exposure_power_factor', capture)
-    utils.predict_spectrum([2, 3], 25, 4, 500,
-                                             config=config, radii=[2, 5, 15])
+    predict_spectrum([2, 3], 25, 4, 500,
+                                             config=config, radii=[2, 5, 15], camera_integration=capture)
     for q, x in zip([2, 3], captured):
         ell = np.arange(q, 501, 2, dtype=float)[None, :]
         radius = np.array([2, 5, 15])[:, None] * 1e-6
@@ -322,3 +318,21 @@ def test_membrane_viscosity_ensemble_averages_individual_radii():
     combined = predict_spectrum(q, 25, 4, 50,
                                                 config=config, radii=[2, 5, 15])
     np.testing.assert_allclose(combined, np.mean(individual, axis=0), rtol=1e-14)
+
+
+
+def test_configured_model_uses_custom_camera_integration():
+    config = SpectrumFitConfig(
+        camera_integration=True, exposure_time=.030,
+        viscosity_in=.001, viscosity_out=.001, lmax=50,
+    )
+
+    def retain_half(exposure_ratio):
+        return np.full_like(exposure_ratio, 0.5)
+
+    model, _, _ = configure_spectrum_model(
+        config, [5, 15], camera_integration=retain_half
+    )
+    modes = [3, 5, 7]
+    instantaneous = spherical_contour_spectrum(modes, 25, 4, 50)
+    np.testing.assert_allclose(model(modes, 25, 4, 50), 0.5 * np.asarray(instantaneous))
