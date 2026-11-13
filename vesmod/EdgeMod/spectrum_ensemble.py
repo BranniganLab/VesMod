@@ -153,7 +153,9 @@ class SpectrumEnsemble:
         modes, powers, fit_sem = slice_fit_arrays(
             fit_mode_mask, self.modes, self.avg_amps2, sem=sem
         )
-        predict, sigma_min = configure_spectrum_model(config, self.radii_list)
+        predict, kc_bounds, sigma_bounds = configure_spectrum_model(
+            config, self.radii_list, expected_replica_count=len(self.spectra_list)
+        )
         result = fit_spectrum(
             modes,
             powers,
@@ -161,10 +163,9 @@ class SpectrumEnsemble:
             free_sigma=config.free_sigma,
             weighted=weight_by_replica_sem,
             sem=fit_sem,
-            radii=self.radii_list,
-            expected_replica_count=len(self.spectra_list),
             predict=predict,
-            sigma_min=sigma_min,
+            kc_bounds=kc_bounds,
+            sigma_bounds=sigma_bounds,
         )
         kC = result.best_values["kC"]
         reduced_sigma = result.best_values["sigma"]

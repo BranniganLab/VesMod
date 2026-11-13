@@ -5,7 +5,7 @@ import logging
 from lmfit import Model
 import numpy as np
 
-from .spherical_model import spherical_contour_spectrum, validate_vesicle_radii
+from .spherical_model import configure_spectrum_model, spherical_contour_spectrum
 
 logger = logging.getLogger(__name__)
 
@@ -22,39 +22,17 @@ def _log_relative_rmse(result, powers):
 
 
 def fit_spectrum(modes, powers, lmax, free_sigma=False, weighted=False,
-                       *, sem=None, radii=None, expected_replica_count=None,
-                       predict=spherical_contour_spectrum, sigma_min=-100):
+                       *, kc_bounds, sigma_bounds, sem=None, predict=spherical_contour_spectrum):
     """Fit selected modes and powers, with optional per-mode replica SEM.
 
     The predictor takes q, kC, sigma, and lmax and returns powers at q.
 
-    Radii in microns are required for every fit. The reduced-tension upper
-    bound is 100 * mean(radii)**2. For ensembles, the arithmetic mean of
-    the replica mean radii sets the bound on shared reduced tension.
-
-    Supply ``expected_replica_count`` when fitting
-    an averaged spectrum directly. This checks that there is one radius per
-    contributing replica; an averaged spectrum alone cannot reveal its count.
-    ``Spectrum`` and ``SpectrumEnsemble`` supply the count automatically.
+    Supply (minimum, maximum) pairs for kC and reduced tension.
     """
-    radii = validate_vesicle_radii(radii)
-    sigma_max = 100 * float(np.mean(radii))**2
-    if expected_replica_count is not None:
-        if (isinstance(expected_replica_count, (bool, np.bool_))
-                or not isinstance(expected_replica_count, (int, np.integer))
-                or expected_replica_count < 1):
-            raise ValueError("expected_replica_count must be a positive integer.")
-        if radii.size != expected_replica_count:
-            raise ValueError(
-                "Spectrum fitting requires one radius per replica: "
-                f"expected {expected_replica_count} radii, received {radii.size}. "
-                "Supply each replica's radius, rather than a mean radius."
-            )
-
     model = Model(predict)
     pars = model.make_params(
-        kC={"value": 15, "min": 1, "max": 500, "vary": True},
-        sigma={"value": 0, "min": sigma_min, "max": sigma_max, "vary": free_sigma},
+        kC={"value": 15, "min": kc_bounds[0], "max": kc_bounds[1], "vary": True},
+        sigma={"value": 0, "min": sigma_bounds[0], "max": sigma_bounds[1], "vary": free_sigma},
         lmax={"value": lmax, "vary": False},
     )
 
@@ -82,7 +60,9 @@ def fit_spectrum_to_theory(
     modes, powers, lmax, free_sigma=False, weighted=False, *, sem=None, radii
 ):
     """Fit selected contour modes and return bending modulus and reduced tension."""
+    predict, kc_bounds, sigma_bounds = configure_spectrum_model(None, radii)
     result = fit_spectrum(
-        modes, powers, lmax, free_sigma, weighted, sem=sem, radii=radii
+        modes, powers, lmax, free_sigma, weighted, sem=sem,
+        predict=predict, kc_bounds=kc_bounds, sigma_bounds=sigma_bounds,
     )
     return result.best_values["kC"], result.best_values["sigma"]

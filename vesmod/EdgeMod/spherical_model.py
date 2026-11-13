@@ -302,13 +302,28 @@ def calc_tension_from_reduced_tension(
 
 
 
-def configure_spectrum_model(config, radii):
-    """Bind the experimental settings and return a predictor and its tension floor."""
-    radii = tuple(radii)
+def configure_spectrum_model(config, radii, *, expected_replica_count=None):
+    """Return a predictor and the bending-modulus and reduced-tension bounds."""
+    radii = validate_vesicle_radii(radii)
+    if expected_replica_count is not None:
+        if (isinstance(expected_replica_count, (bool, np.bool_))
+                or not isinstance(expected_replica_count, (int, np.integer))
+                or expected_replica_count < 1):
+            raise ValueError("expected_replica_count must be a positive integer.")
+        if radii.size != expected_replica_count:
+            raise ValueError(
+                "Spectrum fitting requires one radius per replica: "
+                f"expected {expected_replica_count} radii, received {radii.size}. "
+                "Supply each replica's radius, rather than a mean radius."
+            )
 
-    def predict(q, kC, sigma, lmax):
-        return predict_spectrum(q, kC, sigma, lmax, config=config, radii=radii)
+    if config is None:
+        predict = spherical_contour_spectrum
+    else:
+        def predict(q, kC, sigma, lmax):
+            return predict_spectrum(q, kC, sigma, lmax, config=config, radii=radii)
 
     # Exposure averaging requires stability of the spherical l=2 mode.
-    sigma_min = -6 + 1e-8 if config.camera_integration else -100
-    return predict, sigma_min
+    sigma_min = -6 + 1e-8 if config is not None and config.camera_integration else -100
+    sigma_max = 100 * float(np.mean(radii))**2
+    return predict, (1, 500), (sigma_min, sigma_max)

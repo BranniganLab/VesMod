@@ -200,14 +200,15 @@ class Spectrum:
             raise ValueError("Configured q range contains no spectrum modes.")
 
         radii = [self.r0]
-        predict, sigma_min = configure_spectrum_model(config, radii)
+        predict, kc_bounds, sigma_bounds = configure_spectrum_model(
+            config, radii, expected_replica_count=1
+        )
         self.fit_result = fit_spectrum(
             modes,
             powers,
             config.lmax,
             config.free_sigma,
-            radii=radii, expected_replica_count=1,
-            predict=predict, sigma_min=sigma_min,
+            predict=predict, kc_bounds=kc_bounds, sigma_bounds=sigma_bounds,
         )
 
         fitted_kc = self.fit_result.best_values["kC"]

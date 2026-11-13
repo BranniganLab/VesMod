@@ -159,7 +159,7 @@ def test_weighted_fit_passes_inverse_sem_to_lmfit(monkeypatch):
     monkeypatch.setattr("vesmod.EdgeMod.fitting.Model.fit", fake_fit)
     fit_spectrum(
         np.array([3, 4]), np.array([0.1, 0.2]), lmax=20,
-        weighted=True, sem=np.array([0.01, 0.04]), radii=[5.0],
+        weighted=True, sem=np.array([0.01, 0.04]), kc_bounds=(1, 500), sigma_bounds=(-100, 2500),
     )
 
     np.testing.assert_allclose(calls["weights"], np.array([100.0, 25.0]))
@@ -179,7 +179,7 @@ def test_weighted_fit_rejects_missing_or_invalid_sem(monkeypatch, sem):
     with pytest.raises(ValueError, match="Replica SEM"):
         fit_spectrum(
             np.array([3, 4]), np.array([0.1, 0.2]), lmax=20,
-            weighted=True, sem=sem, radii=[5.0],
+            weighted=True, sem=sem, kc_bounds=(1, 500), sigma_bounds=(-100, 2500),
         )
 
 
@@ -192,9 +192,11 @@ def test_fit_spectrum_uses_supplied_predictor():
 
     powers = predict(modes, 23.0, 2.0, 50)
     fit = fit_spectrum(
-        modes, powers, 50, free_sigma=True, radii=[5.0], predict=predict
+        modes, powers, 50, free_sigma=True, kc_bounds=(20, 30), sigma_bounds=(-3, 4), predict=predict
     )
 
+    assert (fit.params["kC"].min, fit.params["kC"].max) == (20, 30)
+    assert (fit.params["sigma"].min, fit.params["sigma"].max) == (-3, 4)
     assert fit.best_values["kC"] == pytest.approx(23.0)
     assert fit.best_values["sigma"] == pytest.approx(2.0)
     np.testing.assert_allclose(fit.eval(q=modes), powers)

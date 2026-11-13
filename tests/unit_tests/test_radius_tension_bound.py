@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 
 from vesmod.EdgeMod import Spectrum, SpectrumEnsemble, SpectrumFitConfig
-from vesmod.EdgeMod.fitting import fit_spectrum
+from vesmod.EdgeMod.spherical_model import configure_spectrum_model
 
 
 @pytest.mark.parametrize('exposure,chi', [(0, None), (.030, None), (.030, 4.1e-9)])
@@ -42,9 +42,7 @@ def test_ensemble_missing_radius_fails_without_exposure():
 
 
 def test_direct_fit_requires_radii_without_exposure():
-    modes = np.arange(3, 8)
-    powers = np.ones(5)
     with pytest.raises(ValueError, match='radii are required'):
-        fit_spectrum(modes, powers, 20)
+        configure_spectrum_model(None, None)
     with pytest.raises(ValueError, match='expected 2 radii'):
-        fit_spectrum(modes, powers, 20, radii=[5], expected_replica_count=2)
+        configure_spectrum_model(None, [5], expected_replica_count=2)
