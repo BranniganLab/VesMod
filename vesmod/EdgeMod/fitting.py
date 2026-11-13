@@ -60,9 +60,9 @@ def fit_spectrum_to_theory(
     modes, powers, lmax, free_sigma=False, weighted=False, *, sem=None, radii
 ):
     """Fit selected contour modes and return bending modulus and reduced tension."""
-    predict, kc_bounds, sigma_bounds = configure_spectrum_model(None, radii)
+    model, kc_bounds, sigma_bounds = configure_spectrum_model(None, radii)
     result = fit_spectrum(
         modes, powers, lmax, free_sigma, weighted, sem=sem,
-        model=predict, kc_bounds=kc_bounds, sigma_bounds=sigma_bounds,
+        model=model, kc_bounds=kc_bounds, sigma_bounds=sigma_bounds,
     )
     return result.best_values["kC"], result.best_values["sigma"]
