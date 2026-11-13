@@ -1,0 +1,32 @@
+block-beta
+    columns 3
+    A1["Single vesicle contour time series"] space A3["Multiple vesicle spectra and fit results"]
+    space space B3["Choose vesicle exclusion policy"]
+    C1["Choose spectrum power calculation"] space space
+    D1["Time-averaged powers by contour mode q"] space D3["Time- and replica-averaged powers by contour mode q, plus standard error"]
+    space space E3["Choose whether to weight fit by standard error"]
+    space space space
+    space F2["Choose mode relaxation time model"] space
+    space G2["Choose camera integration model"] space
+    space H2["Choose fitting function"] space 
+    space I2["Choose fit range"] space
+    space J2["Fit results"] space
+
+    A1 --> C1
+    C1 --> D1
+    D1 --> F2
+    A3 --> B3
+    B3 --> D3
+    D3 --> E3
+    E3 --> F2
+    F2 --> G2
+    G2 --> H2
+    H2 --> I2
+    I2 --> J2
+
+    classDef decision fill:#d8f3dc,stroke:#2d6a4f,color:#143824
+    classDef optional fill:#effaf0,stroke:#74a680,color:#143824
+    classDef data fill:#e6effb,stroke:#537298,color:#193653
+    class B3,C1,E3,H2,I2 decision
+    class F2,G2 optional
+    class A1,A3,D1,J2 data

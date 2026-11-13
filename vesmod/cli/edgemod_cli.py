@@ -12,6 +12,7 @@ import sys
 import numpy as np
 
 from vesmod.EdgeMod import Spectrum, SpectrumFitConfig
+from vesmod.cli.edgemod_ensemble import run_ensemble
 from vesmod.EdgeMod.range_selection.experimental import (
     DynamicRangeSelection,
     QMinusThreeRangeSelector,
@@ -32,24 +33,28 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Fit membrane mechanical parameters from vesicle contour "
-            "trajectories."
+            "trajectories. Use edgemod ensemble --help for ensemble fitting."
         ),
     )
-    _add_input_options(parser)
-    _add_fit_options(parser)
-    args = parser.parse_args()
-    args.command = "fit"
+    ensemble = sys.argv[1:2] == ["ensemble"]
+    if ensemble:
+        parser.prog += " ensemble"
+    _add_input_options(parser, ensemble=ensemble)
+    _add_fit_options(parser, ensemble=ensemble)
+    args = parser.parse_args(sys.argv[2:] if ensemble else None)
+    args.command = "ensemble" if ensemble else "fit"
     return args
 
 
-def _add_input_options(parser: argparse.ArgumentParser) -> None:
+def _add_input_options(parser: argparse.ArgumentParser, *, ensemble=False) -> None:
     """Add input-path and recursion options shared by EdgeMod stages."""
     parser.add_argument(
         "input_path",
         type=Path,
         nargs="+",
         action=InputPathsAction,
-        help="One or more .npy files, directories, or glob patterns.",
+        help=("Saved spectrum JSON files, directories, or glob patterns." if ensemble
+              else "One or more .npy files, directories, or glob patterns."),
     )
     parser.add_argument(
         "--recursive",
@@ -58,7 +63,7 @@ def _add_input_options(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def _add_fit_options(parser: argparse.ArgumentParser) -> None:
+def _add_fit_options(parser: argparse.ArgumentParser, *, ensemble=False) -> None:
     """Add options for core physical fitting."""
     parser.add_argument(
         "--lower-fitting-bound",
@@ -78,26 +83,27 @@ def _add_fit_options(parser: argparse.ArgumentParser) -> None:
             "dynamic search. Default: 8."
         ),
     )
-    parser.add_argument(
-        "--dynamic-range",
-        action="store_true",
-        help="EXPERIMENTAL: choose fit bounds from q^-3 scaling.",
-    )
-    parser.add_argument(
-        "--min-modes",
-        type=int,
-        help="EXPERIMENTAL: minimum consecutive q modes for dynamic selection.",
-    )
-    parser.add_argument(
-        "--slope-tolerance",
-        type=float,
-        help="EXPERIMENTAL: maximum deviation of fitted slope from -3.",
-    )
-    parser.add_argument(
-        "--max-log-rmse",
-        type=float,
-        help="EXPERIMENTAL: maximum log-space RMSE to a fixed q^-3 model.",
-    )
+    if not ensemble:
+        parser.add_argument(
+            "--dynamic-range",
+            action="store_true",
+            help="EXPERIMENTAL: choose fit bounds from q^-3 scaling.",
+        )
+        parser.add_argument(
+            "--min-modes",
+            type=int,
+            help="EXPERIMENTAL: minimum consecutive q modes for dynamic selection.",
+        )
+        parser.add_argument(
+            "--slope-tolerance",
+            type=float,
+            help="EXPERIMENTAL: maximum deviation of fitted slope from -3.",
+        )
+        parser.add_argument(
+            "--max-log-rmse",
+            type=float,
+            help="EXPERIMENTAL: maximum log-space RMSE to a fixed q^-3 model.",
+        )
     parser.add_argument(
         "--lmax",
         type=int,
@@ -115,20 +121,26 @@ def _add_fit_options(parser: argparse.ArgumentParser) -> None:
         default=295,
         help="Temperature in Kelvin when experiment performed. Default: 295.",
     )
-    parser.add_argument(
-        "--output-dir",
-        type=Path,
-        default=None,
-        help=(
-            "Directory for fit JSON, diagnostics, provenance, and a batch "
-            "summary. By default, outputs are written beside each input file."
-        ),
-    )
-    parser.add_argument(
-        "--overwrite",
-        action="store_true",
-        help="Replace outputs managed by a prior compatible EdgeMod batch.",
-    )
+    if ensemble:
+        parser.add_argument("--output", type=Path, required=True, help="Ensemble JSON report.")
+        parser.add_argument("--exclusion-policy", metavar="MODULE:FUNCTION",
+                            help="Importable Python function returning an exclusion reason or None.")
+        parser.add_argument("--weight-by-replica-sem", action="store_true")
+    else:
+        parser.add_argument(
+            "--output-dir",
+            type=Path,
+            default=None,
+            help=(
+                "Directory for fit JSON, diagnostics, provenance, and a batch "
+                "summary. By default, outputs are written beside each input file."
+            ),
+        )
+        parser.add_argument(
+            "--overwrite",
+            action="store_true",
+            help="Replace outputs managed by a prior compatible EdgeMod batch.",
+        )
     parser.add_argument("--model", choices=["spherical_contour_spectrum"],
                         default="spherical_contour_spectrum", help="Equilibrium spectrum model.")
     parser.add_argument("--camera-integration", action="store_true",
@@ -518,6 +530,8 @@ def _run_fit(args: argparse.Namespace) -> int:
 def main() -> int:
     """Run the selected EdgeMod analysis stage."""
     args = parse_args()
+    if getattr(args, "command", "fit") == "ensemble":
+        return run_ensemble(args, build_fit_config(args))
     return _run_fit(args)
 
 

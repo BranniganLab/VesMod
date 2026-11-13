@@ -14,7 +14,7 @@ from vesmod.EdgeMod.spectrum_plotting import (
     plot_spectrum,
     save_spectrum_fit_diagnostic,
 )
-from vesmod.EdgeMod.spectrum_utils import spherical_contour_spectrum
+from vesmod.EdgeMod.spherical_model import spherical_contour_spectrum
 
 
 def test_save_spectrum_fit_diagnostic_creates_png_with_large_uncertainty(tmp_path):
@@ -107,7 +107,7 @@ def test_plot_spectrum_can_include_q1_as_an_opt_in():
     plt.close(figure)
 
 
-from vesmod.EdgeMod.spectrum_utils import predict_spectrum
+from vesmod.EdgeMod.spherical_model import predict_spectrum
 from vesmod.EdgeMod.spectrum_plotting import plot_q3_scaled_spectrum
 
 

@@ -165,7 +165,7 @@ def test_extract_kC_from_fit_uses_isolated_mode_range(monkeypatch, free_sigma):
         calls.update(modes=modes, powers=powers, sem=sem, lmax=lmax, free_sigma=free_sigma, weighted=weighted)
         return SimpleNamespace(best_values={"kC": 123.0, "sigma": 0.0}, chisqr=1.0, redchi=1.0)
 
-    monkeypatch.setattr("vesmod.EdgeMod.spectrum_ensemble.fit_spectrum_lmfit", fake_fit)
+    monkeypatch.setattr("vesmod.EdgeMod.spectrum_ensemble.fit_spectrum", fake_fit)
 
     result = avg._extract_kC_from_fit(
         lower_bound=2, upper_bound=4, lmax=700, free_sigma=free_sigma,
@@ -202,7 +202,7 @@ def test_extract_kc_from_fit_accepts_free_sigma_and_records_reduced_tension(monk
         calls.update(modes=modes, powers=powers, sem=sem, lmax=lmax, free_sigma=free_sigma, weighted=weighted)
         return SimpleNamespace(best_values={"kC": 123.0, "sigma": 4.5}, chisqr=2.5, redchi=2.5)
 
-    monkeypatch.setattr("vesmod.EdgeMod.spectrum_ensemble.fit_spectrum_lmfit", fake_fit)
+    monkeypatch.setattr("vesmod.EdgeMod.spectrum_ensemble.fit_spectrum", fake_fit)
 
     fit = avg.extract_kc_from_fit(config, weight_by_replica_sem=True)
 
@@ -233,7 +233,7 @@ def test_ensemble_fit_defaults_to_free_sigma(monkeypatch, entry_point):
         calls.update(free_sigma=free_sigma, weighted=weighted)
         return SimpleNamespace(best_values={"kC": 123.0, "sigma": 4.5}, chisqr=1.0, redchi=1.0)
 
-    monkeypatch.setattr("vesmod.EdgeMod.spectrum_ensemble.fit_spectrum_lmfit", fake_fit)
+    monkeypatch.setattr("vesmod.EdgeMod.spectrum_ensemble.fit_spectrum", fake_fit)
 
     result = avg.kC if entry_point == "kC" else getattr(avg, entry_point)()
     fit = avg.fit_results[-1]
@@ -250,7 +250,7 @@ def test_ensemble_fit_defaults_to_free_sigma(monkeypatch, entry_point):
 @pytest.mark.parametrize("free_sigma", [True, False])
 def test_ensemble_fit_recovers_synthetic_spectrum(free_sigma):
     """Default free and explicit fixed fits recover known spherical_contour_spectrum parameters."""
-    from vesmod.EdgeMod.spectrum_utils import spherical_contour_spectrum
+    from vesmod.EdgeMod.spherical_model import spherical_contour_spectrum
 
     modes = np.arange(2, 10)
     expected_kc = 25.0

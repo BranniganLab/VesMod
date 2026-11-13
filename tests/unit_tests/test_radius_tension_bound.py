@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 
 from vesmod.EdgeMod import Spectrum, SpectrumEnsemble, SpectrumFitConfig
-from vesmod.EdgeMod.spectrum_utils import fit_spectrum_lmfit
+from vesmod.EdgeMod.spherical_model import configure_spectrum_model
 
 
 @pytest.mark.parametrize('exposure,chi', [(0, None), (.030, None), (.030, 4.1e-9)])
@@ -19,7 +19,7 @@ def test_public_single_and_ensemble_bounds(monkeypatch, exposure, chi, free_sigm
         return SimpleNamespace(best_values={'kC': 25, 'sigma': 0},
                                best_fit=np.asarray(data), chisqr=0, redchi=0)
 
-    monkeypatch.setattr('vesmod.EdgeMod.spectrum_utils.Model.fit', capture)
+    monkeypatch.setattr('vesmod.EdgeMod.fitting.Model.fit', capture)
     config = SpectrumFitConfig(camera_integration=exposure > 0, relaxation_model="solvent_and_membrane" if chi is not None else "solvent_only", lmax=20, free_sigma=free_sigma,
                                exposure_time=exposure, eta_m=chi,
                                viscosity_in=.001, viscosity_out=.001)
@@ -42,9 +42,7 @@ def test_ensemble_missing_radius_fails_without_exposure():
 
 
 def test_direct_fit_requires_radii_without_exposure():
-    modes = np.arange(3, 8)
-    powers = np.ones(5)
     with pytest.raises(ValueError, match='radii are required'):
-        fit_spectrum_lmfit(modes, powers, 20)
+        configure_spectrum_model(None, None)
     with pytest.raises(ValueError, match='expected 2 radii'):
-        fit_spectrum_lmfit(modes, powers, 20, radii=[5], expected_replica_count=2)
+        configure_spectrum_model(None, [5], expected_replica_count=2)

@@ -225,7 +225,7 @@ def test_extract_kc_from_fit_uses_config_and_saves_fit_results(monkeypatch):
     spectrum.fit_results = []
     calls = {}
 
-    def fake_fit_spectrum_lmfit(modes, powers, lmax, free_sigma, **kwargs):
+    def fake_fit_spectrum(modes, powers, lmax, free_sigma, **kwargs):
         calls["modes"] = modes.copy()
         calls["avg_amps2"] = powers.copy()
         calls["lmax"] = lmax
@@ -242,8 +242,8 @@ def test_extract_kc_from_fit_uses_config_and_saves_fit_results(monkeypatch):
         return 9.9
 
     monkeypatch.setattr(
-        "vesmod.EdgeMod.spectrum.fit_spectrum_lmfit",
-        fake_fit_spectrum_lmfit,
+        "vesmod.EdgeMod.spectrum.fit_spectrum",
+        fake_fit_spectrum,
     )
     monkeypatch.setattr(
         "vesmod.EdgeMod.spectrum.calc_tension_from_reduced_tension",
@@ -293,7 +293,7 @@ def test_extract_kc_from_fit_uses_default_config(monkeypatch):
         return SimpleNamespace(best_values={"kC": 20.0, "sigma": 2.0})
 
     monkeypatch.setattr(
-        "vesmod.EdgeMod.spectrum.fit_spectrum_lmfit",
+        "vesmod.EdgeMod.spectrum.fit_spectrum",
         fake_fit,
     )
     monkeypatch.setattr(
@@ -322,7 +322,7 @@ def test_extract_kc_from_fit_rejects_empty_configured_range(monkeypatch):
     spectrum.fit_results = []
 
     monkeypatch.setattr(
-        "vesmod.EdgeMod.spectrum.fit_spectrum_lmfit",
+        "vesmod.EdgeMod.spectrum.fit_spectrum",
         lambda *args: pytest.fail("Physical fitter should not run"),
     )
 
