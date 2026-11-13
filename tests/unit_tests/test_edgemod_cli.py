@@ -436,3 +436,38 @@ def test_compatible_overwrite_removes_recorded_fit_artifacts(tmp_path):
     edgemod_cli._prepare_fit_output(args, [source_path])
 
     assert not managed.exists()
+
+
+def test_ensemble_cli_applies_importable_policy(monkeypatch, tmp_path):
+    """An excluded replica contributes neither power nor radius to the fit."""
+    import json
+    import sys
+
+    import numpy as np
+
+    policy = tmp_path / "replica_policy.py"
+    policy.write_text(
+        'def exclude(path, spectrum):\n'
+        '    return "Small vesicle" if spectrum.r0 < 4 else None\n',
+        encoding="utf-8",
+    )
+    monkeypatch.syspath_prepend(str(tmp_path))
+    paths = [tmp_path / f"vesicle-{radius}.npy" for radius in (3, 5, 6)]
+    rng = np.random.default_rng(42)
+    for path, radius in zip(paths, (3, 5, 6)):
+        np.save(path, radius + rng.normal(0, 0.05, (64, 32)))
+    output = tmp_path / "ensemble.json"
+    monkeypatch.setattr(sys, "argv", [
+        "edgemod", "ensemble", *(str(path) for path in paths),
+        "--exclusion-policy", "replica_policy:exclude", "--output", str(output),
+        "--fixed-sigma", "--lmax", "20", "--weight-by-replica-sem",
+    ])
+
+    assert edgemod_cli.main() == 0
+    report = json.loads(output.read_text())
+    assert [row["status"] for row in report["replicas"]] == [
+        "excluded", "included", "included",
+    ]
+    assert report["replicas"][0]["reason"] == "Small vesicle"
+    assert report["fit"]["radii"] == pytest.approx([5, 6], abs=0.01)
+    assert report["fit"]["weight_by_replica_sem"] is True

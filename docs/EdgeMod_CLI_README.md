@@ -646,3 +646,36 @@ membrane-aware calls must also set `relaxation_model="solvent_and_membrane"`.
 CLI calls likewise need the explicit flags. Supplying only exposure duration
 now leaves camera integration off. `mode_relaxation_times` is available for
 standalone calculation in seconds with either explicitly selected method.
+
+## Fit a vesicle ensemble
+
+```bash
+edgemod ensemble ./accepted-contours --output ensemble.json --weight-by-replica-sem
+```
+
+Pass contour files, directories, or glob patterns. The command fits each included
+vesicle, then fits the mean of their spectra. Use `--weight-by-replica-sem` to
+weight the ensemble fit by the inverse standard error across replicas. This
+requires at least two included vesicles and positive SEM for each fitted mode.
+
+To apply an exclusion policy, pass `--exclusion-policy MODULE:FUNCTION`. The module
+must be importable in the Python environment running EdgeMod. The function takes
+a `Path` and a `Spectrum` and returns `None` to include the vesicle or a nonempty
+string explaining its exclusion. The same function can be called in a Python
+workflow before adding the spectrum to a `SpectrumEnsemble`.
+
+```python
+def exclude_small_vesicles(path, spectrum):
+    if spectrum.r0 < 4:
+        return "Mean radius below 4 micrometers"
+    return None
+```
+
+```bash
+edgemod ensemble ./accepted-contours --output ensemble.json \
+    --exclusion-policy my_policies:exclude_small_vesicles
+```
+
+The JSON report records the policy, fit settings, per-vesicle status and any
+exclusion or error reason, and the ensemble fit. Choose a new output filename
+for each run.
