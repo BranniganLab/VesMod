@@ -23,8 +23,8 @@ from .fit_result import EnsembleFit
 class SpectrumEnsemble:
     """Store and analyze fluctuation spectra from multiple replicas.
 
-    Each replica contributes average squared mode amplitudes and an independently
-    determined bending modulus. All spectra must use the same Fourier modes.
+    Each replica contributes average squared mode amplitudes and may supply an
+    independently determined bending modulus. All spectra must use the same Fourier modes.
 
     The ensemble provides averaged amplitudes, replica dispersion/error, and a
     fixed-range fit of the ensemble-averaged spectrum.
@@ -33,8 +33,8 @@ class SpectrumEnsemble:
     ----------
     spectra_list : list[np.ndarray]
         Average squared amplitudes from each replica.
-    kC_list : list[float]
-        Bending modulus estimate associated with each replica.
+    kC_list : list[float | None]
+        Optional bending modulus estimate associated with each replica.
     modes : np.ndarray or None
         Fourier mode indices shared by all stored spectra. Set automatically
         when the first spectrum is added.
@@ -42,14 +42,14 @@ class SpectrumEnsemble:
 
     def __init__(self) -> None:
         self.spectra_list: list[np.ndarray] = []
-        self.kC_list: list[float] = []
+        self.kC_list: list[float | None] = []
         self.radii_list: list[float | None] = []
         self.modes: np.ndarray[int] = None
         self.fit_results: list[EnsembleFit] = []
 
     def __len__(self) -> int:
-        """Return the number of replica bending-modulus estimates."""
-        return len(self.kC_list)
+        """Return the number of replica spectra."""
+        return len(self.spectra_list)
 
     @property
     def avg_amps2(self) -> np.ndarray:
@@ -74,14 +74,14 @@ class SpectrumEnsemble:
     @property
     def kC_std(self) -> float:
         """Return sample standard deviation among replica kC values."""
-        return np.std(self.kC_list, ddof=1)
+        return np.std([kc for kc in self.kC_list if kc is not None], ddof=1)
 
     @property
     def kC_ste(self) -> float:
         """Return standard error among replica kC values."""
-        return self.kC_std / np.sqrt(len(self.kC_list))
+        return self.kC_std / np.sqrt(sum(kc is not None for kc in self.kC_list))
 
-    def add_spectrum(self, avg_amps2: list[float], modes: list[int], kC: float,
+    def add_spectrum(self, avg_amps2: list[float], modes: list[int], kC: float | None = None,
                      *, r0: float | None = None) -> None:
         """Add one replica spectrum and its fitted bending modulus.
 

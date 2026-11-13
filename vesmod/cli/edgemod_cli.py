@@ -39,21 +39,22 @@ def parse_args() -> argparse.Namespace:
     ensemble = sys.argv[1:2] == ["ensemble"]
     if ensemble:
         parser.prog += " ensemble"
-    _add_input_options(parser)
+    _add_input_options(parser, ensemble=ensemble)
     _add_fit_options(parser, ensemble=ensemble)
     args = parser.parse_args(sys.argv[2:] if ensemble else None)
     args.command = "ensemble" if ensemble else "fit"
     return args
 
 
-def _add_input_options(parser: argparse.ArgumentParser) -> None:
+def _add_input_options(parser: argparse.ArgumentParser, *, ensemble=False) -> None:
     """Add input-path and recursion options shared by EdgeMod stages."""
     parser.add_argument(
         "input_path",
         type=Path,
         nargs="+",
         action=InputPathsAction,
-        help="One or more .npy files, directories, or glob patterns.",
+        help=("Saved spectrum JSON files, directories, or glob patterns." if ensemble
+              else "One or more .npy files, directories, or glob patterns."),
     )
     parser.add_argument(
         "--recursive",
