@@ -1,0 +1,31 @@
+block-beta
+    columns 3
+    space A["Accepted contour time series"] space
+    space B["Choose spectrum power calculation"] space
+    space C["Measured powers by contour mode q"] space
+    T["Choose mode relaxation time model"] R["Choose single-vesicle or ensemble analysis"] space
+    I["Choose camera integration model"] space E["Choose vesicle exclusion policy"]
+    space space S["Mean powers and replica SEM"]
+    M["Choose fitting function"] D["Choose fit range"] W["Choose whether to weight by replica SEM"]
+    space F["Fit results"] space
+
+    A --> B
+    B --> C
+    C --> R
+    R -- "Single vesicle" --> D
+    R -- "Multiple replicas" --> E
+    E --> S
+    S --> D
+    S --> W
+    T --> I
+    I --> M
+    M --> F
+    D --> F
+    W --> F
+
+    classDef decision fill:#d8f3dc,stroke:#2d6a4f,color:#143824
+    classDef optional fill:#effaf0,stroke:#74a680,color:#143824
+    classDef data fill:#e6effb,stroke:#537298,color:#193653
+    class B,R,E,M,D,W decision
+    class T,I optional
+    class A,C,S,F data
