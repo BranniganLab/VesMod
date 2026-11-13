@@ -9,9 +9,9 @@ from vesmod.EdgeMod import Spectrum, SpectrumFitConfig, SpectrumEnsemble
 from vesmod.EdgeMod.spherical_model import (
     spherical_contour_spectrum,
     predict_spectrum,
-    exposure_power_factor,
     configure_spectrum_model,
 )
+from vesmod.EdgeMod.camera_integration import exposure_power_factor
 from vesmod.EdgeMod.fitting import fit_spectrum
 
 

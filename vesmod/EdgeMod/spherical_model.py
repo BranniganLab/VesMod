@@ -1,53 +1,14 @@
 """Spherical model for vesicle contour fluctuation spectra."""
 
 from functools import lru_cache
-from numbers import Integral, Real
-import math
+from numbers import Integral
 import numpy as np
 from scipy.constants import Boltzmann
 from scipy.special import gammaln
 
-
-def _validate_spherical_inputs(q, kC, sigma, lmax) -> list[int]:
-    """Validate the spherical spectrum domain and return integer modes."""
-    if not isinstance(kC, Real) or isinstance(kC, bool):
-        raise TypeError("kC must be numeric.")
-    if not math.isfinite(kC) or kC <= 0:
-        raise ValueError("kC must be finite and positive.")
-    if not isinstance(sigma, Real) or isinstance(sigma, bool):
-        raise TypeError("sigma must be numeric.")
-    if not math.isfinite(sigma):
-        raise ValueError("sigma must be finite.")
-    if not isinstance(lmax, Real) or isinstance(lmax, bool):
-        raise TypeError("lmax must be an integer-valued number.")
-    if not math.isfinite(lmax) or not float(lmax).is_integer():
-        raise ValueError("lmax must be a finite integer-valued number.")
-    lmax_int = int(lmax)
-    if lmax_int < 2:
-        raise ValueError("lmax must be at least 2.")
-
-    try:
-        modes = list(q)
-    except TypeError as error:
-        raise TypeError("q must be an iterable of integer modes.") from error
-    if not modes:
-        raise ValueError("q must contain at least one mode.")
-
-    integer_modes = []
-    for mode in modes:
-        # lmfit coerces independent variables to floating arrays, so accept
-        # finite integer-valued Reals as well as Python/NumPy integer scalars.
-        if not isinstance(mode, Real) or isinstance(mode, bool):
-            raise TypeError("q must contain only integer-valued modes.")
-        if not math.isfinite(mode) or not float(mode).is_integer():
-            raise ValueError("q must contain only finite integer-valued modes.")
-        mode_int = int(mode)
-        if mode_int < 2:
-            raise ValueError("spherical_contour_spectrum requires q >= 2.")
-        if mode_int > lmax_int:
-            raise ValueError("Each q mode must be less than or equal to lmax.")
-        integer_modes.append(mode_int)
-    return integer_modes
+from .camera_integration import exposure_power_factor
+from .relaxation import prepare_spherical_relaxation
+from .spherical_validation import validate_spherical_inputs, validate_vesicle_radii
 
 
 def spherical_contour_spectrum(q: list[int], kC: float, sigma: float, lmax: int) -> list[float]:
@@ -76,7 +37,7 @@ def spherical_contour_spectrum(q: list[int], kC: float, sigma: float, lmax: int)
     Public calls require physical Fourier modes q >= 2 and q <= lmax.
 
     """
-    modes = _validate_spherical_inputs(q, kC, sigma, lmax)
+    modes = validate_spherical_inputs(q, kC, sigma, lmax)
     function = []
     lmax = int(lmax)
     for wavenum in modes:
@@ -92,34 +53,6 @@ def spherical_contour_spectrum(q: list[int], kC: float, sigma: float, lmax: int)
     return function
 
 
-def exposure_power_factor(x):
-    """Return retained power for a boxcar-averaged exponential correlation.
-
-    ``x`` is exposure time / relaxation time. A series avoids cancellation
-    near zero; the reciprocal form avoids squaring large x.
-    """
-    x = np.asarray(x, dtype=float)
-    if np.any(~np.isfinite(x)) or np.any(x < 0):
-        raise ValueError("Exposure/relaxation ratio must be finite and nonnegative.")
-    result = np.empty_like(x)
-    small = x < 1e-3
-    z = x[small]
-    result[small] = 1 - z / 3 + z**2 / 12 - z**3 / 60 + z**4 / 360
-    z = x[~small]
-    result[~small] = 2 / z * (1 + np.expm1(-z) / z)
-    return result
-
-
-def validate_vesicle_radii(radii):
-    """Require positive radii in microns for fitting and camera averaging."""
-    if radii is None:
-        raise ValueError("Vesicle radii are required for spectrum fitting.")
-    radii = np.atleast_1d(np.asarray(radii, dtype=float))
-    if radii.ndim != 1 or radii.size == 0 or np.any(~np.isfinite(radii)) or np.any(radii <= 0):
-        raise ValueError("Spectrum fitting radii must be finite and positive.")
-    return radii.copy()
-
-
 @lru_cache(maxsize=256)
 def _camera_projection(q, lmax):
     """Cache fixed Nlq Plq^2 geometry for repeated optimizer evaluations."""
@@ -128,56 +61,9 @@ def _camera_projection(q, lmax):
     return ell, weights
 
 
-def mode_relaxation_times(ell, kC, sigma, *, config, radii):
-    """Return spherical-mode relaxation times in seconds, shape (radii, ell).
-
-    kC is in kBT, sigma is reduced tension, and radii are in microns.
-    The explicitly selected relaxation model determines the drag expression.
-    This calculation can also be used without enabling camera integration.
-    """
-    try:
-        modes = list(ell)
-    except TypeError as error:
-        raise TypeError("ell must be an iterable of integer modes.") from error
-    ell = np.asarray(
-        _validate_spherical_inputs(modes, kC, sigma, max(modes, default=2)),
-        dtype=float,
-    )
-    radii_m = validate_vesicle_radii(radii) * 1e-6
-    _validate_relaxation_inputs(sigma, config)
-    stiffness = (ell - 1) * (ell + 2) * (ell * (ell + 1) + sigma)
-    rate_scale = kC * Boltzmann * config.temperature / (config.viscosity_out * radii_m**3)
-    return _mode_relaxation_times_unchecked(ell, stiffness, config, radii_m, rate_scale)
-
-
-def _validate_relaxation_inputs(sigma, config):
-    """Check stability and solvent inputs once at the public API boundary."""
-    if sigma <= -6:
-        raise ValueError("Relaxation requires stable spherical modes: sigma > -6.")
-    if config.viscosity_out is None:
-        raise ValueError("viscosity_out is required to calculate relaxation times.")
-    if config.relaxation_model == "solvent_only" and config.viscosity_in is None:
-        raise ValueError("viscosity_in is required for solvent_only relaxation times.")
-
-
-def _mode_relaxation_times_unchecked(ell, stiffness, config, radii_m, rate_scale):
-    """Evaluate dynamics for validated modes and precomputed SI radius terms.
-
-    The prediction loop uses cached spherical-mode arrays, so it must not
-    call the public mode_relaxation_times API and revalidate every ell.
-    The public API and predictor share this numerical calculation.
-    """
-    drag = 4 * ell**3 + 6 * ell**2 - 1
-    if config.relaxation_model == "solvent_only":
-        drag += ((2 * ell**3 + 3 * ell**2 - 5)
-                 * (config.viscosity_in / config.viscosity_out - 1))
-    else:
-        chi_s = config.eta_m / (radii_m[:, None] * config.viscosity_out)
-        drag = drag[None, :] + (4 * ell**2 + 4 * ell - 8) * chi_s
-    return drag / (rate_scale[:, None] * stiffness * ell * (ell + 1))
-
-
-def predict_spectrum(q, kC, sigma, lmax, *, config, radii=None):
+def predict_spectrum(
+    q, kC, sigma, lmax, *, config, radii=None, relaxation=prepare_spherical_relaxation
+):
     """Predict dimensionless complex contour power for fitting or plotting.
 
     The equilibrium model, camera-integration toggle, and relaxation model
@@ -187,17 +73,15 @@ def predict_spectrum(q, kC, sigma, lmax, *, config, radii=None):
     reduced tension. Disabling camera integration needs no radii or solvent
     viscosities and returns the equilibrium spectrum exactly.
     """
-    modes = _validate_spherical_inputs(q, kC, sigma, lmax)
+    modes = validate_spherical_inputs(q, kC, sigma, lmax)
     if not config.camera_integration:
         return spherical_contour_spectrum(modes, kC, sigma, lmax)
-    radii_m = validate_vesicle_radii(radii) * 1e-6
-    _validate_relaxation_inputs(sigma, config)
-    rate_scale = kC * Boltzmann * config.temperature / (config.viscosity_out * radii_m**3)
+    calculate_times = relaxation(kC, sigma, config=config, radii=radii)
     predictions = []
     for mode in modes:
         ell, weights = _camera_projection(mode, int(lmax))
         stiffness = (ell - 1) * (ell + 2) * (ell * (ell + 1) + sigma)
-        times = _mode_relaxation_times_unchecked(ell, stiffness, config, radii_m, rate_scale)
+        times = calculate_times(ell, stiffness)
         retained = exposure_power_factor(config.exposure_time / times).mean(axis=0)
         predictions.append(float(np.sum(weights * retained / stiffness) / kC))
     return predictions
@@ -302,7 +186,9 @@ def calc_tension_from_reduced_tension(
 
 
 
-def configure_spectrum_model(config, radii, *, expected_replica_count=None):
+def configure_spectrum_model(
+    config, radii, *, expected_replica_count=None, relaxation=prepare_spherical_relaxation
+):
     """Return a predictor and the bending-modulus and reduced-tension bounds."""
     radii = validate_vesicle_radii(radii)
     if expected_replica_count is not None:
@@ -321,7 +207,9 @@ def configure_spectrum_model(config, radii, *, expected_replica_count=None):
         predict = spherical_contour_spectrum
     else:
         def predict(q, kC, sigma, lmax):
-            return predict_spectrum(q, kC, sigma, lmax, config=config, radii=radii)
+            return predict_spectrum(
+                q, kC, sigma, lmax, config=config, radii=radii, relaxation=relaxation
+            )
 
     # Exposure averaging requires stability of the spherical l=2 mode.
     sigma_min = -6 + 1e-8 if config is not None and config.camera_integration else -100
