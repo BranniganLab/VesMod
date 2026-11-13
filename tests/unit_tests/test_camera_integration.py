@@ -336,3 +336,23 @@ def test_configured_model_uses_custom_camera_integration():
     modes = [3, 5, 7]
     instantaneous = spherical_contour_spectrum(modes, 25, 4, 50)
     np.testing.assert_allclose(model(modes, 25, 4, 50), 0.5 * np.asarray(instantaneous))
+
+
+def test_configured_model_calls_relaxation_once_for_all_required_modes():
+    config = SpectrumFitConfig(
+        camera_integration=True, exposure_time=.030,
+        viscosity_in=.001, viscosity_out=.001, lmax=8,
+    )
+    calls = []
+
+    def relaxation(ell, kC, sigma, *, config, radii):
+        calls.append(ell.tolist())
+        return np.full((len(radii), len(ell)), config.exposure_time)
+
+    model, _, _ = configure_spectrum_model(config, [5, 15], relaxation=relaxation)
+    modes = [3, 6]
+    instantaneous = spherical_contour_spectrum(modes, 25, 4, 8)
+    np.testing.assert_allclose(
+        model(modes, 25, 4, 8), np.asarray(instantaneous) * exposure_power_factor(1.0)
+    )
+    assert calls == [[3, 5, 6, 7, 8]]

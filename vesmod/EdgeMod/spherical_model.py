@@ -7,7 +7,7 @@ from scipy.constants import Boltzmann
 from scipy.special import gammaln
 
 from .camera_integration import exposure_power_factor
-from .relaxation import prepare_spherical_relaxation
+from .relaxation import mode_relaxation_times
 from .spherical_validation import validate_spherical_inputs, validate_vesicle_radii
 
 
@@ -62,7 +62,7 @@ def _camera_projection(q, lmax):
 
 
 def predict_spectrum(
-    q, kC, sigma, lmax, *, config, radii=None, relaxation=prepare_spherical_relaxation,
+    q, kC, sigma, lmax, *, config, radii=None, relaxation=mode_relaxation_times,
     camera_integration=exposure_power_factor,
 ):
     """Predict dimensionless complex contour power for fitting or plotting.
@@ -73,16 +73,20 @@ def predict_spectrum(
     predictions average equally across replica radii, with shared kC and
     reduced tension. Disabling camera integration needs no radii or solvent
     viscosities and returns the equilibrium spectrum exactly.
+
+    The relaxation callable returns times in seconds with shape (radii, ell)
+    for the supplied spherical modes, trial parameters, config, and radii.
     """
     modes = validate_spherical_inputs(q, kC, sigma, lmax)
     if not config.camera_integration:
         return spherical_contour_spectrum(modes, kC, sigma, lmax)
-    calculate_times = relaxation(kC, sigma, config=config, radii=radii)
+    projections = [_camera_projection(mode, int(lmax)) for mode in modes]
+    spherical_modes = np.unique(np.concatenate([ell for ell, _ in projections])).astype(int)
+    relaxation_times = relaxation(spherical_modes, kC, sigma, config=config, radii=radii)
     predictions = []
-    for mode in modes:
-        ell, weights = _camera_projection(mode, int(lmax))
+    for ell, weights in projections:
         stiffness = (ell - 1) * (ell + 2) * (ell * (ell + 1) + sigma)
-        times = calculate_times(ell, stiffness)
+        times = relaxation_times[:, np.searchsorted(spherical_modes, ell)]
         retained = camera_integration(config.exposure_time / times).mean(axis=0)
         predictions.append(float(np.sum(weights * retained / stiffness) / kC))
     return predictions
@@ -188,7 +192,7 @@ def calc_tension_from_reduced_tension(
 
 
 def configure_spectrum_model(
-    config, radii, *, expected_replica_count=None, relaxation=prepare_spherical_relaxation,
+    config, radii, *, expected_replica_count=None, relaxation=mode_relaxation_times,
     camera_integration=exposure_power_factor,
 ):
     """Return a predictor and the bending-modulus and reduced-tension bounds."""
