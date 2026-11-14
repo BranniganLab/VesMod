@@ -44,7 +44,7 @@ class SpectrumFitConfig:
         Exclusive upper Fourier-mode bound. The defaults therefore fit
         q = 3, 4, 5, 6, 7.
     model : str, default="spherical_contour_spectrum"
-        Equilibrium contour-power model (Hackl, Seifert, and Sackmann 1997).
+        Name of the contour-power model. The built-in default is spherical.
     camera_integration : bool, default=False
         Apply finite-exposure averaging to each spherical-mode contribution.
         A positive exposure_time is required when enabled. Disabling this
@@ -87,8 +87,8 @@ class SpectrumFitConfig:
                 object.__setattr__(self, name, require_positive_real(value, name))
         object.__setattr__(self, "exposure_time",
                            require_nonnegative_real(self.exposure_time, "exposure_time"))
-        if self.model != "spherical_contour_spectrum":
-            raise ValueError("model must be spherical_contour_spectrum.")
+        if not isinstance(self.model, str) or not self.model.strip():
+            raise ValueError("model must be a nonempty string.")
         if not isinstance(self.camera_integration, bool):
             raise TypeError("camera_integration must be a bool.")
         if self.relaxation_model not in {"solvent_only", "solvent_and_membrane"}:

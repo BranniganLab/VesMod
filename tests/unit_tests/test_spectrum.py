@@ -242,7 +242,7 @@ def test_extract_kc_from_fit_uses_config_and_saves_fit_results(monkeypatch):
         return 9.9
 
     monkeypatch.setattr(
-        "vesmod.EdgeMod.spectrum.fit_spectrum",
+        "vesmod.EdgeMod.fitting.fit_spectrum",
         fake_fit_spectrum,
     )
     monkeypatch.setattr(
@@ -293,7 +293,7 @@ def test_extract_kc_from_fit_uses_default_config(monkeypatch):
         return SimpleNamespace(best_values={"kC": 20.0, "sigma": 2.0})
 
     monkeypatch.setattr(
-        "vesmod.EdgeMod.spectrum.fit_spectrum",
+        "vesmod.EdgeMod.fitting.fit_spectrum",
         fake_fit,
     )
     monkeypatch.setattr(
@@ -322,7 +322,7 @@ def test_extract_kc_from_fit_rejects_empty_configured_range(monkeypatch):
     spectrum.fit_results = []
 
     monkeypatch.setattr(
-        "vesmod.EdgeMod.spectrum.fit_spectrum",
+        "vesmod.EdgeMod.fitting.fit_spectrum",
         lambda *args: pytest.fail("Physical fitter should not run"),
     )
 

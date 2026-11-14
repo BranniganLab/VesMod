@@ -30,7 +30,7 @@ def test_toggle_retains_parameters_and_changes_only_exposure_averaging():
 
 
 @pytest.mark.parametrize('kwargs, message', [
-    ({'model': 'unknown'}, 'model must'),
+    ({'model': ''}, 'model must'),
     ({'relaxation_model': 'unknown'}, 'relaxation_model must'),
     ({'camera_integration': True}, 'Positive exposure_time'),
     ({'eta_m': 0}, 'eta_m requires'),

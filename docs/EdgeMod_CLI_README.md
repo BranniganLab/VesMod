@@ -682,3 +682,18 @@ edgemod ensemble ./per-vesicle-fits --output ensemble.json \
 The JSON report records the policy, fit settings, per-vesicle status and any
 exclusion or error reason, and the ensemble fit. Choose a new output filename
 for each run.
+
+### Supply a physical model in Python
+
+Both `Spectrum.extract_kc_from_fit()` and
+`SpectrumEnsemble.extract_kc_from_fit()` accept a `model=` factory. The factory
+takes `(config, radii, *, expected_replica_count)`, with radii in micrometers.
+It returns `(predict, kc_bounds, sigma_bounds)`. The predictor takes
+`(q, kC, sigma, lmax)` and returns powers in the order of the supplied modes.
+Use bending modulus in units of kBT and dimensionless reduced tension
+`sigma = physical_tension * r0**2 / (kC * kBT)`, with `r0` in meters for
+that conversion. Each bounds tuple contains a minimum and maximum.
+
+Set `SpectrumFitConfig.model` to a descriptive name to record it in the fit.
+When you supply a factory with the default model name in the configuration,
+the fit records the factory name.

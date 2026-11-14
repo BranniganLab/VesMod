@@ -26,9 +26,9 @@ from .config import SpectrumFitConfig
 from .calculators import MeanSquaredPowerCalculator
 from .power_calculation import PowerCalculationResult, SpectrumCalculator
 from .fit_result import SpectrumFit
-from .range_selection.selection import select_manual_range, slice_fit_arrays
-from .fitting import fit_spectrum
-from .spherical_model import calc_tension_from_reduced_tension, configure_spectrum_model
+from .fitting import fit_configured_spectrum
+from .tension import calc_tension_from_reduced_tension
+
 
 
 if TYPE_CHECKING:
@@ -179,12 +179,13 @@ class Spectrum:
     def extract_kc_from_fit(
         self,
         config: SpectrumFitConfig | None = None,
+        *,
+        model=None,
     ) -> SpectrumFit:
         """Fit the configured fixed q interval to the theoretical spectrum.
 
-        Range selection is intentionally outside this core method. Callers that
-        choose q bounds dynamically should construct a ``SpectrumFitConfig``
-        containing those selected bounds before invoking the physical fit.
+        Supply ``model`` to use a custom model factory. The factory returns
+        a power predictor and bounds for bending modulus and reduced tension.
         """
         if config is None:
             config = SpectrumFitConfig()
@@ -192,23 +193,9 @@ class Spectrum:
             raise TypeError("config must be a SpectrumFitConfig or None.")
 
         self.fit_result = None
-        fit_mode_mask = select_manual_range(
-            self.modes, config.lower_bound, config.upper_bound
-        )
-        modes, powers, _ = slice_fit_arrays(fit_mode_mask, self.modes, self.powers)
-        if modes.size == 0:
-            raise ValueError("Configured q range contains no spectrum modes.")
-
-        radii = [self.r0]
-        predict, kc_bounds, sigma_bounds = configure_spectrum_model(
-            config, radii, expected_replica_count=1
-        )
-        self.fit_result = fit_spectrum(
-            modes,
-            powers,
-            config.lmax,
-            config.free_sigma,
-            model=predict, kc_bounds=kc_bounds, sigma_bounds=sigma_bounds,
+        self.fit_result, config = fit_configured_spectrum(
+            self.modes, self.powers, config, [self.r0],
+            model=model, expected_replica_count=1,
         )
 
         fitted_kc = self.fit_result.best_values["kC"]

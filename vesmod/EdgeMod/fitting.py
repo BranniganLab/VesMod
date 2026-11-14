@@ -1,11 +1,14 @@
 """Estimate membrane parameters from measured contour powers."""
 
 import logging
+from dataclasses import replace
 
 from lmfit import Model
 import numpy as np
 
 from .spherical_model import configure_spectrum_model, spherical_contour_spectrum
+
+from .range_selection.selection import select_manual_range, slice_fit_arrays
 
 logger = logging.getLogger(__name__)
 
@@ -66,3 +69,25 @@ def fit_spectrum_to_theory(
         model=model, kc_bounds=kc_bounds, sigma_bounds=sigma_bounds,
     )
     return result.best_values["kC"], result.best_values["sigma"]
+
+def fit_configured_spectrum(modes, powers, config, radii, *, model=None, sem=None,
+                            weighted=False, expected_replica_count=None):
+    """Select modes and fit using a factory that supplies a predictor and bounds."""
+    if model is None:
+        if config.model != "spherical_contour_spectrum":
+            raise ValueError(f"Unknown model {config.model!r}; supply a model factory.")
+        model = configure_spectrum_model
+    elif config.model == "spherical_contour_spectrum":
+        config = replace(config, model=getattr(model, "__name__", type(model).__name__))
+    fit_mode_mask = select_manual_range(modes, config.lower_bound, config.upper_bound)
+    modes, powers, sem = slice_fit_arrays(fit_mode_mask, modes, powers, sem=sem)
+    if modes.size == 0:
+        raise ValueError("Configured q range contains no spectrum modes.")
+    predict, kc_bounds, sigma_bounds = model(
+        config, radii, expected_replica_count=expected_replica_count
+    )
+    result = fit_spectrum(
+        modes, powers, config.lmax, config.free_sigma, weighted=weighted,
+        sem=sem, model=predict, kc_bounds=kc_bounds, sigma_bounds=sigma_bounds,
+    )
+    return result, config

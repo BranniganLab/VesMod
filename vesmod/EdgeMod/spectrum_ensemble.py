@@ -13,11 +13,10 @@ behavior.
 """
 import numpy as np
 from vesmod.validation import require_positive_real
-from .range_selection.selection import select_manual_range, slice_fit_arrays
-from .fitting import fit_spectrum
-from .spherical_model import configure_spectrum_model
+from .fitting import fit_configured_spectrum
 from .config import SpectrumFitConfig
 from .fit_result import EnsembleFit
+
 
 
 class SpectrumEnsemble:
@@ -122,6 +121,7 @@ class SpectrumEnsemble:
         config: SpectrumFitConfig | None = None,
         *,
         weight_by_replica_sem: bool = False,
+        model=None,
     ) -> EnsembleFit:
         """Fit the averaged spectrum using a physical fit configuration.
 
@@ -129,7 +129,7 @@ class SpectrumEnsemble:
         reported as dimensionless reduced tension. Supply a configuration
         with ``free_sigma=False`` to fix it to zero. Set
         ``weight_by_replica_sem=True`` to weight each mode by the inverse
-        standard error across replicas.
+        standard error across replicas. Supply ``model`` for a custom model factory.
         """
         if config is None:
             config = SpectrumFitConfig()
@@ -146,26 +146,11 @@ class SpectrumEnsemble:
             radius is None for radius in self.radii_list
         ):
             raise ValueError("Supply r0 for every replica to set the reduced-tension bound.")
-        fit_mode_mask = select_manual_range(
-            self.modes, config.lower_bound, config.upper_bound
-        )
         sem = self.avg_amps2_ste if len(self.spectra_list) >= 2 else None
-        modes, powers, fit_sem = slice_fit_arrays(
-            fit_mode_mask, self.modes, self.avg_amps2, sem=sem
-        )
-        predict, kc_bounds, sigma_bounds = configure_spectrum_model(
-            config, self.radii_list, expected_replica_count=len(self.spectra_list)
-        )
-        result = fit_spectrum(
-            modes,
-            powers,
-            config.lmax,
-            free_sigma=config.free_sigma,
-            weighted=weight_by_replica_sem,
-            sem=fit_sem,
-            model=predict,
-            kc_bounds=kc_bounds,
-            sigma_bounds=sigma_bounds,
+        result, config = fit_configured_spectrum(
+            self.modes, self.avg_amps2, config, self.radii_list,
+            model=model, sem=sem, weighted=weight_by_replica_sem,
+            expected_replica_count=len(self.spectra_list),
         )
         kC = result.best_values["kC"]
         reduced_sigma = result.best_values["sigma"]
