@@ -190,6 +190,12 @@ def configure_spectrum_model(
 ):
     """Return a predictor and the bending-modulus and reduced-tension bounds.
 
+    The fitter calls the returned predictor repeatedly with the signature
+    ``(q, kC, sigma, lmax)``. When config is supplied, the nested function binds
+    the configuration, validated replica radii, relaxation law, and camera
+    integration function so those inputs stay fixed during optimization. With
+    config set to None, the equilibrium function already has that signature.
+
     Parameters
     ----------
     config : SpectrumFitConfig or None
@@ -225,7 +231,7 @@ def configure_spectrum_model(
         predict = spherical_contour_spectrum
     else:
         def predict(q, kC, sigma, lmax):
-            """Predict.
+            """Evaluate spherical contour powers with the captured fit settings.
 
             Parameters
             ----------
