@@ -107,7 +107,7 @@ def test_plot_spectrum_can_include_q1_as_an_opt_in():
     plt.close(figure)
 
 
-from vesmod.EdgeMod.spherical_model import predict_spectrum
+from vesmod.EdgeMod.spherical_model import predict_spherical_contour_power
 from vesmod.EdgeMod.spectrum_plotting import plot_q3_scaled_spectrum
 
 
@@ -119,7 +119,7 @@ def test_camera_power_views_recover_instantaneous_spectrum(power):
     modes = np.arange(2, 12)
     instantaneous = np.asarray(spherical_contour_spectrum(modes, 25, 2, config.lmax))
     def camera(q):
-        return predict_spectrum(q, 25, 2, config.lmax,
+        return predict_spherical_contour_power(q, 25, 2, config.lmax,
                                                   config=config, radii=[5])
     measured = np.asarray(camera(modes))
     original = measured.copy()
@@ -169,7 +169,7 @@ def test_public_spectrum_plot_uses_recorded_camera_fit():
     positive = spectrum.modes >= 2
     q = spectrum.modes[positive]
     powers = spectrum.powers.copy()
-    powers[positive] = predict_spectrum(
+    powers[positive] = predict_spherical_contour_power(
         q, 25, 0, 50, config=config, radii=[5])
     from dataclasses import replace
     spectrum = Spectrum.from_radii(

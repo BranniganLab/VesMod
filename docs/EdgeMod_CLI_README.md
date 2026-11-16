@@ -624,7 +624,7 @@ prediction exactly. The choices are serialized in fit results and provenance.
 For prediction without fitting:
 
 ```python
-from vesmod.EdgeMod import SpectrumFitConfig, predict_spectrum
+from vesmod.EdgeMod import SpectrumFitConfig, predict_spherical_contour_power
 
 config = SpectrumFitConfig(
     model="spherical_contour_spectrum",
@@ -634,11 +634,11 @@ config = SpectrumFitConfig(
     viscosity_out=0.001,
     eta_m=4.1e-9,
 )
-power = predict_spectrum([3, 4, 5, 6, 7], kC=25, sigma=4, lmax=500,
+power = predict_spherical_contour_power([3, 4, 5, 6, 7], kC=25, sigma=4, lmax=500,
                          config=config, radii=[5])  # radii in microns
 ```
 
-`predict_spectrum` is also the prediction used during fitting. The equilibrium
+`predict_spherical_contour_power` is also the prediction used during fitting. The equilibrium
 function is now named `spherical_contour_spectrum`; the previous `HSS97` and
 `HSS97_with_camera_integration_time` function names have been removed.
 Existing camera-aware Python calls must add `camera_integration=True`, and

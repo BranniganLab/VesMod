@@ -73,7 +73,7 @@ def _camera_projection(q, lmax):
     return ell, weights
 
 
-def predict_spectrum(
+def predict_spherical_contour_power(
     q, kC, sigma, lmax, *, config, radii=None, relaxation=mode_relaxation_times,
     camera_integration=exposure_power_factor,
 ):
@@ -243,7 +243,7 @@ def configure_spectrum_model(
             list of float
                 Predicted contour powers for the bound settings and radii.
             """
-            return predict_spectrum(
+            return predict_spherical_contour_power(
                 q, kC, sigma, lmax, config=config, radii=radii,
                 relaxation=relaxation, camera_integration=camera_integration,
             )

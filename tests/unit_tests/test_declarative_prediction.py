@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 from vesmod.EdgeMod import (
-    Spectrum, SpectrumFitConfig, mode_relaxation_times, predict_spectrum,
+    Spectrum, SpectrumFitConfig, mode_relaxation_times, predict_spherical_contour_power,
     spherical_contour_spectrum,
 )
 
@@ -15,7 +15,7 @@ from vesmod.EdgeMod import (
 def test_exposure_metadata_does_not_enable_camera_integration():
     config = SpectrumFitConfig(exposure_time=.030)
     expected = spherical_contour_spectrum([3, 5, 7], 25, 4, 50)
-    assert predict_spectrum([3, 5, 7], 25, 4, 50, config=config) == expected
+    assert predict_spherical_contour_power([3, 5, 7], 25, 4, 50, config=config) == expected
 
 
 def test_toggle_retains_parameters_and_changes_only_exposure_averaging():
@@ -23,8 +23,8 @@ def test_toggle_retains_parameters_and_changes_only_exposure_averaging():
                                viscosity_in=.00102, viscosity_out=.00097)
     disabled = replace(config, camera_integration=False)
     equilibrium = spherical_contour_spectrum([3, 5, 7], 25, 4, 50)
-    assert predict_spectrum([3, 5, 7], 25, 4, 50, config=disabled) == equilibrium
-    assert np.all(np.array(predict_spectrum([3, 5, 7], 25, 4, 50,
+    assert predict_spherical_contour_power([3, 5, 7], 25, 4, 50, config=disabled) == equilibrium
+    assert np.all(np.array(predict_spherical_contour_power([3, 5, 7], 25, 4, 50,
                                            config=config, radii=[5])) < equilibrium)
     assert disabled.exposure_time == .030
 
@@ -119,7 +119,7 @@ def test_prediction_validates_inputs_once_not_each_spherical_mode(
     monkeypatch.setattr(utils, 'validate_spherical_inputs', validate_spectrum)
     monkeypatch.setattr(relaxation, 'validate_spherical_inputs', validate_spectrum)
     monkeypatch.setattr(relaxation, 'validate_vesicle_radii', validate_radii)
-    power = utils.predict_spectrum([3, 4, 5, 6, 7], 25, 4, 500,
+    power = utils.predict_spherical_contour_power([3, 4, 5, 6, 7], 25, 4, 500,
                                    config=config, radii=[5, 15])
     assert np.all(np.isfinite(power))
     assert calls == {'spectrum': 1, 'radii': 1}

@@ -8,7 +8,7 @@ from scipy.integrate import quad
 from vesmod.EdgeMod import Spectrum, SpectrumFitConfig, SpectrumEnsemble
 from vesmod.EdgeMod.spherical_model import (
     spherical_contour_spectrum,
-    predict_spectrum,
+    predict_spherical_contour_power,
     configure_spectrum_model,
 )
 from vesmod.EdgeMod.camera_integration import exposure_power_factor
@@ -35,7 +35,7 @@ def test_invalid_settings(kwargs):
 def test_zero_exposure_is_exactly_original_model():
     """Zero exposure requires no radii and preserves the original spectrum."""
     q = np.arange(3, 8)
-    assert predict_spectrum(q, 25, 2, 40, config=SpectrumFitConfig(), radii=None) == spherical_contour_spectrum(q, 25, 2, 40)
+    assert predict_spherical_contour_power(q, 25, 2, 40, config=SpectrumFitConfig(), radii=None) == spherical_contour_spectrum(q, 25, 2, 40)
 
 
 def test_single_spherical_mode_si_units():
@@ -44,16 +44,16 @@ def test_single_spherical_mode_si_units():
     rate = (25 * Boltzmann * 295 / (0.00097 * (5e-6)**3)
             * (2 * 3 * 4 * 5 * (12 + 2))
             / (4 * 27 + 6 * 9 - 1 + (2 * 27 + 3 * 9 - 5) * (1.02 / .97 - 1)))
-    predicted = predict_spectrum([3], 25, 2, 3, config=config, radii=[5])[0]
+    predicted = predict_spherical_contour_power([3], 25, 2, 3, config=config, radii=[5])[0]
     assert predicted / spherical_contour_spectrum([3], 25, 2, 3)[0] == pytest.approx(exposure_power_factor(.030 * rate))
 
 
 def test_radius_and_exposure_dependence():
     """Smaller radii and longer exposures suppress more contour power."""
     config = SpectrumFitConfig(camera_integration=True, viscosity_in=.00102, viscosity_out=.00097, exposure_time=.030)
-    small = np.array(predict_spectrum([3, 5, 7], 25, 0, 50, config=config, radii=[5]))
-    large = np.array(predict_spectrum([3, 5, 7], 25, 0, 50, config=config, radii=[10]))
-    long = np.array(predict_spectrum([3, 5, 7], 25, 0, 50, config=replace(config, camera_integration=True, exposure_time=.060), radii=[5]))
+    small = np.array(predict_spherical_contour_power([3, 5, 7], 25, 0, 50, config=config, radii=[5]))
+    large = np.array(predict_spherical_contour_power([3, 5, 7], 25, 0, 50, config=config, radii=[10]))
+    long = np.array(predict_spherical_contour_power([3, 5, 7], 25, 0, 50, config=replace(config, camera_integration=True, exposure_time=.060), radii=[5]))
     assert np.all(long < small)
     assert np.all(small < large)
     assert np.all(large < spherical_contour_spectrum([3, 5, 7], 25, 0, 50))
@@ -65,7 +65,7 @@ def test_fit_recovers_synthetic_parameters(free_sigma):
     config = SpectrumFitConfig(camera_integration=True, viscosity_in=.00102, viscosity_out=.00097, lmax=50, upper_bound=11, exposure_time=.030, free_sigma=free_sigma)
     q = np.arange(3, 11)
     sigma = 4 if free_sigma else 0
-    measured = np.array(predict_spectrum(q, 25, sigma, 50, config=config, radii=[5]))
+    measured = np.array(predict_spherical_contour_power(q, 25, sigma, 50, config=config, radii=[5]))
     predict, kc_bounds, sigma_bounds = configure_spectrum_model(config, [5])
     result = fit_spectrum(q, measured, 50, sem=measured * .01,
                                 free_sigma=free_sigma, weighted=True, model=predict, kc_bounds=kc_bounds, sigma_bounds=sigma_bounds)
@@ -82,7 +82,7 @@ def test_spectrum_and_ensemble_use_individual_radii():
     for radius in [5, 15]:
         spectrum = Spectrum.from_radii(np.full((2, 32), radius, dtype=float))
         powers = spectrum.powers.copy()
-        powers[3:8] = predict_spectrum(range(3, 8), 25, 0, 50, config=config, radii=[radius])
+        powers[3:8] = predict_spherical_contour_power(range(3, 8), 25, 0, 50, config=config, radii=[radius])
         spectrum = Spectrum.from_radii(
             np.full((2, 32), spectrum.r0),
             calculator=lambda radii: replace(spectrum._calculation, powers=powers),
@@ -92,7 +92,7 @@ def test_spectrum_and_ensemble_use_individual_radii():
         assert fit.to_dict()['config']['exposure_time'] == .030
         ensemble.add_spectrum(spectrum.powers, spectrum.modes, fit.kC, r0=radius)
         predictions.append(spectrum.powers[3:8])
-    np.testing.assert_allclose(predict_spectrum(range(3, 8), 25, 0, 50, config=config, radii=[5, 15]),
+    np.testing.assert_allclose(predict_spherical_contour_power(range(3, 8), 25, 0, 50, config=config, radii=[5, 15]),
                                np.mean(predictions, axis=0))
     fit = ensemble.extract_kc_from_fit(config, weight_by_replica_sem=True)
     assert fit.kC == pytest.approx(25, rel=1e-5)
@@ -119,7 +119,7 @@ def test_corrected_plot_uses_corrected_prediction():
     from vesmod.EdgeMod.spectrum_plotting import SpectrumPlotData, plot_spectrum
     config = SpectrumFitConfig(camera_integration=True, viscosity_in=.00102, viscosity_out=.00097, lmax=50, free_sigma=False, exposure_time=.030)
     q = np.arange(3, 8)
-    measured = np.array(predict_spectrum(q, 25, 0, 50, config=config, radii=[5]))
+    measured = np.array(predict_spherical_contour_power(q, 25, 0, 50, config=config, radii=[5]))
     predict, kc_bounds, sigma_bounds = configure_spectrum_model(config, [5])
     result = fit_spectrum(q, measured, 50, model=predict, kc_bounds=kc_bounds, sigma_bounds=sigma_bounds)
     data = SpectrumPlotData(modes=q, avg_amps2=measured, fit_result=result,
@@ -134,9 +134,9 @@ def test_camera_requires_radius_and_stable_modes():
     """Fail clearly when required physical inputs are unavailable."""
     config = SpectrumFitConfig(camera_integration=True, viscosity_in=.00102, viscosity_out=.00097, exposure_time=.030)
     with pytest.raises(ValueError, match='radii are required'):
-        predict_spectrum([3], 25, 0, 50, config=config, radii=None)
+        predict_spherical_contour_power([3], 25, 0, 50, config=config, radii=None)
     with pytest.raises(ValueError, match='stable spherical modes'):
-        predict_spectrum([3], 25, -6, 50, config=config, radii=[5])
+        predict_spherical_contour_power([3], 25, -6, 50, config=config, radii=[5])
 
 
 @pytest.mark.parametrize("radii", [[10], [5, 10, 15]])
@@ -150,7 +150,7 @@ def test_camera_fit_accepts_matching_replica_radius_count(radii):
     config = SpectrumFitConfig(camera_integration=True, viscosity_in=.00102, viscosity_out=.00097,
                                exposure_time=.030, lmax=50)
     q = np.arange(3, 8)
-    power = predict_spectrum(q, 25, 0, 50,
+    power = predict_spherical_contour_power(q, 25, 0, 50,
                                               config=config, radii=radii)
     predict, kc_bounds, sigma_bounds = configure_spectrum_model(config, radii, expected_replica_count=len(radii))
     result = fit_spectrum(q, np.array(power), 50,
@@ -180,7 +180,7 @@ def test_implemented_relaxation_matches_full_tau_expression(
 ):
     """Compare actual optimizer rates with the unfactored Faizi eq. 2.
 
-    Capture the arguments passed by predict_spectrum into exposure_power_factor:
+    Capture the arguments passed by predict_spherical_contour_power into exposure_power_factor:
     these are t_exp/tau_l, so dividing by exposure yields the implemented
     rates. This exercises the production calculation, rather than a copy of
     its shortcuts. q=2 and q=3 together cover every l from 2 through 500.
@@ -206,7 +206,7 @@ def test_implemented_relaxation_matches_full_tau_expression(
         captured.append(np.array(x, copy=True))
         return original_factor(x)
 
-    predict_spectrum([2, 3], kc_kbt, reduced_sigma, 500,
+    predict_spherical_contour_power([2, 3], kc_kbt, reduced_sigma, 500,
                        config=config, radii=radii_um, camera_integration=capture_exposure_ratio)
     assert len(captured) == 2
 
@@ -243,7 +243,7 @@ def test_faizi2024_rates_match_equation_one(eta_m):
         captured.append(x.copy())
         return original(x)
 
-    predict_spectrum([2, 3], 25, 4, 500,
+    predict_spherical_contour_power([2, 3], 25, 4, 500,
                                              config=config, radii=[2, 5, 15], camera_integration=capture)
     for q, x in zip([2, 3], captured):
         ell = np.arange(q, 501, 2, dtype=float)[None, :]
@@ -258,7 +258,7 @@ def test_faizi2024_rates_match_equation_one(eta_m):
 
 def test_chi_zero_limit_and_membrane_drag():
     config = SpectrumFitConfig(camera_integration=True, exposure_time=.030, viscosity_out=.001, viscosity_in=.001)
-    predict = lambda c: np.array(predict_spectrum(
+    predict = lambda c: np.array(predict_spherical_contour_power(
         [3, 5, 7], 25, 4, 50, config=c, radii=[5, 15]))
     solvent = predict(config)
     np.testing.assert_array_equal(solvent, predict(replace(config, relaxation_model="solvent_and_membrane", eta_m=0)))
@@ -266,7 +266,7 @@ def test_chi_zero_limit_and_membrane_drag():
     assert np.all(viscous > solvent)
     assert np.all(viscous < spherical_contour_spectrum([3, 5, 7], 25, 4, 50))
     no_exposure = replace(config, camera_integration=False, relaxation_model="solvent_and_membrane", exposure_time=0, eta_m=4.1e-9)
-    assert predict_spectrum([3], 25, 4, 50,
+    assert predict_spherical_contour_power([3], 25, 4, 50,
         config=no_exposure, radii=None) == spherical_contour_spectrum([3], 25, 4, 50)
 
 
@@ -295,7 +295,7 @@ def test_eta_m_cli_and_synthetic_ensemble_fit(monkeypatch):
     for radius in [5, 15]:
         spectrum = Spectrum.from_radii(np.full((2, 32), radius, dtype=float))
         powers = spectrum.powers.copy()
-        powers[3:8] = predict_spectrum(
+        powers[3:8] = predict_spherical_contour_power(
             range(3, 8), 25, 4, 50, config=config, radii=[radius])
         spectrum = Spectrum.from_radii(
             np.full((2, 32), spectrum.r0),
@@ -313,9 +313,9 @@ def test_eta_m_cli_and_synthetic_ensemble_fit(monkeypatch):
 def test_membrane_viscosity_ensemble_averages_individual_radii():
     config = SpectrumFitConfig(camera_integration=True, relaxation_model="solvent_and_membrane", exposure_time=.030, viscosity_out=.001, eta_m=4.1e-9)
     q = [3, 5, 7]
-    individual = [predict_spectrum(q, 25, 4, 50,
+    individual = [predict_spherical_contour_power(q, 25, 4, 50,
                   config=config, radii=[r]) for r in [2, 5, 15]]
-    combined = predict_spectrum(q, 25, 4, 50,
+    combined = predict_spherical_contour_power(q, 25, 4, 50,
                                                 config=config, radii=[2, 5, 15])
     np.testing.assert_allclose(combined, np.mean(individual, axis=0), rtol=1e-14)
 
