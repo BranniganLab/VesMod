@@ -9,8 +9,6 @@ from typing import Any
 import matplotlib.pyplot as plt
 import numpy as np
 
-from .spherical_model import spherical_contour_spectrum
-
 
 @dataclass(frozen=True)
 class SpectrumPlotData:
@@ -84,8 +82,10 @@ def plot_spectrum(data, *, ax=None, color=None, label=None, config=None):
         raise ValueError("Camera correction is defined only for q >= 2.")
     mask = (data.modes >= 2) & (data.modes <= data.lmax)
     modes = data.modes[mask]
-    params = data.fit_result.best_values
-    instantaneous = np.asarray(spherical_contour_spectrum(modes, params["kC"], params["sigma"], data.lmax))
+    evaluate_instantaneous = getattr(data.fit_result, "eval_instantaneous", None)
+    if evaluate_instantaneous is None:
+        raise ValueError("Corrected powers require an instantaneous prediction from the fitted model.")
+    instantaneous = np.asarray(evaluate_instantaneous(modes))
     camera = np.asarray(data.fit_result.eval(q=modes))
     if np.any(~np.isfinite(camera)) or np.any(camera <= 0):
         raise ValueError("Camera prediction must be finite and positive for correction.")
@@ -104,7 +104,7 @@ def plot_spectrum(data, *, ax=None, color=None, label=None, config=None):
         corrected, ax=ax, color=color, label=series_label("camera-corrected"),
         config=replace(config, marker="s",
                        fitting_region="none" if measured_result else config.fitting_region),
-        instantaneous=True)
+        instantaneous=instantaneous)
     result = corrected_result if measured_result is None else measured_result
     return replace(result,
                    corrected_nonfit_artist=corrected_result.nonfit_artist,
@@ -119,7 +119,7 @@ def _plot_spectrum(
     color=None,
     label=None,
     config: SpectrumPlotConfig | None = None,
-    instantaneous=False,
+    instantaneous=None,
 ) -> SpectrumPlotResult:
     """Plot one spectrum on an existing or newly created axis.
 
@@ -188,16 +188,15 @@ def _plot_spectrum(
         if not np.any(selected):
             raise ValueError("fit bounds must select at least one positive mode.")
         predicted = np.asarray(
-            spherical_contour_spectrum(modes[selected], data.fit_result.best_values["kC"],
-                  data.fit_result.best_values["sigma"], data.lmax)
-            if instantaneous else data.fit_result.eval(q=modes[selected])
+            instantaneous[selected]
+            if instantaneous is not None else data.fit_result.eval(q=modes[selected])
         )
         fit_artist = ax.loglog(
             modes[selected],
             predicted,
             color=color,
             linewidth=config.linewidth,
-            linestyle="--" if instantaneous else "-",
+            linestyle="--" if instantaneous is not None else "-",
         )[0]
 
     fitting_region_artist = _plot_fitting_region(

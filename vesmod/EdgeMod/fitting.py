@@ -90,4 +90,18 @@ def fit_configured_spectrum(modes, powers, config, radii, *, model=None, sem=Non
         modes, powers, config.lmax, config.free_sigma, weighted=weighted,
         sem=sem, model=predict, kc_bounds=kc_bounds, sigma_bounds=sigma_bounds,
     )
+    if config.camera_integration:
+        instantaneous_config = replace(config, camera_integration=False)
+        fitted_radii = tuple(radii)
+
+        def evaluate_instantaneous(q):
+            predictor, _, _ = model(
+                instantaneous_config, list(fitted_radii),
+                expected_replica_count=expected_replica_count,
+            )
+            return predictor(
+                q, result.best_values["kC"], result.best_values["sigma"], config.lmax
+            )
+
+        result.eval_instantaneous = evaluate_instantaneous
     return result, config

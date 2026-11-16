@@ -124,7 +124,8 @@ def test_camera_power_views_recover_instantaneous_spectrum(power):
     measured = np.asarray(camera(modes))
     original = measured.copy()
     data = SpectrumPlotData(modes, measured,
-                            SimpleNamespace(best_values={'kC': 25, 'sigma': 2}, eval=camera),
+                            SimpleNamespace(eval=camera, eval_instantaneous=lambda q:
+                                            spherical_contour_spectrum(q, 25, 2, config.lmax)),
                             3, 8, config.lmax, exposure_time=config.exposure_time)
     result = plot_spectrum(data, config=SpectrumPlotConfig(power=power))
     selected = (modes >= 3) & (modes < 8)
@@ -205,3 +206,29 @@ def test_spectrum_plot_exposure_uses_effective_config(
     data = spectrum.plot(fit_config=None if explicit_exposure is None
                          else config(explicit_exposure))
     assert data.exposure_time == expected
+
+
+def test_corrected_plot_uses_custom_fitted_model():
+    config = SpectrumFitConfig(
+        camera_integration=True, exposure_time=.030, viscosity_in=.001,
+        viscosity_out=.001, lmax=20, free_sigma=False,
+    )
+
+    def custom_model(settings, radii, *, expected_replica_count):
+        factor = 0.5 if settings.camera_integration else 1.0
+
+        def powers(q, kC, sigma, lmax):
+            return factor * (kC / q**2 + sigma / lmax)
+
+        return powers, (10, 50), (-5, 5)
+
+    spectrum = Spectrum.from_radii(np.full((2, 32), 5.0))
+    positive = spectrum.modes >= 2
+    spectrum.powers[positive] = 12.5 / spectrum.modes[positive]**2
+    spectrum.extract_kc_from_fit(config, model=custom_model)
+
+    plot = spectrum.plot(plot_config=SpectrumPlotConfig(power="both"))
+    expected = 25 / np.arange(3, 8)**2
+    np.testing.assert_allclose(plot.corrected_fit_data_artist.get_ydata(), expected)
+    np.testing.assert_allclose(plot.corrected_fit_artist.get_ydata(), expected)
+    plt.close(plot.figure)
