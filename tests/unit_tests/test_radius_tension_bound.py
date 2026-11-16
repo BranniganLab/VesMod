@@ -43,6 +43,11 @@ def test_ensemble_missing_radius_fails_without_exposure():
 
 def test_direct_fit_requires_radii_without_exposure():
     with pytest.raises(ValueError, match='radii are required'):
-        configure_spectrum_model(None, None)
+        configure_spectrum_model(SpectrumFitConfig(), None)
     with pytest.raises(ValueError, match='expected 2 radii'):
-        configure_spectrum_model(None, [5], expected_replica_count=2)
+        configure_spectrum_model(SpectrumFitConfig(), [5], expected_replica_count=2)
+
+
+def test_configure_spectrum_model_requires_config():
+    with pytest.raises(TypeError, match="config must be a SpectrumFitConfig"):
+        configure_spectrum_model(None, [5])

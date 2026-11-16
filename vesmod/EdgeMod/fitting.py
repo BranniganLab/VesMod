@@ -6,6 +6,7 @@ from dataclasses import replace
 from lmfit import Model
 import numpy as np
 
+from .config import SpectrumFitConfig
 from .spherical_model import configure_spectrum_model, spherical_contour_spectrum
 
 from .range_selection.selection import select_manual_range, slice_fit_arrays
@@ -127,7 +128,8 @@ def fit_spectrum_to_theory(
     tuple
         Fitted bending modulus in kBT and dimensionless reduced tension.
     """
-    model, kc_bounds, sigma_bounds = configure_spectrum_model(None, radii)
+    config = SpectrumFitConfig(camera_integration=False)
+    model, kc_bounds, sigma_bounds = configure_spectrum_model(config, radii)
     result = fit_spectrum(
         modes, powers, lmax, free_sigma, weighted, sem=sem,
         model=model, kc_bounds=kc_bounds, sigma_bounds=sigma_bounds,

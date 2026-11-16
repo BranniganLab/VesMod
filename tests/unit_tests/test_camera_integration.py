@@ -142,7 +142,7 @@ def test_camera_requires_radius_and_stable_modes():
 @pytest.mark.parametrize("radii", [[10], [5, 10, 15]])
 def test_camera_fit_rejects_wrong_replica_radius_count(radii):
     with pytest.raises(ValueError, match="expected 2 radii, received"):
-        configure_spectrum_model(None, radii, expected_replica_count=2)
+        configure_spectrum_model(SpectrumFitConfig(), radii, expected_replica_count=2)
 
 
 @pytest.mark.parametrize("radii", [[5], [5, 15]])
@@ -161,7 +161,7 @@ def test_camera_fit_accepts_matching_replica_radius_count(radii):
 @pytest.mark.parametrize("count", [0, -1, True, 1.5])
 def test_camera_fit_rejects_invalid_expected_replica_count(count):
     with pytest.raises(ValueError, match="positive integer"):
-        configure_spectrum_model(None, [5], expected_replica_count=count)
+        configure_spectrum_model(SpectrumFitConfig(), [5], expected_replica_count=count)
 
 
 @pytest.mark.parametrize("kwargs", [{}, {"viscosity_in": .001}, {"viscosity_out": .001}])

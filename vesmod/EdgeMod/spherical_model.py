@@ -6,6 +6,7 @@ import numpy as np
 from scipy.special import gammaln
 
 from .camera_integration import exposure_power_factor
+from .config import SpectrumFitConfig
 from .relaxation import _relaxation_times_for_validated_modes, mode_relaxation_times
 from .spherical_validation import validate_spherical_inputs, validate_vesicle_radii
 
@@ -187,21 +188,20 @@ def Nlq_Plq0_squared(l: int, q: int) -> float:
 
 
 def configure_spectrum_model(
-    config, radii, *, expected_replica_count=None, relaxation=mode_relaxation_times,
+    config: SpectrumFitConfig, radii, *, expected_replica_count=None, relaxation=mode_relaxation_times,
     camera_integration=exposure_power_factor,
 ):
     """Return a predictor and the bending-modulus and reduced-tension bounds.
 
     The fitter calls the returned predictor repeatedly with the signature
-    ``(q, kC, sigma, lmax)``. When config is supplied, the nested function binds
+    ``(q, kC, sigma, lmax)``. The nested function binds
     the configuration, validated replica radii, relaxation law, and camera
-    integration function so those inputs stay fixed during optimization. With
-    config set to None, ``spherical_contour_spectrum`` already has that signature.
+    integration function so those inputs stay fixed during optimization.
 
     Parameters
     ----------
-    config : SpectrumFitConfig or None
-        Fit settings, or None for the instantaneous spherical spectrum.
+    config : SpectrumFitConfig
+        Fit settings. Set camera_integration=False for the instantaneous spectrum.
     radii : float or array-like
         Replica radii in micrometers.
     expected_replica_count : int or None
@@ -216,6 +216,8 @@ def configure_spectrum_model(
     tuple
         Predictor, bending modulus bounds in kBT, and dimensionless reduced tension bounds.
     """
+    if not isinstance(config, SpectrumFitConfig):
+        raise TypeError("config must be a SpectrumFitConfig.")
     radii = validate_vesicle_radii(radii)
     if expected_replica_count is not None:
         if (isinstance(expected_replica_count, (bool, np.bool_))
@@ -229,34 +231,31 @@ def configure_spectrum_model(
                 "Supply each replica's radius, rather than a mean radius."
             )
 
-    if config is None:
-        predict = spherical_contour_spectrum
-    else:
-        def predict(q, kC, sigma, lmax):
-            """Evaluate spherical contour powers with the captured fit settings.
+    def predict(q, kC, sigma, lmax):
+        """Evaluate spherical contour powers with the captured fit settings.
 
-            Parameters
-            ----------
-            q : array-like
-                Contour Fourier modes.
-            kC : float
-                Bending modulus in kBT.
-            sigma : float
-                Dimensionless reduced tension.
-            lmax : int
-                Inclusive spherical harmonic summation limit.
+        Parameters
+        ----------
+        q : array-like
+            Contour Fourier modes.
+        kC : float
+            Bending modulus in kBT.
+        sigma : float
+            Dimensionless reduced tension.
+        lmax : int
+            Inclusive spherical harmonic summation limit.
 
-            Returns
-            -------
-            list of float
-                Predicted contour powers for the bound settings and radii.
-            """
-            return predict_spherical_contour_power(
-                q, kC, sigma, lmax, config=config, radii=radii,
-                relaxation=relaxation, camera_integration=camera_integration,
-            )
+        Returns
+        -------
+        list of float
+            Predicted contour powers for the bound settings and radii.
+        """
+        return predict_spherical_contour_power(
+            q, kC, sigma, lmax, config=config, radii=radii,
+            relaxation=relaxation, camera_integration=camera_integration,
+        )
 
     # Exposure averaging requires stability of the spherical l=2 mode.
-    sigma_min = -6 + 1e-8 if config is not None and config.camera_integration else -100
+    sigma_min = -6 + 1e-8 if config.camera_integration else -100
     sigma_max = 100 * float(np.mean(radii))**2
     return predict, (1, 500), (sigma_min, sigma_max)
