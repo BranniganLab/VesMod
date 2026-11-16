@@ -108,7 +108,14 @@ def run_ensemble(args, config):
                 replicas.append(row)
                 try:
                     spectrum = _read_spectrum(path)
-                    reason = policy(path, spectrum) if policy is not None else None
+                    try:
+                        reason = policy(path, spectrum) if policy is not None else None
+                    except Exception as exc:
+                        row.update(status="error", reason=str(exc))
+                        if args.error_policy == "fail-fast":
+                            raise
+                        failed += 1
+                        continue
                     if reason is not None:
                         if not isinstance(reason, str) or not reason.strip():
                             raise ValueError("Exclusion policy must return None or a nonempty reason.")

@@ -468,3 +468,45 @@ def test_ensemble_cli_applies_importable_policy(monkeypatch, tmp_path):
     assert report["fit"]["radii"] == pytest.approx([5, 6], abs=0.01)
     assert report["fit"]["weight_by_replica_sem"] is True
     assert report["replicas"][1]["kC"] is None
+
+
+@pytest.mark.parametrize(
+    "error_policy,error_type,expected_statuses",
+    [
+        ("keep-going", RuntimeError, ["error", "included"]),
+        ("fail-fast", RuntimeError, ["error"]),
+        ("keep-going", KeyboardInterrupt, [None]),
+        ("keep-going", SystemExit, [None]),
+    ],
+)
+def test_ensemble_cli_policy_exception_handling(
+    monkeypatch, tmp_path, error_policy, error_type, expected_statuses
+):
+    from vesmod.cli import edgemod_ensemble
+
+    def policy(path, spectrum):
+        if path.name == "first.json":
+            raise error_type("policy failed")
+        return None
+
+    monkeypatch.setattr(edgemod_ensemble, "_load_exclusion_policy", lambda spec: policy)
+    spectrum = Spectrum.from_radii(np.full((4, 32), 5.0))
+    spectrum.to_json(tmp_path / "first.json")
+    spectrum.to_json(tmp_path / "second.json")
+    output = tmp_path / "ensemble.json"
+    monkeypatch.setattr(sys, "argv", [
+        "edgemod", "ensemble", str(tmp_path),
+        "--exclusion-policy", "test:policy", "--output", str(output),
+        "--error-policy", error_policy, "--fixed-sigma", "--lmax", "20",
+    ])
+
+    if len(expected_statuses) == 2:
+        assert edgemod_cli.main() == 1
+    else:
+        with pytest.raises(error_type, match="policy failed"):
+            edgemod_cli.main()
+    report = json.loads(output.read_text())
+    assert [row.get("status") for row in report["replicas"]] == expected_statuses
+    if expected_statuses[0] == "error":
+        assert report["replicas"][0]["reason"] == "policy failed"
+    assert (report["fit"] is not None) == (len(expected_statuses) == 2)

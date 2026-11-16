@@ -200,3 +200,12 @@ def test_fit_spectrum_uses_supplied_predictor():
     assert fit.best_values["kC"] == pytest.approx(23.0)
     assert fit.best_values["sigma"] == pytest.approx(2.0)
     np.testing.assert_allclose(fit.eval(q=modes), powers)
+
+
+@pytest.mark.parametrize("sigma_bounds", [(1, 5), (-5, -1)])
+def test_fixed_sigma_requires_bounds_including_zero(sigma_bounds):
+    with pytest.raises(ValueError, match="sigma_bounds must include zero"):
+        fit_spectrum(
+            np.arange(3, 8), np.ones(5), 20,
+            free_sigma=False, kc_bounds=(1, 500), sigma_bounds=sigma_bounds,
+        )

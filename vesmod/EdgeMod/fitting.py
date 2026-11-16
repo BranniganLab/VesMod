@@ -60,7 +60,7 @@ def fit_spectrum(modes, powers, lmax, free_sigma=False, weighted=False,
     kc_bounds : tuple of float
         Minimum and maximum bending modulus in kBT.
     sigma_bounds : tuple of float
-        Minimum and maximum reduced tension.
+        Minimum and maximum reduced tension. Must include zero when free_sigma is false.
     sem : array-like or None
         Optional per-mode replica standard errors.
     model : callable
@@ -71,6 +71,8 @@ def fit_spectrum(modes, powers, lmax, free_sigma=False, weighted=False,
     lmfit.model.ModelResult
         Optimizer result and fit diagnostics.
     """
+    if not free_sigma and not sigma_bounds[0] <= 0 <= sigma_bounds[1]:
+        raise ValueError("sigma_bounds must include zero when free_sigma is false.")
     lmfit_model = Model(model)
     pars = lmfit_model.make_params(
         kC={"value": 15, "min": kc_bounds[0], "max": kc_bounds[1], "vary": True},
