@@ -6,8 +6,14 @@ import numpy as np
 def exposure_power_factor(x):
     """Return retained power for a boxcar-averaged exponential correlation.
 
-    ``x`` is exposure time / relaxation time. A series avoids cancellation
-    near zero; the reciprocal form avoids squaring large x.
+    For ``x = exposure_time / relaxation_time > 0``, the retained power
+    fraction is ``2 * (x - 1 + exp(-x)) / x**2``. Its limit at ``x = 0``
+    is 1.
+
+    For ``x < 1e-3``, the Taylor approximation
+    ``1 - x/3 + x**2/12 - x**3/60 + x**4/360`` avoids cancellation.
+    For larger ratios, the equivalent expression
+    ``(2/x) * (1 + expm1(-x)/x)`` avoids squaring large x.
 
     Parameters
     ----------
