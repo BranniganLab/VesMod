@@ -11,9 +11,12 @@ from .spherical_validation import validate_spherical_inputs, validate_vesicle_ra
 
 
 def spherical_contour_spectrum(q: list[int], kC: float, sigma: float, lmax: int) -> list[float]:
-    """
-    Generate function to be fit in order to estimate kC and sigma. See Hackl,\
-    Seifert, and Sackmann 1997 eqs 7 & 8.
+    """Predict mean contour power from instantaneous snapshots of a spherical vesicle.
+
+    The vesicle fluctuates at thermal equilibrium. The model predicts the
+    mean squared amplitude of each contour mode across snapshots, without
+    averaging motion within a camera exposure. See Hackl, Seifert, and
+    Sackmann (1997), Eqs. 7 and 8.
 
     Parameters
     ----------
@@ -79,13 +82,12 @@ def predict_spherical_contour_power(
 ):
     """Predict dimensionless complex contour power for fitting or plotting.
 
-    The equilibrium model, camera-integration toggle, and relaxation model
-    are explicit independent settings. The camera_integration callable maps each
-    exposure/relaxation ratio
-    to a retained power fraction before contour projection. Ensemble
-    predictions average equally across replica radii, with shared kC and
-    reduced tension. Disabling camera integration needs no radii or solvent
-    viscosities and returns the equilibrium spectrum exactly.
+    With camera integration disabled, return the instantaneous spherical
+    spectrum from ``spherical_contour_spectrum``. With it enabled, calculate how
+    much power survives exposure averaging using the selected relaxation law.
+    The camera integration callable converts exposure-to-relaxation ratios to
+    retained power fractions before projection onto the contour. Predictions
+    average equally across replica radii with shared kC and reduced tension.
 
     The relaxation callable returns times in seconds with shape (radii, ell)
     for the supplied spherical modes, trial parameters, config, and radii.
@@ -194,12 +196,12 @@ def configure_spectrum_model(
     ``(q, kC, sigma, lmax)``. When config is supplied, the nested function binds
     the configuration, validated replica radii, relaxation law, and camera
     integration function so those inputs stay fixed during optimization. With
-    config set to None, the equilibrium function already has that signature.
+    config set to None, ``spherical_contour_spectrum`` already has that signature.
 
     Parameters
     ----------
     config : SpectrumFitConfig or None
-        Fit settings, or None for the equilibrium model.
+        Fit settings, or None for the instantaneous spherical spectrum.
     radii : float or array-like
         Replica radii in micrometers.
     expected_replica_count : int or None
