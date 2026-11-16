@@ -6,6 +6,8 @@ from dataclasses import dataclass
 
 from vesmod.validation import require_integer, require_positive_real, require_nonnegative_real
 
+from .relaxation import RELAXATION_MODELS
+
 
 @dataclass(frozen=True)
 class SpectrumFitConfig:
@@ -91,28 +93,14 @@ class SpectrumFitConfig:
             raise ValueError("model must be a nonempty string.")
         if not isinstance(self.camera_integration, bool):
             raise TypeError("camera_integration must be a bool.")
-        if self.relaxation_model not in {"solvent_only", "solvent_and_membrane"}:
-            raise ValueError("relaxation_model must be solvent_only or solvent_and_membrane.")
+        if not isinstance(self.relaxation_model, str) or self.relaxation_model not in RELAXATION_MODELS:
+            raise ValueError(f"relaxation_model must be one of: {', '.join(RELAXATION_MODELS)}.")
         if self.eta_m is not None:
             object.__setattr__(self, "eta_m", require_nonnegative_real(self.eta_m, "eta_m"))
-        if self.relaxation_model == "solvent_only":
-            if self.eta_m is not None:
-                raise ValueError("eta_m requires relaxation_model='solvent_and_membrane'.")
-        else:
-            if self.eta_m is None:
-                raise ValueError("eta_m is required for solvent_and_membrane (zero is allowed).")
-            if (self.viscosity_in is not None and self.viscosity_out is not None
-                    and self.viscosity_in != self.viscosity_out):
-                raise ValueError("Faizi 2024 Eq. 1 requires equal solvent viscosities; "
-                                 "omit viscosity_in or set it equal to viscosity_out.")
-        if self.camera_integration:
-            if self.exposure_time <= 0:
-                raise ValueError("Positive exposure_time is required with camera_integration=True.")
-            if self.relaxation_model == "solvent_only":
-                if self.viscosity_in is None or self.viscosity_out is None:
-                    raise ValueError("viscosity_in and viscosity_out are required for solvent_only camera integration.")
-            elif self.viscosity_out is None:
-                raise ValueError("viscosity_out is required for solvent_and_membrane camera integration.")
+        if self.camera_integration and self.exposure_time <= 0:
+            raise ValueError("Positive exposure_time is required with camera_integration=True.")
+        _, validate = RELAXATION_MODELS[self.relaxation_model]
+        validate(self, require_viscosities=self.camera_integration)
         lower_bound = require_integer(self.lower_bound, "lower_bound")
         upper_bound = require_integer(self.upper_bound, "upper_bound")
         lmax = require_integer(self.lmax, "lmax")

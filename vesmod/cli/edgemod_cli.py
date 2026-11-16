@@ -12,6 +12,7 @@ import sys
 import numpy as np
 
 from vesmod.EdgeMod import Spectrum, SpectrumFitConfig
+from vesmod.EdgeMod.relaxation import RELAXATION_MODELS
 from vesmod.cli.edgemod_ensemble import run_ensemble
 from vesmod.EdgeMod.range_selection.experimental import (
     DynamicRangeSelection,
@@ -145,7 +146,7 @@ def _add_fit_options(parser: argparse.ArgumentParser, *, ensemble=False) -> None
                         default="spherical_contour_spectrum", help="Equilibrium spectrum model.")
     parser.add_argument("--camera-integration", action="store_true",
                         help="Apply finite camera-exposure averaging to the prediction.")
-    parser.add_argument("--relaxation-model", choices=["solvent_only", "solvent_and_membrane"],
+    parser.add_argument("--relaxation-model", choices=tuple(RELAXATION_MODELS),
                         default="solvent_only", help="Method for spherical-mode relaxation times.")
     parser.add_argument("--exposure-time", type=float, default=0.0,
                         help="Exposure duration in seconds; positive value required with --camera-integration.")

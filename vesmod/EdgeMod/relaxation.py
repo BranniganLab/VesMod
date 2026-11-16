@@ -23,23 +23,48 @@ def mode_relaxation_times(ell, kC, sigma, *, config, radii):
     )
     stiffness = (ell - 1) * (ell + 2) * (ell * (ell + 1) + sigma)
     radii_m = validate_vesicle_radii(radii) * 1e-6
-    _validate_relaxation_inputs(sigma, config)
-    rate_scale = kC * Boltzmann * config.temperature / (config.viscosity_out * radii_m**3)
-
-    drag = 4 * ell**3 + 6 * ell**2 - 1
-    if config.relaxation_model == "solvent_only":
-        drag += ((2 * ell**3 + 3 * ell**2 - 5)
-                 * (config.viscosity_in / config.viscosity_out - 1))
-    else:
-        chi_s = config.eta_m / (radii_m[:, None] * config.viscosity_out)
-        drag = drag[None, :] + (4 * ell**2 + 4 * ell - 8) * chi_s
-    return drag / (rate_scale[:, None] * stiffness * ell * (ell + 1))
-
-def _validate_relaxation_inputs(sigma, config):
-    """Check stability and solvent inputs once at the public API boundary."""
     if sigma <= -6:
         raise ValueError("Relaxation requires stable spherical modes: sigma > -6.")
-    if config.viscosity_out is None:
-        raise ValueError("viscosity_out is required to calculate relaxation times.")
-    if config.relaxation_model == "solvent_only" and config.viscosity_in is None:
-        raise ValueError("viscosity_in is required for solvent_only relaxation times.")
+    drag_law, validate = RELAXATION_MODELS[config.relaxation_model]
+    validate(config, require_viscosities=True)
+    rate_scale = kC * Boltzmann * config.temperature / (config.viscosity_out * radii_m**3)
+    drag = drag_law(ell, radii_m, config)
+    return drag / (rate_scale[:, None] * stiffness * ell * (ell + 1))
+
+
+def _solvent_drag(ell, _radii_m, config):
+    """Drag with independent interior and exterior solvent viscosities."""
+    return (4 * ell**3 + 6 * ell**2 - 1
+            + (2 * ell**3 + 3 * ell**2 - 5)
+            * (config.viscosity_in / config.viscosity_out - 1))
+
+
+def _solvent_and_membrane_drag(ell, radii_m, config):
+    """Drag with equal solvent viscosities and membrane surface viscosity."""
+    chi_s = config.eta_m / (radii_m[:, None] * config.viscosity_out)
+    return (4 * ell**3 + 6 * ell**2 - 1) + (4 * ell**2 + 4 * ell - 8) * chi_s
+
+
+def _validate_solvent(config, *, require_viscosities):
+    if config.eta_m is not None:
+        raise ValueError("eta_m requires relaxation_model='solvent_and_membrane'.")
+    if require_viscosities and (config.viscosity_in is None or config.viscosity_out is None):
+        raise ValueError("viscosity_in and viscosity_out are required for solvent_only relaxation.")
+
+
+def _validate_solvent_and_membrane(config, *, require_viscosities):
+    if config.eta_m is None:
+        raise ValueError("eta_m is required for solvent_and_membrane (zero is allowed).")
+    if (config.viscosity_in is not None and config.viscosity_out is not None
+            and config.viscosity_in != config.viscosity_out):
+        raise ValueError("Faizi 2024 Eq. 1 requires equal solvent viscosities; "
+                         "omit viscosity_in or set it equal to viscosity_out.")
+    if require_viscosities and config.viscosity_out is None:
+        raise ValueError("viscosity_out is required for solvent_and_membrane relaxation.")
+
+
+# Each entry pairs a spherical drag law with validation of its settings.
+RELAXATION_MODELS = {
+    "solvent_only": (_solvent_drag, _validate_solvent),
+    "solvent_and_membrane": (_solvent_and_membrane_drag, _validate_solvent_and_membrane),
+}

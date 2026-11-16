@@ -356,3 +356,24 @@ def test_configured_model_calls_relaxation_once_for_all_required_modes():
         model(modes, 25, 4, 8), np.asarray(instantaneous) * exposure_power_factor(1.0)
     )
     assert calls == [[3, 5, 6, 7, 8]]
+
+
+def test_registered_relaxation_law_is_available_through_cli(monkeypatch):
+    from vesmod.EdgeMod.relaxation import RELAXATION_MODELS, mode_relaxation_times
+    from vesmod.cli.edgemod_cli import build_fit_config, parse_args
+
+    solvent_drag, validate = RELAXATION_MODELS["solvent_only"]
+
+    def double_drag(ell, radii_m, config):
+        return 2 * solvent_drag(ell, radii_m, config)
+
+    monkeypatch.setitem(RELAXATION_MODELS, "double_drag", (double_drag, validate))
+    monkeypatch.setattr("sys.argv", [
+        "edgemod", "contours.npy", "--relaxation-model", "double_drag",
+        "--viscosity-in", ".001", "--viscosity-out", ".001",
+    ])
+    config = build_fit_config(parse_args())
+    default = SpectrumFitConfig(viscosity_in=.001, viscosity_out=.001)
+    expected = mode_relaxation_times([3, 5], 25, 4, config=default, radii=[5, 15])
+    actual = mode_relaxation_times([3, 5], 25, 4, config=config, radii=[5, 15])
+    np.testing.assert_allclose(actual, 2 * expected)
