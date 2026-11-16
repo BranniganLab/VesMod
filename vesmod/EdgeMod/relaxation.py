@@ -35,10 +35,32 @@ def mode_relaxation_times(ell, kC, sigma, *, config, radii):
         modes = list(ell)
     except TypeError as error:
         raise TypeError("ell must be an iterable of integer modes.") from error
-    ell = np.asarray(
-        validate_spherical_inputs(modes, kC, sigma, max(modes, default=2)),
-        dtype=float,
-    )
+    ell = validate_spherical_inputs(modes, kC, sigma, max(modes, default=2))
+    return _relaxation_times_for_validated_modes(ell, kC, sigma, config=config, radii=radii)
+
+
+def _relaxation_times_for_validated_modes(ell, kC, sigma, *, config, radii):
+    """Calculate relaxation times after mode and scalar domain validation.
+
+    Parameters
+    ----------
+    ell : array-like
+        Valid spherical harmonic degrees.
+    kC : float
+        Positive bending modulus in kBT.
+    sigma : float
+        Finite dimensionless reduced tension.
+    config : SpectrumFitConfig
+        Temperature and relaxation settings.
+    radii : float or array-like
+        Replica radii in micrometers.
+
+    Returns
+    -------
+    numpy.ndarray
+        Relaxation times in seconds, indexed by radius and degree.
+    """
+    ell = np.asarray(ell, dtype=float)
     stiffness = (ell - 1) * (ell + 2) * (ell * (ell + 1) + sigma)
     radii_m = validate_vesicle_radii(radii) * 1e-6
     if sigma <= -6:

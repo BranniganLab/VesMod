@@ -117,8 +117,15 @@ def test_prediction_validates_inputs_once_not_each_spherical_mode(
         return original_radii(radii)
 
     monkeypatch.setattr(utils, 'validate_spherical_inputs', validate_spectrum)
+    monkeypatch.setattr(relaxation, 'validate_spherical_inputs', validate_spectrum)
     monkeypatch.setattr(relaxation, 'validate_vesicle_radii', validate_radii)
     power = utils.predict_spectrum([3, 4, 5, 6, 7], 25, 4, 500,
                                    config=config, radii=[5, 15])
     assert np.all(np.isfinite(power))
     assert calls == {'spectrum': 1, 'radii': 1}
+
+
+def test_standalone_relaxation_rejects_invalid_spherical_degree():
+    config = SpectrumFitConfig(viscosity_in=.001, viscosity_out=.001)
+    with pytest.raises(ValueError, match="q >= 2"):
+        mode_relaxation_times([1, 3], 25, 4, config=config, radii=[5])

@@ -6,7 +6,7 @@ import numpy as np
 from scipy.special import gammaln
 
 from .camera_integration import exposure_power_factor
-from .relaxation import mode_relaxation_times
+from .relaxation import _relaxation_times_for_validated_modes, mode_relaxation_times
 from .spherical_validation import validate_spherical_inputs, validate_vesicle_radii
 
 
@@ -119,7 +119,11 @@ def predict_spectrum(
         return spherical_contour_spectrum(modes, kC, sigma, lmax)
     projections = [_camera_projection(mode, int(lmax)) for mode in modes]
     spherical_modes = np.unique(np.concatenate([ell for ell, _ in projections])).astype(int)
-    relaxation_times = relaxation(spherical_modes, kC, sigma, config=config, radii=radii)
+    # Projection produces valid degrees from the checked contour modes and lmax.
+    calculate_times = (
+        _relaxation_times_for_validated_modes if relaxation is mode_relaxation_times else relaxation
+    )
+    relaxation_times = calculate_times(spherical_modes, kC, sigma, config=config, radii=radii)
     predictions = []
     for ell, weights in projections:
         stiffness = (ell - 1) * (ell + 2) * (ell * (ell + 1) + sigma)
