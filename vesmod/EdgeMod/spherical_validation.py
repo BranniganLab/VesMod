@@ -11,13 +11,13 @@ def validate_spherical_inputs(q, kC, sigma, lmax) -> list[int]:
 
     Parameters
     ----------
-    q
+    q : array-like
         Contour Fourier modes.
-    kC
+    kC : float
         Bending modulus in kBT.
-    sigma
+    sigma : float
         Dimensionless reduced tension.
-    lmax
+    lmax : int
         Inclusive spherical harmonic summation limit.
 
     Returns
@@ -70,7 +70,7 @@ def validate_vesicle_radii(radii):
 
     Parameters
     ----------
-    radii
+    radii : float or array-like
         Scalar or one-dimensional sequence of radii in micrometers.
 
     Returns

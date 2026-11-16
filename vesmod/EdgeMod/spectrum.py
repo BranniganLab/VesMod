@@ -64,11 +64,11 @@ class Spectrum:
 
         Parameters
         ----------
-        edges_over_time
+        edges_over_time : str, pathlib.Path, or VesicleEdges
             Path to accepted radii or a QC-filtered VesicleEdges object.
-        frame_cutoff
+        frame_cutoff : int or None
             Optional maximum number of frames to use.
-        calculator
+        calculator : SpectrumCalculator or None
             Optional contour-to-power callable.
 
         Returns
@@ -108,11 +108,11 @@ class Spectrum:
 
         Parameters
         ----------
-        radii
+        radii : numpy.ndarray
             Array of contour radii in micrometers, indexed by frame and angle.
-        frame_cutoff
+        frame_cutoff : int or None
             Optional maximum number of frames to use.
-        calculator
+        calculator : SpectrumCalculator or None
             Optional contour-to-power callable.
 
         Returns
@@ -130,7 +130,7 @@ class Spectrum:
 
         Parameters
         ----------
-        radii
+        radii : numpy.ndarray
             Array of contour radii indexed by frame and angle.
 
         Returns
@@ -168,11 +168,11 @@ class Spectrum:
 
         Parameters
         ----------
-        radii
+        radii : numpy.ndarray
             Contour radii in micrometers.
-        frame_cutoff
+        frame_cutoff : int or None
             Optional maximum number of frames to use.
-        calculator
+        calculator : SpectrumCalculator or None
             Optional contour-to-power callable.
 
         Returns
@@ -267,9 +267,9 @@ class Spectrum:
 
         Parameters
         ----------
-        config
+        config : SpectrumFitConfig or None
             Physical fit settings, or None for defaults.
-        model
+        model : callable or None
             Optional factory accepting config, radii in micrometers, and expected_replica_count.
             Returns a power predictor and bounds for bending modulus and reduced tension.
 
@@ -325,13 +325,13 @@ class Spectrum:
 
         Parameters
         ----------
-        path
+        path : pathlib.Path
             Destination image path.
-        lower_bound
+        lower_bound : int
             First included Fourier mode.
-        upper_bound
+        upper_bound : int
             First excluded Fourier mode.
-        lmax
+        lmax : int
             Inclusive model summation limit.
 
         Returns
@@ -371,15 +371,15 @@ class Spectrum:
 
         Parameters
         ----------
-        ax
+        ax : matplotlib.axes.Axes or None
             Target axes, or None to create axes.
-        color
+        color : matplotlib color or None
             Optional series color.
-        label
+        label : str or None
             Optional series label.
-        fit_config
+        fit_config : SpectrumFitConfig or None
             Optional settings used to display the fitting interval.
-        plot_config
+        plot_config : SpectrumPlotConfig or None
             Optional rendering settings.
 
         Returns
@@ -413,7 +413,7 @@ class Spectrum:
 
         Parameters
         ----------
-        include_arrays
+        include_arrays : bool
             Whether to include the mode and power arrays.
 
         Returns
@@ -463,11 +463,11 @@ class Spectrum:
 
         Parameters
         ----------
-        outfile
+        outfile : str or pathlib.Path
             Destination JSON path.
-        include_arrays
+        include_arrays : bool
             Whether to include the mode and power arrays.
-        indent
+        indent : int
             JSON indentation width.
 
         Returns

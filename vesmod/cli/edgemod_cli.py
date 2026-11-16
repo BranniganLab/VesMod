@@ -58,9 +58,9 @@ def _add_input_options(parser: argparse.ArgumentParser, *, ensemble=False) -> No
 
     Parameters
     ----------
-    parser
+    parser : argparse.ArgumentParser
         Parser to configure.
-    ensemble
+    ensemble : bool
         Whether the command consumes spectrum JSON.
 
     Returns
@@ -88,9 +88,9 @@ def _add_fit_options(parser: argparse.ArgumentParser, *, ensemble=False) -> None
 
     Parameters
     ----------
-    parser
+    parser : argparse.ArgumentParser
         Parser to configure.
-    ensemble
+    ensemble : bool
         Whether to register ensemble options.
 
     Returns
@@ -197,9 +197,9 @@ def iter_npy_files(input_path: Path | list[Path], recursive: bool) -> list[Path]
 
     Parameters
     ----------
-    input_path
+    input_path : pathlib.Path or list of pathlib.Path
         File, directory, glob, or list of selectors.
-    recursive
+    recursive : bool
         Whether to search subdirectories.
 
     Returns
@@ -216,7 +216,7 @@ def build_fit_config(args: argparse.Namespace) -> SpectrumFitConfig:
 
     Parameters
     ----------
-    args
+    args : argparse.Namespace
         Parsed physical fit options.
 
     Returns
@@ -245,7 +245,7 @@ def build_dynamic_selector(args: argparse.Namespace) -> QMinusThreeRangeSelector
 
     Parameters
     ----------
-    args
+    args : argparse.Namespace
         Parsed dynamic range options.
 
     Returns
@@ -280,9 +280,9 @@ def output_path_for(path: Path, dynamic_range: bool) -> Path:
 
     Parameters
     ----------
-    path
+    path : pathlib.Path
         Input contour path.
-    dynamic_range
+    dynamic_range : bool
         Whether dynamic range selection is enabled.
 
     Returns
@@ -304,11 +304,11 @@ def _write_output(
 
     Parameters
     ----------
-    spectrum
+    spectrum : Spectrum
         Spectrum and its fit results.
-    output_path
+    output_path : pathlib.Path
         JSON destination.
-    selection
+    selection : DynamicRangeSelection or None
         Optional dynamic selection diagnostics.
 
     Returns
@@ -337,11 +337,11 @@ def _select_dynamic_config(
 
     Parameters
     ----------
-    spectrum
+    spectrum : Spectrum
         Measured powers and modes.
-    config
+    config : SpectrumFitConfig
         Baseline fit settings.
-    selector
+    selector : QMinusThreeRangeSelector
         Dynamic range selector.
 
     Returns
@@ -369,9 +369,9 @@ def _fit_output_path(path: Path, args: argparse.Namespace) -> Path:
 
     Parameters
     ----------
-    path
+    path : pathlib.Path
         Contour file being fitted.
-    args
+    args : argparse.Namespace
         Parsed options including the output directory.
 
     Returns
@@ -392,9 +392,9 @@ def process_file(path: Path, args: argparse.Namespace):
 
     Parameters
     ----------
-    path
+    path : pathlib.Path
         Contour file to analyze.
-    args
+    args : argparse.Namespace
         Parsed fit and output options.
 
     Returns
@@ -450,9 +450,9 @@ def _reject_overlapping_fit_paths(
 
     Parameters
     ----------
-    input_roots
+    input_roots : tuple of pathlib.Path
         Resolved roots of input selectors.
-    output_dir
+    output_dir : pathlib.Path
         Proposed external output directory.
 
     Returns
@@ -479,9 +479,9 @@ def _fit_provenance(args: argparse.Namespace, paths: list[Path]) -> dict:
 
     Parameters
     ----------
-    args
+    args : argparse.Namespace
         Parsed batch options.
-    paths
+    paths : list of pathlib.Path
         Selected contour files.
 
     Returns
@@ -514,9 +514,9 @@ def _remove_fit_artifacts(output_dir: Path, provenance: dict) -> None:
 
     Parameters
     ----------
-    output_dir
+    output_dir : pathlib.Path
         Directory containing prior outputs.
-    provenance
+    provenance : dict
         Metadata with the prior artifact manifest.
 
     Returns
@@ -544,9 +544,9 @@ def _prepare_fit_output(args: argparse.Namespace, paths: list[Path]) -> None:
 
     Parameters
     ----------
-    args
+    args : argparse.Namespace
         Parsed batch and output options.
-    paths
+    paths : list of pathlib.Path
         Selected contour files.
 
     Returns
@@ -594,15 +594,15 @@ def _fit_summary_row(
 
     Parameters
     ----------
-    path
+    path : pathlib.Path
         Input contour file.
-    input_root
+    input_root : pathlib.Path
         Root used for relative paths.
-    status
+    status : str
         Per-file processing status.
-    fit
+    fit : SpectrumFit or None
         Fit result when available.
-    error
+    error : str
         Optional error message.
 
     Returns
@@ -624,7 +624,7 @@ def _safe_csv_text(value):
 
     Parameters
     ----------
-    value
+    value : Any
         Value to write in a CSV cell.
 
     Returns
@@ -645,9 +645,9 @@ def _write_fit_batch_outputs(
 
     Parameters
     ----------
-    args
+    args : argparse.Namespace
         Parsed batch options.
-    rows
+    rows : list of dict
         Per-file summary rows.
 
     Returns
@@ -697,7 +697,7 @@ def _run_fit(args: argparse.Namespace) -> int:
 
     Parameters
     ----------
-    args
+    args : argparse.Namespace
         Parsed individual fitting options.
 
     Returns

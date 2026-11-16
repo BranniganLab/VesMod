@@ -187,12 +187,12 @@ class SpectrumEnsemble:
 
         Parameters
         ----------
-        config
+        config : SpectrumFitConfig or None
             Physical fit settings, or None for defaults.
-        model
+        model : callable or None
             Optional factory accepting config, radii in micrometers, and expected_replica_count.
             Returns a power predictor and bounds for bending modulus and reduced tension.
-        weight_by_replica_sem
+        weight_by_replica_sem : bool
             Whether to use inverse replica SEM as weights.
 
         Returns

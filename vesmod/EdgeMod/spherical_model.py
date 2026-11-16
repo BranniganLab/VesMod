@@ -58,9 +58,9 @@ def _camera_projection(q, lmax):
 
     Parameters
     ----------
-    q
+    q : int
         Contour Fourier mode.
-    lmax
+    lmax : int
         Inclusive maximum spherical harmonic degree.
 
     Returns
@@ -92,21 +92,21 @@ def predict_spectrum(
 
     Parameters
     ----------
-    q
+    q : array-like
         Contour Fourier modes.
-    kC
+    kC : float
         Bending modulus in kBT.
-    sigma
+    sigma : float
         Dimensionless reduced tension.
-    lmax
+    lmax : int
         Inclusive spherical harmonic summation limit.
-    config
+    config : SpectrumFitConfig
         Fit settings including exposure and relaxation choices.
-    radii
+    radii : float, array-like, or None
         Replica radii in micrometers, required for camera integration.
-    relaxation
+    relaxation : callable
         Callable returning an array of times in seconds indexed by radius and degree.
-    camera_integration
+    camera_integration : callable
         Callable mapping exposure-to-relaxation ratios to retained fractions.
 
     Returns
@@ -188,15 +188,15 @@ def configure_spectrum_model(
 
     Parameters
     ----------
-    config
+    config : SpectrumFitConfig or None
         Fit settings, or None for the equilibrium model.
-    radii
+    radii : float or array-like
         Replica radii in micrometers.
-    expected_replica_count
+    expected_replica_count : int or None
         Optional number of expected radii.
-    relaxation
+    relaxation : callable
         Callable calculating spherical-mode relaxation times.
-    camera_integration
+    camera_integration : callable
         Callable mapping exposure-to-relaxation ratios to retained fractions.
 
     Returns
@@ -225,13 +225,13 @@ def configure_spectrum_model(
 
             Parameters
             ----------
-            q
+            q : array-like
                 Contour Fourier modes.
-            kC
+            kC : float
                 Bending modulus in kBT.
-            sigma
+            sigma : float
                 Dimensionless reduced tension.
-            lmax
+            lmax : int
                 Inclusive spherical harmonic summation limit.
 
             Returns

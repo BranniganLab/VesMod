@@ -81,15 +81,15 @@ def plot_spectrum(data, *, ax=None, color=None, label=None, config=None):
 
     Parameters
     ----------
-    data
+    data : SpectrumPlotData
         Measured spectrum and optional fit.
-    ax
+    ax : matplotlib.axes.Axes or None
         Target axes, or None to create axes.
-    color
+    color : matplotlib color or None
         Series color, or None for the default cycle.
-    label
+    label : str or None
         Optional series label.
-    config
+    config : SpectrumPlotConfig or None
         Plot settings, or None for defaults.
 
     Returns
@@ -124,7 +124,7 @@ def plot_spectrum(data, *, ax=None, color=None, label=None, config=None):
 
         Parameters
         ----------
-        kind
+        kind : str
             Label for the power view.
 
         Returns
@@ -167,17 +167,17 @@ def _plot_spectrum(
 
     Parameters
     ----------
-    data
+    data : SpectrumPlotData
         Measured spectrum and optional fit.
-    ax
+    ax : matplotlib.axes.Axes or None
         Target axes, or None to create axes.
-    color
+    color : matplotlib color or None
         Series color, or None for the default cycle.
-    label
+    label : str or None
         Optional series label.
-    config
+    config : SpectrumPlotConfig or None
         Plot settings, or None for defaults.
-    instantaneous
+    instantaneous : numpy.ndarray or None
         Optional instantaneous powers aligned with the plotted positive modes.
 
     Returns
@@ -286,15 +286,15 @@ def plot_q3_scaled_spectrum(
 
     Parameters
     ----------
-    data
+    data : SpectrumPlotData
         Measured spectrum and optional fit.
-    ax
+    ax : matplotlib.axes.Axes or None
         Target axes, or None to create axes.
-    color
+    color : matplotlib color or None
         Series color, or None for the default cycle.
-    label
+    label : str or None
         Optional series label.
-    config
+    config : SpectrumPlotConfig or None
         Plot settings, or None for defaults.
 
     Returns
@@ -323,9 +323,9 @@ def save_spectrum_fit_diagnostic(data: SpectrumPlotData, path) -> None:
 
     Parameters
     ----------
-    data
+    data : SpectrumPlotData
         Spectrum and fit to visualize.
-    path
+    path : str or pathlib.Path
         Destination image path.
 
     Returns
@@ -375,11 +375,11 @@ def _positive_spectrum(modes, avg_amps2, include_q1=False):
 
     Parameters
     ----------
-    modes
+    modes : numpy.ndarray
         Fourier modes.
-    avg_amps2
+    avg_amps2 : array-like
         Powers aligned with modes.
-    include_q1
+    include_q1 : bool
         Whether to retain the first positive mode.
 
     Returns
@@ -396,9 +396,9 @@ def _fit_mask(data, modes):
 
     Parameters
     ----------
-    data
+    data : SpectrumPlotData
         Spectrum plot inputs containing the fit bounds.
-    modes
+    modes : numpy.ndarray
         Modes to check against the bounds.
 
     Returns
@@ -416,13 +416,13 @@ def _plot_fitting_region(ax, data, color, style):
 
     Parameters
     ----------
-    ax
+    ax : matplotlib.axes.Axes
         Axes to annotate.
-    data
+    data : SpectrumPlotData
         Plot inputs containing the fit bounds.
-    color
+    color : matplotlib color
         Color of the region marker.
-    style
+    style : str
         Region display style.
 
     Returns
@@ -444,7 +444,7 @@ def _diagnostic_title(fit_result):
 
     Parameters
     ----------
-    fit_result
+    fit_result : lmfit.model.ModelResult
         Optimizer result with best-fit parameters.
 
     Returns

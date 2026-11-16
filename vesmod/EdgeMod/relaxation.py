@@ -15,15 +15,15 @@ def mode_relaxation_times(ell, kC, sigma, *, config, radii):
 
     Parameters
     ----------
-    ell
+    ell : iterable of int
         Iterable of spherical harmonic degrees.
-    kC
+    kC : float
         Bending modulus in kBT.
-    sigma
+    sigma : float
         Dimensionless reduced tension.
-    config
+    config : SpectrumFitConfig
         Fit settings including the relaxation model, viscosities, and temperature.
-    radii
+    radii : float or array-like
         Replica radii in micrometers.
 
     Returns
@@ -55,11 +55,11 @@ def _solvent_drag(ell, _radii_m, config):
 
     Parameters
     ----------
-    ell
+    ell : numpy.ndarray
         Array of spherical harmonic degrees.
-    _radii_m
+    _radii_m : numpy.ndarray
         Replica radii in meters, unused by this law.
-    config
+    config : SpectrumFitConfig
         Fit settings including the relaxation model, viscosities, and temperature.
 
     Returns
@@ -77,11 +77,11 @@ def _solvent_and_membrane_drag(ell, radii_m, config):
 
     Parameters
     ----------
-    ell
+    ell : numpy.ndarray
         Array of spherical harmonic degrees.
-    radii_m
+    radii_m : numpy.ndarray
         Replica radii in meters.
-    config
+    config : SpectrumFitConfig
         Fit settings including the relaxation model, viscosities, and temperature.
 
     Returns
@@ -98,9 +98,9 @@ def _validate_solvent(config, *, require_viscosities):
 
     Parameters
     ----------
-    config
+    config : SpectrumFitConfig
         Fit settings including the relaxation model, viscosities, and temperature.
-    require_viscosities
+    require_viscosities : bool
         Whether the viscosities needed for evaluation must be present.
 
     Returns
@@ -119,9 +119,9 @@ def _validate_solvent_and_membrane(config, *, require_viscosities):
 
     Parameters
     ----------
-    config
+    config : SpectrumFitConfig
         Fit settings including the relaxation model, viscosities, and temperature.
-    require_viscosities
+    require_viscosities : bool
         Whether the viscosities needed for evaluation must be present.
 
     Returns

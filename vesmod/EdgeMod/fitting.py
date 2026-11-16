@@ -18,9 +18,9 @@ def _log_relative_rmse(result, powers):
 
     Parameters
     ----------
-    result
+    result : lmfit.model.ModelResult
         Optimizer result containing the best-fit powers.
-    powers
+    powers : array-like
         Observed powers aligned with the fit.
 
     Returns
@@ -47,23 +47,23 @@ def fit_spectrum(modes, powers, lmax, free_sigma=False, weighted=False,
 
     Parameters
     ----------
-    modes
+    modes : array-like
         Array of selected Fourier modes.
-    powers
+    powers : array-like
         Measured powers aligned with modes.
-    lmax
+    lmax : int
         Inclusive model summation limit.
-    free_sigma
+    free_sigma : bool
         Whether to vary reduced tension.
-    weighted
+    weighted : bool
         Whether to weight by inverse replica SEM.
-    kc_bounds
+    kc_bounds : tuple of float
         Minimum and maximum bending modulus in kBT.
-    sigma_bounds
+    sigma_bounds : tuple of float
         Minimum and maximum reduced tension.
-    sem
+    sem : array-like or None
         Optional per-mode replica standard errors.
-    model
+    model : callable
         Power predictor called with q, kC, sigma, and lmax.
 
     Returns
@@ -105,19 +105,19 @@ def fit_spectrum_to_theory(
 
     Parameters
     ----------
-    modes
+    modes : array-like
         Array of selected Fourier modes.
-    powers
+    powers : array-like
         Measured powers aligned with modes.
-    lmax
+    lmax : int
         Inclusive model summation limit.
-    free_sigma
+    free_sigma : bool
         Whether to vary reduced tension.
-    weighted
+    weighted : bool
         Whether to weight by inverse replica SEM.
-    sem
+    sem : array-like or None
         Optional per-mode replica standard errors.
-    radii
+    radii : float or array-like
         Replica radii in micrometers.
 
     Returns
@@ -138,21 +138,21 @@ def fit_configured_spectrum(modes, powers, config, radii, *, model=None, sem=Non
 
     Parameters
     ----------
-    modes
+    modes : numpy.ndarray
         Available Fourier modes.
-    powers
+    powers : array-like
         Powers aligned with modes.
-    config
+    config : SpectrumFitConfig
         Fit settings including mode bounds.
-    radii
+    radii : array-like
         Replica radii in micrometers.
-    model
+    model : callable or None
         Optional factory returning a predictor and two parameter bound pairs.
-    sem
+    sem : array-like or None
         Optional standard errors aligned with modes.
-    weighted
+    weighted : bool
         Whether to weight by inverse SEM.
-    expected_replica_count
+    expected_replica_count : int or None
         Optional number of expected radii.
 
     Returns
@@ -186,7 +186,7 @@ def fit_configured_spectrum(modes, powers, config, radii, *, model=None, sem=Non
 
             Parameters
             ----------
-            q
+            q : array-like
                 Contour Fourier modes to evaluate.
 
             Returns

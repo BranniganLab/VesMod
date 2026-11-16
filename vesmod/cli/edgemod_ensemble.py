@@ -14,7 +14,7 @@ def _load_exclusion_policy(spec):
 
     Parameters
     ----------
-    spec
+    spec : str
         Importable policy in MODULE:FUNCTION form.
 
     Returns
@@ -36,7 +36,7 @@ def _read_spectrum(path):
 
     Parameters
     ----------
-    path
+    path : pathlib.Path
         Path to saved per-vesicle spectrum JSON.
 
     Returns
@@ -71,9 +71,9 @@ def run_ensemble(args, config):
 
     Parameters
     ----------
-    args
+    args : argparse.Namespace
         Parsed ensemble CLI arguments.
-    config
+    config : SpectrumFitConfig
         Physical settings for fitting the mean powers.
 
     Returns

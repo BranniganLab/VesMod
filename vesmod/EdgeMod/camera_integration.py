@@ -11,7 +11,7 @@ def exposure_power_factor(x):
 
     Parameters
     ----------
-    x
+    x : float or array-like
         Scalar or array of exposure time divided by relaxation time.
 
     Returns
