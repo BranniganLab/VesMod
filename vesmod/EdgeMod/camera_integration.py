@@ -8,6 +8,16 @@ def exposure_power_factor(x):
 
     ``x`` is exposure time / relaxation time. A series avoids cancellation
     near zero; the reciprocal form avoids squaring large x.
+
+    Parameters
+    ----------
+    x
+        Scalar or array of exposure time divided by relaxation time.
+
+    Returns
+    -------
+    numpy.ndarray
+        Retained power fraction with the same shape as x.
     """
     x = np.asarray(x, dtype=float)
     if np.any(~np.isfinite(x)) or np.any(x < 0):

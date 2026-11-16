@@ -14,7 +14,20 @@ logger = logging.getLogger(__name__)
 
 
 def _log_relative_rmse(result, powers):
-    """Report residual magnitude without applying fit acceptance criteria."""
+    """Report residual magnitude without applying fit acceptance criteria.
+
+    Parameters
+    ----------
+    result
+        Optimizer result containing the best-fit powers.
+    powers
+        Observed powers aligned with the fit.
+
+    Returns
+    -------
+    None
+        Logs the relative RMSE.
+    """
     measured = np.asarray(powers)
     residuals = measured - np.asarray(result.best_fit)
     rmse = np.sqrt(np.mean(residuals**2))
@@ -31,6 +44,32 @@ def fit_spectrum(modes, powers, lmax, free_sigma=False, weighted=False,
     The model takes q, kC, sigma, and lmax and returns powers at q.
 
     Supply (minimum, maximum) pairs for kC and reduced tension.
+
+    Parameters
+    ----------
+    modes
+        Array of selected Fourier modes.
+    powers
+        Measured powers aligned with modes.
+    lmax
+        Inclusive model summation limit.
+    free_sigma
+        Whether to vary reduced tension.
+    weighted
+        Whether to weight by inverse replica SEM.
+    kc_bounds
+        Minimum and maximum bending modulus in kBT.
+    sigma_bounds
+        Minimum and maximum reduced tension.
+    sem
+        Optional per-mode replica standard errors.
+    model
+        Power predictor called with q, kC, sigma, and lmax.
+
+    Returns
+    -------
+    lmfit.model.ModelResult
+        Optimizer result and fit diagnostics.
     """
     lmfit_model = Model(model)
     pars = lmfit_model.make_params(
@@ -62,7 +101,30 @@ def fit_spectrum(modes, powers, lmax, free_sigma=False, weighted=False,
 def fit_spectrum_to_theory(
     modes, powers, lmax, free_sigma=False, weighted=False, *, sem=None, radii
 ):
-    """Fit selected contour modes and return bending modulus and reduced tension."""
+    """Fit selected contour modes and return bending modulus and reduced tension.
+
+    Parameters
+    ----------
+    modes
+        Array of selected Fourier modes.
+    powers
+        Measured powers aligned with modes.
+    lmax
+        Inclusive model summation limit.
+    free_sigma
+        Whether to vary reduced tension.
+    weighted
+        Whether to weight by inverse replica SEM.
+    sem
+        Optional per-mode replica standard errors.
+    radii
+        Replica radii in micrometers.
+
+    Returns
+    -------
+    tuple
+        Fitted bending modulus in kBT and dimensionless reduced tension.
+    """
     model, kc_bounds, sigma_bounds = configure_spectrum_model(None, radii)
     result = fit_spectrum(
         modes, powers, lmax, free_sigma, weighted, sem=sem,
@@ -72,7 +134,32 @@ def fit_spectrum_to_theory(
 
 def fit_configured_spectrum(modes, powers, config, radii, *, model=None, sem=None,
                             weighted=False, expected_replica_count=None):
-    """Select modes and fit using a factory that supplies a predictor and bounds."""
+    """Select modes and fit using a factory that supplies a predictor and bounds.
+
+    Parameters
+    ----------
+    modes
+        Available Fourier modes.
+    powers
+        Powers aligned with modes.
+    config
+        Fit settings including mode bounds.
+    radii
+        Replica radii in micrometers.
+    model
+        Optional factory returning a predictor and two parameter bound pairs.
+    sem
+        Optional standard errors aligned with modes.
+    weighted
+        Whether to weight by inverse SEM.
+    expected_replica_count
+        Optional number of expected radii.
+
+    Returns
+    -------
+    tuple
+        Optimizer result and effective fit configuration.
+    """
     if model is None:
         if config.model != "spherical_contour_spectrum":
             raise ValueError(f"Unknown model {config.model!r}; supply a model factory.")
@@ -95,6 +182,18 @@ def fit_configured_spectrum(modes, powers, config, radii, *, model=None, sem=Non
         fitted_radii = tuple(radii)
 
         def evaluate_instantaneous(q):
+            """Evaluate instantaneous.
+
+            Parameters
+            ----------
+            q
+                Contour Fourier modes to evaluate.
+
+            Returns
+            -------
+            array-like
+                Instantaneous powers at the fitted parameters.
+            """
             predictor, _, _ = model(
                 instantaneous_config, list(fitted_radii),
                 expected_replica_count=expected_replica_count,

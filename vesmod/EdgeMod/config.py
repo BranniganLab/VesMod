@@ -82,7 +82,13 @@ class SpectrumFitConfig:
     relaxation_model: str = "solvent_only"
 
     def __post_init__(self) -> None:
-        """Validate physical-fit parameters and establish config invariants."""
+        """Validate physical-fit parameters and establish config invariants.
+
+        Returns
+        -------
+        None
+            Validates and normalizes the configuration.
+        """
         for name in ("viscosity_in", "viscosity_out"):
             value = getattr(self, name)
             if value is not None:
@@ -135,7 +141,13 @@ class SpectrumFitConfig:
             )
 
     def to_dict(self) -> dict:
-        """Return physical-fit settings in JSON-serializable form."""
+        """Return physical-fit settings in JSON-serializable form.
+
+        Returns
+        -------
+        dict
+            JSON-serializable physical fit settings.
+        """
         return {
             "lmax": int(self.lmax),
             "free_sigma": self.free_sigma,

@@ -54,7 +54,20 @@ def spherical_contour_spectrum(q: list[int], kC: float, sigma: float, lmax: int)
 
 @lru_cache(maxsize=256)
 def _camera_projection(q, lmax):
-    """Cache fixed Nlq Plq^2 geometry for repeated optimizer evaluations."""
+    """Cache fixed Nlq Plq^2 geometry for repeated optimizer evaluations.
+
+    Parameters
+    ----------
+    q
+        Contour Fourier mode.
+    lmax
+        Inclusive maximum spherical harmonic degree.
+
+    Returns
+    -------
+    tuple
+        Contributing degrees and their contour projection weights.
+    """
     ell = np.arange(q, lmax + 1, 2, dtype=float)
     weights = np.array([Nlq_Plq0_squared(int(l), q) for l in ell])
     return ell, weights
@@ -67,7 +80,8 @@ def predict_spectrum(
     """Predict dimensionless complex contour power for fitting or plotting.
 
     The equilibrium model, camera-integration toggle, and relaxation model
-    are explicit independent settings. The camera_integration callable maps each exposure/relaxation ratio
+    are explicit independent settings. The camera_integration callable maps each
+    exposure/relaxation ratio
     to a retained power fraction before contour projection. Ensemble
     predictions average equally across replica radii, with shared kC and
     reduced tension. Disabling camera integration needs no radii or solvent
@@ -75,6 +89,30 @@ def predict_spectrum(
 
     The relaxation callable returns times in seconds with shape (radii, ell)
     for the supplied spherical modes, trial parameters, config, and radii.
+
+    Parameters
+    ----------
+    q
+        Contour Fourier modes.
+    kC
+        Bending modulus in kBT.
+    sigma
+        Dimensionless reduced tension.
+    lmax
+        Inclusive spherical harmonic summation limit.
+    config
+        Fit settings including exposure and relaxation choices.
+    radii
+        Replica radii in micrometers, required for camera integration.
+    relaxation
+        Callable returning an array of times in seconds indexed by radius and degree.
+    camera_integration
+        Callable mapping exposure-to-relaxation ratios to retained fractions.
+
+    Returns
+    -------
+    list of float
+        Dimensionless contour powers in the order of q.
     """
     modes = validate_spherical_inputs(q, kC, sigma, lmax)
     if not config.camera_integration:
@@ -146,7 +184,26 @@ def configure_spectrum_model(
     config, radii, *, expected_replica_count=None, relaxation=mode_relaxation_times,
     camera_integration=exposure_power_factor,
 ):
-    """Return a predictor and the bending-modulus and reduced-tension bounds."""
+    """Return a predictor and the bending-modulus and reduced-tension bounds.
+
+    Parameters
+    ----------
+    config
+        Fit settings, or None for the equilibrium model.
+    radii
+        Replica radii in micrometers.
+    expected_replica_count
+        Optional number of expected radii.
+    relaxation
+        Callable calculating spherical-mode relaxation times.
+    camera_integration
+        Callable mapping exposure-to-relaxation ratios to retained fractions.
+
+    Returns
+    -------
+    tuple
+        Predictor, bending modulus bounds in kBT, and dimensionless reduced tension bounds.
+    """
     radii = validate_vesicle_radii(radii)
     if expected_replica_count is not None:
         if (isinstance(expected_replica_count, (bool, np.bool_))
@@ -164,6 +221,24 @@ def configure_spectrum_model(
         predict = spherical_contour_spectrum
     else:
         def predict(q, kC, sigma, lmax):
+            """Predict.
+
+            Parameters
+            ----------
+            q
+                Contour Fourier modes.
+            kC
+                Bending modulus in kBT.
+            sigma
+                Dimensionless reduced tension.
+            lmax
+                Inclusive spherical harmonic summation limit.
+
+            Returns
+            -------
+            list of float
+                Predicted contour powers for the bound settings and radii.
+            """
             return predict_spectrum(
                 q, kC, sigma, lmax, config=config, radii=radii,
                 relaxation=relaxation, camera_integration=camera_integration,

@@ -36,6 +36,13 @@ class SpectrumPlotConfig:
     power: str = "measured"
 
     def __post_init__(self) -> None:
+        """Validate plot configuration.
+
+        Returns
+        -------
+        None
+            Raises an exception for invalid plot options.
+        """
         if self.power not in {"measured", "corrected", "both"}:
             raise ValueError("power must be measured, corrected, or both.")
         if not 0 < self.nonfit_alpha <= 1:
@@ -71,6 +78,24 @@ def plot_spectrum(data, *, ax=None, color=None, label=None, config=None):
     Corrected powers use the fitted instantaneous/camera power ratio. They
     are model-dependent estimates for display, not inputs to another fit.
     Correction requires a camera fit and is shown for 2 <= q <= lmax.
+
+    Parameters
+    ----------
+    data
+        Measured spectrum and optional fit.
+    ax
+        Target axes, or None to create axes.
+    color
+        Series color, or None for the default cycle.
+    label
+        Optional series label.
+    config
+        Plot settings, or None for defaults.
+
+    Returns
+    -------
+    SpectrumPlotResult
+        Figure, axes, and measured or corrected artists.
     """
     if config is None:
         config = SpectrumPlotConfig()
@@ -95,6 +120,18 @@ def plot_spectrum(data, *, ax=None, color=None, label=None, config=None):
     if color is None:
         color = ax._get_lines.get_next_color()
     def series_label(kind):
+        """Series label.
+
+        Parameters
+        ----------
+        kind
+            Label for the power view.
+
+        Returns
+        -------
+        str
+            Label for the plotted data series.
+        """
         return f"{label} ({kind})" if label else kind.capitalize()
     measured_result = None
     if config.power == "both":
@@ -127,6 +164,26 @@ def _plot_spectrum(
     by marker opacity and fill, so multiple spectra remain distinguishable when
     overlaid. The fit interval is shown as a compact strip by default, avoiding
     full-height colored bands for overlaid spectra.
+
+    Parameters
+    ----------
+    data
+        Measured spectrum and optional fit.
+    ax
+        Target axes, or None to create axes.
+    color
+        Series color, or None for the default cycle.
+    label
+        Optional series label.
+    config
+        Plot settings, or None for defaults.
+    instantaneous
+        Optional instantaneous powers aligned with the plotted positive modes.
+
+    Returns
+    -------
+    SpectrumPlotResult
+        Figure, axes, and artists for one spectrum.
     """
     if config is None:
         config = SpectrumPlotConfig()
@@ -225,7 +282,26 @@ def plot_q3_scaled_spectrum(
     label=None,
     config: SpectrumPlotConfig | None = None,
 ):
-    """Plot the diagnostic q³-scaled spectrum on a caller-owned axis."""
+    """Plot the diagnostic q³-scaled spectrum on a caller-owned axis.
+
+    Parameters
+    ----------
+    data
+        Measured spectrum and optional fit.
+    ax
+        Target axes, or None to create axes.
+    color
+        Series color, or None for the default cycle.
+    label
+        Optional series label.
+    config
+        Plot settings, or None for defaults.
+
+    Returns
+    -------
+    tuple
+        Figure and axes with q³-scaled powers.
+    """
     result = plot_spectrum(data, ax=ax, color=color, label=label, config=config)
     artists = (result.nonfit_artist, result.fit_data_artist, result.fit_artist,
                result.corrected_nonfit_artist, result.corrected_fit_data_artist,
@@ -243,7 +319,20 @@ def plot_q3_scaled_spectrum(
 
 
 def save_spectrum_fit_diagnostic(data: SpectrumPlotData, path) -> None:
-    """Save the spectrum, q³-scaled spectrum, and fit residuals."""
+    """Save the spectrum, q³-scaled spectrum, and fit residuals.
+
+    Parameters
+    ----------
+    data
+        Spectrum and fit to visualize.
+    path
+        Destination image path.
+
+    Returns
+    -------
+    None
+        Writes the diagnostic figure.
+    """
     if data.fit_result is None:
         raise ValueError("A fit result is required for a fit diagnostic.")
     modes, measured = _positive_spectrum(data.modes, data.avg_amps2)
@@ -282,17 +371,65 @@ def save_spectrum_fit_diagnostic(data: SpectrumPlotData, path) -> None:
 
 
 def _positive_spectrum(modes, avg_amps2, include_q1=False):
+    """Positive spectrum.
+
+    Parameters
+    ----------
+    modes
+        Fourier modes.
+    avg_amps2
+        Powers aligned with modes.
+    include_q1
+        Whether to retain the first positive mode.
+
+    Returns
+    -------
+    tuple
+        Selected modes and aligned powers.
+    """
     mask = np.asarray(modes) >= (1 if include_q1 else 2)
     return np.asarray(modes)[mask], np.asarray(avg_amps2)[mask]
 
 
 def _fit_mask(data, modes):
+    """Fit mask.
+
+    Parameters
+    ----------
+    data
+        Spectrum plot inputs containing the fit bounds.
+    modes
+        Modes to check against the bounds.
+
+    Returns
+    -------
+    numpy.ndarray
+        Boolean mask identifying the fitted modes.
+    """
     if data.lower_bound is None or data.upper_bound is None:
         return np.zeros(modes.shape, dtype=bool)
     return (modes >= data.lower_bound) & (modes < data.upper_bound)
 
 
 def _plot_fitting_region(ax, data, color, style):
+    """Plot fitting region.
+
+    Parameters
+    ----------
+    ax
+        Axes to annotate.
+    data
+        Plot inputs containing the fit bounds.
+    color
+        Color of the region marker.
+    style
+        Region display style.
+
+    Returns
+    -------
+    Artist or None
+        Region marker when drawn.
+    """
     if style == "none" or data.lower_bound is None or data.upper_bound is None:
         return None
     lower = data.lower_bound - 0.5
@@ -303,6 +440,18 @@ def _plot_fitting_region(ax, data, color, style):
 
 
 def _diagnostic_title(fit_result):
+    """Diagnostic title.
+
+    Parameters
+    ----------
+    fit_result
+        Optimizer result with best-fit parameters.
+
+    Returns
+    -------
+    str
+        Title for the diagnostic plot.
+    """
     kc = fit_result.params["kC"]
     sigma = fit_result.params["sigma"]
     kc_stderr = "unknown" if kc.stderr is None else f"{kc.stderr:.3g}"

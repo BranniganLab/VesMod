@@ -22,7 +22,7 @@ def calc_tension_from_reduced_tension(
     ----------
     r0 : float
         Average vesicle radius in microns.
-    reduced_sigma : float
+    reduced_tension : float
         Dimensionless reduced tension obtained from fitting the fluctuation
         spectrum.
     kc : float

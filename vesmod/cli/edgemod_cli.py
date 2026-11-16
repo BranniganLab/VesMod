@@ -30,7 +30,13 @@ from vesmod.io import map_output_path
 
 
 def parse_args() -> argparse.Namespace:
-    """Parse command-line arguments for core physical fitting."""
+    """Parse command-line arguments for core physical fitting.
+
+    Returns
+    -------
+    argparse.Namespace
+        Parsed options for the selected EdgeMod command.
+    """
     parser = argparse.ArgumentParser(
         description=(
             "Fit membrane mechanical parameters from vesicle contour "
@@ -48,7 +54,20 @@ def parse_args() -> argparse.Namespace:
 
 
 def _add_input_options(parser: argparse.ArgumentParser, *, ensemble=False) -> None:
-    """Add input-path and recursion options shared by EdgeMod stages."""
+    """Add input-path and recursion options shared by EdgeMod stages.
+
+    Parameters
+    ----------
+    parser
+        Parser to configure.
+    ensemble
+        Whether the command consumes spectrum JSON.
+
+    Returns
+    -------
+    None
+        Registers input selection options.
+    """
     parser.add_argument(
         "input_path",
         type=Path,
@@ -65,7 +84,20 @@ def _add_input_options(parser: argparse.ArgumentParser, *, ensemble=False) -> No
 
 
 def _add_fit_options(parser: argparse.ArgumentParser, *, ensemble=False) -> None:
-    """Add options for core physical fitting."""
+    """Add options for core physical fitting.
+
+    Parameters
+    ----------
+    parser
+        Parser to configure.
+    ensemble
+        Whether to register ensemble options.
+
+    Returns
+    -------
+    None
+        Registers fitting options.
+    """
     parser.add_argument(
         "--lower-fitting-bound",
         type=int,
@@ -161,13 +193,37 @@ def _add_fit_options(parser: argparse.ArgumentParser, *, ensemble=False) -> None
 
 
 def iter_npy_files(input_path: Path | list[Path], recursive: bool) -> list[Path]:
-    """Return the input ``.npy`` files selected by CLI selectors."""
+    """Return the input ``.npy`` files selected by CLI selectors.
+
+    Parameters
+    ----------
+    input_path
+        File, directory, glob, or list of selectors.
+    recursive
+        Whether to search subdirectories.
+
+    Returns
+    -------
+    list of Path
+        Selected contour files.
+    """
     paths, _ = select_input_files(input_path, ".npy", recursive)
     return paths
 
 
 def build_fit_config(args: argparse.Namespace) -> SpectrumFitConfig:
-    """Translate CLI options into the core physical-fit configuration."""
+    """Translate CLI options into the core physical-fit configuration.
+
+    Parameters
+    ----------
+    args
+        Parsed physical fit options.
+
+    Returns
+    -------
+    SpectrumFitConfig
+        Validated fitting configuration.
+    """
     return SpectrumFitConfig(
         lower_bound=args.lower_fitting_bound,
         upper_bound=args.upper_fitting_bound,
@@ -185,7 +241,18 @@ def build_fit_config(args: argparse.Namespace) -> SpectrumFitConfig:
 
 
 def build_dynamic_selector(args: argparse.Namespace) -> QMinusThreeRangeSelector:
-    """Build the explicitly requested experimental q^-3 selector."""
+    """Build the explicitly requested experimental q^-3 selector.
+
+    Parameters
+    ----------
+    args
+        Parsed dynamic range options.
+
+    Returns
+    -------
+    QMinusThreeRangeSelector
+        Configured mode selector.
+    """
     missing = [
         option
         for option, value in (
@@ -209,7 +276,20 @@ def build_dynamic_selector(args: argparse.Namespace) -> QMinusThreeRangeSelector
 
 
 def output_path_for(path: Path, dynamic_range: bool) -> Path:
-    """Return the JSON output path, separating experimental from core results."""
+    """Return the JSON output path, separating experimental from core results.
+
+    Parameters
+    ----------
+    path
+        Input contour path.
+    dynamic_range
+        Whether dynamic range selection is enabled.
+
+    Returns
+    -------
+    Path
+        Per-vesicle JSON destination.
+    """
     if dynamic_range:
         return path.with_name(f"{path.stem}.dynamic.json")
     return path.with_suffix(".json")
@@ -220,7 +300,22 @@ def _write_output(
     output_path: Path,
     selection: DynamicRangeSelection | None = None,
 ) -> None:
-    """Serialize core spectrum state plus optional experimental diagnostics."""
+    """Serialize core spectrum state plus optional experimental diagnostics.
+
+    Parameters
+    ----------
+    spectrum
+        Spectrum and its fit results.
+    output_path
+        JSON destination.
+    selection
+        Optional dynamic selection diagnostics.
+
+    Returns
+    -------
+    None
+        Writes the spectrum JSON.
+    """
     if selection is None:
         spectrum.to_json(output_path)
         return
@@ -238,7 +333,22 @@ def _select_dynamic_config(
     config: SpectrumFitConfig,
     selector: QMinusThreeRangeSelector,
 ) -> tuple[SpectrumFitConfig, DynamicRangeSelection]:
-    """Run experimental selection and return a core config with chosen bounds."""
+    """Run experimental selection and return a core config with chosen bounds.
+
+    Parameters
+    ----------
+    spectrum
+        Measured powers and modes.
+    config
+        Baseline fit settings.
+    selector
+        Dynamic range selector.
+
+    Returns
+    -------
+    tuple
+        Effective fit configuration and selection result.
+    """
     selection = selector.select(spectrum.modes, spectrum.powers)
     if not selection.accepted:
         return config, selection
@@ -255,7 +365,20 @@ def _select_dynamic_config(
 
 
 def _fit_output_path(path: Path, args: argparse.Namespace) -> Path:
-    """Return the fit JSON path, optionally beneath an external output root."""
+    """Return the fit JSON path, optionally beneath an external output root.
+
+    Parameters
+    ----------
+    path
+        Contour file being fitted.
+    args
+        Parsed options including the output directory.
+
+    Returns
+    -------
+    Path
+        JSON destination for the contour file.
+    """
     output_dir = getattr(args, "output_dir", None)
     if output_dir is None:
         return output_path_for(path, args.dynamic_range)
@@ -265,7 +388,20 @@ def _fit_output_path(path: Path, args: argparse.Namespace) -> Path:
 
 
 def process_file(path: Path, args: argparse.Namespace):
-    """Fit one trajectory and save core results plus optional diagnostics."""
+    """Fit one trajectory and save core results plus optional diagnostics.
+
+    Parameters
+    ----------
+    path
+        Contour file to analyze.
+    args
+        Parsed fit and output options.
+
+    Returns
+    -------
+    SpectrumFit or None
+        Fit result, or None when an existing output is kept.
+    """
     config = build_fit_config(args)
     output_path = _fit_output_path(path, args)
     diagnostic_path = output_path.with_suffix(".spectrum_diagnostic.png")
@@ -310,7 +446,20 @@ def _reject_overlapping_fit_paths(
     input_roots: tuple[Path, ...],
     output_dir: Path,
 ) -> None:
-    """Reject external fit outputs that overlap an actual selected input tree."""
+    """Reject external fit outputs that overlap an actual selected input tree.
+
+    Parameters
+    ----------
+    input_roots
+        Resolved roots of input selectors.
+    output_dir
+        Proposed external output directory.
+
+    Returns
+    -------
+    None
+        Raises ValueError if paths overlap.
+    """
     resolved_output = output_dir.expanduser().resolve()
     for input_root in input_roots:
         resolved_input = input_root.expanduser().resolve()
@@ -326,7 +475,20 @@ def _reject_overlapping_fit_paths(
 
 
 def _fit_provenance(args: argparse.Namespace, paths: list[Path]) -> dict:
-    """Return reproducible provenance for one external-output fit batch."""
+    """Return reproducible provenance for one external-output fit batch.
+
+    Parameters
+    ----------
+    args
+        Parsed batch options.
+    paths
+        Selected contour files.
+
+    Returns
+    -------
+    dict
+        Batch settings and input manifest.
+    """
     config = asdict(build_fit_config(args))
     dynamic = None
     if args.dynamic_range:
@@ -348,7 +510,20 @@ def _fit_provenance(args: argparse.Namespace, paths: list[Path]) -> dict:
 
 
 def _remove_fit_artifacts(output_dir: Path, provenance: dict) -> None:
-    """Remove only artifacts recorded by a validated prior fit batch."""
+    """Remove only artifacts recorded by a validated prior fit batch.
+
+    Parameters
+    ----------
+    output_dir
+        Directory containing prior outputs.
+    provenance
+        Metadata with the prior artifact manifest.
+
+    Returns
+    -------
+    None
+        Removes the recorded artifacts.
+    """
     if not isinstance(provenance, dict) or provenance.get("analysis") != "edgemod_fit":
         raise ValueError(
             "Existing EdgeMod provenance has no valid artifact manifest; "
@@ -365,7 +540,20 @@ def _remove_fit_artifacts(output_dir: Path, provenance: dict) -> None:
 
 
 def _prepare_fit_output(args: argparse.Namespace, paths: list[Path]) -> None:
-    """Validate and write provenance for an external-output fit batch."""
+    """Validate and write provenance for an external-output fit batch.
+
+    Parameters
+    ----------
+    args
+        Parsed batch and output options.
+    paths
+        Selected contour files.
+
+    Returns
+    -------
+    None
+        Prepares the output directory and provenance.
+    """
     args.output_dir.mkdir(parents=True, exist_ok=True)
     provenance_path = args.output_dir / "edgemod_fit.json"
     provenance = _fit_provenance(args, paths)
@@ -402,7 +590,26 @@ def _fit_summary_row(
     fit=None,
     error: str = "",
 ) -> dict:
-    """Return one batch-summary row."""
+    """Return one batch-summary row.
+
+    Parameters
+    ----------
+    path
+        Input contour file.
+    input_root
+        Root used for relative paths.
+    status
+        Per-file processing status.
+    fit
+        Fit result when available.
+    error
+        Optional error message.
+
+    Returns
+    -------
+    dict
+        One row for the batch summary.
+    """
     return {
         "file": str(_relative_input_path(path, input_root)),
         "status": status,
@@ -413,7 +620,18 @@ def _fit_summary_row(
 
 
 def _safe_csv_text(value):
-    """Prefix spreadsheet-formula-like text while preserving other values."""
+    """Prefix spreadsheet-formula-like text while preserving other values.
+
+    Parameters
+    ----------
+    value
+        Value to write in a CSV cell.
+
+    Returns
+    -------
+    Any
+        Value with a protective prefix when it resembles a spreadsheet formula.
+    """
     if isinstance(value, str) and value.lstrip().startswith(("=", "+", "-", "@")):
         return "'" + value
     return value
@@ -423,7 +641,20 @@ def _write_fit_batch_outputs(
     args: argparse.Namespace,
     rows: list[dict],
 ) -> None:
-    """Write the summary and record JSON/PNG files owned by this batch."""
+    """Write the summary and record JSON/PNG files owned by this batch.
+
+    Parameters
+    ----------
+    args
+        Parsed batch options.
+    rows
+        Per-file summary rows.
+
+    Returns
+    -------
+    None
+        Writes the summary and updates provenance.
+    """
     summary_path = args.output_dir / "fit_summary.csv"
     safe_rows = [
         {
@@ -462,7 +693,18 @@ def _write_fit_batch_outputs(
 
 
 def _run_fit(args: argparse.Namespace) -> int:
-    """Run core fitting over selected contour trajectories."""
+    """Run core fitting over selected contour trajectories.
+
+    Parameters
+    ----------
+    args
+        Parsed individual fitting options.
+
+    Returns
+    -------
+    int
+        Batch exit status.
+    """
     build_fit_config(args)
     if args.dynamic_range:
         build_dynamic_selector(args)
@@ -529,7 +771,13 @@ def _run_fit(args: argparse.Namespace) -> int:
 
 
 def main() -> int:
-    """Run the selected EdgeMod analysis stage."""
+    """Run the selected EdgeMod analysis stage.
+
+    Returns
+    -------
+    int
+        Exit status of the selected analysis command.
+    """
     args = parse_args()
     if getattr(args, "command", "fit") == "ensemble":
         return run_ensemble(args, build_fit_config(args))

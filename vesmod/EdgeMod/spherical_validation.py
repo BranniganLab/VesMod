@@ -7,7 +7,24 @@ import numpy as np
 
 
 def validate_spherical_inputs(q, kC, sigma, lmax) -> list[int]:
-    """Validate the spherical spectrum domain and return integer modes."""
+    """Validate the spherical spectrum domain and return integer modes.
+
+    Parameters
+    ----------
+    q
+        Contour Fourier modes.
+    kC
+        Bending modulus in kBT.
+    sigma
+        Dimensionless reduced tension.
+    lmax
+        Inclusive spherical harmonic summation limit.
+
+    Returns
+    -------
+    list of int
+        Validated Fourier modes in input order.
+    """
     if not isinstance(kC, Real) or isinstance(kC, bool):
         raise TypeError("kC must be numeric.")
     if not math.isfinite(kC) or kC <= 0:
@@ -49,7 +66,18 @@ def validate_spherical_inputs(q, kC, sigma, lmax) -> list[int]:
 
 
 def validate_vesicle_radii(radii):
-    """Require positive radii in microns for fitting and camera averaging."""
+    """Require positive radii in microns for fitting and camera averaging.
+
+    Parameters
+    ----------
+    radii
+        Scalar or one-dimensional sequence of radii in micrometers.
+
+    Returns
+    -------
+    numpy.ndarray
+        One-dimensional array of positive, finite radii in micrometers.
+    """
     if radii is None:
         raise ValueError("Vesicle radii are required for spectrum fitting.")
     radii = np.atleast_1d(np.asarray(radii, dtype=float))

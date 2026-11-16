@@ -10,7 +10,18 @@ from vesmod.cli.input_selection import select_input_files
 
 
 def _load_exclusion_policy(spec):
-    """Load a user-supplied Python exclusion function."""
+    """Load a user-supplied Python exclusion function.
+
+    Parameters
+    ----------
+    spec
+        Importable policy in MODULE:FUNCTION form.
+
+    Returns
+    -------
+    callable
+        Policy taking a path and spectrum record and returning a reason or None.
+    """
     module, separator, name = spec.partition(":")
     if not separator or not module or not name:
         raise ValueError("Use MODULE:FUNCTION for --exclusion-policy.")
@@ -21,7 +32,18 @@ def _load_exclusion_policy(spec):
 
 
 def _read_spectrum(path):
-    """Load and validate the measured powers and metadata in a spectrum export."""
+    """Load and validate the measured powers and metadata in a spectrum export.
+
+    Parameters
+    ----------
+    path
+        Path to saved per-vesicle spectrum JSON.
+
+    Returns
+    -------
+    SimpleNamespace
+        Validated spectrum arrays and saved fit metadata.
+    """
     with path.open(encoding="utf-8") as source:
         data = json.load(source)
     if not isinstance(data, dict) or not {"modes", "powers", "r0"} <= data.keys():
@@ -45,7 +67,20 @@ def _read_spectrum(path):
 
 
 def run_ensemble(args, config):
-    """Apply the policy to saved spectra before aggregating and fitting."""
+    """Apply the policy to saved spectra before aggregating and fitting.
+
+    Parameters
+    ----------
+    args
+        Parsed ensemble CLI arguments.
+    config
+        Physical settings for fitting the mean powers.
+
+    Returns
+    -------
+    int
+        Batch exit status.
+    """
     paths, _ = select_input_files(args.input_path, ".json", args.recursive)
     paths = [
         path for path in paths

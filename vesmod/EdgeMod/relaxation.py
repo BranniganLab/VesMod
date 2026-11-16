@@ -12,6 +12,24 @@ def mode_relaxation_times(ell, kC, sigma, *, config, radii):
     kC is in kBT, sigma is reduced tension, and radii are in microns.
     The explicitly selected relaxation model determines the drag expression.
     This calculation can also be used without enabling camera integration.
+
+    Parameters
+    ----------
+    ell
+        Iterable of spherical harmonic degrees.
+    kC
+        Bending modulus in kBT.
+    sigma
+        Dimensionless reduced tension.
+    config
+        Fit settings including the relaxation model, viscosities, and temperature.
+    radii
+        Replica radii in micrometers.
+
+    Returns
+    -------
+    numpy.ndarray
+        Relaxation times in seconds, indexed by radius and degree.
     """
     try:
         modes = list(ell)
@@ -33,19 +51,63 @@ def mode_relaxation_times(ell, kC, sigma, *, config, radii):
 
 
 def _solvent_drag(ell, _radii_m, config):
-    """Drag with independent interior and exterior solvent viscosities."""
+    """Drag with independent interior and exterior solvent viscosities.
+
+    Parameters
+    ----------
+    ell
+        Array of spherical harmonic degrees.
+    _radii_m
+        Replica radii in meters, unused by this law.
+    config
+        Fit settings including the relaxation model, viscosities, and temperature.
+
+    Returns
+    -------
+    numpy.ndarray
+        Dimensionless drag per degree, shared across radii.
+    """
     return (4 * ell**3 + 6 * ell**2 - 1
             + (2 * ell**3 + 3 * ell**2 - 5)
             * (config.viscosity_in / config.viscosity_out - 1))
 
 
 def _solvent_and_membrane_drag(ell, radii_m, config):
-    """Drag with equal solvent viscosities and membrane surface viscosity."""
+    """Drag with equal solvent viscosities and membrane surface viscosity.
+
+    Parameters
+    ----------
+    ell
+        Array of spherical harmonic degrees.
+    radii_m
+        Replica radii in meters.
+    config
+        Fit settings including the relaxation model, viscosities, and temperature.
+
+    Returns
+    -------
+    numpy.ndarray
+        Dimensionless drag indexed by radius and degree.
+    """
     chi_s = config.eta_m / (radii_m[:, None] * config.viscosity_out)
     return (4 * ell**3 + 6 * ell**2 - 1) + (4 * ell**2 + 4 * ell - 8) * chi_s
 
 
 def _validate_solvent(config, *, require_viscosities):
+    """Validate solvent.
+
+    Parameters
+    ----------
+    config
+        Fit settings including the relaxation model, viscosities, and temperature.
+    require_viscosities
+        Whether the viscosities needed for evaluation must be present.
+
+    Returns
+    -------
+    None
+        Raises ValueError for incompatible settings.
+    """
     if config.eta_m is not None:
         raise ValueError("eta_m requires relaxation_model='solvent_and_membrane'.")
     if require_viscosities and (config.viscosity_in is None or config.viscosity_out is None):
@@ -53,6 +115,20 @@ def _validate_solvent(config, *, require_viscosities):
 
 
 def _validate_solvent_and_membrane(config, *, require_viscosities):
+    """Validate solvent and membrane.
+
+    Parameters
+    ----------
+    config
+        Fit settings including the relaxation model, viscosities, and temperature.
+    require_viscosities
+        Whether the viscosities needed for evaluation must be present.
+
+    Returns
+    -------
+    None
+        Raises ValueError for incompatible settings.
+    """
     if config.eta_m is None:
         raise ValueError("eta_m is required for solvent_and_membrane (zero is allowed).")
     if (config.viscosity_in is not None and config.viscosity_out is not None
