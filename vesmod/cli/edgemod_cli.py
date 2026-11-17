@@ -14,7 +14,7 @@ import numpy as np
 from vesmod.EdgeMod import Spectrum, SpectrumFitConfig
 from vesmod.EdgeMod.fitting.mode_relaxation.relaxation import RELAXATION_MODELS
 from vesmod.cli.edgemod_ensemble import run_ensemble
-from vesmod.EdgeMod.range_selection.experimental import (
+from vesmod.EdgeMod.fitting.range_selection.experimental import (
     DynamicRangeSelection,
     QMinusThreeRangeSelector,
 )

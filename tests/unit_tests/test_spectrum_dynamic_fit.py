@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 
 from vesmod.EdgeMod import Spectrum, SpectrumFitConfig
-from vesmod.EdgeMod.range_selection.experimental import QMinusThreeRangeSelector
+from vesmod.EdgeMod.fitting.range_selection.experimental import QMinusThreeRangeSelector
 
 
 def _spectrum_with_power_law() -> Spectrum:
@@ -64,7 +64,7 @@ def test_selected_bounds_can_be_passed_to_core_physical_fit(monkeypatch):
         fake_fit,
     )
     monkeypatch.setattr(
-        "vesmod.EdgeMod.spectrum.calc_tension_from_reduced_tension",
+        "vesmod.EdgeMod.spectra.spectrum.calc_tension_from_reduced_tension",
         lambda *args: 1.5,
     )
 

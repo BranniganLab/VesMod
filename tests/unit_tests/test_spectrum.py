@@ -15,7 +15,7 @@ import numpy as np
 import pytest
 
 from vesmod.EdgeMod import Spectrum, SpectrumFitConfig
-from vesmod.EdgeMod.range_selection.selection import select_manual_range, slice_fit_arrays
+from vesmod.EdgeMod.fitting.range_selection.selection import select_manual_range, slice_fit_arrays
 from vesmod.VesEdge.models import EdgeDetection, EdgeDetectionFailure
 from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
 from vesmod.VesEdge.vesicle_edges import VesicleEdges
@@ -246,7 +246,7 @@ def test_extract_kc_from_fit_uses_config_and_saves_fit_results(monkeypatch):
         fake_fit_spectrum,
     )
     monkeypatch.setattr(
-        "vesmod.EdgeMod.spectrum.calc_tension_from_reduced_tension",
+        "vesmod.EdgeMod.spectra.spectrum.calc_tension_from_reduced_tension",
         fake_calc_tension_from_reduced_tension,
     )
     config = SpectrumFitConfig(
@@ -297,7 +297,7 @@ def test_extract_kc_from_fit_uses_default_config(monkeypatch):
         fake_fit,
     )
     monkeypatch.setattr(
-        "vesmod.EdgeMod.spectrum.calc_tension_from_reduced_tension",
+        "vesmod.EdgeMod.spectra.spectrum.calc_tension_from_reduced_tension",
         lambda *args: 1.0,
     )
 

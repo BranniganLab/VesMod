@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from vesmod.EdgeMod import EnsembleFit, SpectrumFitConfig
-from vesmod.EdgeMod.ensemble.spectrum_ensemble import SpectrumEnsemble
+from vesmod.EdgeMod.spectra.spectrum_ensemble import SpectrumEnsemble
 
 
 def test_new_spectrum_ensemble_is_empty():

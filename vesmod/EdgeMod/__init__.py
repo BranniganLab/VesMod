@@ -2,12 +2,12 @@
 
 from vesmod.EdgeMod.fitting.fitting_functions.spherical_model import spherical_contour_spectrum, predict_spherical_contour_power
 from vesmod.EdgeMod.fitting.mode_relaxation.relaxation import mode_relaxation_times
-from vesmod.EdgeMod.power_calculation.calculators import MeanSquaredPowerCalculator, TemporalVarianceCalculator
-from vesmod.EdgeMod.power_calculation.base import PowerCalculationResult, SpectrumCalculator
+from vesmod.EdgeMod.spectra.power_calculation.calculators import MeanSquaredPowerCalculator, TemporalVarianceCalculator
+from vesmod.EdgeMod.spectra.power_calculation.base import PowerCalculationResult, SpectrumCalculator
 from vesmod.EdgeMod.fitting.config import SpectrumFitConfig
 from vesmod.EdgeMod.fitting.fit_result import EnsembleFit, SpectrumFit
-from vesmod.EdgeMod.spectrum import Spectrum
-from vesmod.EdgeMod.ensemble.spectrum_ensemble import SpectrumEnsemble
+from vesmod.EdgeMod.spectra.spectrum import Spectrum
+from vesmod.EdgeMod.spectra.spectrum_ensemble import SpectrumEnsemble
 from vesmod.EdgeMod.plotting.spectrum_plotting import (
     SpectrumPlotConfig,
     SpectrumPlotData,

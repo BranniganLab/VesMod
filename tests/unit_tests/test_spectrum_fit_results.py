@@ -34,7 +34,7 @@ def _mock_physical_fit(monkeypatch) -> None:
         ),
     )
     monkeypatch.setattr(
-        "vesmod.EdgeMod.spectrum.calc_tension_from_reduced_tension",
+        "vesmod.EdgeMod.spectra.spectrum.calc_tension_from_reduced_tension",
         lambda r0, reduced_sigma, kc, temperature: kc / 10.0,
     )
 

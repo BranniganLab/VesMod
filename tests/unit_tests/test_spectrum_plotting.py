@@ -195,7 +195,7 @@ def test_spectrum_plot_exposure_uses_effective_config(
         monkeypatch, recorded_exposure, explicit_exposure, expected):
     """Explicit plotting config takes precedence over recorded fit config."""
     from importlib import import_module
-    module = import_module('vesmod.EdgeMod.spectrum')
+    module = import_module('vesmod.EdgeMod.spectra.spectrum')
     spectrum = Spectrum.from_radii(np.full((2, 32), 5.0))
     def config(exposure):
         return SpectrumFitConfig(camera_integration=exposure > 0, exposure_time=exposure, viscosity_in=.00102,
