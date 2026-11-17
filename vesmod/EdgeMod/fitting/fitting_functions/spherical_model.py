@@ -5,10 +5,10 @@ from numbers import Integral
 import numpy as np
 from scipy.special import gammaln
 
-from vesmod.EdgeMod.camera_integration.exposure import exposure_power_factor
+from vesmod.EdgeMod.fitting.camera_integration.exposure import exposure_power_factor
 from vesmod.EdgeMod.fitting.config import SpectrumFitConfig
-from vesmod.EdgeMod.mode_relaxation.relaxation import _relaxation_times_for_validated_modes, mode_relaxation_times
-from vesmod.EdgeMod.fitting_functions.spherical_validation import validate_spherical_inputs, validate_vesicle_radii
+from vesmod.EdgeMod.fitting.mode_relaxation.relaxation import _relaxation_times_for_validated_modes, mode_relaxation_times
+from vesmod.EdgeMod.fitting.fitting_functions.spherical_validation import validate_spherical_inputs, validate_vesicle_radii
 
 
 def spherical_contour_spectrum(q: list[int], kC: float, sigma: float, lmax: int) -> list[float]:

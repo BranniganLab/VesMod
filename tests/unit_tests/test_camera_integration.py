@@ -6,13 +6,13 @@ import pytest
 from scipy.constants import Boltzmann
 from scipy.integrate import quad
 from vesmod.EdgeMod import Spectrum, SpectrumFitConfig, SpectrumEnsemble
-from vesmod.EdgeMod.fitting_functions.spherical_model import (
+from vesmod.EdgeMod.fitting.fitting_functions.spherical_model import (
     spherical_contour_spectrum,
     predict_spherical_contour_power,
     configure_spectrum_model,
 )
-from vesmod.EdgeMod.camera_integration.exposure import exposure_power_factor
-from vesmod.EdgeMod.fitting.optimization import fit_spectrum
+from vesmod.EdgeMod.fitting.camera_integration.exposure import exposure_power_factor
+from vesmod.EdgeMod.fitting.optimization.least_squares import fit_spectrum
 
 
 @pytest.mark.parametrize('x', [0, 1e-9, 0.001, 0.5, 10, 100])
@@ -359,7 +359,7 @@ def test_configured_model_calls_relaxation_once_for_all_required_modes():
 
 
 def test_registered_relaxation_law_is_available_through_cli(monkeypatch):
-    from vesmod.EdgeMod.mode_relaxation.relaxation import RELAXATION_MODELS, mode_relaxation_times
+    from vesmod.EdgeMod.fitting.mode_relaxation.relaxation import RELAXATION_MODELS, mode_relaxation_times
     from vesmod.cli.edgemod_cli import build_fit_config, parse_args
 
     solvent_drag, validate = RELAXATION_MODELS["solvent_only"]

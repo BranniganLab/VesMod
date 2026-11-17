@@ -9,8 +9,8 @@ import pytest
 from lmfit import Parameters
 
 from vesmod.EdgeMod import Spectrum, SpectrumEnsemble, SpectrumFitConfig
-from vesmod.EdgeMod.fitting_functions.spherical_model import spherical_contour_spectrum
-from vesmod.EdgeMod.fitting.optimization import (
+from vesmod.EdgeMod.fitting.fitting_functions.spherical_model import spherical_contour_spectrum
+from vesmod.EdgeMod.fitting.optimization.least_squares import (
     fit_spectrum,
     fit_spectrum_to_theory,
 )
@@ -48,13 +48,13 @@ def test_fit_estimates_are_retained(monkeypatch, caplog, entry_point, condition)
         params=params, best_values=params.valuesdict(), best_fit=np.zeros(5),
         chisqr=1.0, redchi=1.0,
     )
-    monkeypatch.setattr("vesmod.EdgeMod.fitting.optimization.Model.fit",
+    monkeypatch.setattr("vesmod.EdgeMod.fitting.optimization.least_squares.Model.fit",
                         lambda *args, **kwargs: result)
     config = SpectrumFitConfig(lmax=50, free_sigma=True)
     modes = np.arange(3, 8)
     powers = np.ones(5)
 
-    with caplog.at_level("INFO", logger="vesmod.EdgeMod.fitting.optimization"):
+    with caplog.at_level("INFO", logger="vesmod.EdgeMod.fitting.optimization.least_squares"):
         if entry_point == "direct":
             assert fit_spectrum(modes, powers, 50, free_sigma=True, kc_bounds=(1, 500), sigma_bounds=(-100, 2500)) is result
             kc = result.best_values["kC"]
@@ -99,9 +99,9 @@ def test_zero_measured_power_logs_rmse(caplog, monkeypatch, prediction, expected
     modes = np.arange(3, 8)
     powers = np.zeros(5)
     result = SimpleNamespace(best_fit=np.full(5, prediction))
-    monkeypatch.setattr("vesmod.EdgeMod.fitting.optimization.Model.fit",
+    monkeypatch.setattr("vesmod.EdgeMod.fitting.optimization.least_squares.Model.fit",
                         lambda *args, **kwargs: result)
-    with caplog.at_level("INFO", logger="vesmod.EdgeMod.fitting.optimization"):
+    with caplog.at_level("INFO", logger="vesmod.EdgeMod.fitting.optimization.least_squares"):
         assert fit_spectrum(modes, powers, 50, kc_bounds=(1, 500), sigma_bounds=(-100, 2500)) is result
     assert f"Spectrum fit relative RMSE={expected}" in caplog.text
 
@@ -111,7 +111,7 @@ def test_optimizer_exceptions_still_propagate(monkeypatch):
     def fail(*args, **kwargs):
         raise ValueError("optimizer failed to evaluate model")
 
-    monkeypatch.setattr("vesmod.EdgeMod.fitting.optimization.Model.fit", fail)
+    monkeypatch.setattr("vesmod.EdgeMod.fitting.optimization.least_squares.Model.fit", fail)
     modes = np.arange(3, 8)
     powers = np.ones(5)
     with pytest.raises(ValueError, match="optimizer failed to evaluate model"):

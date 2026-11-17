@@ -7,7 +7,7 @@ from lmfit import Model
 import numpy as np
 
 from vesmod.EdgeMod.fitting.config import SpectrumFitConfig
-from vesmod.EdgeMod.fitting_functions.spherical_model import configure_spectrum_model, spherical_contour_spectrum
+from vesmod.EdgeMod.fitting.fitting_functions.spherical_model import configure_spectrum_model, spherical_contour_spectrum
 
 from vesmod.EdgeMod.range_selection.selection import select_manual_range, slice_fit_arrays
 

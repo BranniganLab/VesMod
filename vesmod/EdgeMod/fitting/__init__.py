@@ -1,1 +1,1 @@
-"""Parameter fitting, configuration, and fit results."""
+"""Spectrum prediction, parameter fitting, configuration, and fit results."""

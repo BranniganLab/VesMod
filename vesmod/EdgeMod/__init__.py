@@ -1,7 +1,7 @@
 """Public core EdgeMod API."""
 
-from vesmod.EdgeMod.fitting_functions.spherical_model import spherical_contour_spectrum, predict_spherical_contour_power
-from vesmod.EdgeMod.mode_relaxation.relaxation import mode_relaxation_times
+from vesmod.EdgeMod.fitting.fitting_functions.spherical_model import spherical_contour_spectrum, predict_spherical_contour_power
+from vesmod.EdgeMod.fitting.mode_relaxation.relaxation import mode_relaxation_times
 from vesmod.EdgeMod.power_calculation.calculators import MeanSquaredPowerCalculator, TemporalVarianceCalculator
 from vesmod.EdgeMod.power_calculation.base import PowerCalculationResult, SpectrumCalculator
 from vesmod.EdgeMod.fitting.config import SpectrumFitConfig

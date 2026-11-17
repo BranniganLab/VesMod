@@ -13,7 +13,7 @@ behavior.
 """
 import numpy as np
 from vesmod.validation import require_positive_real
-from vesmod.EdgeMod.fitting.optimization import fit_configured_spectrum
+from vesmod.EdgeMod.fitting.optimization.least_squares import fit_configured_spectrum
 from vesmod.EdgeMod.fitting.config import SpectrumFitConfig
 from vesmod.EdgeMod.fitting.fit_result import EnsembleFit
 

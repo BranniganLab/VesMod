@@ -98,8 +98,8 @@ def test_disabled_correction_fits_and_plots_equilibrium_with_exposure_metadata()
 def test_prediction_validates_inputs_once_not_each_spherical_mode(
         monkeypatch, relaxation_model, eta_m):
     """Cached ell arrays must bypass repeated public-API validation."""
-    import vesmod.EdgeMod.mode_relaxation.relaxation as relaxation
-    import vesmod.EdgeMod.fitting_functions.spherical_model as utils
+    import vesmod.EdgeMod.fitting.mode_relaxation.relaxation as relaxation
+    import vesmod.EdgeMod.fitting.fitting_functions.spherical_model as utils
     config = SpectrumFitConfig(camera_integration=True, exposure_time=.030,
                                relaxation_model=relaxation_model, eta_m=eta_m,
                                viscosity_in=.001, viscosity_out=.001)

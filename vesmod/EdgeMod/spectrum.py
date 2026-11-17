@@ -26,7 +26,7 @@ from vesmod.EdgeMod.fitting.config import SpectrumFitConfig
 from vesmod.EdgeMod.power_calculation.calculators import MeanSquaredPowerCalculator
 from vesmod.EdgeMod.power_calculation.base import PowerCalculationResult, SpectrumCalculator
 from vesmod.EdgeMod.fitting.fit_result import SpectrumFit
-from vesmod.EdgeMod.fitting.optimization import fit_configured_spectrum
+from vesmod.EdgeMod.fitting.optimization.least_squares import fit_configured_spectrum
 from vesmod.EdgeMod.fitting.tension import calc_tension_from_reduced_tension
 
 
