@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterator
 
-from vesmod.EdgeMod.fitting.config import SpectrumFitConfig
+from vesmod.edgemod.fitting.config import SpectrumFitConfig
 
 
 @dataclass(frozen=True)

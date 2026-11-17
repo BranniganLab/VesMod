@@ -6,10 +6,10 @@ from dataclasses import replace
 from lmfit import Model
 import numpy as np
 
-from vesmod.EdgeMod.fitting.config import SpectrumFitConfig
-from vesmod.EdgeMod.fitting.fitting_functions.spherical_model import configure_spectrum_model, spherical_contour_spectrum
+from vesmod.edgemod.fitting.config import SpectrumFitConfig
+from vesmod.edgemod.fitting.fitting_functions.spherical_model import configure_spectrum_model, spherical_contour_spectrum
 
-from vesmod.EdgeMod.fitting.range_selection.selection import select_manual_range, slice_fit_arrays
+from vesmod.edgemod.fitting.range_selection.selection import select_manual_range, slice_fit_arrays
 
 logger = logging.getLogger(__name__)
 

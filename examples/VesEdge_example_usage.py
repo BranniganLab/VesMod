@@ -21,14 +21,14 @@ from pathlib import Path
 
 import nd2
 
-from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
-from vesmod.VesEdge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
-from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
-from vesmod.VesEdge.vesicle_edges import VesicleEdges
-from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
-from vesmod.VesEdge.vesicle_video import VesicleVideo
-from vesmod.VesEdge.extraction.edge_extractor import extract_edge_from_frame
-from vesmod.VesEdge.visualization.animation import make_vesicle_gif
+from vesmod.vesedge.qc.checks.edge_filtering import CurvatureQCConfig
+from vesmod.vesedge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
+from vesmod.vesedge.extraction.config import EdgeExtractionConfig
+from vesmod.vesedge.vesicle_edges import VesicleEdges
+from vesmod.vesedge.qc.qc_config import VesicleQCConfig
+from vesmod.vesedge.vesicle_video import VesicleVideo
+from vesmod.vesedge.extraction.edge_extractor import extract_edge_from_frame
+from vesmod.vesedge.visualization.animation import make_vesicle_gif
 
 fpath = "YOUR/PATH/HERE/"  # Directory containing your .nd2 file(s).
 pixels_per_micron = 13.44  # Microscope image calibration.

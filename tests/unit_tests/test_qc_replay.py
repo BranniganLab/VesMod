@@ -1,15 +1,15 @@
 """Tests for recorded VesEdge QC replay."""
 
-from vesmod.VesEdge.qc.experimental.area_qc import AreaQCConfig
-from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
-from vesmod.VesEdge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
+from vesmod.vesedge.qc.experimental.area_qc import AreaQCConfig
+from vesmod.vesedge.qc.checks.edge_filtering import CurvatureQCConfig
+from vesmod.vesedge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
 import json
 
 import numpy as np
 import pytest
 
-from vesmod.VesEdge.qc.qc_replay import RecordedQCSelection, load_recorded_qc, replay_recorded_qc
-from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
+from vesmod.vesedge.qc.qc_replay import RecordedQCSelection, load_recorded_qc, replay_recorded_qc
+from vesmod.vesedge.qc.qc_config import VesicleQCConfig
 
 
 def _selection(tmp_path, checkpoint, config=None):

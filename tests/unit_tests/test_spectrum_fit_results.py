@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from vesmod.EdgeMod import Spectrum, SpectrumFit, SpectrumFitConfig
+from vesmod.edgemod import Spectrum, SpectrumFit, SpectrumFitConfig
 
 
 def _spectrum() -> Spectrum:
@@ -25,7 +25,7 @@ def _spectrum() -> Spectrum:
 def _mock_physical_fit(monkeypatch) -> None:
     """Replace physical fitting with a deterministic result keyed to first q."""
     monkeypatch.setattr(
-        "vesmod.EdgeMod.fitting.optimization.least_squares.fit_spectrum",
+        "vesmod.edgemod.fitting.optimization.least_squares.fit_spectrum",
         lambda modes, powers, lmax, free_sigma, **kwargs: SimpleNamespace(
             best_values={
                 "kC": float(modes[0]),
@@ -34,7 +34,7 @@ def _mock_physical_fit(monkeypatch) -> None:
         ),
     )
     monkeypatch.setattr(
-        "vesmod.EdgeMod.spectra.spectrum.calc_tension_from_reduced_tension",
+        "vesmod.edgemod.spectra.spectrum.calc_tension_from_reduced_tension",
         lambda r0, reduced_sigma, kc, temperature: kc / 10.0,
     )
 

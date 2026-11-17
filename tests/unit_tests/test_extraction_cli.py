@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from vesmod.VesEdge.cli import extraction_cli
+from vesmod.vesedge.cli import extraction_cli
 from vesmod.cli import vesedge_cli
 
 
@@ -20,7 +20,7 @@ def _extract_args(tmp_path=None, input_path=Path("sample.nd2")) -> argparse.Name
         no_gif=True,
         overwrite=True,
         extractor_file=None,
-        extractor="vesmod.VesEdge.extraction.edge_extractor:extract_edge_from_frame",
+        extractor="vesmod.vesedge.extraction.edge_extractor:extract_edge_from_frame",
         extractor_name="extract_edge_from_frame",
         downsample=False,
         n_samples=120,

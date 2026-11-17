@@ -4,8 +4,8 @@ import numpy as np
 import pytest
 from skimage.measure import label
 
-from vesmod.VesEdge.experimental import internal_structures
-from vesmod.VesEdge.experimental.internal_structures import (
+from vesmod.vesedge.experimental import internal_structures
+from vesmod.vesedge.experimental.internal_structures import (
     InternalHoughCircle,
     InternalStructureConfig,
     InternalStructureFrameResult,
@@ -13,7 +13,7 @@ from vesmod.VesEdge.experimental.internal_structures import (
     select_temporally_supported_hough_circles,
     summarize_internal_structures,
 )
-from vesmod.VesEdge.models import ImageContour
+from vesmod.vesedge.models import ImageContour
 
 
 def _circular_contour(center=(60.0, 60.0), radius=50.0):

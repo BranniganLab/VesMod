@@ -5,7 +5,7 @@
 import numpy as np
 import pytest
 
-from vesmod.EdgeMod import (
+from vesmod.edgemod import (
     MeanSquaredPowerCalculator, TemporalVarianceCalculator,
     PowerCalculationResult, Spectrum,
 )

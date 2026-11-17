@@ -4,8 +4,8 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from vesmod.EdgeMod import Spectrum, SpectrumEnsemble, SpectrumFitConfig
-from vesmod.EdgeMod.fitting.fitting_functions.spherical_model import configure_spectrum_model
+from vesmod.edgemod import Spectrum, SpectrumEnsemble, SpectrumFitConfig
+from vesmod.edgemod.fitting.fitting_functions.spherical_model import configure_spectrum_model
 
 
 @pytest.mark.parametrize('exposure,chi', [(0, None), (.030, None), (.030, 4.1e-9)])
@@ -19,7 +19,7 @@ def test_public_single_and_ensemble_bounds(monkeypatch, exposure, chi, free_sigm
         return SimpleNamespace(best_values={'kC': 25, 'sigma': 0},
                                best_fit=np.asarray(data), chisqr=0, redchi=0)
 
-    monkeypatch.setattr('vesmod.EdgeMod.fitting.optimization.least_squares.Model.fit', capture)
+    monkeypatch.setattr('vesmod.edgemod.fitting.optimization.least_squares.Model.fit', capture)
     config = SpectrumFitConfig(camera_integration=exposure > 0, relaxation_model="solvent_and_membrane" if chi is not None else "solvent_only", lmax=20, free_sigma=free_sigma,
                                exposure_time=exposure, eta_m=chi,
                                viscosity_in=.001, viscosity_out=.001)

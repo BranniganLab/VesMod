@@ -1,8 +1,8 @@
 """Tests for standalone VesEdge GIF generation."""
 
-from vesmod.VesEdge.qc.experimental.area_qc import AreaQCConfig
-from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
-from vesmod.VesEdge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
+from vesmod.vesedge.qc.experimental.area_qc import AreaQCConfig
+from vesmod.vesedge.qc.checks.edge_filtering import CurvatureQCConfig
+from vesmod.vesedge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
 import argparse
 import json
 import sys
@@ -11,9 +11,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
-from vesmod.VesEdge.qc.qc_replay import load_recorded_qc
-from vesmod.VesEdge.cli import gif_cli
+from vesmod.vesedge.qc.qc_config import VesicleQCConfig
+from vesmod.vesedge.qc.qc_replay import load_recorded_qc
+from vesmod.vesedge.cli import gif_cli
 from vesmod.cli import vesedge_cli
 
 

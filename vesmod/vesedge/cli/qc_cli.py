@@ -7,11 +7,11 @@ import csv
 import json
 from pathlib import Path
 
-from vesmod.VesEdge.io.checkpoint_sources import open_checkpoint_frames, resolve_source_path
-from vesmod.VesEdge.qc import qc_runner, qc_registry
-from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
-from vesmod.VesEdge.qc.acceptance_rules import AnyFailed, AllFailed
-from vesmod.VesEdge.vesicle_edges import VesicleEdges
+from vesmod.vesedge.io.checkpoint_sources import open_checkpoint_frames, resolve_source_path
+from vesmod.vesedge.qc import qc_runner, qc_registry
+from vesmod.vesedge.qc.qc_config import VesicleQCConfig
+from vesmod.vesedge.qc.acceptance_rules import AnyFailed, AllFailed
+from vesmod.vesedge.vesicle_edges import VesicleEdges
 from vesmod.cli.batch_policy import (
     add_batch_policy_argument,
     exit_code,

@@ -3,16 +3,16 @@
 import numpy as np
 import pytest
 
-from vesmod.VesEdge.qc.experimental.area_qc import AreaQCConfig
-from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
-from vesmod.VesEdge.models import EdgeDetection, ImageContour
-from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
-from vesmod.VesEdge.qc.checks.localized_deviation_qc import (
+from vesmod.vesedge.qc.experimental.area_qc import AreaQCConfig
+from vesmod.vesedge.qc.checks.edge_filtering import CurvatureQCConfig
+from vesmod.vesedge.models import EdgeDetection, ImageContour
+from vesmod.vesedge.extraction.config import EdgeExtractionConfig
+from vesmod.vesedge.qc.checks.localized_deviation_qc import (
     LocalizedDeviationQCConfig,
     check_localized_deviation,
 )
-from vesmod.VesEdge.vesicle_edges import VesicleEdges
-from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
+from vesmod.vesedge.vesicle_edges import VesicleEdges
+from vesmod.vesedge.qc.qc_config import VesicleQCConfig
 
 
 def edge(radii):
@@ -83,7 +83,7 @@ def test_localized_deviation_primary_threshold_is_inclusive(monkeypatch):
     """The primary threshold rejects a score exactly on its boundary."""
     detection = edge([10.0] * 32)
     monkeypatch.setattr(
-        "vesmod.VesEdge.qc.checks.localized_deviation_qc.fit_radial_baseline",
+        "vesmod.vesedge.qc.checks.localized_deviation_qc.fit_radial_baseline",
         lambda radii, order: type("Fit", (), {"values": np.full(32, 9.5)})(),
     )
 

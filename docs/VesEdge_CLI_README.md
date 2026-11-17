@@ -237,7 +237,7 @@ require an explicit axis selection rather than silently choosing one.
 The default extractor is:
 
 ```text
-vesmod.VesEdge.extraction.edge_extractor:extract_edge_from_frame
+vesmod.vesedge.extraction.edge_extractor:extract_edge_from_frame
 ```
 
 Use an importable custom extractor with:
@@ -710,17 +710,17 @@ As with QC, incompatible provenance is rejected unless `--overwrite` is supplied
 The CLI mirrors the Python API separation:
 
 Stable extraction, checkpoint, and QC objects are exported from
-`vesmod.VesEdge`. Internal-structure detection is experimental and is
-intentionally exported only from `vesmod.VesEdge.experimental`; callers should
+`vesmod.vesedge`. Internal-structure detection is experimental and is
+intentionally exported only from `vesmod.vesedge.experimental`; callers should
 expect its configuration, result models, and measurements to evolve.
 
 ```python
-from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
-from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
-from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
-from vesmod.VesEdge.vesicle_edges import VesicleEdges
-from vesmod.VesEdge.vesicle_video import VesicleVideo
-from vesmod.VesEdge.extraction.edge_extractor import extract_edge_from_frame
+from vesmod.vesedge.extraction.config import EdgeExtractionConfig
+from vesmod.vesedge.qc.qc_config import VesicleQCConfig
+from vesmod.vesedge.qc.checks.edge_filtering import CurvatureQCConfig
+from vesmod.vesedge.vesicle_edges import VesicleEdges
+from vesmod.vesedge.vesicle_video import VesicleVideo
+from vesmod.vesedge.extraction.edge_extractor import extract_edge_from_frame
 
 video = VesicleVideo(frames)
 edges = video.extract_edges(
@@ -748,12 +748,12 @@ edges.export_accepted_radii("sample.npy")
 
 A completed run is recorded in `edges.qc_result`. Its `rejected_by(frame_index)` method reports individual check failures, `diagnostics_for_frame(frame_index)` returns measurements grouped by check, and `accepted_frame_indices` gives the final selection under the configured rejection rule. `export_accepted_radii()` writes all accepted analysis-contour radii in microns as the `.npy` handoff to EdgeMod.
 
-Visualization is kept separate from `VesicleVideo`. Use `draw_vesicle_frame(...)` or `make_vesicle_gif(...)` from `vesmod.VesEdge` when combining source frames with extracted-edge overlays.
+Visualization is kept separate from `VesicleVideo`. Use `draw_vesicle_frame(...)` or `make_vesicle_gif(...)` from `vesmod.vesedge` when combining source frames with extracted-edge overlays.
 
 Internal-structure measurements use the experimental namespace:
 
 ```python
-from vesmod.VesEdge.experimental.internal_structures import (
+from vesmod.vesedge.experimental.internal_structures import (
     InternalStructureConfig,
     detect_internal_structures,
     summarize_internal_structures,
@@ -830,10 +830,10 @@ See the [QC developer guide](QC_checks.md) for required result fields,
 measurement declarations, and serialization.
 
 Put the check and its configuration in a module under
-`vesmod/VesEdge/qc/checks/`, or `vesmod/VesEdge/qc/experimental/` for an
+`vesmod/vesedge/qc/checks/`, or `vesmod/vesedge/qc/experimental/` for an
 experimental method. Implement
-[`QCCheck`](../vesmod/VesEdge/qc/qc_check.py) and add one instance to the ordered
-[`QC_CHECKS` registry](../vesmod/VesEdge/qc/qc_registry.py). Return a
+[`QCCheck`](../vesmod/vesedge/qc/qc_check.py) and add one instance to the ordered
+[`QC_CHECKS` registry](../vesmod/vesedge/qc/qc_registry.py). Return a
 `QCResult` with one rejection decision per supplied detection and declared
 diagnostic measurements. Checks evaluate contours independently and do not
 modify detections. For recording rejection, include a reason in
@@ -861,11 +861,11 @@ image-based example that runs through the CLI and replays the saved settings.
 ## CLI module ownership
 
 Extraction, QC, GIF, and trace-plot command implementations live in
-`vesmod/VesEdge/cli/`. The extraction command owns its arguments, custom
+`vesmod/vesedge/cli/`. The extraction command owns its arguments, custom
 extractor loading, checkpoint output paths, and batch execution in
 `extraction_cli.py`.
 The experimental internal-structures command lives in
-`vesmod/VesEdge/experimental/cli/internal_structures_cli.py`, alongside the
+`vesmod/vesedge/experimental/cli/internal_structures_cli.py`, alongside the
 experimental method it exposes. `vesmod/cli/vesedge_cli.py` registers these
 commands and dispatches to their implementations. Every command module exposes
 `add_parser(subparsers)` to register its arguments and `run(args)` to execute

@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from vesmod.EdgeMod import SpectrumFitConfig
+from vesmod.edgemod import SpectrumFitConfig
 
 
 def test_default_config_preserves_historical_fit_settings():

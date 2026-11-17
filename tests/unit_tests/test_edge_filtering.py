@@ -3,8 +3,8 @@
 import numpy as np
 import pytest
 
-from vesmod.VesEdge.qc.checks.edge_filtering import check_curvature
-from vesmod.VesEdge.models import EdgeDetection, ImageContour
+from vesmod.vesedge.qc.checks.edge_filtering import check_curvature
+from vesmod.vesedge.models import EdgeDetection, ImageContour
 
 
 def _make_edge(

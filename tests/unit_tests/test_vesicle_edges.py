@@ -1,15 +1,15 @@
 """Unit tests for vesicle_edges.py."""
 
-from vesmod.VesEdge.qc.experimental.area_qc import AreaQCConfig
-from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
-from vesmod.VesEdge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
+from vesmod.vesedge.qc.experimental.area_qc import AreaQCConfig
+from vesmod.vesedge.qc.checks.edge_filtering import CurvatureQCConfig
+from vesmod.vesedge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
 import numpy as np
 import pytest
 
-from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
-from vesmod.VesEdge.vesicle_edges import VesicleEdges
-from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
-from vesmod.VesEdge.models import (
+from vesmod.vesedge.extraction.config import EdgeExtractionConfig
+from vesmod.vesedge.vesicle_edges import VesicleEdges
+from vesmod.vesedge.qc.qc_config import VesicleQCConfig
+from vesmod.vesedge.models import (
     EdgeDetection,
     EdgeDetectionFailure,
     ImageContour,
@@ -132,7 +132,7 @@ def test_run_qc_restores_previous_state_when_a_check_errors(edges, qc_config, mo
         raise ValueError("check failed")
 
     monkeypatch.setattr(
-        "vesmod.VesEdge.vesicle_edges.run_configured_qc_checks", fail_without_modifying_detections,
+        "vesmod.vesedge.vesicle_edges.run_configured_qc_checks", fail_without_modifying_detections,
     )
     with pytest.raises(ValueError, match="check failed"):
         edges.run_qc(qc_config)

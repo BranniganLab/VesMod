@@ -3,9 +3,9 @@
 import numpy as np
 import pytest
 
-from vesmod.VesEdge.io.checkpoint_io import save_checkpoint
-from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
-from vesmod.VesEdge.models import EdgeDetection, ImageContour
+from vesmod.vesedge.io.checkpoint_io import save_checkpoint
+from vesmod.vesedge.extraction.config import EdgeExtractionConfig
+from vesmod.vesedge.models import EdgeDetection, ImageContour
 
 
 def _detection(frame_index):

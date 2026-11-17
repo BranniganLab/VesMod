@@ -6,15 +6,15 @@ import numpy as np
 import pytest
 import matplotlib.pyplot as plt
 
-from vesmod.EdgeMod import Spectrum, SpectrumFitConfig
+from vesmod.edgemod import Spectrum, SpectrumFitConfig
 
-from vesmod.EdgeMod.plotting.spectrum_plotting import (
+from vesmod.edgemod.plotting.spectrum_plotting import (
     SpectrumPlotData,
     SpectrumPlotConfig,
     plot_spectrum,
     save_spectrum_fit_diagnostic,
 )
-from vesmod.EdgeMod.fitting.fitting_functions.spherical_model import spherical_contour_spectrum
+from vesmod.edgemod.fitting.fitting_functions.spherical_model import spherical_contour_spectrum
 
 
 def test_save_spectrum_fit_diagnostic_creates_png_with_large_uncertainty(tmp_path):
@@ -107,8 +107,8 @@ def test_plot_spectrum_can_include_q1_as_an_opt_in():
     plt.close(figure)
 
 
-from vesmod.EdgeMod.fitting.fitting_functions.spherical_model import predict_spherical_contour_power
-from vesmod.EdgeMod.plotting.spectrum_plotting import plot_q3_scaled_spectrum
+from vesmod.edgemod.fitting.fitting_functions.spherical_model import predict_spherical_contour_power
+from vesmod.edgemod.plotting.spectrum_plotting import plot_q3_scaled_spectrum
 
 
 @pytest.mark.parametrize('power', ['measured', 'corrected', 'both'])
@@ -195,7 +195,7 @@ def test_spectrum_plot_exposure_uses_effective_config(
         monkeypatch, recorded_exposure, explicit_exposure, expected):
     """Explicit plotting config takes precedence over recorded fit config."""
     from importlib import import_module
-    module = import_module('vesmod.EdgeMod.spectra.spectrum')
+    module = import_module('vesmod.edgemod.spectra.spectrum')
     spectrum = Spectrum.from_radii(np.full((2, 32), 5.0))
     def config(exposure):
         return SpectrumFitConfig(camera_integration=exposure > 0, exposure_time=exposure, viscosity_in=.00102,

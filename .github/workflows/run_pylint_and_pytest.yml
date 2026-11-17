@@ -27,8 +27,8 @@ jobs:
     - name: Analysing the code with pylint
       run: |
         export PYLINTRC=./.github/workflows/.pylintrc
-        pylint $(find ./vesmod/VesEdge -name '*.py') --fail-under=8
-        pylint $(find ./vesmod/EdgeMod -name '*.py') --fail-under=8
+        pylint $(find ./vesmod/vesedge -name '*.py') --fail-under=8
+        pylint $(find ./vesmod/edgemod -name '*.py') --fail-under=8
         pylint $(find ./vesmod/cli -name '*.py') --fail-under=8
 
   unit-tests:

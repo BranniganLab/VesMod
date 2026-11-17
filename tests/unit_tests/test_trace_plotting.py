@@ -1,8 +1,8 @@
 """Tests for VesEdge contour trace overlays."""
 
-from vesmod.VesEdge.qc.experimental.area_qc import AreaQCConfig
-from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
-from vesmod.VesEdge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
+from vesmod.vesedge.qc.experimental.area_qc import AreaQCConfig
+from vesmod.vesedge.qc.checks.edge_filtering import CurvatureQCConfig
+from vesmod.vesedge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
 import json
 from types import SimpleNamespace
 
@@ -13,18 +13,18 @@ matplotlib.use("Agg")
 import numpy as np
 import pytest
 
-from vesmod.VesEdge.models import EdgeDetection, ImageContour, VesicleQCResult
-from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
-from vesmod.VesEdge.visualization.trace_plotting import (
+from vesmod.vesedge.models import EdgeDetection, ImageContour, VesicleQCResult
+from vesmod.vesedge.extraction.config import EdgeExtractionConfig
+from vesmod.vesedge.visualization.trace_plotting import (
     EdgeTracePlotConfig,
     centered_contour_coordinates,
     contour_center_of_mass,
     plot_edge_traces,
     select_trace_detections,
 )
-from vesmod.VesEdge.vesicle_edges import VesicleEdges
-from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
-from vesmod.VesEdge.cli import trace_plot_cli
+from vesmod.vesedge.vesicle_edges import VesicleEdges
+from vesmod.vesedge.qc.qc_config import VesicleQCConfig
+from vesmod.vesedge.cli import trace_plot_cli
 
 
 def _edges():

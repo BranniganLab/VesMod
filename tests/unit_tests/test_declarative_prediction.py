@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
-from vesmod.EdgeMod import (
+from vesmod.edgemod import (
     Spectrum, SpectrumFitConfig, mode_relaxation_times, predict_spherical_contour_power,
     spherical_contour_spectrum,
 )
@@ -85,7 +85,7 @@ def test_disabled_correction_fits_and_plots_equilibrium_with_exposure_metadata()
         spectrum.plot(ax=ax)
         np.testing.assert_allclose(ax.lines[-1].get_ydata(),
                                    spectrum.powers[3:8], rtol=1e-5)
-        from vesmod.EdgeMod import SpectrumPlotConfig
+        from vesmod.edgemod import SpectrumPlotConfig
         with pytest.raises(ValueError, match='existing camera integration fit'):
             spectrum.plot(ax=ax, plot_config=SpectrumPlotConfig(power='corrected'))
     finally:
@@ -98,8 +98,8 @@ def test_disabled_correction_fits_and_plots_equilibrium_with_exposure_metadata()
 def test_prediction_validates_inputs_once_not_each_spherical_mode(
         monkeypatch, relaxation_model, eta_m):
     """Cached ell arrays must bypass repeated public-API validation."""
-    import vesmod.EdgeMod.fitting.mode_relaxation.relaxation as relaxation
-    import vesmod.EdgeMod.fitting.fitting_functions.spherical_model as utils
+    import vesmod.edgemod.fitting.mode_relaxation.relaxation as relaxation
+    import vesmod.edgemod.fitting.fitting_functions.spherical_model as utils
     config = SpectrumFitConfig(camera_integration=True, exposure_time=.030,
                                relaxation_model=relaxation_model, eta_m=eta_m,
                                viscosity_in=.001, viscosity_out=.001)

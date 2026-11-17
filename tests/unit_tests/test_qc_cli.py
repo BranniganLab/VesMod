@@ -10,17 +10,17 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from vesmod.VesEdge.qc.experimental.area_qc import AreaQCConfig
-from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
-from vesmod.VesEdge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
-from vesmod.VesEdge.qc.qc_result import QCResult
-from vesmod.VesEdge.models import EdgeDetection, ImageContour, VesicleQCResult
-from vesmod.VesEdge.qc.experimental.area_qc import _save_area_qc_plot, _write_area_qc_csv
-from vesmod.VesEdge.qc.experimental.minimum_radius_qc import _write_minimum_radius_qc_csv
-from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
-from vesmod.VesEdge.vesicle_edges import VesicleEdges
-from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
-from vesmod.VesEdge.cli import qc_cli
+from vesmod.vesedge.qc.experimental.area_qc import AreaQCConfig
+from vesmod.vesedge.qc.checks.edge_filtering import CurvatureQCConfig
+from vesmod.vesedge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
+from vesmod.vesedge.qc.qc_result import QCResult
+from vesmod.vesedge.models import EdgeDetection, ImageContour, VesicleQCResult
+from vesmod.vesedge.qc.experimental.area_qc import _save_area_qc_plot, _write_area_qc_csv
+from vesmod.vesedge.qc.experimental.minimum_radius_qc import _write_minimum_radius_qc_csv
+from vesmod.vesedge.extraction.config import EdgeExtractionConfig
+from vesmod.vesedge.vesicle_edges import VesicleEdges
+from vesmod.vesedge.qc.qc_config import VesicleQCConfig
+from vesmod.vesedge.cli import qc_cli
 from vesmod.cli import vesedge_cli
 
 

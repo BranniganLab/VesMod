@@ -1,5 +1,5 @@
 """Mutable synthetic spectrum state for tests of downstream consumers only."""
-from vesmod.EdgeMod import Spectrum
+from vesmod.edgemod import Spectrum
 
 
 class SyntheticSpectrum(Spectrum):

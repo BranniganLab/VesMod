@@ -1,11 +1,11 @@
 """Tests for the selectable temporal power used by EdgeMod."""
 
-from vesmod.EdgeMod import MeanSquaredPowerCalculator, TemporalVarianceCalculator
+from vesmod.edgemod import MeanSquaredPowerCalculator, TemporalVarianceCalculator
 
 import numpy as np
 import pytest
 
-from vesmod.EdgeMod import Spectrum
+from vesmod.edgemod import Spectrum
 
 
 def test_mean_square_retains_static_mode_power():

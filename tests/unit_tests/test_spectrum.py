@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 # tests/test_spectrum.py
-from vesmod.VesEdge.qc.experimental.area_qc import AreaQCConfig
-from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
-from vesmod.VesEdge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
+from vesmod.vesedge.qc.experimental.area_qc import AreaQCConfig
+from vesmod.vesedge.qc.checks.edge_filtering import CurvatureQCConfig
+from vesmod.vesedge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
 import json
 import subprocess
 import sys
@@ -14,13 +14,13 @@ from spectrum_fixture import SyntheticSpectrum
 import numpy as np
 import pytest
 
-from vesmod.EdgeMod import Spectrum, SpectrumFitConfig
-from vesmod.EdgeMod.fitting.range_selection.selection import select_manual_range, slice_fit_arrays
-from vesmod.VesEdge.models import EdgeDetection, EdgeDetectionFailure
-from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
-from vesmod.VesEdge.vesicle_edges import VesicleEdges
-from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
-from vesmod.VesEdge.models import ImageContour
+from vesmod.edgemod import Spectrum, SpectrumFitConfig
+from vesmod.edgemod.fitting.range_selection.selection import select_manual_range, slice_fit_arrays
+from vesmod.vesedge.models import EdgeDetection, EdgeDetectionFailure
+from vesmod.vesedge.extraction.config import EdgeExtractionConfig
+from vesmod.vesedge.vesicle_edges import VesicleEdges
+from vesmod.vesedge.qc.qc_config import VesicleQCConfig
+from vesmod.vesedge.models import ImageContour
 
 
 def test_array_and_file_spectra_do_not_import_microscopy_modules(tmp_path):
@@ -30,7 +30,7 @@ from pathlib import Path
 import sys
 
 import numpy as np
-from vesmod.EdgeMod import Spectrum
+from vesmod.edgemod import Spectrum
 
 radii = np.full((3, 120), 2.0)
 path = Path("edges.npy")
@@ -38,7 +38,7 @@ np.save(path, radii)
 for spectrum in (Spectrum.from_radii(radii), Spectrum(path), Spectrum(str(path))):
     assert spectrum.r0 == 2.0
 
-microscopy = {"vesmod.VesEdge", "nd2", "cv2", "skimage"}
+microscopy = {"vesmod.vesedge", "nd2", "cv2", "skimage"}
 loaded = microscopy.intersection(sys.modules)
 assert not loaded, f"Unexpected microscopy imports: {sorted(loaded)}"
 """
@@ -242,11 +242,11 @@ def test_extract_kc_from_fit_uses_config_and_saves_fit_results(monkeypatch):
         return 9.9
 
     monkeypatch.setattr(
-        "vesmod.EdgeMod.fitting.optimization.least_squares.fit_spectrum",
+        "vesmod.edgemod.fitting.optimization.least_squares.fit_spectrum",
         fake_fit_spectrum,
     )
     monkeypatch.setattr(
-        "vesmod.EdgeMod.spectra.spectrum.calc_tension_from_reduced_tension",
+        "vesmod.edgemod.spectra.spectrum.calc_tension_from_reduced_tension",
         fake_calc_tension_from_reduced_tension,
     )
     config = SpectrumFitConfig(
@@ -293,11 +293,11 @@ def test_extract_kc_from_fit_uses_default_config(monkeypatch):
         return SimpleNamespace(best_values={"kC": 20.0, "sigma": 2.0})
 
     monkeypatch.setattr(
-        "vesmod.EdgeMod.fitting.optimization.least_squares.fit_spectrum",
+        "vesmod.edgemod.fitting.optimization.least_squares.fit_spectrum",
         fake_fit,
     )
     monkeypatch.setattr(
-        "vesmod.EdgeMod.spectra.spectrum.calc_tension_from_reduced_tension",
+        "vesmod.edgemod.spectra.spectrum.calc_tension_from_reduced_tension",
         lambda *args: 1.0,
     )
 
@@ -322,7 +322,7 @@ def test_extract_kc_from_fit_rejects_empty_configured_range(monkeypatch):
     spectrum.fit_results = []
 
     monkeypatch.setattr(
-        "vesmod.EdgeMod.fitting.optimization.least_squares.fit_spectrum",
+        "vesmod.edgemod.fitting.optimization.least_squares.fit_spectrum",
         lambda *args: pytest.fail("Physical fitter should not run"),
     )
 

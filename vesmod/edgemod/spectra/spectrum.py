@@ -15,24 +15,24 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from vesmod.validation import require_finite_array, require_numeric_array
-from vesmod.EdgeMod.plotting.spectrum_plotting import (
+from vesmod.edgemod.plotting.spectrum_plotting import (
     SpectrumPlotData,
     SpectrumPlotConfig,
     SpectrumPlotResult,
     plot_spectrum,
     save_spectrum_fit_diagnostic,
 )
-from vesmod.EdgeMod.fitting.config import SpectrumFitConfig
-from vesmod.EdgeMod.spectra.power_calculation.calculators import MeanSquaredPowerCalculator
-from vesmod.EdgeMod.spectra.power_calculation.base import PowerCalculationResult, SpectrumCalculator
-from vesmod.EdgeMod.fitting.fit_result import SpectrumFit
-from vesmod.EdgeMod.fitting.optimization.least_squares import fit_configured_spectrum
-from vesmod.EdgeMod.fitting.tension import calc_tension_from_reduced_tension
+from vesmod.edgemod.fitting.config import SpectrumFitConfig
+from vesmod.edgemod.spectra.power_calculation.calculators import MeanSquaredPowerCalculator
+from vesmod.edgemod.spectra.power_calculation.base import PowerCalculationResult, SpectrumCalculator
+from vesmod.edgemod.fitting.fit_result import SpectrumFit
+from vesmod.edgemod.fitting.optimization.least_squares import fit_configured_spectrum
+from vesmod.edgemod.fitting.tension import calc_tension_from_reduced_tension
 
 
 
 if TYPE_CHECKING:
-    from vesmod.VesEdge.vesicle_edges import VesicleEdges
+    from vesmod.vesedge.vesicle_edges import VesicleEdges
 
 
 class Spectrum:
@@ -85,7 +85,7 @@ class Spectrum:
                 raise ValueError("edges_over_time must end in .npy")
             input_data = np.load(edges_over_time)
         else:
-            from vesmod.VesEdge.vesicle_edges import VesicleEdges
+            from vesmod.vesedge.vesicle_edges import VesicleEdges
 
             if not isinstance(edges_over_time, VesicleEdges):
                 raise TypeError(

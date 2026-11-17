@@ -4,7 +4,7 @@
 the measured q=1 point for visual inspection, enable it explicitly:
 
 ```python
-from vesmod.EdgeMod import SpectrumPlotConfig
+from vesmod.edgemod import SpectrumPlotConfig
 
 plot_config = SpectrumPlotConfig(include_q1=True)
 spectrum.plot(ax=ax, plot_config=plot_config)

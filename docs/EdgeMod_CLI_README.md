@@ -164,7 +164,7 @@ sample.spectrum_diagnostic.png
 ## Python API
 
 ```python
-from vesmod.EdgeMod import Spectrum, SpectrumFitConfig
+from vesmod.edgemod import Spectrum, SpectrumFitConfig
 
 spectrum = Spectrum("sample.npy")
 config = SpectrumFitConfig(
@@ -334,7 +334,7 @@ stored in `powers` and used by subsequent fits. Here, `edges` is a QCed
 `VesicleEdges` object or a path to the saved radii array.
 
 ```python
-from vesmod.EdgeMod import Spectrum, MeanSquaredPowerCalculator, TemporalVarianceCalculator
+from vesmod.edgemod import Spectrum, MeanSquaredPowerCalculator, TemporalVarianceCalculator
 
 mean_square = Spectrum(edges, calculator=MeanSquaredPowerCalculator())
 mean_square_fit = mean_square.extract_kc_from_fit()
@@ -357,7 +357,7 @@ After fitting a `Spectrum` with `camera_integration=True`, positive exposure tim
 and the inputs required by its selected relaxation model:
 
 ```python
-from vesmod.EdgeMod.plotting.spectrum_plotting import SpectrumPlotConfig
+from vesmod.edgemod.plotting.spectrum_plotting import SpectrumPlotConfig
 
 spectrum.extract_kc_from_fit(fit_config)
 result = spectrum.plot(plot_config=SpectrumPlotConfig(power="both"))
@@ -461,7 +461,7 @@ prediction exactly. The choices are serialized in fit results and provenance.
 For prediction without fitting:
 
 ```python
-from vesmod.EdgeMod import SpectrumFitConfig, predict_spherical_contour_power
+from vesmod.edgemod import SpectrumFitConfig, predict_spherical_contour_power
 
 config = SpectrumFitConfig(
     model="spherical_contour_spectrum",

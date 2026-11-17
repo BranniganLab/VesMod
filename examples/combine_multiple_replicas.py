@@ -9,7 +9,7 @@ import numpy as np
 import glob
 from pathlib import Path
 import json
-from vesmod.EdgeMod import SpectrumEnsemble
+from vesmod.edgemod import SpectrumEnsemble
 
 file_dir = '/home/js2746/DOPC_Cer_fluctuations/Replacement_DOPC/vesmod_test/'
 sigma_max = 1.325e-7  # surface tension cutoff in N/m

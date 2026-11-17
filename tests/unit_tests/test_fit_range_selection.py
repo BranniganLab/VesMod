@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from vesmod.EdgeMod.fitting.range_selection.experimental import QMinusThreeRangeSelector
+from vesmod.edgemod.fitting.range_selection.experimental import QMinusThreeRangeSelector
 
 
 def _selector(**overrides):

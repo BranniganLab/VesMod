@@ -1,8 +1,8 @@
 """Tests for the experimental internal-structure CLI command."""
 
-from vesmod.VesEdge.qc.experimental.area_qc import AreaQCConfig
-from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
-from vesmod.VesEdge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
+from vesmod.vesedge.qc.experimental.area_qc import AreaQCConfig
+from vesmod.vesedge.qc.checks.edge_filtering import CurvatureQCConfig
+from vesmod.vesedge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
 import argparse
 from contextlib import nullcontext
 import csv
@@ -13,11 +13,11 @@ import sys
 import numpy as np
 import pytest
 
-from vesmod.VesEdge.models import EdgeDetection, ImageContour
-from vesmod.VesEdge.qc.qc_replay import RecordedQCSelection
-from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
-from vesmod.VesEdge.experimental.internal_structures import InternalStructureRegion
-from vesmod.VesEdge.experimental.cli import internal_structures_cli
+from vesmod.vesedge.models import EdgeDetection, ImageContour
+from vesmod.vesedge.qc.qc_replay import RecordedQCSelection
+from vesmod.vesedge.qc.qc_config import VesicleQCConfig
+from vesmod.vesedge.experimental.internal_structures import InternalStructureRegion
+from vesmod.vesedge.experimental.cli import internal_structures_cli
 from vesmod.cli import vesedge_cli
 
 
