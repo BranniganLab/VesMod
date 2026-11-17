@@ -3,7 +3,7 @@
 from pathlib import Path
 import glob
 
-from vesmod.EdgeMod import Spectrum, SpectrumFitConfig
+from vesmod.edgemod import Spectrum, SpectrumFitConfig
 
 fpath = "YOUR/PATH/HERE/"  # directory containing .npy file(s)
 config = SpectrumFitConfig(

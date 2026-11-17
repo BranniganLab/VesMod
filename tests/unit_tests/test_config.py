@@ -5,11 +5,11 @@ import warnings
 import numpy as np
 import pytest
 
-from vesmod.VesEdge.qc.experimental.area_qc import AreaQCConfig
-from vesmod.VesEdge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
-from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
-from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
-from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
+from vesmod.vesedge.qc.experimental.area_qc import AreaQCConfig
+from vesmod.vesedge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
+from vesmod.vesedge.qc.checks.edge_filtering import CurvatureQCConfig
+from vesmod.vesedge.extraction.config import EdgeExtractionConfig
+from vesmod.vesedge.qc.qc_config import VesicleQCConfig
 
 
 def test_edge_extraction_config_requires_positive_pixels_per_micron():

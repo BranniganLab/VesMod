@@ -191,9 +191,9 @@ The Python API provides the same extraction, QC, and fitting workflow.
 ```python
 from pathlib import Path
 
-from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
-from vesmod.VesEdge.vesicle_video import VesicleVideo
-from vesmod.VesEdge.extraction.edge_extractor import extract_edge_from_frame
+from vesmod.vesedge.extraction.config import EdgeExtractionConfig
+from vesmod.vesedge.vesicle_video import VesicleVideo
+from vesmod.vesedge.extraction.edge_extractor import extract_edge_from_frame
 
 video = VesicleVideo(frames)
 edges = video.extract_edges(
@@ -212,10 +212,10 @@ edges.save_checkpoint("checkpoints/sample.npz")
 Reload the checkpoint and apply the same two QC configurations used in the CLI workflow.
 
 ```python
-from vesmod.VesEdge.qc.checks.edge_filtering import CurvatureQCConfig
-from vesmod.VesEdge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
-from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
-from vesmod.VesEdge.vesicle_edges import VesicleEdges
+from vesmod.vesedge.qc.checks.edge_filtering import CurvatureQCConfig
+from vesmod.vesedge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
+from vesmod.vesedge.qc.qc_config import VesicleQCConfig
+from vesmod.vesedge.vesicle_edges import VesicleEdges
 
 edges = VesicleEdges.from_checkpoint("checkpoints/sample.npz")
 localized_deviation = LocalizedDeviationQCConfig(
@@ -242,7 +242,7 @@ After a completed QC run, `edges.qc_result` contains the aggregate result for th
 Fit the accepted contours with the stable core EdgeMod API:
 
 ```python
-from vesmod.EdgeMod import Spectrum, SpectrumFitConfig
+from vesmod.edgemod import Spectrum, SpectrumFitConfig
 
 spectrum = Spectrum("sample.npy")
 
@@ -259,7 +259,7 @@ Fit a replica-averaged spectrum with the same configuration object. Ensemble
 fits use free sigma by default, including the `.kC` property:
 
 ```python
-from vesmod.EdgeMod import SpectrumEnsemble, SpectrumFitConfig
+from vesmod.edgemod import SpectrumEnsemble, SpectrumFitConfig
 
 ensemble = SpectrumEnsemble()
 # Add compatible replica spectra with ensemble.add_spectrum(...).

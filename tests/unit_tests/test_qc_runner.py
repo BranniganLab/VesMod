@@ -9,13 +9,13 @@ from types import SimpleNamespace
 import numpy as np
 
 
-from vesmod.VesEdge.qc import qc_runner, qc_registry
-from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
-from vesmod.VesEdge.models import EdgeDetection, ImageContour
-from vesmod.VesEdge.qc.qc_check import QCCheck
-from vesmod.VesEdge.qc.qc_result import QCResult
-from vesmod.VesEdge.qc.qc_replay import load_recorded_qc, replay_recorded_qc
-from vesmod.VesEdge.vesicle_edges import VesicleEdges
+from vesmod.vesedge.qc import qc_runner, qc_registry
+from vesmod.vesedge.extraction.config import EdgeExtractionConfig
+from vesmod.vesedge.models import EdgeDetection, ImageContour
+from vesmod.vesedge.qc.qc_check import QCCheck
+from vesmod.vesedge.qc.qc_result import QCResult
+from vesmod.vesedge.qc.qc_replay import load_recorded_qc, replay_recorded_qc
+from vesmod.vesedge.vesicle_edges import VesicleEdges
 from vesmod.cli import vesedge_cli
 
 

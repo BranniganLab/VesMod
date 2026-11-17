@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from vesmod.VesEdge.models import ImageContour
+from vesmod.vesedge.models import ImageContour
 
 
 def test_image_contour_theta_is_evenly_spaced():

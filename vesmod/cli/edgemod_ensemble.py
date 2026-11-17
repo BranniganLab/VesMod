@@ -4,7 +4,7 @@ import json
 from importlib import import_module
 from types import SimpleNamespace
 
-from vesmod.EdgeMod import PowerCalculationResult, SpectrumEnsemble
+from vesmod.edgemod import PowerCalculationResult, SpectrumEnsemble
 from vesmod.cli.batch_policy import exit_code
 from vesmod.cli.input_selection import select_input_files
 

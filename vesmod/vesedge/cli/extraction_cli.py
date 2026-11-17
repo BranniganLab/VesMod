@@ -7,9 +7,9 @@ import importlib
 import importlib.util
 from pathlib import Path
 
-from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
-from vesmod.VesEdge.vesicle_video import VesicleVideo
-from vesmod.VesEdge.io.frame_source import open_frame_source
+from vesmod.vesedge.extraction.config import EdgeExtractionConfig
+from vesmod.vesedge.vesicle_video import VesicleVideo
+from vesmod.vesedge.io.frame_source import open_frame_source
 from vesmod.io.path_mapping import map_output_path
 from vesmod.cli.batch_policy import (
     add_batch_policy_argument,
@@ -91,7 +91,7 @@ def add_parser(subparsers) -> None:
     )
     parser.add_argument(
         "--extractor",
-        default="vesmod.VesEdge.extraction.edge_extractor:extract_edge_from_frame",
+        default="vesmod.vesedge.extraction.edge_extractor:extract_edge_from_frame",
         help=(
             "Edge extractor as 'module:function'. The function must accept one "
             "2D frame and return (r_vals, vesicle_center)."

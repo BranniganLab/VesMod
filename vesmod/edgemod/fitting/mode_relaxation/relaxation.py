@@ -3,7 +3,7 @@
 import numpy as np
 from scipy.constants import Boltzmann
 
-from .spherical_validation import validate_spherical_inputs, validate_vesicle_radii
+from vesmod.edgemod.fitting.fitting_functions.spherical_validation import validate_spherical_inputs, validate_vesicle_radii
 
 
 def mode_relaxation_times(ell, kC, sigma, *, config, radii):

@@ -1,15 +1,15 @@
 # Writing a VesEdge QC check
 
 Each registered check returns a `QCResult` defined in
-[`qc_result.py`](../vesmod/VesEdge/qc/qc_result.py). The runner validates that
+[`qc_result.py`](../vesmod/vesedge/qc/qc_result.py). The runner validates that
 result and collects it into `VesicleQCResult`. Detections contain extraction
 geometry and source-frame identity; checks do not modify them. Every enabled
 check must return a result, including a check that accepts every frame.
 
-Implement [`QCCheck`](../vesmod/VesEdge/qc/qc_check.py) in a module under
-`vesmod/VesEdge/qc/checks/`, or `qc/experimental/` for an experimental method.
+Implement [`QCCheck`](../vesmod/vesedge/qc/qc_check.py) in a module under
+`vesmod/vesedge/qc/checks/`, or `qc/experimental/` for an experimental method.
 Define the check's `name`, `config_type`, and `run()` method, then import and
-instantiate it in [`qc_registry.py`](../vesmod/VesEdge/qc/qc_registry.py).
+instantiate it in [`qc_registry.py`](../vesmod/vesedge/qc/qc_registry.py).
 
 ## Standard result fields
 
@@ -91,9 +91,9 @@ The separate `reject_when` setting determines how their frame decisions are
 combined. By default, a frame is rejected if any enabled check rejects it.
 
 ```python
-from vesmod.VesEdge.qc.acceptance_rules import AnyFailed, AllFailed
-from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
-from vesmod.VesEdge.qc.experimental.area_qc import AreaQCConfig
+from vesmod.vesedge.qc.acceptance_rules import AnyFailed, AllFailed
+from vesmod.vesedge.qc.qc_config import VesicleQCConfig
+from vesmod.vesedge.qc.experimental.area_qc import AreaQCConfig
 
 config = VesicleQCConfig(
     area=AreaQCConfig(enabled=True),

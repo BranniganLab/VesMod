@@ -6,14 +6,14 @@ import json
 import numpy as np
 import pytest
 
-from vesmod.VesEdge.models import EdgeDetection, ImageContour, VesicleQCResult
-from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
-from vesmod.VesEdge.vesicle_edges import VesicleEdges
-from vesmod.VesEdge.qc import qc_registry
-from vesmod.VesEdge.qc.qc_check import QCCheck
-from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
-from vesmod.VesEdge.qc.qc_registry import QC_CHECKS
-from vesmod.VesEdge.qc.qc_result import QCResult
+from vesmod.vesedge.models import EdgeDetection, ImageContour, VesicleQCResult
+from vesmod.vesedge.extraction.config import EdgeExtractionConfig
+from vesmod.vesedge.vesicle_edges import VesicleEdges
+from vesmod.vesedge.qc import qc_registry
+from vesmod.vesedge.qc.qc_check import QCCheck
+from vesmod.vesedge.qc.qc_config import VesicleQCConfig
+from vesmod.vesedge.qc.qc_registry import QC_CHECKS
+from vesmod.vesedge.qc.qc_result import QCResult
 
 
 @dataclass(frozen=True)

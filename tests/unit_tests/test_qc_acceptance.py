@@ -9,18 +9,18 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
-from vesmod.VesEdge import AnyFailed, AllFailed
-from vesmod.VesEdge.extraction.config import EdgeExtractionConfig
-from vesmod.VesEdge.models import EdgeDetection, EdgeDetectionFailure, ImageContour, VesicleQCResult
-from vesmod.VesEdge.qc import qc_registry
-from vesmod.VesEdge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
-from vesmod.VesEdge.qc.experimental.area_qc import AreaQCConfig
-from vesmod.VesEdge.qc.qc_config import VesicleQCConfig
-from vesmod.VesEdge.qc.qc_replay import load_recorded_qc, replay_recorded_qc
-from vesmod.VesEdge.vesicle_edges import VesicleEdges
-from vesmod.VesEdge.vesicle_video import VesicleVideo
-from vesmod.VesEdge.visualization.animation import draw_vesicle_frame
-from vesmod.VesEdge.visualization.trace_plotting import select_trace_detections
+from vesmod.vesedge import AnyFailed, AllFailed
+from vesmod.vesedge.extraction.config import EdgeExtractionConfig
+from vesmod.vesedge.models import EdgeDetection, EdgeDetectionFailure, ImageContour, VesicleQCResult
+from vesmod.vesedge.qc import qc_registry
+from vesmod.vesedge.qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig
+from vesmod.vesedge.qc.experimental.area_qc import AreaQCConfig
+from vesmod.vesedge.qc.qc_config import VesicleQCConfig
+from vesmod.vesedge.qc.qc_replay import load_recorded_qc, replay_recorded_qc
+from vesmod.vesedge.vesicle_edges import VesicleEdges
+from vesmod.vesedge.vesicle_video import VesicleVideo
+from vesmod.vesedge.visualization.animation import draw_vesicle_frame
+from vesmod.vesedge.visualization.trace_plotting import select_trace_detections
 from vesmod.cli import vesedge_cli
 
 

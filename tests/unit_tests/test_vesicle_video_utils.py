@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from vesmod.VesEdge.contour_geometry import measure_wrapped_finite_second_difference
-from vesmod.VesEdge.extraction.vesicle_video_utils import (
+from vesmod.vesedge.contour_geometry import measure_wrapped_finite_second_difference
+from vesmod.vesedge.extraction.vesicle_video_utils import (
     convert_to_cartesian,
     convert_to_polar,
     downsample_to_new_indices,

@@ -3,7 +3,7 @@
 `Spectrum` accepts a callable calculator in every construction route. Omission defaults to `MeanSquaredPowerCalculator`, preserving the historical calculation.
 
 ```python
-from vesmod.EdgeMod import Spectrum, TemporalVarianceCalculator
+from vesmod.edgemod import Spectrum, TemporalVarianceCalculator
 
 spectrum = Spectrum.from_radii(radii, calculator=TemporalVarianceCalculator())
 print(spectrum.modes, spectrum.powers)
@@ -15,7 +15,7 @@ print(spectrum.modes, spectrum.powers)
 
 ```python
 import numpy as np
-from vesmod.EdgeMod import Spectrum, PowerCalculationResult
+from vesmod.edgemod import Spectrum, PowerCalculationResult
 
 
 def custom_calculator(radii):

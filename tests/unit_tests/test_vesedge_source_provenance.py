@@ -6,7 +6,7 @@ from pathlib import Path
 
 import numpy as np
 
-from vesmod.VesEdge.cli import extraction_cli
+from vesmod.vesedge.cli import extraction_cli
 
 
 def test_process_extract_file_sets_source_path_on_video(tmp_path, monkeypatch):
@@ -45,7 +45,7 @@ def test_process_extract_file_sets_source_path_on_video(tmp_path, monkeypatch):
         no_gif=True,
         overwrite=True,
         extractor_file=None,
-        extractor="vesmod.VesEdge.extraction.edge_extractor:extract_edge_from_frame",
+        extractor="vesmod.vesedge.extraction.edge_extractor:extract_edge_from_frame",
         extractor_name="extract_edge_from_frame",
         downsample=False,
         n_samples=120,

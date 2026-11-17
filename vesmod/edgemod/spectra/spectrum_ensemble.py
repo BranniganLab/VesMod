@@ -13,9 +13,9 @@ behavior.
 """
 import numpy as np
 from vesmod.validation import require_positive_real
-from .fitting import fit_configured_spectrum
-from .config import SpectrumFitConfig
-from .fit_result import EnsembleFit
+from vesmod.edgemod.fitting.optimization.least_squares import fit_configured_spectrum
+from vesmod.edgemod.fitting.config import SpectrumFitConfig
+from vesmod.edgemod.fitting.fit_result import EnsembleFit
 
 
 

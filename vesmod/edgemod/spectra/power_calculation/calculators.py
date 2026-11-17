@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .power_calculation import PowerCalculationResult
+from vesmod.edgemod.spectra.power_calculation.base import PowerCalculationResult
 
 
 def _coefficients(radii):
