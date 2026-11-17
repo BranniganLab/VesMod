@@ -16,7 +16,8 @@ from vesmod.cli.batch_policy import (
     exit_code,
     report_batch_summary,
 )
-from vesmod.cli.input_selection import InputPathsAction, select_input_files
+from vesmod.cli.input_selection import InputPathsAction
+from vesmod.io.input_selection import select_input_files
 from vesmod.cli.path_utils import _display_path
 
 
@@ -114,16 +115,6 @@ def add_parser(subparsers) -> None:
         help="Overwrite existing extraction outputs.",
     )
     add_batch_policy_argument(parser)
-
-
-def iter_input_files(
-    input_path: Path | list[Path],
-    suffix: str,
-    recursive: bool,
-) -> list[Path]:
-    """Return selected input files with the requested suffix."""
-    paths, _ = select_input_files(input_path, suffix, recursive)
-    return paths
 
 
 def load_extractor_from_module(import_string: str):

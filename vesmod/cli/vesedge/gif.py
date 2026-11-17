@@ -17,7 +17,8 @@ from vesmod.io.vesedge.checkpoint_sources import (
 )
 from vesmod.io.path_mapping import map_output_path
 from vesmod.cli.batch_policy import add_batch_policy_argument, exit_code, report_batch_summary
-from vesmod.cli.input_selection import InputPathsAction, select_input_files
+from vesmod.cli.input_selection import InputPathsAction
+from vesmod.io.input_selection import select_input_files
 
 
 def add_parser(subparsers) -> None:
@@ -68,15 +69,6 @@ def add_parser(subparsers) -> None:
         help="Overwrite existing GIF outputs.",
     )
     add_batch_policy_argument(parser)
-
-
-def _checkpoint_paths(
-    input_path: Path | list[Path],
-    recursive: bool,
-) -> list[Path]:
-    """Return checkpoints selected by explicit paths, directories, or globs."""
-    checkpoints, _ = select_input_files(input_path, ".npz", recursive)
-    return checkpoints
 
 
 def _apply_recorded_qc(

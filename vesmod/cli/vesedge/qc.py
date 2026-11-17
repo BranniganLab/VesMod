@@ -17,13 +17,11 @@ from vesmod.cli.batch_policy import (
     exit_code,
     report_batch_summary,
 )
-from vesmod.cli.input_selection import InputPathsAction, select_input_files
-from vesmod.cli.path_utils import (
-    _display_path,
-    _relative_input_path,
-    remove_manifest_artifacts,
-)
-from vesmod.io.path_mapping import map_output_path
+from vesmod.cli.input_selection import InputPathsAction
+from vesmod.io.input_selection import select_input_files
+from vesmod.cli.path_utils import _display_path
+from vesmod.io.artifacts import record_manifest_artifacts, remove_manifest_artifacts
+from vesmod.io.path_mapping import map_output_path, relative_selected_path
 
 
 def add_parser(subparsers) -> None:
@@ -197,7 +195,7 @@ def _qc_summary(
         0 if edges.qc_result is None else len(edges.qc_result.accepted_frame_indices)
     )
     return {
-        "file": str(_relative_input_path(path, input_path)),
+        "file": str(relative_selected_path(path, input_path)),
         "frames": len(edges.detections),
         "successful_detections": len(successful),
         "extraction_failures": len(edges.detections) - len(successful),
@@ -212,7 +210,7 @@ def _qc_summary(
 def _load_error_summary(path: Path, input_path: Path, error: str) -> dict:
     """Build a canonical summary row for a checkpoint that could not load."""
     return {
-        "file": str(_relative_input_path(path, input_path)),
+        "file": str(relative_selected_path(path, input_path)),
         "frames": 0,
         "successful_detections": 0,
         "extraction_failures": 0,
@@ -308,23 +306,6 @@ def process_qc_file(
     return row
 
 
-def _record_qc_artifacts(
-    output_dir: Path,
-    managed_artifacts: set[Path],
-) -> None:
-    """Record the filtered arrays and diagnostics created by this batch."""
-    provenance_path = output_dir / "vesedge_qc.json"
-    provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
-    provenance["managed_artifacts"] = sorted(
-        str(path.resolve().relative_to(output_dir.resolve()))
-        for path in managed_artifacts
-    )
-    provenance_path.write_text(
-        json.dumps(provenance, indent=2) + "\n",
-        encoding="utf-8",
-    )
-
-
 def _check_summary(edges: VesicleEdges | None = None) -> dict:
     """Collect registered check columns and, when available, their values."""
     values = {}
@@ -379,7 +360,12 @@ def run(args: argparse.Namespace) -> int:
         if row["status"] in {"load_error", "qc_error", "no_accepted_frames"} and getattr(args, "error_policy", "keep-going") == "fail-fast":
             break
     _write_qc_summary(args.output_dir, rows)
-    _record_qc_artifacts(args.output_dir, managed_artifacts)
+    record_manifest_artifacts(
+        args.output_dir,
+        managed_artifacts,
+        provenance_filename="vesedge_qc.json",
+        manifest_key="managed_artifacts",
+    )
     failed = sum(
         row["status"] in {"load_error", "qc_error", "no_accepted_frames"}
         for row in rows

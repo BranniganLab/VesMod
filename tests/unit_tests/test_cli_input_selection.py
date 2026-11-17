@@ -6,7 +6,7 @@ import sys
 from vesmod.cli.edgemod import fitting as edgemod_cli
 from vesmod.cli.edgemod import main as edgemod_main
 from vesmod.cli.vesedge import main as vesedge_cli
-from vesmod.cli.input_selection import select_input_files
+from vesmod.io.input_selection import select_input_files
 
 
 def test_select_input_files_accepts_multiple_explicit_files(tmp_path):
@@ -144,3 +144,31 @@ def test_edgemod_parser_accepts_multiple_inputs(monkeypatch):
     args = edgemod_main.parse_args()
 
     assert args.input_path == [Path("a.npy"), Path("b.npy")]
+
+
+def test_select_input_files_accepts_case_insensitive_suffixes(tmp_path):
+    """Test directory discovery treats suffix case like direct-file validation."""
+    lower = tmp_path / "lower.npz"
+    upper = tmp_path / "upper.NPZ"
+    ignored = tmp_path / "other.txt"
+    lower.touch()
+    upper.touch()
+    ignored.touch()
+
+    paths, _ = select_input_files(tmp_path, ".npz", recursive=False)
+
+    assert paths == sorted([lower, upper])
+
+
+def test_select_input_files_preserves_recursive_directory_structure(tmp_path):
+    """Test recursive checkpoint selection keeps both nested inputs."""
+    checkpoints = tmp_path / "checkpoints"
+    first = checkpoints / "a" / "sample.npz"
+    second = checkpoints / "b" / "sample.npz"
+    first.parent.mkdir(parents=True)
+    second.parent.mkdir(parents=True)
+    first.touch()
+    second.touch()
+    selected, _ = select_input_files(checkpoints, ".npz", recursive=True)
+
+    assert selected == [first, second]

@@ -865,8 +865,10 @@ VesEdge command implementations live in `vesmod/cli/vesedge/`.
 Each command module exposes `add_parser(subparsers)` to register its arguments
 and `run(args)` to execute the command. Extraction owns its arguments, custom
 extractor loading, checkpoint output paths, and batch execution in
-`extraction.py`. Shared input selection, output paths, and batch policies live
-in `vesmod/cli/`.
+`extraction.py`.
+File discovery lives in `vesmod/io/input_selection.py`, output-path mapping in
+`vesmod/io/path_mapping.py`, and artifact recording and cleanup in `vesmod/io/artifacts.py`.
+Argparse adapters, console formatting, and batch policies live in `vesmod/cli/`.
 
 Video frame sources, extraction checkpoint serialization, and checkpoint source
 resolution live in `vesmod/io/vesedge/`. Shared output-path mapping lives in

@@ -17,35 +17,18 @@ from vesmod.edgemod.fitting.range_selection.experimental import (
     QMinusThreeRangeSelector,
 )
 
-from vesmod.cli.input_selection import select_input_files
+from vesmod.io.input_selection import select_input_files
 from vesmod.cli.batch_policy import (
     exit_code,
     report_batch_summary,
 )
-from vesmod.cli.path_utils import _relative_input_path, remove_manifest_artifacts
+from vesmod.io.path_mapping import relative_selected_path
+from vesmod.io.artifacts import remove_manifest_artifacts
 from vesmod.io import map_output_path
 
 
 from vesmod.cli.edgemod.options import build_fit_config
 
-
-def iter_npy_files(input_path: Path | list[Path], recursive: bool) -> list[Path]:
-    """Return the input ``.npy`` files selected by CLI selectors.
-
-    Parameters
-    ----------
-    input_path : pathlib.Path or list of pathlib.Path
-        File, directory, glob, or list of selectors.
-    recursive : bool
-        Whether to search subdirectories.
-
-    Returns
-    -------
-    list of Path
-        Selected contour files.
-    """
-    paths, _ = select_input_files(input_path, ".npy", recursive)
-    return paths
 
 def build_dynamic_selector(args: argparse.Namespace) -> QMinusThreeRangeSelector:
     """Build the explicitly requested experimental q^-3 selector.
@@ -408,7 +391,7 @@ def _fit_summary_row(
         One row for the batch summary.
     """
     return {
-        "file": str(_relative_input_path(path, input_root)),
+        "file": str(relative_selected_path(path, input_root)),
         "status": status,
         "kC": "" if fit is None else fit.kC,
         "surface_tension": "" if fit is None else fit.surface_tension,

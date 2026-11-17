@@ -49,20 +49,6 @@ def test_parse_args_selects_extract_subcommand(monkeypatch):
     assert args.pixels_per_micron == pytest.approx(13.44)
 
 
-def test_iter_input_files_accepts_case_insensitive_suffixes(tmp_path):
-    """Test directory discovery treats suffix case like direct-file validation."""
-    lower = tmp_path / "lower.npz"
-    upper = tmp_path / "upper.NPZ"
-    ignored = tmp_path / "other.txt"
-    lower.touch()
-    upper.touch()
-    ignored.touch()
-
-    paths = extraction_cli.iter_input_files(tmp_path, ".npz", recursive=False)
-
-    assert paths == sorted([lower, upper])
-
-
 def test_output_base_preserves_relative_subdirectories(tmp_path):
     """Test equal stems in different input folders receive distinct outputs."""
     input_root = tmp_path / "inputs"

@@ -23,18 +23,16 @@ from vesmod.vesedge.experimental.internal_structures import (
     summarize_internal_structures,
 )
 
-from vesmod.cli.input_selection import InputPathsAction, select_input_files
-from vesmod.cli.path_utils import (
-    _display_path,
-    _relative_input_path,
-    remove_manifest_artifacts,
-)
+from vesmod.cli.input_selection import InputPathsAction
+from vesmod.io.input_selection import select_input_files
+from vesmod.cli.path_utils import _display_path
+from vesmod.io.artifacts import record_manifest_artifacts, remove_manifest_artifacts
 from vesmod.io.vesedge.checkpoint_sources import (
     build_video_filename_index,
     open_checkpoint_frames,
     resolve_source_path,
 )
-from vesmod.io.path_mapping import map_output_path
+from vesmod.io.path_mapping import map_output_path, relative_selected_path
 from vesmod.cli.batch_policy import (
     add_batch_policy_argument,
     exit_code,
@@ -344,7 +342,12 @@ def run(args: argparse.Namespace) -> int:
         summary_rows,
         _SUMMARY_FIELDS,
     )
-    _record_managed_outputs(args.output_dir, managed_outputs)
+    record_manifest_artifacts(
+        args.output_dir,
+        managed_outputs,
+        provenance_filename="internal_structure_analysis.json",
+        manifest_key="managed_artifacts",
+    )
     failed = sum(row.get("status") == "load_error" for row in summary_rows)
     succeeded = len(summary_rows) - failed
     report_batch_summary(len(summary_rows), succeeded, 0, failed)
@@ -360,7 +363,7 @@ def process_checkpoint(
     managed_outputs: set[Path] | None = None,
 ) -> dict:
     """Measure one checkpoint and write its frame- and region-level outputs."""
-    relative_path = _relative_input_path(checkpoint_path, args.input_path)
+    relative_path = relative_selected_path(checkpoint_path, args.input_path)
     output_base = map_output_path(
         checkpoint_path, args.input_path, args.output_dir
     ).with_suffix("")
@@ -797,23 +800,6 @@ def _remove_managed_outputs(output_dir: Path) -> None:
             "internal_structure_summary.csv",
             "internal_structure_analysis.json",
         ),
-    )
-
-
-def _record_managed_outputs(
-    output_dir: Path,
-    managed_outputs: set[Path],
-) -> None:
-    """Record files created for each checkpoint in the batch manifest."""
-    provenance_path = output_dir / "internal_structure_analysis.json"
-    provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
-    provenance["managed_artifacts"] = sorted(
-        str(path.resolve().relative_to(output_dir.resolve()))
-        for path in managed_outputs
-    )
-    provenance_path.write_text(
-        json.dumps(provenance, indent=2) + "\n",
-        encoding="utf-8",
     )
 
 
