@@ -17,8 +17,8 @@ from vesmod.vesedge.models import EdgeDetection, ImageContour
 from vesmod.vesedge.qc.qc_replay import RecordedQCSelection
 from vesmod.vesedge.qc.qc_config import VesicleQCConfig
 from vesmod.vesedge.experimental.internal_structures import InternalStructureRegion
-from vesmod.vesedge.experimental.cli import internal_structures_cli
-from vesmod.cli import vesedge_cli
+from vesmod.cli.vesedge import internal_structures as internal_structures_cli
+from vesmod.cli.vesedge import main as vesedge_cli
 
 
 def _args(tmp_path, checkpoint):

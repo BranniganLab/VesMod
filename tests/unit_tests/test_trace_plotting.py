@@ -24,7 +24,7 @@ from vesmod.vesedge.visualization.trace_plotting import (
 )
 from vesmod.vesedge.vesicle_edges import VesicleEdges
 from vesmod.vesedge.qc.qc_config import VesicleQCConfig
-from vesmod.vesedge.cli import trace_plot_cli
+from vesmod.cli.vesedge import trace_plot as trace_plot_cli
 
 
 def _edges():

@@ -2,7 +2,7 @@
 
 from argparse import Namespace
 
-from vesmod.cli import edgemod_cli
+from vesmod.cli.edgemod import fitting as edgemod_cli
 
 
 def _fit_args(input_paths, output_dir):
@@ -42,7 +42,7 @@ def test_external_fit_allows_sibling_output_for_sibling_input_directories(
     fit = Namespace(kC=12.5, surface_tension=1.0e-8)
     monkeypatch.setattr(edgemod_cli, "process_file", lambda path, parsed_args: fit)
 
-    edgemod_cli._run_fit(args)
+    edgemod_cli.run(args)
 
     assert (output_dir / "edgemod_fit.json").is_file()
     assert (output_dir / "fit_summary.csv").is_file()

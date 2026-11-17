@@ -13,8 +13,8 @@ import pytest
 
 from vesmod.vesedge.qc.qc_config import VesicleQCConfig
 from vesmod.vesedge.qc.qc_replay import load_recorded_qc
-from vesmod.vesedge.cli import gif_cli
-from vesmod.cli import vesedge_cli
+from vesmod.cli.vesedge import gif as gif_cli
+from vesmod.cli.vesedge import main as vesedge_cli
 
 
 def _args(tmp_path, input_path, style="edges"):

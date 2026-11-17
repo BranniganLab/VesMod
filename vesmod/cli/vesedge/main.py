@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import argparse
 
-from vesmod.vesedge.cli import extraction_cli, gif_cli, qc_cli, trace_plot_cli
-from vesmod.vesedge.experimental.cli import internal_structures_cli
+from vesmod.cli.vesedge import extraction, gif, qc, trace_plot
+from vesmod.cli.vesedge import internal_structures
 
 
 def parse_args() -> argparse.Namespace:
@@ -17,11 +17,11 @@ def parse_args() -> argparse.Namespace:
         )
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
-    extraction_cli.add_parser(subparsers)
-    qc_cli.add_parser(subparsers)
-    internal_structures_cli.add_parser(subparsers)
-    gif_cli.add_parser(subparsers)
-    trace_plot_cli.add_parser(subparsers)
+    extraction.add_parser(subparsers)
+    qc.add_parser(subparsers)
+    internal_structures.add_parser(subparsers)
+    gif.add_parser(subparsers)
+    trace_plot.add_parser(subparsers)
     return parser.parse_args()
 
 
@@ -29,15 +29,15 @@ def main() -> int:
     """Run the selected VesEdge subcommand."""
     args = parse_args()
     if args.command == "extract":
-        return extraction_cli.run(args)
+        return extraction.run(args)
     elif args.command == "qc":
-        return qc_cli.run(args)
+        return qc.run(args)
     elif args.command == "gif":
-        return gif_cli.run(args)
+        return gif.run(args)
     elif args.command == "internal-structures":
-        return internal_structures_cli.run(args)
+        return internal_structures.run(args)
     elif args.command == "plot-traces":
-        return trace_plot_cli.run(args)
+        return trace_plot.run(args)
     else:
         raise ValueError(f"Unknown VesEdge command: {args.command}")
 

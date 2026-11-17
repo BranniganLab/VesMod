@@ -6,7 +6,7 @@ from pathlib import Path
 
 import numpy as np
 
-from vesmod.vesedge.cli import extraction_cli
+from vesmod.cli.vesedge import extraction as extraction_cli
 
 
 def test_process_extract_file_sets_source_path_on_video(tmp_path, monkeypatch):

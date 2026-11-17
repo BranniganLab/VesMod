@@ -4,7 +4,7 @@ from argparse import Namespace
 import csv
 import json
 
-from vesmod.cli import edgemod_cli
+from vesmod.cli.edgemod import fitting as edgemod_cli
 
 
 def _fit_args(input_path, output_dir):
@@ -46,7 +46,7 @@ def test_fit_allows_sibling_output_for_sibling_input_directories(
 
     monkeypatch.setattr(edgemod_cli, "process_file", lambda path, parsed: fit)
 
-    edgemod_cli._run_fit(args)
+    edgemod_cli.run(args)
 
     assert (output_dir / "fit_summary.csv").is_file()
     provenance = json.loads(

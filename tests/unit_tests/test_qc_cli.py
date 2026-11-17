@@ -20,8 +20,8 @@ from vesmod.vesedge.qc.experimental.minimum_radius_qc import _write_minimum_radi
 from vesmod.vesedge.extraction.config import EdgeExtractionConfig
 from vesmod.vesedge.vesicle_edges import VesicleEdges
 from vesmod.vesedge.qc.qc_config import VesicleQCConfig
-from vesmod.vesedge.cli import qc_cli
-from vesmod.cli import vesedge_cli
+from vesmod.cli.vesedge import qc as qc_cli
+from vesmod.cli.vesedge import main as vesedge_cli
 
 
 def _qc_args(tmp_path, input_path=Path("sample.npz")) -> argparse.Namespace:

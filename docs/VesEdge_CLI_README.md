@@ -860,13 +860,10 @@ image-based example that runs through the CLI and replays the saved settings.
 
 ## CLI module ownership
 
-Extraction, QC, GIF, and trace-plot command implementations live in
-`vesmod/vesedge/cli/`. The extraction command owns its arguments, custom
+VesEdge command implementations live in `vesmod/cli/vesedge/`.
+`main.py` registers commands and dispatches to their implementations.
+Each command module exposes `add_parser(subparsers)` to register its arguments
+and `run(args)` to execute the command. Extraction owns its arguments, custom
 extractor loading, checkpoint output paths, and batch execution in
-`extraction_cli.py`.
-The experimental internal-structures command lives in
-`vesmod/vesedge/experimental/cli/internal_structures_cli.py`, alongside the
-experimental method it exposes. `vesmod/cli/vesedge_cli.py` registers these
-commands and dispatches to their implementations. Every command module exposes
-`add_parser(subparsers)` to register its arguments and `run(args)` to execute
-the command.
+`extraction.py`. Shared input selection, output paths, and batch policies live
+in `vesmod/cli/`.

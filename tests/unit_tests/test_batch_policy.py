@@ -19,7 +19,7 @@ def test_batch_policy_defaults_to_keep_going():
 def test_extract_batch_counts_skips_separately(monkeypatch, capsys):
     from pathlib import Path
     from argparse import Namespace
-    from vesmod.vesedge.cli import extraction_cli
+    from vesmod.cli.vesedge import extraction as extraction_cli
 
     paths = [Path("one.nd2"), Path("two.nd2"), Path("three.nd2")]
     monkeypatch.setattr(
@@ -46,7 +46,7 @@ def test_extract_batch_counts_skips_separately(monkeypatch, capsys):
 def test_gif_batch_classifies_skip_and_failure_separately(monkeypatch, capsys, tmp_path):
     from pathlib import Path
     from argparse import Namespace
-    import vesmod.vesedge.cli.gif_cli as gif_cli
+    import vesmod.cli.vesedge.gif as gif_cli
 
     paths = [Path("one.npz"), Path("two.npz"), Path("three.npz")]
     monkeypatch.setattr(
