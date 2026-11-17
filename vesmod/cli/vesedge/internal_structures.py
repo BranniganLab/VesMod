@@ -29,7 +29,7 @@ from vesmod.cli.path_utils import (
     _relative_input_path,
     remove_manifest_artifacts,
 )
-from vesmod.vesedge.io.checkpoint_sources import (
+from vesmod.io.vesedge.checkpoint_sources import (
     build_video_filename_index,
     open_checkpoint_frames,
     resolve_source_path,

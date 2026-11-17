@@ -867,3 +867,7 @@ and `run(args)` to execute the command. Extraction owns its arguments, custom
 extractor loading, checkpoint output paths, and batch execution in
 `extraction.py`. Shared input selection, output paths, and batch policies live
 in `vesmod/cli/`.
+
+Video frame sources, extraction checkpoint serialization, and checkpoint source
+resolution live in `vesmod/io/vesedge/`. Shared output-path mapping lives in
+`vesmod/io/path_mapping.py`.

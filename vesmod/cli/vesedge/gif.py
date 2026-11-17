@@ -5,13 +5,13 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from vesmod.vesedge.io.frame_source import OnDemandFrameSequence
+from vesmod.io.vesedge.frame_source import OnDemandFrameSequence
 from vesmod.vesedge.qc.qc_replay import RecordedQCSelection, load_recorded_qc, replay_recorded_qc
 from vesmod.vesedge.vesicle_edges import VesicleEdges
 from vesmod.vesedge.vesicle_video import VesicleVideo
 from vesmod.vesedge.visualization.animation import make_vesicle_gif
 
-from vesmod.vesedge.io.checkpoint_sources import (
+from vesmod.io.vesedge.checkpoint_sources import (
     open_checkpoint_frames,
     resolve_source_path,
 )

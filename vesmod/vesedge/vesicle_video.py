@@ -12,7 +12,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from .extraction.config import EdgeExtractionConfig
-from .io.frame_source import OnDemandFrameSequence, as_frame_source
+from vesmod.io.vesedge.frame_source import OnDemandFrameSequence, as_frame_source
 from .models import (
     EdgeDetection,
     EdgeDetectionFailure,

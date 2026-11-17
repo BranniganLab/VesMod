@@ -11,7 +11,7 @@ import numpy as np
 
 from vesmod.io.path_mapping import map_output_path
 
-from ..io.frame_source import OnDemandFrameSequence
+from vesmod.io.vesedge.frame_source import OnDemandFrameSequence
 from .qc_runner import checks_requiring_source_video_frames
 from .qc_config import VesicleQCConfig
 from ..vesicle_edges import VesicleEdges

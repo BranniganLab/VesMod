@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from numpy.typing import NDArray
 
-from ..io.frame_source import OnDemandFrameSequence
+from vesmod.io.vesedge.frame_source import OnDemandFrameSequence
 from ..models import EdgeDetection, VesicleQCResult
 from . import qc_registry
 from .qc_check import QCCheck

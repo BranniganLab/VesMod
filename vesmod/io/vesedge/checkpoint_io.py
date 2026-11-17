@@ -7,8 +7,8 @@ from pathlib import Path
 import numpy as np
 from numpy.typing import NDArray
 
-from ..extraction.config import EdgeExtractionConfig
-from ..models import (
+from vesmod.vesedge.extraction.config import EdgeExtractionConfig
+from vesmod.vesedge.models import (
     EdgeDetection,
     EdgeDetectionFailure,
     EdgeResult,

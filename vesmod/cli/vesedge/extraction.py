@@ -9,7 +9,7 @@ from pathlib import Path
 
 from vesmod.vesedge.extraction.config import EdgeExtractionConfig
 from vesmod.vesedge.vesicle_video import VesicleVideo
-from vesmod.vesedge.io.frame_source import open_frame_source
+from vesmod.io.vesedge.frame_source import open_frame_source
 from vesmod.io.path_mapping import map_output_path
 from vesmod.cli.batch_policy import (
     add_batch_policy_argument,

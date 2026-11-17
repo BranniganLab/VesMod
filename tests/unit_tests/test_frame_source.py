@@ -3,8 +3,8 @@
 import numpy as np
 import pytest
 
-from vesmod.vesedge.io.frame_source import OnDemandFrameSequence, as_frame_source, open_frame_source
-from vesmod.vesedge.io import frame_source
+from vesmod.io.vesedge.frame_source import OnDemandFrameSequence, as_frame_source, open_frame_source
+from vesmod.io.vesedge import frame_source
 
 
 def test_as_frame_source_preserves_resident_numpy_array():
