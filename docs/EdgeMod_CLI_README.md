@@ -519,7 +519,7 @@ After fitting a `Spectrum` with `camera_integration=True`, positive exposure tim
 and the inputs required by its selected relaxation model:
 
 ```python
-from vesmod.EdgeMod.spectrum_plotting import SpectrumPlotConfig
+from vesmod.EdgeMod.plotting.spectrum_plotting import SpectrumPlotConfig
 
 spectrum.extract_kc_from_fit(fit_config)
 result = spectrum.plot(plot_config=SpectrumPlotConfig(power="both"))

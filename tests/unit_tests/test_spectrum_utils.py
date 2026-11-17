@@ -9,12 +9,12 @@ import pytest
 from scipy.constants import Boltzmann
 from scipy.special import lpmv
 
-from vesmod.EdgeMod.tension import calc_tension_from_reduced_tension
-from vesmod.EdgeMod.spherical_model import (
+from vesmod.EdgeMod.fitting.tension import calc_tension_from_reduced_tension
+from vesmod.EdgeMod.fitting_functions.spherical_model import (
     spherical_contour_spectrum,
     Nlq_Plq0_squared,
 )
-from vesmod.EdgeMod.fitting import (
+from vesmod.EdgeMod.fitting.optimization import (
     fit_spectrum_to_theory,
     fit_spectrum,
 )
@@ -156,7 +156,7 @@ def test_weighted_fit_passes_inverse_sem_to_lmfit(monkeypatch):
         calls.update(kwargs)
         return SimpleNamespace(best_fit=np.asarray(data))
 
-    monkeypatch.setattr("vesmod.EdgeMod.fitting.Model.fit", fake_fit)
+    monkeypatch.setattr("vesmod.EdgeMod.fitting.optimization.Model.fit", fake_fit)
     fit_spectrum(
         np.array([3, 4]), np.array([0.1, 0.2]), lmax=20,
         weighted=True, sem=np.array([0.01, 0.04]), kc_bounds=(1, 500), sigma_bounds=(-100, 2500),
@@ -172,7 +172,7 @@ def test_weighted_fit_passes_inverse_sem_to_lmfit(monkeypatch):
 def test_weighted_fit_rejects_missing_or_invalid_sem(monkeypatch, sem):
     """A requested weighted fit fails instead of silently becoming unweighted."""
     monkeypatch.setattr(
-        "vesmod.EdgeMod.fitting.Model.fit",
+        "vesmod.EdgeMod.fitting.optimization.Model.fit",
         lambda *args, **kwargs: pytest.fail("lmfit must not be called"),
     )
 

@@ -15,19 +15,19 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from vesmod.validation import require_finite_array, require_numeric_array
-from .spectrum_plotting import (
+from vesmod.EdgeMod.plotting.spectrum_plotting import (
     SpectrumPlotData,
     SpectrumPlotConfig,
     SpectrumPlotResult,
     plot_spectrum,
     save_spectrum_fit_diagnostic,
 )
-from .config import SpectrumFitConfig
-from .calculators import MeanSquaredPowerCalculator
-from .power_calculation import PowerCalculationResult, SpectrumCalculator
-from .fit_result import SpectrumFit
-from .fitting import fit_configured_spectrum
-from .tension import calc_tension_from_reduced_tension
+from vesmod.EdgeMod.fitting.config import SpectrumFitConfig
+from vesmod.EdgeMod.power_calculation.calculators import MeanSquaredPowerCalculator
+from vesmod.EdgeMod.power_calculation.base import PowerCalculationResult, SpectrumCalculator
+from vesmod.EdgeMod.fitting.fit_result import SpectrumFit
+from vesmod.EdgeMod.fitting.optimization import fit_configured_spectrum
+from vesmod.EdgeMod.fitting.tension import calc_tension_from_reduced_tension
 
 
 

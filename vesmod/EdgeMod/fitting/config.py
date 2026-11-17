@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from vesmod.validation import require_integer, require_positive_real, require_nonnegative_real
 
-from .relaxation import RELAXATION_MODELS
+from vesmod.EdgeMod.mode_relaxation.relaxation import RELAXATION_MODELS
 
 
 @dataclass(frozen=True)

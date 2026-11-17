@@ -6,13 +6,13 @@ import pytest
 from scipy.constants import Boltzmann
 from scipy.integrate import quad
 from vesmod.EdgeMod import Spectrum, SpectrumFitConfig, SpectrumEnsemble
-from vesmod.EdgeMod.spherical_model import (
+from vesmod.EdgeMod.fitting_functions.spherical_model import (
     spherical_contour_spectrum,
     predict_spherical_contour_power,
     configure_spectrum_model,
 )
-from vesmod.EdgeMod.camera_integration import exposure_power_factor
-from vesmod.EdgeMod.fitting import fit_spectrum
+from vesmod.EdgeMod.camera_integration.exposure import exposure_power_factor
+from vesmod.EdgeMod.fitting.optimization import fit_spectrum
 
 
 @pytest.mark.parametrize('x', [0, 1e-9, 0.001, 0.5, 10, 100])
@@ -116,7 +116,7 @@ def test_cli_camera_settings(monkeypatch):
 def test_corrected_plot_uses_corrected_prediction():
     """The plotted fit line follows the fitted exposure model."""
     import matplotlib.pyplot as plt
-    from vesmod.EdgeMod.spectrum_plotting import SpectrumPlotData, plot_spectrum
+    from vesmod.EdgeMod.plotting.spectrum_plotting import SpectrumPlotData, plot_spectrum
     config = SpectrumFitConfig(camera_integration=True, viscosity_in=.00102, viscosity_out=.00097, lmax=50, free_sigma=False, exposure_time=.030)
     q = np.arange(3, 8)
     measured = np.array(predict_spherical_contour_power(q, 25, 0, 50, config=config, radii=[5]))
@@ -359,7 +359,7 @@ def test_configured_model_calls_relaxation_once_for_all_required_modes():
 
 
 def test_registered_relaxation_law_is_available_through_cli(monkeypatch):
-    from vesmod.EdgeMod.relaxation import RELAXATION_MODELS, mode_relaxation_times
+    from vesmod.EdgeMod.mode_relaxation.relaxation import RELAXATION_MODELS, mode_relaxation_times
     from vesmod.cli.edgemod_cli import build_fit_config, parse_args
 
     solvent_drag, validate = RELAXATION_MODELS["solvent_only"]
