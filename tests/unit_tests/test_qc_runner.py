@@ -16,7 +16,7 @@ from vesmod.vesedge.qc.qc_check import QCCheck
 from vesmod.vesedge.qc.qc_result import QCResult
 from vesmod.vesedge.qc.qc_replay import load_recorded_qc, replay_recorded_qc
 from vesmod.vesedge.vesicle_edges import VesicleEdges
-from vesmod.cli import vesedge_cli
+from vesmod.cli.vesedge import main as vesedge_cli
 
 
 def test_builtin_qc_check_order_is_explicit():

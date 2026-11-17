@@ -10,9 +10,9 @@ from pathlib import Path
 import numpy as np
 from numpy.typing import NDArray
 
-from .io.checkpoint_io import load_checkpoint, save_checkpoint
+from vesmod.io.vesedge import checkpoint_io
 from .extraction.config import EdgeExtractionConfig
-from .io.frame_source import OnDemandFrameSequence
+from vesmod.io.vesedge.frame_source import OnDemandFrameSequence
 from .models import (
     EdgeDetection,
     EdgeDetectionFailure,
@@ -190,7 +190,7 @@ class VesicleEdges:
     def save_checkpoint(self, path: str | Path) -> None:
         """Save reusable QC-independent extraction results to ``.npz``."""
         self._validate_detection_lengths()
-        save_checkpoint(
+        checkpoint_io.save_checkpoint(
             path,
             self.extraction_config,
             self.detections,
@@ -200,7 +200,7 @@ class VesicleEdges:
     @classmethod
     def from_checkpoint(cls, path: str | Path) -> "VesicleEdges":
         """Restore extraction results from a VesEdge checkpoint without QC."""
-        extraction_config, detections, source_path = load_checkpoint(path)
+        extraction_config, detections, source_path = checkpoint_io.load_checkpoint(path)
         return cls(
             extraction_config=extraction_config,
             detections=detections,

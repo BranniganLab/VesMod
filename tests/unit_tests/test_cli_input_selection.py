@@ -3,7 +3,9 @@
 from pathlib import Path
 import sys
 
-from vesmod.cli import edgemod_cli, vesedge_cli
+from vesmod.cli.edgemod import fitting as edgemod_cli
+from vesmod.cli.edgemod import main as edgemod_main
+from vesmod.cli.vesedge import main as vesedge_cli
 from vesmod.cli.input_selection import select_input_files
 
 
@@ -139,6 +141,6 @@ def test_edgemod_parser_accepts_multiple_inputs(monkeypatch):
     """Core EdgeMod accepts shell-expanded multiple positional arrays."""
     monkeypatch.setattr(sys, "argv", ["edgemod", "a.npy", "b.npy"])
 
-    args = edgemod_cli.parse_args()
+    args = edgemod_main.parse_args()
 
     assert args.input_path == [Path("a.npy"), Path("b.npy")]

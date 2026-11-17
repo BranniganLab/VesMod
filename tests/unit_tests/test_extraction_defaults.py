@@ -6,8 +6,8 @@ import numpy as np
 import pytest
 
 from vesmod.vesedge.extraction.config import EdgeExtractionConfig
-from vesmod.vesedge.io.checkpoint_io import _extraction_config_from_checkpoint
-from vesmod.cli import vesedge_cli
+from vesmod.io.vesedge.checkpoint_io import _extraction_config_from_checkpoint
+from vesmod.cli.vesedge import main as vesedge_cli
 
 
 def test_extract_requires_explicit_calibration(monkeypatch):

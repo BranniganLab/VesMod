@@ -21,7 +21,7 @@ from vesmod.vesedge.vesicle_edges import VesicleEdges
 from vesmod.vesedge.vesicle_video import VesicleVideo
 from vesmod.vesedge.visualization.animation import draw_vesicle_frame
 from vesmod.vesedge.visualization.trace_plotting import select_trace_detections
-from vesmod.cli import vesedge_cli
+from vesmod.cli.vesedge import main as vesedge_cli
 
 
 def make_edges():

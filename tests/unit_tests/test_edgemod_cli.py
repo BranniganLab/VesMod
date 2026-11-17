@@ -10,8 +10,9 @@ import pytest
 
 from vesmod.edgemod import Spectrum, SpectrumFitConfig
 from vesmod.edgemod.fitting.range_selection.experimental import QMinusThreeRangeSelector
-from vesmod.cli import edgemod_cli
-from vesmod.cli.edgemod_cli import (
+from vesmod.cli.edgemod import fitting as edgemod_cli
+from vesmod.cli.edgemod import main as edgemod_main
+from vesmod.cli.edgemod.fitting import (
     build_dynamic_selector,
     build_fit_config,
     output_path_for,
@@ -45,7 +46,7 @@ def test_parse_args_preserves_direct_fit_command(monkeypatch):
         ["edgemod", "edges", "--fixed-sigma"],
     )
 
-    args = edgemod_cli.parse_args()
+    args = edgemod_main.parse_args()
 
     assert args.command == "fit"
     assert args.input_path == Path("edges")
@@ -156,7 +157,7 @@ def test_recursive_run_skips_failed_fit_and_continues(
     args.recursive = True
     processed = []
 
-    monkeypatch.setattr(edgemod_cli, "parse_args", lambda: args)
+    monkeypatch.setattr(edgemod_main, "parse_args", lambda: args)
     def fake_process_file(path, parsed_args):
         processed.append(path)
         if path == failed_path:
@@ -164,7 +165,7 @@ def test_recursive_run_skips_failed_fit_and_continues(
 
     monkeypatch.setattr(edgemod_cli, "process_file", fake_process_file)
 
-    edgemod_cli.main()
+    edgemod_main.main()
 
     assert processed == [failed_path, successful_path]
     assert f"Skipping {failed_path}: fit failed" in capsys.readouterr().err
@@ -190,7 +191,7 @@ def test_nonrecursive_run_propagates_failed_fit(
     args.input_path = failed_path
     args.recursive = False
 
-    monkeypatch.setattr(edgemod_cli, "parse_args", lambda: args)
+    monkeypatch.setattr(edgemod_main, "parse_args", lambda: args)
     monkeypatch.setattr(
         edgemod_cli,
         "process_file",
@@ -198,7 +199,7 @@ def test_nonrecursive_run_propagates_failed_fit(
     )
 
     with pytest.raises(type(error), match="fit failed"):
-        edgemod_cli.main()
+        edgemod_main.main()
 
 
 
@@ -216,7 +217,7 @@ def test_parse_args_accepts_external_fit_output(monkeypatch, tmp_path):
         ],
     )
 
-    args = edgemod_cli.parse_args()
+    args = edgemod_main.parse_args()
 
     assert args.output_dir == tmp_path
     assert args.overwrite
@@ -265,7 +266,7 @@ def test_external_fit_batch_writes_provenance_and_summary(
 
     monkeypatch.setattr(edgemod_cli, "process_file", lambda path, args: fit)
 
-    edgemod_cli._run_fit(args)
+    edgemod_cli.run(args)
 
     provenance = json.loads(
         (output_dir / "edgemod_fit.json").read_text(encoding="utf-8")
@@ -298,7 +299,7 @@ def test_external_fit_batch_summarizes_recursive_failure(
         lambda path, args: (_ for _ in ()).throw(OSError("fit failed")),
     )
 
-    edgemod_cli._run_fit(args)
+    edgemod_cli.run(args)
 
     summary = (output_dir / "fit_summary.csv").read_text(encoding="utf-8")
     assert "sample.npy,fit_error,,,fit failed" in summary
@@ -325,7 +326,7 @@ def test_external_fit_batch_summarizes_nonrecursive_failure(
     )
 
     with pytest.raises(ValueError, match="fit failed"):
-        edgemod_cli._run_fit(args)
+        edgemod_cli.run(args)
 
     summary = (output_dir / "fit_summary.csv").read_text(encoding="utf-8")
     assert "sample.npy,fit_error,,,fit failed" in summary
@@ -355,7 +356,7 @@ def test_fit_batch_output_oserror_is_not_suppressed(
     )
 
     with pytest.raises(OSError, match="write failed"):
-        edgemod_cli._run_fit(args)
+        edgemod_cli.run(args)
 
 
 def test_external_fit_rejects_overlapping_paths(tmp_path):
@@ -370,7 +371,7 @@ def test_external_fit_rejects_overlapping_paths(tmp_path):
     args.recursive = True
 
     with pytest.raises(ValueError, match="must not overlap"):
-        edgemod_cli._run_fit(args)
+        edgemod_cli.run(args)
 
 
 def test_incompatible_fit_provenance_requires_overwrite(tmp_path):
@@ -459,7 +460,7 @@ def test_ensemble_cli_applies_importable_policy(monkeypatch, tmp_path):
         "--fixed-sigma", "--lmax", "20", "--weight-by-replica-sem",
     ])
 
-    assert edgemod_cli.main() == 0
+    assert edgemod_main.main() == 0
     report = json.loads(output.read_text())
     assert [row["status"] for row in report["replicas"]] == [
         "excluded", "included", "included",
@@ -482,7 +483,7 @@ def test_ensemble_cli_applies_importable_policy(monkeypatch, tmp_path):
 def test_ensemble_cli_policy_exception_handling(
     monkeypatch, tmp_path, error_policy, error_type, expected_statuses
 ):
-    from vesmod.cli import edgemod_ensemble
+    from vesmod.cli.edgemod import ensemble as edgemod_ensemble
 
     def policy(path, spectrum):
         if path.name == "first.json":
@@ -501,10 +502,10 @@ def test_ensemble_cli_policy_exception_handling(
     ])
 
     if len(expected_statuses) == 2:
-        assert edgemod_cli.main() == 1
+        assert edgemod_main.main() == 1
     else:
         with pytest.raises(error_type, match="policy failed"):
-            edgemod_cli.main()
+            edgemod_main.main()
     report = json.loads(output.read_text())
     assert [row.get("status") for row in report["replicas"]] == expected_statuses
     if expected_statuses[0] == "error":

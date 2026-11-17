@@ -534,3 +534,10 @@ that conversion. Each bounds tuple contains a minimum and maximum.
 Set `SpectrumFitConfig.model` to a descriptive name to record it in the fit.
 When you supply a factory with the default model name in the configuration,
 the fit records the factory name.
+
+## CLI module ownership
+
+EdgeMod commands live in `vesmod/cli/edgemod/`. `main.py` parses the command
+and dispatches to `fitting.py` or `ensemble.py`. Shared argument definitions
+and fit configuration construction live in `options.py`. Shared input selection,
+output paths, and batch policies live in `vesmod/cli/`.

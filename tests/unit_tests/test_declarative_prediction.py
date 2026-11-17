@@ -47,7 +47,8 @@ def test_camera_toggle_requires_boolean():
 
 
 def test_cli_parameters_do_not_select_correction_or_relaxation(monkeypatch):
-    from vesmod.cli.edgemod_cli import build_fit_config, parse_args
+    from vesmod.cli.edgemod.main import parse_args
+    from vesmod.cli.edgemod.options import build_fit_config
     monkeypatch.setattr('sys.argv', ['edgemod', 'contours.npy', '--exposure-time', '.030'])
     config = build_fit_config(parse_args())
     assert not config.camera_integration

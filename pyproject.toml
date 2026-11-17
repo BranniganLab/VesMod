@@ -47,8 +47,8 @@ Repository = "https://github.com/BranniganLab/VesMod"
 Issues = "https://github.com/BranniganLab/VesMod/issues"
 
 [project.scripts]
-vesedge = "vesmod.cli.vesedge_cli:main"
-edgemod = "vesmod.cli.edgemod_cli:main"
+vesedge = "vesmod.cli.vesedge.main:main"
+edgemod = "vesmod.cli.edgemod.main:main"
 
 [tool.setuptools]
 packages = { find = { include = ["vesmod", "vesmod.*"] } }

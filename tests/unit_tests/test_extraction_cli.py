@@ -8,8 +8,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from vesmod.vesedge.cli import extraction_cli
-from vesmod.cli import vesedge_cli
+from vesmod.cli.vesedge import extraction as extraction_cli
+from vesmod.cli.vesedge import main as vesedge_cli
 
 
 def _extract_args(tmp_path=None, input_path=Path("sample.nd2")) -> argparse.Namespace:

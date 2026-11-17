@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from vesmod.vesedge.io.checkpoint_io import save_checkpoint
+from vesmod.io.vesedge.checkpoint_io import save_checkpoint
 from vesmod.vesedge.extraction.config import EdgeExtractionConfig
 from vesmod.vesedge.models import EdgeDetection, ImageContour
 
@@ -81,3 +81,19 @@ def test_save_checkpoint_still_rejects_nonsequential_integer_indices(
             extraction_config,
             [detection],
         )
+
+
+def test_checkpoint_io_can_be_imported_before_vesedge():
+    """Importing checkpoint I/O first must avoid a circular import."""
+    import subprocess
+    import sys
+
+    subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from vesmod.io.vesedge.checkpoint_io import load_checkpoint, save_checkpoint; "
+            "from vesmod.vesedge import VesicleEdges",
+        ],
+        check=True,
+    )

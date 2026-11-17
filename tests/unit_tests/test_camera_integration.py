@@ -104,7 +104,8 @@ def test_spectrum_and_ensemble_use_individual_radii():
 
 def test_cli_camera_settings(monkeypatch):
     """The CLI passes exposure and SI viscosities into scientific config."""
-    from vesmod.cli.edgemod_cli import parse_args, build_fit_config
+    from vesmod.cli.edgemod.main import parse_args
+    from vesmod.cli.edgemod.options import build_fit_config
     monkeypatch.setattr('sys.argv', ['edgemod', 'contours.npy', '--camera-integration', '--exposure-time', '.030',
                                     '--viscosity-in', '.00102', '--viscosity-out', '.00097'])
     config = build_fit_config(parse_args())
@@ -285,7 +286,8 @@ def test_eta_m_solvent_requirements():
 
 
 def test_eta_m_cli_and_synthetic_ensemble_fit(monkeypatch):
-    from vesmod.cli.edgemod_cli import parse_args, build_fit_config
+    from vesmod.cli.edgemod.main import parse_args
+    from vesmod.cli.edgemod.options import build_fit_config
     monkeypatch.setattr('sys.argv', ['edgemod', 'contours.npy', '--camera-integration', '--exposure-time', '.030',
                                    '--viscosity-out', '.001', '--relaxation-model', 'solvent_and_membrane', '--eta-m', '4.1e-9', '--lmax', '50'])
     config = build_fit_config(parse_args())
@@ -360,7 +362,8 @@ def test_configured_model_calls_relaxation_once_for_all_required_modes():
 
 def test_registered_relaxation_law_is_available_through_cli(monkeypatch):
     from vesmod.edgemod.fitting.mode_relaxation.relaxation import RELAXATION_MODELS, mode_relaxation_times
-    from vesmod.cli.edgemod_cli import build_fit_config, parse_args
+    from vesmod.cli.edgemod.main import parse_args
+    from vesmod.cli.edgemod.options import build_fit_config
 
     solvent_drag, validate = RELAXATION_MODELS["solvent_only"]
 

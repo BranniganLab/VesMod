@@ -12,16 +12,13 @@ import sys
 import numpy as np
 
 from vesmod.edgemod import Spectrum, SpectrumFitConfig
-from vesmod.edgemod.fitting.mode_relaxation.relaxation import RELAXATION_MODELS
-from vesmod.cli.edgemod_ensemble import run_ensemble
 from vesmod.edgemod.fitting.range_selection.experimental import (
     DynamicRangeSelection,
     QMinusThreeRangeSelector,
 )
 
-from vesmod.cli.input_selection import InputPathsAction, select_input_files
+from vesmod.cli.input_selection import select_input_files
 from vesmod.cli.batch_policy import (
-    add_batch_policy_argument,
     exit_code,
     report_batch_summary,
 )
@@ -29,167 +26,7 @@ from vesmod.cli.path_utils import _relative_input_path, remove_manifest_artifact
 from vesmod.io import map_output_path
 
 
-def parse_args() -> argparse.Namespace:
-    """Parse command-line arguments for core physical fitting.
-
-    Returns
-    -------
-    argparse.Namespace
-        Parsed options for the selected EdgeMod command.
-    """
-    parser = argparse.ArgumentParser(
-        description=(
-            "Fit membrane mechanical parameters from vesicle contour "
-            "trajectories. Use edgemod ensemble --help for ensemble fitting."
-        ),
-    )
-    ensemble = sys.argv[1:2] == ["ensemble"]
-    if ensemble:
-        parser.prog += " ensemble"
-    _add_input_options(parser, ensemble=ensemble)
-    _add_fit_options(parser, ensemble=ensemble)
-    args = parser.parse_args(sys.argv[2:] if ensemble else None)
-    args.command = "ensemble" if ensemble else "fit"
-    return args
-
-
-def _add_input_options(parser: argparse.ArgumentParser, *, ensemble=False) -> None:
-    """Add input-path and recursion options shared by EdgeMod stages.
-
-    Parameters
-    ----------
-    parser : argparse.ArgumentParser
-        Parser to configure.
-    ensemble : bool
-        Whether the command consumes spectrum JSON.
-
-    Returns
-    -------
-    None
-        Registers input selection options.
-    """
-    parser.add_argument(
-        "input_path",
-        type=Path,
-        nargs="+",
-        action=InputPathsAction,
-        help=("Saved spectrum JSON files, directories, or glob patterns." if ensemble
-              else "One or more .npy files, directories, or glob patterns."),
-    )
-    parser.add_argument(
-        "--recursive",
-        action="store_true",
-        help="Search subdirectories for directory and glob inputs.",
-    )
-
-
-def _add_fit_options(parser: argparse.ArgumentParser, *, ensemble=False) -> None:
-    """Add options for core physical fitting.
-
-    Parameters
-    ----------
-    parser : argparse.ArgumentParser
-        Parser to configure.
-    ensemble : bool
-        Whether to register ensemble options.
-
-    Returns
-    -------
-    None
-        Registers fitting options.
-    """
-    parser.add_argument(
-        "--lower-fitting-bound",
-        type=int,
-        default=3,
-        help=(
-            "Lowest Fourier mode used by a fixed fit or eligible for the "
-            "experimental dynamic search. Default: 3."
-        ),
-    )
-    parser.add_argument(
-        "--upper-fitting-bound",
-        type=int,
-        default=8,
-        help=(
-            "First Fourier mode excluded from a fixed fit or experimental "
-            "dynamic search. Default: 8."
-        ),
-    )
-    if not ensemble:
-        parser.add_argument(
-            "--dynamic-range",
-            action="store_true",
-            help="EXPERIMENTAL: choose fit bounds from q^-3 scaling.",
-        )
-        parser.add_argument(
-            "--min-modes",
-            type=int,
-            help="EXPERIMENTAL: minimum consecutive q modes for dynamic selection.",
-        )
-        parser.add_argument(
-            "--slope-tolerance",
-            type=float,
-            help="EXPERIMENTAL: maximum deviation of fitted slope from -3.",
-        )
-        parser.add_argument(
-            "--max-log-rmse",
-            type=float,
-            help="EXPERIMENTAL: maximum log-space RMSE to a fixed q^-3 model.",
-        )
-    parser.add_argument(
-        "--lmax",
-        type=int,
-        default=500,
-        help="Maximum summation index used by the fit. Default: 500.",
-    )
-    parser.add_argument(
-        "--fixed-sigma",
-        action="store_true",
-        help="Do not fit surface tension sigma as a free parameter.",
-    )
-    parser.add_argument(
-        "--temperature",
-        type=float,
-        default=295,
-        help="Temperature in Kelvin when experiment performed. Default: 295.",
-    )
-    if ensemble:
-        parser.add_argument("--output", type=Path, required=True, help="Ensemble JSON report.")
-        parser.add_argument("--exclusion-policy", metavar="MODULE:FUNCTION",
-                            help="Importable Python function returning an exclusion reason or None.")
-        parser.add_argument("--weight-by-replica-sem", action="store_true")
-    else:
-        parser.add_argument(
-            "--output-dir",
-            type=Path,
-            default=None,
-            help=(
-                "Directory for fit JSON, diagnostics, provenance, and a batch "
-                "summary. By default, outputs are written beside each input file."
-            ),
-        )
-        parser.add_argument(
-            "--overwrite",
-            action="store_true",
-            help="Replace outputs managed by a prior compatible EdgeMod batch.",
-        )
-    parser.add_argument("--model", choices=["spherical_contour_spectrum"],
-                        default="spherical_contour_spectrum", help="Equilibrium spectrum model.")
-    parser.add_argument("--camera-integration", action="store_true",
-                        help="Apply finite camera-exposure averaging to the prediction.")
-    parser.add_argument("--relaxation-model", choices=tuple(RELAXATION_MODELS),
-                        default="solvent_only", help="Method for spherical-mode relaxation times.")
-    parser.add_argument("--exposure-time", type=float, default=0.0,
-                        help="Exposure duration in seconds; positive value required with --camera-integration.")
-    parser.add_argument("--viscosity-in", type=float, default=None,
-                        help="Interior viscosity in Pa s; required for solvent_only camera integration.")
-    parser.add_argument("--viscosity-out", type=float, default=None,
-                        help="Exterior viscosity in Pa s; common solvent viscosity for solvent_and_membrane.")
-    parser.add_argument("--eta-m", type=float, default=None,
-                        help="Fixed membrane surface viscosity in Pa s m; required for solvent_and_membrane. "
-                             "Does not select the relaxation model.")
-    add_batch_policy_argument(parser)
+from vesmod.cli.edgemod.options import build_fit_config
 
 
 def iter_npy_files(input_path: Path | list[Path], recursive: bool) -> list[Path]:
@@ -209,36 +46,6 @@ def iter_npy_files(input_path: Path | list[Path], recursive: bool) -> list[Path]
     """
     paths, _ = select_input_files(input_path, ".npy", recursive)
     return paths
-
-
-def build_fit_config(args: argparse.Namespace) -> SpectrumFitConfig:
-    """Translate CLI options into the core physical-fit configuration.
-
-    Parameters
-    ----------
-    args : argparse.Namespace
-        Parsed physical fit options.
-
-    Returns
-    -------
-    SpectrumFitConfig
-        Validated fitting configuration.
-    """
-    return SpectrumFitConfig(
-        lower_bound=args.lower_fitting_bound,
-        upper_bound=args.upper_fitting_bound,
-        lmax=args.lmax,
-        free_sigma=not args.fixed_sigma,
-        temperature=args.temperature,
-        exposure_time=getattr(args, "exposure_time", 0.0),
-        viscosity_in=getattr(args, "viscosity_in", None),
-        viscosity_out=getattr(args, "viscosity_out", None),
-        eta_m=getattr(args, "eta_m", None),
-        model=getattr(args, "model", "spherical_contour_spectrum"),
-        camera_integration=getattr(args, "camera_integration", False),
-        relaxation_model=getattr(args, "relaxation_model", "solvent_only"),
-    )
-
 
 def build_dynamic_selector(args: argparse.Namespace) -> QMinusThreeRangeSelector:
     """Build the explicitly requested experimental q^-3 selector.
@@ -274,7 +81,6 @@ def build_dynamic_selector(args: argparse.Namespace) -> QMinusThreeRangeSelector
         max_log_rmse=args.max_log_rmse,
     )
 
-
 def output_path_for(path: Path, dynamic_range: bool) -> Path:
     """Return the JSON output path, separating experimental from core results.
 
@@ -293,7 +99,6 @@ def output_path_for(path: Path, dynamic_range: bool) -> Path:
     if dynamic_range:
         return path.with_name(f"{path.stem}.dynamic.json")
     return path.with_suffix(".json")
-
 
 def _write_output(
     spectrum: Spectrum,
@@ -326,7 +131,6 @@ def _write_output(
     }
     with output_path.open("w", encoding="utf-8") as handle:
         json.dump(data, handle, indent=2)
-
 
 def _select_dynamic_config(
     spectrum: Spectrum,
@@ -363,7 +167,6 @@ def _select_dynamic_config(
         selection,
     )
 
-
 def _fit_output_path(path: Path, args: argparse.Namespace) -> Path:
     """Return the fit JSON path, optionally beneath an external output root.
 
@@ -385,7 +188,6 @@ def _fit_output_path(path: Path, args: argparse.Namespace) -> Path:
     output_input = map_output_path(path, args.input_path, output_dir)
     output_input.parent.mkdir(parents=True, exist_ok=True)
     return output_path_for(output_input, args.dynamic_range)
-
 
 def process_file(path: Path, args: argparse.Namespace):
     """Fit one trajectory and save core results plus optional diagnostics.
@@ -441,7 +243,6 @@ def process_file(path: Path, args: argparse.Namespace):
     _write_output(spectrum, output_path, selection)
     return fit
 
-
 def _reject_overlapping_fit_paths(
     input_roots: tuple[Path, ...],
     output_dir: Path,
@@ -472,7 +273,6 @@ def _reject_overlapping_fit_paths(
                 "EdgeMod input and output paths must not overlap. "
                 "Choose an --output-dir outside the input path."
             )
-
 
 def _fit_provenance(args: argparse.Namespace, paths: list[Path]) -> dict:
     """Return reproducible provenance for one external-output fit batch.
@@ -508,7 +308,6 @@ def _fit_provenance(args: argparse.Namespace, paths: list[Path]) -> dict:
         "managed_artifacts": [],
     }
 
-
 def _remove_fit_artifacts(output_dir: Path, provenance: dict) -> None:
     """Remove only artifacts recorded by a validated prior fit batch.
 
@@ -537,7 +336,6 @@ def _remove_fit_artifacts(output_dir: Path, provenance: dict) -> None:
         allowed_suffixes={".json", ".png"},
         metadata_files=("edgemod_fit.json", "fit_summary.csv"),
     )
-
 
 def _prepare_fit_output(args: argparse.Namespace, paths: list[Path]) -> None:
     """Validate and write provenance for an external-output fit batch.
@@ -582,7 +380,6 @@ def _prepare_fit_output(args: argparse.Namespace, paths: list[Path]) -> None:
         encoding="utf-8",
     )
 
-
 def _fit_summary_row(
     path: Path,
     input_root: Path,
@@ -618,7 +415,6 @@ def _fit_summary_row(
         "error": error,
     }
 
-
 def _safe_csv_text(value):
     """Prefix spreadsheet-formula-like text while preserving other values.
 
@@ -635,7 +431,6 @@ def _safe_csv_text(value):
     if isinstance(value, str) and value.lstrip().startswith(("=", "+", "-", "@")):
         return "'" + value
     return value
-
 
 def _write_fit_batch_outputs(
     args: argparse.Namespace,
@@ -691,8 +486,7 @@ def _write_fit_batch_outputs(
         encoding="utf-8",
     )
 
-
-def _run_fit(args: argparse.Namespace) -> int:
+def run(args: argparse.Namespace) -> int:
     """Run core fitting over selected contour trajectories.
 
     Parameters
@@ -768,21 +562,3 @@ def _run_fit(args: argparse.Namespace) -> int:
     processed = succeeded + skipped + failed
     report_batch_summary(processed, succeeded, skipped, failed)
     return exit_code(failed, succeeded + skipped)
-
-
-def main() -> int:
-    """Run the selected EdgeMod analysis stage.
-
-    Returns
-    -------
-    int
-        Exit status of the selected analysis command.
-    """
-    args = parse_args()
-    if getattr(args, "command", "fit") == "ensemble":
-        return run_ensemble(args, build_fit_config(args))
-    return _run_fit(args)
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

@@ -13,7 +13,7 @@ from .extraction.edge_extractor import extract_edge_from_frame
 from .qc.checks.edge_filtering import CurvatureQCConfig
 from .qc.checks.localized_deviation_qc import LocalizedDeviationQCConfig, check_localized_deviation
 from .contour_geometry import RadialBaselineFit, contour_area, fit_radial_baseline
-from .io.frame_source import (
+from vesmod.io.vesedge.frame_source import (
     OnDemandFrameSequence,
     as_frame_source,
     open_frame_source,
