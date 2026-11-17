@@ -23,18 +23,16 @@ from vesmod.vesedge.experimental.internal_structures import (
     summarize_internal_structures,
 )
 
-from vesmod.cli.input_selection import InputPathsAction, select_input_files
-from vesmod.cli.path_utils import (
-    _display_path,
-    _relative_input_path,
-    remove_manifest_artifacts,
-)
+from vesmod.cli.input_selection import InputPathsAction
+from vesmod.io.input_selection import select_input_files
+from vesmod.cli.path_utils import _display_path
+from vesmod.io.artifacts import remove_manifest_artifacts
 from vesmod.io.vesedge.checkpoint_sources import (
     build_video_filename_index,
     open_checkpoint_frames,
     resolve_source_path,
 )
-from vesmod.io.path_mapping import map_output_path
+from vesmod.io.path_mapping import map_output_path, relative_selected_path
 from vesmod.cli.batch_policy import (
     add_batch_policy_argument,
     exit_code,
@@ -360,7 +358,7 @@ def process_checkpoint(
     managed_outputs: set[Path] | None = None,
 ) -> dict:
     """Measure one checkpoint and write its frame- and region-level outputs."""
-    relative_path = _relative_input_path(checkpoint_path, args.input_path)
+    relative_path = relative_selected_path(checkpoint_path, args.input_path)
     output_base = map_output_path(
         checkpoint_path, args.input_path, args.output_dir
     ).with_suffix("")

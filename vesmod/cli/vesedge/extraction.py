@@ -16,7 +16,8 @@ from vesmod.cli.batch_policy import (
     exit_code,
     report_batch_summary,
 )
-from vesmod.cli.input_selection import InputPathsAction, select_input_files
+from vesmod.cli.input_selection import InputPathsAction
+from vesmod.io.input_selection import select_input_files
 from vesmod.cli.path_utils import _display_path
 
 

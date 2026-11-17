@@ -6,7 +6,7 @@ import sys
 from vesmod.cli.edgemod import fitting as edgemod_cli
 from vesmod.cli.edgemod import main as edgemod_main
 from vesmod.cli.vesedge import main as vesedge_cli
-from vesmod.cli.input_selection import select_input_files
+from vesmod.io.input_selection import select_input_files
 
 
 def test_select_input_files_accepts_multiple_explicit_files(tmp_path):

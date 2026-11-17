@@ -17,13 +17,11 @@ from vesmod.cli.batch_policy import (
     exit_code,
     report_batch_summary,
 )
-from vesmod.cli.input_selection import InputPathsAction, select_input_files
-from vesmod.cli.path_utils import (
-    _display_path,
-    _relative_input_path,
-    remove_manifest_artifacts,
-)
-from vesmod.io.path_mapping import map_output_path
+from vesmod.cli.input_selection import InputPathsAction
+from vesmod.io.input_selection import select_input_files
+from vesmod.cli.path_utils import _display_path
+from vesmod.io.artifacts import remove_manifest_artifacts
+from vesmod.io.path_mapping import map_output_path, relative_selected_path
 
 
 def add_parser(subparsers) -> None:
@@ -197,7 +195,7 @@ def _qc_summary(
         0 if edges.qc_result is None else len(edges.qc_result.accepted_frame_indices)
     )
     return {
-        "file": str(_relative_input_path(path, input_path)),
+        "file": str(relative_selected_path(path, input_path)),
         "frames": len(edges.detections),
         "successful_detections": len(successful),
         "extraction_failures": len(edges.detections) - len(successful),
@@ -212,7 +210,7 @@ def _qc_summary(
 def _load_error_summary(path: Path, input_path: Path, error: str) -> dict:
     """Build a canonical summary row for a checkpoint that could not load."""
     return {
-        "file": str(_relative_input_path(path, input_path)),
+        "file": str(relative_selected_path(path, input_path)),
         "frames": 0,
         "successful_detections": 0,
         "extraction_failures": 0,

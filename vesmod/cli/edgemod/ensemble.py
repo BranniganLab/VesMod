@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 from vesmod.edgemod import PowerCalculationResult, SpectrumEnsemble
 from vesmod.cli.batch_policy import exit_code
-from vesmod.cli.input_selection import select_input_files
+from vesmod.io.input_selection import select_input_files
 
 
 def _load_exclusion_policy(spec):

@@ -17,7 +17,8 @@ from vesmod.io.vesedge.checkpoint_sources import (
 )
 from vesmod.io.path_mapping import map_output_path
 from vesmod.cli.batch_policy import add_batch_policy_argument, exit_code, report_batch_summary
-from vesmod.cli.input_selection import InputPathsAction, select_input_files
+from vesmod.cli.input_selection import InputPathsAction
+from vesmod.io.input_selection import select_input_files
 
 
 def add_parser(subparsers) -> None:
