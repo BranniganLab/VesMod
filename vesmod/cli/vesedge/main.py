@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 
 from vesmod.cli.vesedge import extraction, gif, qc, trace_plot
-from vesmod.cli.vesedge import internal_structures
+from vesmod.cli.vesedge.experimental import internal_structures
 
 
 def parse_args() -> argparse.Namespace:
