@@ -1,6 +1,7 @@
 """Public core EdgeMod API."""
 
-from .spectrum_utils import spherical_contour_spectrum, predict_spectrum, mode_relaxation_times
+from .spherical_model import spherical_contour_spectrum, predict_spherical_contour_power
+from .relaxation import mode_relaxation_times
 from .calculators import MeanSquaredPowerCalculator, TemporalVarianceCalculator
 from .power_calculation import PowerCalculationResult, SpectrumCalculator
 from .config import SpectrumFitConfig
@@ -20,7 +21,7 @@ __all__ = [
     "MeanSquaredPowerCalculator", "TemporalVarianceCalculator",
     "PowerCalculationResult", "SpectrumCalculator",
     "spherical_contour_spectrum",
-    "predict_spectrum",
+    "predict_spherical_contour_power",
     "mode_relaxation_times",
     "SpectrumFitConfig",
     "SpectrumFit",

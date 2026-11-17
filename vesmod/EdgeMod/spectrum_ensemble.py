@@ -13,17 +13,17 @@ behavior.
 """
 import numpy as np
 from vesmod.validation import require_positive_real
-from .range_selection.selection import select_manual_range, slice_fit_arrays
-from .spectrum_utils import fit_spectrum_lmfit
+from .fitting import fit_configured_spectrum
 from .config import SpectrumFitConfig
 from .fit_result import EnsembleFit
+
 
 
 class SpectrumEnsemble:
     """Store and analyze fluctuation spectra from multiple replicas.
 
-    Each replica contributes average squared mode amplitudes and an independently
-    determined bending modulus. All spectra must use the same Fourier modes.
+    Each replica contributes average squared mode amplitudes and may supply an
+    independently determined bending modulus. All spectra must use the same Fourier modes.
 
     The ensemble provides averaged amplitudes, replica dispersion/error, and a
     fixed-range fit of the ensemble-averaged spectrum.
@@ -32,55 +32,104 @@ class SpectrumEnsemble:
     ----------
     spectra_list : list[np.ndarray]
         Average squared amplitudes from each replica.
-    kC_list : list[float]
-        Bending modulus estimate associated with each replica.
+    kC_list : list[float | None]
+        Optional bending modulus estimate associated with each replica.
     modes : np.ndarray or None
         Fourier mode indices shared by all stored spectra. Set automatically
         when the first spectrum is added.
     """
 
     def __init__(self) -> None:
+        """Initialize the ensemble.
+
+        Returns
+        -------
+        None
+            Initializes an empty ensemble.
+        """
         self.spectra_list: list[np.ndarray] = []
-        self.kC_list: list[float] = []
+        self.kC_list: list[float | None] = []
         self.radii_list: list[float | None] = []
         self.modes: np.ndarray[int] = None
         self.fit_results: list[EnsembleFit] = []
 
     def __len__(self) -> int:
-        """Return the number of replica bending-modulus estimates."""
-        return len(self.kC_list)
+        """Return the number of replica spectra.
+
+        Returns
+        -------
+        int
+            Number of added replica spectra.
+        """
+        return len(self.spectra_list)
 
     @property
     def avg_amps2(self) -> np.ndarray:
-        """Return the mean squared fluctuation amplitudes across replicas."""
+        """Return the mean squared fluctuation amplitudes across replicas.
+
+        Returns
+        -------
+        numpy.ndarray
+            Mean power per Fourier mode across replicas.
+        """
         return np.mean(np.array(self.spectra_list), axis=0)
 
     @property
     def avg_amps2_std(self) -> np.ndarray:
-        """Return the sample standard deviation of amplitudes across replicas."""
+        """Return the sample standard deviation of amplitudes across replicas.
+
+        Returns
+        -------
+        numpy.ndarray
+            Sample standard deviation per Fourier mode.
+        """
         return np.std(np.array(self.spectra_list), axis=0, ddof=1)
 
     @property
     def avg_amps2_ste(self) -> np.ndarray:
-        """Return the standard error of amplitudes across replicas."""
+        """Return the standard error of amplitudes across replicas.
+
+        Returns
+        -------
+        numpy.ndarray
+            Standard error per Fourier mode.
+        """
         return self.avg_amps2_std / np.sqrt(len(self.spectra_list))
 
     @property
     def kC(self) -> float:
-        """Return kC from a free-sigma fit of the averaged spectrum."""
+        """Return kC from a free-sigma fit of the averaged spectrum.
+
+        Returns
+        -------
+        float
+            Bending modulus in kBT from the default ensemble fit.
+        """
         return self._extract_kC_from_fit()
 
     @property
     def kC_std(self) -> float:
-        """Return sample standard deviation among replica kC values."""
-        return np.std(self.kC_list, ddof=1)
+        """Return sample standard deviation among replica kC values.
+
+        Returns
+        -------
+        float
+            Sample standard deviation of available replica estimates in kBT.
+        """
+        return np.std([kc for kc in self.kC_list if kc is not None], ddof=1)
 
     @property
     def kC_ste(self) -> float:
-        """Return standard error among replica kC values."""
-        return self.kC_std / np.sqrt(len(self.kC_list))
+        """Return standard error among replica kC values.
 
-    def add_spectrum(self, avg_amps2: list[float], modes: list[int], kC: float,
+        Returns
+        -------
+        float
+            Standard error of available replica estimates in kBT.
+        """
+        return self.kC_std / np.sqrt(sum(kc is not None for kc in self.kC_list))
+
+    def add_spectrum(self, avg_amps2: list[float], modes: list[int], kC: float | None = None,
                      *, r0: float | None = None) -> None:
         """Add one replica spectrum and its fitted bending modulus.
 
@@ -95,6 +144,11 @@ class SpectrumEnsemble:
             Replica mean radius in microns, required for every fit.
         kC : float
             Bending modulus determined independently for this replica.
+
+        Returns
+        -------
+        None
+            Adds the replica powers and metadata to the ensemble.
 
         Raises
         ------
@@ -121,6 +175,7 @@ class SpectrumEnsemble:
         config: SpectrumFitConfig | None = None,
         *,
         weight_by_replica_sem: bool = False,
+        model=None,
     ) -> EnsembleFit:
         """Fit the averaged spectrum using a physical fit configuration.
 
@@ -128,7 +183,22 @@ class SpectrumEnsemble:
         reported as dimensionless reduced tension. Supply a configuration
         with ``free_sigma=False`` to fix it to zero. Set
         ``weight_by_replica_sem=True`` to weight each mode by the inverse
-        standard error across replicas.
+        standard error across replicas. Supply ``model`` for a custom model factory.
+
+        Parameters
+        ----------
+        config : SpectrumFitConfig or None
+            Physical fit settings, or None for defaults.
+        model : callable or None
+            Optional factory accepting config, radii in micrometers, and expected_replica_count.
+            Returns a power predictor and bounds for bending modulus and reduced tension.
+        weight_by_replica_sem : bool
+            Whether to use inverse replica SEM as weights.
+
+        Returns
+        -------
+        EnsembleFit
+            Fit of the mean powers, including bending modulus and reduced tension.
         """
         if config is None:
             config = SpectrumFitConfig()
@@ -145,23 +215,11 @@ class SpectrumEnsemble:
             radius is None for radius in self.radii_list
         ):
             raise ValueError("Supply r0 for every replica to set the reduced-tension bound.")
-        fit_kwargs = {"config": config, "radii": self.radii_list,
-                         "expected_replica_count": len(self.spectra_list)}
-        fit_mode_mask = select_manual_range(
-            self.modes, config.lower_bound, config.upper_bound
-        )
         sem = self.avg_amps2_ste if len(self.spectra_list) >= 2 else None
-        modes, powers, fit_sem = slice_fit_arrays(
-            fit_mode_mask, self.modes, self.avg_amps2, sem=sem
-        )
-        result = fit_spectrum_lmfit(
-            modes,
-            powers,
-            config.lmax,
-            free_sigma=config.free_sigma,
-            weighted=weight_by_replica_sem,
-            sem=fit_sem,
-            **fit_kwargs,
+        result, config = fit_configured_spectrum(
+            self.modes, self.avg_amps2, config, self.radii_list,
+            model=model, sem=sem, weighted=weight_by_replica_sem,
+            expected_replica_count=len(self.spectra_list),
         )
         kC = result.best_values["kC"]
         reduced_sigma = result.best_values["sigma"]

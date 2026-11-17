@@ -165,7 +165,7 @@ def test_extract_kC_from_fit_uses_isolated_mode_range(monkeypatch, free_sigma):
         calls.update(modes=modes, powers=powers, sem=sem, lmax=lmax, free_sigma=free_sigma, weighted=weighted)
         return SimpleNamespace(best_values={"kC": 123.0, "sigma": 0.0}, chisqr=1.0, redchi=1.0)
 
-    monkeypatch.setattr("vesmod.EdgeMod.spectrum_ensemble.fit_spectrum_lmfit", fake_fit)
+    monkeypatch.setattr("vesmod.EdgeMod.fitting.fit_spectrum", fake_fit)
 
     result = avg._extract_kC_from_fit(
         lower_bound=2, upper_bound=4, lmax=700, free_sigma=free_sigma,
@@ -202,7 +202,7 @@ def test_extract_kc_from_fit_accepts_free_sigma_and_records_reduced_tension(monk
         calls.update(modes=modes, powers=powers, sem=sem, lmax=lmax, free_sigma=free_sigma, weighted=weighted)
         return SimpleNamespace(best_values={"kC": 123.0, "sigma": 4.5}, chisqr=2.5, redchi=2.5)
 
-    monkeypatch.setattr("vesmod.EdgeMod.spectrum_ensemble.fit_spectrum_lmfit", fake_fit)
+    monkeypatch.setattr("vesmod.EdgeMod.fitting.fit_spectrum", fake_fit)
 
     fit = avg.extract_kc_from_fit(config, weight_by_replica_sem=True)
 
@@ -233,7 +233,7 @@ def test_ensemble_fit_defaults_to_free_sigma(monkeypatch, entry_point):
         calls.update(free_sigma=free_sigma, weighted=weighted)
         return SimpleNamespace(best_values={"kC": 123.0, "sigma": 4.5}, chisqr=1.0, redchi=1.0)
 
-    monkeypatch.setattr("vesmod.EdgeMod.spectrum_ensemble.fit_spectrum_lmfit", fake_fit)
+    monkeypatch.setattr("vesmod.EdgeMod.fitting.fit_spectrum", fake_fit)
 
     result = avg.kC if entry_point == "kC" else getattr(avg, entry_point)()
     fit = avg.fit_results[-1]
@@ -250,7 +250,7 @@ def test_ensemble_fit_defaults_to_free_sigma(monkeypatch, entry_point):
 @pytest.mark.parametrize("free_sigma", [True, False])
 def test_ensemble_fit_recovers_synthetic_spectrum(free_sigma):
     """Default free and explicit fixed fits recover known spherical_contour_spectrum parameters."""
-    from vesmod.EdgeMod.spectrum_utils import spherical_contour_spectrum
+    from vesmod.EdgeMod.spherical_model import spherical_contour_spectrum
 
     modes = np.arange(2, 10)
     expected_kc = 25.0
@@ -311,3 +311,31 @@ def test_sem_weighting_option_must_be_boolean():
 
     with pytest.raises(TypeError, match="weight_by_replica_sem must be a bool"):
         avg.extract_kc_from_fit(weight_by_replica_sem="yes")
+
+
+def test_custom_model_is_used_by_single_and_ensemble_fits():
+    from vesmod.EdgeMod import Spectrum
+
+    modes = np.fft.fftfreq(32, d=1 / 32).astype(int)
+    calls = []
+
+    def custom_model(config, radii, *, expected_replica_count):
+        calls.append((tuple(radii), expected_replica_count))
+
+        def power(q, kC, sigma, lmax):
+            return kC / q**2 + sigma / lmax
+
+        return power, (10, 50), (-5, 5)
+
+    spectrum = Spectrum.from_radii(np.full((4, 32), 5.0))
+    spectrum.powers[3:8] = 25 / modes[3:8] ** 2
+    config = SpectrumFitConfig(free_sigma=False)
+    replica = spectrum.extract_kc_from_fit(config, model=custom_model)
+    ensemble = SpectrumEnsemble()
+    ensemble.add_spectrum(spectrum.powers, spectrum.modes, r0=5.0)
+    fit = ensemble.extract_kc_from_fit(config, model=custom_model)
+
+    assert replica.kC == pytest.approx(25)
+    assert fit.kC == pytest.approx(25)
+    assert replica.config.model == fit.config.model == "custom_model"
+    assert calls == [((5.0,), 1), ((5.0,), 1)]

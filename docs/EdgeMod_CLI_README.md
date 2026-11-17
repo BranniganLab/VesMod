@@ -624,7 +624,7 @@ prediction exactly. The choices are serialized in fit results and provenance.
 For prediction without fitting:
 
 ```python
-from vesmod.EdgeMod import SpectrumFitConfig, predict_spectrum
+from vesmod.EdgeMod import SpectrumFitConfig, predict_spherical_contour_power
 
 config = SpectrumFitConfig(
     model="spherical_contour_spectrum",
@@ -634,11 +634,11 @@ config = SpectrumFitConfig(
     viscosity_out=0.001,
     eta_m=4.1e-9,
 )
-power = predict_spectrum([3, 4, 5, 6, 7], kC=25, sigma=4, lmax=500,
+power = predict_spherical_contour_power([3, 4, 5, 6, 7], kC=25, sigma=4, lmax=500,
                          config=config, radii=[5])  # radii in microns
 ```
 
-`predict_spectrum` is also the prediction used during fitting. The equilibrium
+`predict_spherical_contour_power` is also the prediction used during fitting. The equilibrium
 function is now named `spherical_contour_spectrum`; the previous `HSS97` and
 `HSS97_with_camera_integration_time` function names have been removed.
 Existing camera-aware Python calls must add `camera_integration=True`, and
@@ -646,3 +646,54 @@ membrane-aware calls must also set `relaxation_model="solvent_and_membrane"`.
 CLI calls likewise need the explicit flags. Supplying only exposure duration
 now leaves camera integration off. `mode_relaxation_times` is available for
 standalone calculation in seconds with either explicitly selected method.
+
+## Fit a vesicle ensemble
+
+```bash
+edgemod ensemble ./per-vesicle-fits --output ensemble.json --weight-by-replica-sem
+```
+
+Pass saved per-vesicle spectrum JSON files, directories, or glob patterns. The
+command fits the mean of the included spectra using their saved powers and mean
+radii. Included spectra must share Fourier modes and a power definition, and
+powers must be dimensionless. Individual fit results are optional. Use `--weight-by-replica-sem` to
+weight the ensemble fit by the inverse standard error across replicas. This
+requires at least two included vesicles and positive SEM for each fitted mode.
+
+To apply an exclusion policy, pass `--exclusion-policy MODULE:FUNCTION`. The module
+must be importable in the Python environment running EdgeMod. The function takes
+a `Path` and a spectrum record with `modes`, `powers`, `r0` (micrometers),
+`power_definition`, `power_unit`, `kC`, `surface_tension`, and `fit_results` and returns `None` to include the vesicle or a nonempty
+string explaining its exclusion. The same function can be called in a Python
+workflow before adding the spectrum to a `SpectrumEnsemble`.
+
+```python
+def exclude_small_vesicles(path, spectrum):
+    if spectrum.r0 < 4:
+        return "Mean radius below 4 micrometers"
+    return None
+```
+
+```bash
+edgemod ensemble ./per-vesicle-fits --output ensemble.json \
+    --exclusion-policy my_policies:exclude_small_vesicles
+```
+
+The JSON report records the policy, fit settings, per-vesicle status and any
+exclusion or error reason, and the ensemble fit. Choose a new output filename
+for each run.
+
+### Supply a physical model in Python
+
+Both `Spectrum.extract_kc_from_fit()` and
+`SpectrumEnsemble.extract_kc_from_fit()` accept a `model=` factory. The factory
+takes `(config, radii, *, expected_replica_count)`, with radii in micrometers.
+It returns `(predict, kc_bounds, sigma_bounds)`. The predictor takes
+`(q, kC, sigma, lmax)` and returns powers in the order of the supplied modes.
+Use bending modulus in units of kBT and dimensionless reduced tension
+`sigma = physical_tension * r0**2 / (kC * kBT)`, with `r0` in meters for
+that conversion. Each bounds tuple contains a minimum and maximum.
+
+Set `SpectrumFitConfig.model` to a descriptive name to record it in the fit.
+When you supply a factory with the default model name in the configuration,
+the fit records the factory name.

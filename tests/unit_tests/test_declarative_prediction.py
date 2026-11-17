@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 from vesmod.EdgeMod import (
-    Spectrum, SpectrumFitConfig, mode_relaxation_times, predict_spectrum,
+    Spectrum, SpectrumFitConfig, mode_relaxation_times, predict_spherical_contour_power,
     spherical_contour_spectrum,
 )
 
@@ -15,7 +15,7 @@ from vesmod.EdgeMod import (
 def test_exposure_metadata_does_not_enable_camera_integration():
     config = SpectrumFitConfig(exposure_time=.030)
     expected = spherical_contour_spectrum([3, 5, 7], 25, 4, 50)
-    assert predict_spectrum([3, 5, 7], 25, 4, 50, config=config) == expected
+    assert predict_spherical_contour_power([3, 5, 7], 25, 4, 50, config=config) == expected
 
 
 def test_toggle_retains_parameters_and_changes_only_exposure_averaging():
@@ -23,14 +23,14 @@ def test_toggle_retains_parameters_and_changes_only_exposure_averaging():
                                viscosity_in=.00102, viscosity_out=.00097)
     disabled = replace(config, camera_integration=False)
     equilibrium = spherical_contour_spectrum([3, 5, 7], 25, 4, 50)
-    assert predict_spectrum([3, 5, 7], 25, 4, 50, config=disabled) == equilibrium
-    assert np.all(np.array(predict_spectrum([3, 5, 7], 25, 4, 50,
+    assert predict_spherical_contour_power([3, 5, 7], 25, 4, 50, config=disabled) == equilibrium
+    assert np.all(np.array(predict_spherical_contour_power([3, 5, 7], 25, 4, 50,
                                            config=config, radii=[5])) < equilibrium)
     assert disabled.exposure_time == .030
 
 
 @pytest.mark.parametrize('kwargs, message', [
-    ({'model': 'unknown'}, 'model must'),
+    ({'model': ''}, 'model must'),
     ({'relaxation_model': 'unknown'}, 'relaxation_model must'),
     ({'camera_integration': True}, 'Positive exposure_time'),
     ({'eta_m': 0}, 'eta_m requires'),
@@ -98,13 +98,14 @@ def test_disabled_correction_fits_and_plots_equilibrium_with_exposure_metadata()
 def test_prediction_validates_inputs_once_not_each_spherical_mode(
         monkeypatch, relaxation_model, eta_m):
     """Cached ell arrays must bypass repeated public-API validation."""
-    import vesmod.EdgeMod.spectrum_utils as utils
+    import vesmod.EdgeMod.relaxation as relaxation
+    import vesmod.EdgeMod.spherical_model as utils
     config = SpectrumFitConfig(camera_integration=True, exposure_time=.030,
                                relaxation_model=relaxation_model, eta_m=eta_m,
                                viscosity_in=.001, viscosity_out=.001)
     calls = {'spectrum': 0, 'radii': 0}
-    original_spectrum = utils._validate_spherical_inputs
-    original_radii = utils._validate_camera_radii
+    original_spectrum = utils.validate_spherical_inputs
+    original_radii = relaxation.validate_vesicle_radii
 
     def validate_spectrum(q, *args):
         calls['spectrum'] += 1
@@ -115,9 +116,16 @@ def test_prediction_validates_inputs_once_not_each_spherical_mode(
         calls['radii'] += 1
         return original_radii(radii)
 
-    monkeypatch.setattr(utils, '_validate_spherical_inputs', validate_spectrum)
-    monkeypatch.setattr(utils, '_validate_camera_radii', validate_radii)
-    power = utils.predict_spectrum([3, 4, 5, 6, 7], 25, 4, 500,
+    monkeypatch.setattr(utils, 'validate_spherical_inputs', validate_spectrum)
+    monkeypatch.setattr(relaxation, 'validate_spherical_inputs', validate_spectrum)
+    monkeypatch.setattr(relaxation, 'validate_vesicle_radii', validate_radii)
+    power = utils.predict_spherical_contour_power([3, 4, 5, 6, 7], 25, 4, 500,
                                    config=config, radii=[5, 15])
     assert np.all(np.isfinite(power))
     assert calls == {'spectrum': 1, 'radii': 1}
+
+
+def test_standalone_relaxation_rejects_invalid_spherical_degree():
+    config = SpectrumFitConfig(viscosity_in=.001, viscosity_out=.001)
+    with pytest.raises(ValueError, match="q >= 2"):
+        mode_relaxation_times([1, 3], 25, 4, config=config, radii=[5])

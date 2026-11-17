@@ -26,11 +26,9 @@ from .config import SpectrumFitConfig
 from .calculators import MeanSquaredPowerCalculator
 from .power_calculation import PowerCalculationResult, SpectrumCalculator
 from .fit_result import SpectrumFit
-from .range_selection.selection import select_manual_range, slice_fit_arrays
-from .spectrum_utils import (
-    calc_tension_from_reduced_tension,
-    fit_spectrum_lmfit,
-)
+from .fitting import fit_configured_spectrum
+from .tension import calc_tension_from_reduced_tension
+
 
 
 if TYPE_CHECKING:
@@ -63,6 +61,20 @@ class Spectrum:
         """Create a Spectrum from accepted radii or a QCed VesicleEdges object.
 
         ``calculator`` supplies the contour-to-power calculation.
+
+        Parameters
+        ----------
+        edges_over_time : str, pathlib.Path, or VesicleEdges
+            Path to accepted radii or a QC-filtered VesicleEdges object.
+        frame_cutoff : int or None
+            Optional maximum number of frames to use.
+        calculator : SpectrumCalculator or None
+            Optional contour-to-power callable.
+
+        Returns
+        -------
+        None
+            Initializes the spectrum from the accepted contours.
         """
         if isinstance(edges_over_time, (Path, str)):
             if isinstance(edges_over_time, str):
@@ -93,6 +105,20 @@ class Spectrum:
         """Create a Spectrum directly from an in-memory radii array.
 
         ``calculator`` defines the mode powers calculated from the radii.
+
+        Parameters
+        ----------
+        radii : numpy.ndarray
+            Array of contour radii in micrometers, indexed by frame and angle.
+        frame_cutoff : int or None
+            Optional maximum number of frames to use.
+        calculator : SpectrumCalculator or None
+            Optional contour-to-power callable.
+
+        Returns
+        -------
+        Spectrum
+            Spectrum calculated from the supplied radii.
         """
         spectrum = cls.__new__(cls)
         spectrum._initialize_from_radii(radii, frame_cutoff, calculator)
@@ -100,7 +126,18 @@ class Spectrum:
 
     @staticmethod
     def _validate_radii(radii: np.ndarray) -> np.ndarray:
-        """Validate a contour-radius trajectory."""
+        """Validate a contour-radius trajectory.
+
+        Parameters
+        ----------
+        radii : numpy.ndarray
+            Array of contour radii indexed by frame and angle.
+
+        Returns
+        -------
+        numpy.ndarray
+            Validated contour trajectory.
+        """
         require_numeric_array(radii, "radii")
         if radii.ndim != 2:
             raise ValueError("radii must be a two-dimensional array.")
@@ -127,7 +164,22 @@ class Spectrum:
         frame_cutoff,
         calculator: SpectrumCalculator | None,
     ) -> None:
-        """Validate radii, apply an optional cutoff, and calculate the spectrum."""
+        """Validate radii, apply an optional cutoff, and calculate the spectrum.
+
+        Parameters
+        ----------
+        radii : numpy.ndarray
+            Contour radii in micrometers.
+        frame_cutoff : int or None
+            Optional maximum number of frames to use.
+        calculator : SpectrumCalculator or None
+            Optional contour-to-power callable.
+
+        Returns
+        -------
+        None
+            Initializes power and fit state.
+        """
         if (
             frame_cutoff is not None
             and (isinstance(frame_cutoff, bool) or not isinstance(frame_cutoff, int))
@@ -156,17 +208,35 @@ class Spectrum:
 
     @property
     def powers(self) -> np.ndarray:
-        """Calculated powers aligned with :attr:`modes`."""
+        """Calculated powers aligned with :attr:`modes`.
+
+        Returns
+        -------
+        numpy.ndarray
+            Measured power per contour mode.
+        """
         return self._calculation.powers
 
     @property
     def modes(self) -> np.ndarray:
-        """Signed Fourier modes returned by the calculator."""
+        """Signed Fourier modes returned by the calculator.
+
+        Returns
+        -------
+        numpy.ndarray
+            Signed integer Fourier modes.
+        """
         return self._calculation.modes
 
     @property
     def r0(self) -> float:
-        """Calculator reference radius in micrometers."""
+        """Calculator reference radius in micrometers.
+
+        Returns
+        -------
+        float
+            Reference radius in micrometers.
+        """
         factors = {"um": 1.0, "m": 1e6, "nm": 1e-3}
         try:
             return self._calculation.reference_radius * factors[self._calculation.radius_unit]
@@ -175,18 +245,38 @@ class Spectrum:
 
     @property
     def power_definition(self) -> str:
-        """Read-only description of the calculated powers."""
+        """Read-only description of the calculated powers.
+
+        Returns
+        -------
+        str
+            Identifier for the observable calculated from the contours.
+        """
         return self._calculation.power_definition
 
     def extract_kc_from_fit(
         self,
         config: SpectrumFitConfig | None = None,
+        *,
+        model=None,
     ) -> SpectrumFit:
         """Fit the configured fixed q interval to the theoretical spectrum.
 
-        Range selection is intentionally outside this core method. Callers that
-        choose q bounds dynamically should construct a ``SpectrumFitConfig``
-        containing those selected bounds before invoking the physical fit.
+        Supply ``model`` to use a custom model factory. The factory returns
+        a power predictor and bounds for bending modulus and reduced tension.
+
+        Parameters
+        ----------
+        config : SpectrumFitConfig or None
+            Physical fit settings, or None for defaults.
+        model : callable or None
+            Optional factory accepting config, radii in micrometers, and expected_replica_count.
+            Returns a power predictor and bounds for bending modulus and reduced tension.
+
+        Returns
+        -------
+        SpectrumFit
+            Fitted bending modulus, surface tension in N/m, and fit settings.
         """
         if config is None:
             config = SpectrumFitConfig()
@@ -194,19 +284,9 @@ class Spectrum:
             raise TypeError("config must be a SpectrumFitConfig or None.")
 
         self.fit_result = None
-        fit_mode_mask = select_manual_range(
-            self.modes, config.lower_bound, config.upper_bound
-        )
-        modes, powers, _ = slice_fit_arrays(fit_mode_mask, self.modes, self.powers)
-        if modes.size == 0:
-            raise ValueError("Configured q range contains no spectrum modes.")
-
-        self.fit_result = fit_spectrum_lmfit(
-            modes,
-            powers,
-            config.lmax,
-            config.free_sigma,
-            config=config, radii=[self.r0], expected_replica_count=1,
+        self.fit_result, config = fit_configured_spectrum(
+            self.modes, self.powers, config, [self.r0],
+            model=model, expected_replica_count=1,
         )
 
         fitted_kc = self.fit_result.best_values["kC"]
@@ -241,7 +321,24 @@ class Spectrum:
         upper_bound: int,
         lmax: int,
     ) -> None:
-        """Save measured spectrum, attempted fit, and residual diagnostics."""
+        """Save measured spectrum, attempted fit, and residual diagnostics.
+
+        Parameters
+        ----------
+        path : pathlib.Path
+            Destination image path.
+        lower_bound : int
+            First included Fourier mode.
+        upper_bound : int
+            First excluded Fourier mode.
+        lmax : int
+            Inclusive model summation limit.
+
+        Returns
+        -------
+        None
+            Writes the diagnostic image.
+        """
         if self.fit_result is None:
             raise ValueError("A spectrum fit must be attempted before plotting.")
         save_spectrum_fit_diagnostic(
@@ -271,6 +368,24 @@ class Spectrum:
         created from a complete trajectory. When a successful fit exists, its
         recorded configuration supplies the fitting interval unless an explicit
         ``fit_config`` is provided.
+
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes or None
+            Target axes, or None to create axes.
+        color : matplotlib color or None
+            Optional series color.
+        label : str or None
+            Optional series label.
+        fit_config : SpectrumFitConfig or None
+            Optional settings used to display the fitting interval.
+        plot_config : SpectrumPlotConfig or None
+            Optional rendering settings.
+
+        Returns
+        -------
+        SpectrumPlotResult
+            Figure, axes, and plotted artists.
         """
         if fit_config is None and self.fit_results:
             fit_config = self.fit_results[-1].config
@@ -294,7 +409,18 @@ class Spectrum:
         )
 
     def to_dict(self, include_arrays=True) -> dict:
-        """Return spectrum state and retained physical-fit provenance."""
+        """Return spectrum state and retained physical-fit provenance.
+
+        Parameters
+        ----------
+        include_arrays : bool
+            Whether to include the mode and power arrays.
+
+        Returns
+        -------
+        dict
+            JSON-serializable spectrum, metadata, and fit results.
+        """
         data = {
             "power_definition": getattr(self, "power_definition", "mean_square"),
             "r0": float(self.r0) if getattr(self, "r0", None) is not None else None,
@@ -333,7 +459,22 @@ class Spectrum:
         include_arrays: bool = True,
         indent: int = 2,
     ) -> None:
-        """Serialize spectrum state and retained fit records to JSON."""
+        """Serialize spectrum state and retained fit records to JSON.
+
+        Parameters
+        ----------
+        outfile : str or pathlib.Path
+            Destination JSON path.
+        include_arrays : bool
+            Whether to include the mode and power arrays.
+        indent : int
+            JSON indentation width.
+
+        Returns
+        -------
+        None
+            Writes the spectrum JSON.
+        """
         outfile = Path(outfile).with_suffix('.json')
         with outfile.open("w", encoding="utf-8") as f:
             json.dump(self.to_dict(include_arrays=include_arrays), f, indent=indent)

@@ -9,8 +9,6 @@ from typing import Any
 import matplotlib.pyplot as plt
 import numpy as np
 
-from .spectrum_utils import spherical_contour_spectrum
-
 
 @dataclass(frozen=True)
 class SpectrumPlotData:
@@ -38,6 +36,13 @@ class SpectrumPlotConfig:
     power: str = "measured"
 
     def __post_init__(self) -> None:
+        """Validate plot configuration.
+
+        Returns
+        -------
+        None
+            Raises an exception for invalid plot options.
+        """
         if self.power not in {"measured", "corrected", "both"}:
             raise ValueError("power must be measured, corrected, or both.")
         if not 0 < self.nonfit_alpha <= 1:
@@ -73,6 +78,24 @@ def plot_spectrum(data, *, ax=None, color=None, label=None, config=None):
     Corrected powers use the fitted instantaneous/camera power ratio. They
     are model-dependent estimates for display, not inputs to another fit.
     Correction requires a camera fit and is shown for 2 <= q <= lmax.
+
+    Parameters
+    ----------
+    data : SpectrumPlotData
+        Measured spectrum and optional fit.
+    ax : matplotlib.axes.Axes or None
+        Target axes, or None to create axes.
+    color : matplotlib color or None
+        Series color, or None for the default cycle.
+    label : str or None
+        Optional series label.
+    config : SpectrumPlotConfig or None
+        Plot settings, or None for defaults.
+
+    Returns
+    -------
+    SpectrumPlotResult
+        Figure, axes, and measured or corrected artists.
     """
     if config is None:
         config = SpectrumPlotConfig()
@@ -84,8 +107,10 @@ def plot_spectrum(data, *, ax=None, color=None, label=None, config=None):
         raise ValueError("Camera correction is defined only for q >= 2.")
     mask = (data.modes >= 2) & (data.modes <= data.lmax)
     modes = data.modes[mask]
-    params = data.fit_result.best_values
-    instantaneous = np.asarray(spherical_contour_spectrum(modes, params["kC"], params["sigma"], data.lmax))
+    evaluate_instantaneous = getattr(data.fit_result, "eval_instantaneous", None)
+    if evaluate_instantaneous is None:
+        raise ValueError("Corrected powers require an instantaneous prediction from the fitted model.")
+    instantaneous = np.asarray(evaluate_instantaneous(modes))
     camera = np.asarray(data.fit_result.eval(q=modes))
     if np.any(~np.isfinite(camera)) or np.any(camera <= 0):
         raise ValueError("Camera prediction must be finite and positive for correction.")
@@ -95,6 +120,18 @@ def plot_spectrum(data, *, ax=None, color=None, label=None, config=None):
     if color is None:
         color = ax._get_lines.get_next_color()
     def series_label(kind):
+        """Series label.
+
+        Parameters
+        ----------
+        kind : str
+            Label for the power view.
+
+        Returns
+        -------
+        str
+            Label for the plotted data series.
+        """
         return f"{label} ({kind})" if label else kind.capitalize()
     measured_result = None
     if config.power == "both":
@@ -104,7 +141,7 @@ def plot_spectrum(data, *, ax=None, color=None, label=None, config=None):
         corrected, ax=ax, color=color, label=series_label("camera-corrected"),
         config=replace(config, marker="s",
                        fitting_region="none" if measured_result else config.fitting_region),
-        instantaneous=True)
+        instantaneous=instantaneous)
     result = corrected_result if measured_result is None else measured_result
     return replace(result,
                    corrected_nonfit_artist=corrected_result.nonfit_artist,
@@ -119,7 +156,7 @@ def _plot_spectrum(
     color=None,
     label=None,
     config: SpectrumPlotConfig | None = None,
-    instantaneous=False,
+    instantaneous=None,
 ) -> SpectrumPlotResult:
     """Plot one spectrum on an existing or newly created axis.
 
@@ -127,6 +164,26 @@ def _plot_spectrum(
     by marker opacity and fill, so multiple spectra remain distinguishable when
     overlaid. The fit interval is shown as a compact strip by default, avoiding
     full-height colored bands for overlaid spectra.
+
+    Parameters
+    ----------
+    data : SpectrumPlotData
+        Measured spectrum and optional fit.
+    ax : matplotlib.axes.Axes or None
+        Target axes, or None to create axes.
+    color : matplotlib color or None
+        Series color, or None for the default cycle.
+    label : str or None
+        Optional series label.
+    config : SpectrumPlotConfig or None
+        Plot settings, or None for defaults.
+    instantaneous : numpy.ndarray or None
+        Optional instantaneous powers aligned with the plotted positive modes.
+
+    Returns
+    -------
+    SpectrumPlotResult
+        Figure, axes, and artists for one spectrum.
     """
     if config is None:
         config = SpectrumPlotConfig()
@@ -188,16 +245,15 @@ def _plot_spectrum(
         if not np.any(selected):
             raise ValueError("fit bounds must select at least one positive mode.")
         predicted = np.asarray(
-            spherical_contour_spectrum(modes[selected], data.fit_result.best_values["kC"],
-                  data.fit_result.best_values["sigma"], data.lmax)
-            if instantaneous else data.fit_result.eval(q=modes[selected])
+            instantaneous[selected]
+            if instantaneous is not None else data.fit_result.eval(q=modes[selected])
         )
         fit_artist = ax.loglog(
             modes[selected],
             predicted,
             color=color,
             linewidth=config.linewidth,
-            linestyle="--" if instantaneous else "-",
+            linestyle="--" if instantaneous is not None else "-",
         )[0]
 
     fitting_region_artist = _plot_fitting_region(
@@ -226,7 +282,26 @@ def plot_q3_scaled_spectrum(
     label=None,
     config: SpectrumPlotConfig | None = None,
 ):
-    """Plot the diagnostic q³-scaled spectrum on a caller-owned axis."""
+    """Plot the diagnostic q³-scaled spectrum on a caller-owned axis.
+
+    Parameters
+    ----------
+    data : SpectrumPlotData
+        Measured spectrum and optional fit.
+    ax : matplotlib.axes.Axes or None
+        Target axes, or None to create axes.
+    color : matplotlib color or None
+        Series color, or None for the default cycle.
+    label : str or None
+        Optional series label.
+    config : SpectrumPlotConfig or None
+        Plot settings, or None for defaults.
+
+    Returns
+    -------
+    tuple
+        Figure and axes with q³-scaled powers.
+    """
     result = plot_spectrum(data, ax=ax, color=color, label=label, config=config)
     artists = (result.nonfit_artist, result.fit_data_artist, result.fit_artist,
                result.corrected_nonfit_artist, result.corrected_fit_data_artist,
@@ -244,7 +319,20 @@ def plot_q3_scaled_spectrum(
 
 
 def save_spectrum_fit_diagnostic(data: SpectrumPlotData, path) -> None:
-    """Save the spectrum, q³-scaled spectrum, and fit residuals."""
+    """Save the spectrum, q³-scaled spectrum, and fit residuals.
+
+    Parameters
+    ----------
+    data : SpectrumPlotData
+        Spectrum and fit to visualize.
+    path : str or pathlib.Path
+        Destination image path.
+
+    Returns
+    -------
+    None
+        Writes the diagnostic figure.
+    """
     if data.fit_result is None:
         raise ValueError("A fit result is required for a fit diagnostic.")
     modes, measured = _positive_spectrum(data.modes, data.avg_amps2)
@@ -283,17 +371,65 @@ def save_spectrum_fit_diagnostic(data: SpectrumPlotData, path) -> None:
 
 
 def _positive_spectrum(modes, avg_amps2, include_q1=False):
+    """Positive spectrum.
+
+    Parameters
+    ----------
+    modes : numpy.ndarray
+        Fourier modes.
+    avg_amps2 : array-like
+        Powers aligned with modes.
+    include_q1 : bool
+        Whether to retain the first positive mode.
+
+    Returns
+    -------
+    tuple
+        Selected modes and aligned powers.
+    """
     mask = np.asarray(modes) >= (1 if include_q1 else 2)
     return np.asarray(modes)[mask], np.asarray(avg_amps2)[mask]
 
 
 def _fit_mask(data, modes):
+    """Fit mask.
+
+    Parameters
+    ----------
+    data : SpectrumPlotData
+        Spectrum plot inputs containing the fit bounds.
+    modes : numpy.ndarray
+        Modes to check against the bounds.
+
+    Returns
+    -------
+    numpy.ndarray
+        Boolean mask identifying the fitted modes.
+    """
     if data.lower_bound is None or data.upper_bound is None:
         return np.zeros(modes.shape, dtype=bool)
     return (modes >= data.lower_bound) & (modes < data.upper_bound)
 
 
 def _plot_fitting_region(ax, data, color, style):
+    """Plot fitting region.
+
+    Parameters
+    ----------
+    ax : matplotlib.axes.Axes
+        Axes to annotate.
+    data : SpectrumPlotData
+        Plot inputs containing the fit bounds.
+    color : matplotlib color
+        Color of the region marker.
+    style : str
+        Region display style.
+
+    Returns
+    -------
+    Artist or None
+        Region marker when drawn.
+    """
     if style == "none" or data.lower_bound is None or data.upper_bound is None:
         return None
     lower = data.lower_bound - 0.5
@@ -304,6 +440,18 @@ def _plot_fitting_region(ax, data, color, style):
 
 
 def _diagnostic_title(fit_result):
+    """Diagnostic title.
+
+    Parameters
+    ----------
+    fit_result : lmfit.model.ModelResult
+        Optimizer result with best-fit parameters.
+
+    Returns
+    -------
+    str
+        Title for the diagnostic plot.
+    """
     kc = fit_result.params["kC"]
     sigma = fit_result.params["sigma"]
     kc_stderr = "unknown" if kc.stderr is None else f"{kc.stderr:.3g}"
