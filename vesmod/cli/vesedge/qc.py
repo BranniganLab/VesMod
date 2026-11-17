@@ -20,7 +20,7 @@ from vesmod.cli.batch_policy import (
 from vesmod.cli.input_selection import InputPathsAction
 from vesmod.io.input_selection import select_input_files
 from vesmod.cli.path_utils import _display_path
-from vesmod.io.artifacts import remove_manifest_artifacts
+from vesmod.io.artifacts import record_manifest_artifacts, remove_manifest_artifacts
 from vesmod.io.path_mapping import map_output_path, relative_selected_path
 
 
@@ -306,23 +306,6 @@ def process_qc_file(
     return row
 
 
-def _record_qc_artifacts(
-    output_dir: Path,
-    managed_artifacts: set[Path],
-) -> None:
-    """Record the filtered arrays and diagnostics created by this batch."""
-    provenance_path = output_dir / "vesedge_qc.json"
-    provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
-    provenance["managed_artifacts"] = sorted(
-        str(path.resolve().relative_to(output_dir.resolve()))
-        for path in managed_artifacts
-    )
-    provenance_path.write_text(
-        json.dumps(provenance, indent=2) + "\n",
-        encoding="utf-8",
-    )
-
-
 def _check_summary(edges: VesicleEdges | None = None) -> dict:
     """Collect registered check columns and, when available, their values."""
     values = {}
@@ -377,7 +360,12 @@ def run(args: argparse.Namespace) -> int:
         if row["status"] in {"load_error", "qc_error", "no_accepted_frames"} and getattr(args, "error_policy", "keep-going") == "fail-fast":
             break
     _write_qc_summary(args.output_dir, rows)
-    _record_qc_artifacts(args.output_dir, managed_artifacts)
+    record_manifest_artifacts(
+        args.output_dir,
+        managed_artifacts,
+        provenance_filename="vesedge_qc.json",
+        manifest_key="managed_artifacts",
+    )
     failed = sum(
         row["status"] in {"load_error", "qc_error", "no_accepted_frames"}
         for row in rows

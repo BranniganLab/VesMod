@@ -133,8 +133,8 @@ def test_run_validates_output_against_each_selector_root(monkeypatch, tmp_path):
     monkeypatch.setattr(internal_structures_cli, "_write_csv", lambda *args: None)
     monkeypatch.setattr(
         internal_structures_cli,
-        "_record_managed_outputs",
-        lambda *args: None,
+        "record_manifest_artifacts",
+        lambda *args, **kwargs: None,
     )
 
     internal_structures_cli.run(args)

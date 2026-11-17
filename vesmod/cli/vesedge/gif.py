@@ -71,15 +71,6 @@ def add_parser(subparsers) -> None:
     add_batch_policy_argument(parser)
 
 
-def _checkpoint_paths(
-    input_path: Path | list[Path],
-    recursive: bool,
-) -> list[Path]:
-    """Return checkpoints selected by explicit paths, directories, or globs."""
-    checkpoints, _ = select_input_files(input_path, ".npz", recursive)
-    return checkpoints
-
-
 def _apply_recorded_qc(
     edges: VesicleEdges,
     frames: OnDemandFrameSequence,

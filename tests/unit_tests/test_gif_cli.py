@@ -54,20 +54,6 @@ def test_parse_args_selects_gif_subcommand(monkeypatch, tmp_path):
     assert args.output_dir == tmp_path
 
 
-def test_checkpoint_paths_preserve_recursive_structure(tmp_path):
-    """Test recursive checkpoint selection keeps both nested inputs."""
-    checkpoints = tmp_path / "checkpoints"
-    first = checkpoints / "a" / "sample.npz"
-    second = checkpoints / "b" / "sample.npz"
-    first.parent.mkdir(parents=True)
-    second.parent.mkdir(parents=True)
-    first.touch()
-    second.touch()
-    selected = gif_cli._checkpoint_paths(checkpoints, recursive=True)
-
-    assert selected == [first, second]
-
-
 def test_load_qc_selection_uses_recorded_provenance(tmp_path):
     """Test QC-colored rendering reuses the saved QC settings."""
     checkpoint = tmp_path / "sample.npz"

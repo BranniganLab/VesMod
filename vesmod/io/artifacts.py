@@ -1,5 +1,6 @@
 """Validation and cleanup of files recorded in batch artifact manifests."""
 
+import json
 from pathlib import Path
 
 
@@ -113,3 +114,47 @@ def remove_manifest_artifacts(
         path = output_dir / filename
         if path.is_file():
             path.unlink()
+
+
+def record_manifest_artifacts(
+    output_dir: Path,
+    managed_artifacts: set[Path],
+    *,
+    provenance_filename: str,
+    manifest_key: str,
+) -> None:
+    """Record managed output paths in an existing provenance file.
+
+    Parameters
+    ----------
+    output_dir : pathlib.Path
+        Root directory containing managed output files and provenance.
+    managed_artifacts : set[pathlib.Path]
+        Output paths to record relative to the output directory.
+    provenance_filename : str
+        Filename of the existing JSON provenance file.
+    manifest_key : str
+        Provenance key to replace with the sorted artifact path list.
+
+    Returns
+    -------
+    None
+        Updates the provenance file while retaining its other fields.
+
+    Raises
+    ------
+    ValueError
+        If an artifact resolves outside the output directory or JSON is invalid.
+    OSError
+        If the provenance file cannot be read or written.
+    """
+    provenance_path = output_dir / provenance_filename
+    provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+    provenance[manifest_key] = sorted(
+        str(path.resolve().relative_to(output_dir.resolve()))
+        for path in managed_artifacts
+    )
+    provenance_path.write_text(
+        json.dumps(provenance, indent=2) + "\n",
+        encoding="utf-8",
+    )

@@ -448,7 +448,10 @@ def test_qc_manifest_excludes_preexisting_expected_outputs(tmp_path):
         encoding="utf-8",
     )
 
-    qc_cli._record_qc_artifacts(output_dir, set())
+    qc_cli.record_manifest_artifacts(
+        output_dir, set(),
+        provenance_filename="vesedge_qc.json", manifest_key="managed_artifacts",
+    )
 
     recorded = json.loads(
         (output_dir / "vesedge_qc.json").read_text(encoding="utf-8")

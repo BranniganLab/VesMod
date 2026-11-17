@@ -117,16 +117,6 @@ def add_parser(subparsers) -> None:
     add_batch_policy_argument(parser)
 
 
-def iter_input_files(
-    input_path: Path | list[Path],
-    suffix: str,
-    recursive: bool,
-) -> list[Path]:
-    """Return selected input files with the requested suffix."""
-    paths, _ = select_input_files(input_path, suffix, recursive)
-    return paths
-
-
 def load_extractor_from_module(import_string: str):
     """Load an edge extractor from 'module:function' syntax."""
     module_name, func_name = import_string.split(":", maxsplit=1)

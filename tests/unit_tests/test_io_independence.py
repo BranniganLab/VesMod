@@ -8,11 +8,14 @@ def test_filesystem_utilities_work_without_cli_imports(tmp_path):
     """Discover inputs, map outputs, and clean a manifest in a fresh process."""
     script = '''
 from pathlib import Path
+import json
 import sys
 
 from vesmod.io.input_selection import select_input_files
 from vesmod.io.path_mapping import map_output_path, relative_selected_path
-from vesmod.io.artifacts import remove_manifest_artifacts, validate_managed_artifacts
+from vesmod.io.artifacts import (
+    record_manifest_artifacts, remove_manifest_artifacts, validate_managed_artifacts,
+)
 
 source_root = Path("input")
 source_root.mkdir()
@@ -26,7 +29,17 @@ output.parent.mkdir()
 output.touch()
 unrelated = output.parent / "unrelated.json"
 unrelated.touch()
-artifacts = [output.name]
+provenance_path = output.parent / "batch.json"
+provenance_path.write_text(json.dumps({"setting": 1}))
+record_manifest_artifacts(
+    output.parent,
+    {output},
+    provenance_filename="batch.json",
+    manifest_key="artifacts",
+)
+recorded = json.loads(provenance_path.read_text())
+assert recorded == {"setting": 1, "artifacts": [output.name]}
+artifacts = recorded["artifacts"]
 assert validate_managed_artifacts(output.parent, artifacts, {".json"}, "test") == [output]
 remove_manifest_artifacts(
     output.parent,

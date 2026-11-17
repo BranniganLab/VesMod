@@ -30,24 +30,6 @@ from vesmod.io import map_output_path
 from vesmod.cli.edgemod.options import build_fit_config
 
 
-def iter_npy_files(input_path: Path | list[Path], recursive: bool) -> list[Path]:
-    """Return the input ``.npy`` files selected by CLI selectors.
-
-    Parameters
-    ----------
-    input_path : pathlib.Path or list of pathlib.Path
-        File, directory, glob, or list of selectors.
-    recursive : bool
-        Whether to search subdirectories.
-
-    Returns
-    -------
-    list of Path
-        Selected contour files.
-    """
-    paths, _ = select_input_files(input_path, ".npy", recursive)
-    return paths
-
 def build_dynamic_selector(args: argparse.Namespace) -> QMinusThreeRangeSelector:
     """Build the explicitly requested experimental q^-3 selector.
 

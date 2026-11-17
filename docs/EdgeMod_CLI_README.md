@@ -541,5 +541,5 @@ EdgeMod commands live in `vesmod/cli/edgemod/`. `main.py` parses the command
 and dispatches to `fitting.py` or `ensemble.py`. Shared argument definitions
 and fit configuration construction live in `options.py`.
 File discovery lives in `vesmod/io/input_selection.py`, output-path mapping in
-`vesmod/io/path_mapping.py`, and artifact cleanup in `vesmod/io/artifacts.py`.
+`vesmod/io/path_mapping.py`, and artifact recording and cleanup in `vesmod/io/artifacts.py`.
 Argparse adapters, console formatting, and batch policies live in `vesmod/cli/`.
