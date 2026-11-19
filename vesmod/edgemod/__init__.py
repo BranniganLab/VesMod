@@ -1,5 +1,6 @@
 """Public core EdgeMod API."""
 
+from vesmod.edgemod.spectra.ensemble_member import EnsembleMember
 from vesmod.edgemod.fitting.fitting_functions.spherical_model import spherical_contour_spectrum, predict_spherical_contour_power
 from vesmod.edgemod.fitting.mode_relaxation.relaxation import mode_relaxation_times
 from vesmod.edgemod.spectra.power_calculation.calculators import MeanSquaredPowerCalculator, TemporalVarianceCalculator
@@ -18,6 +19,7 @@ from vesmod.edgemod.plotting.spectrum_plotting import (
 )
 
 __all__ = [
+    "EnsembleMember",
     "MeanSquaredPowerCalculator", "TemporalVarianceCalculator",
     "PowerCalculationResult", "SpectrumCalculator",
     "spherical_contour_spectrum",

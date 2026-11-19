@@ -41,7 +41,7 @@ Document custom conventions in the calculator's API. The physical fitter expects
 
 ## Using and exporting powers
 
-- Read the measured powers from `spectrum.powers`. Pass them as `avg_amps2` to `SpectrumEnsemble.add_spectrum()` or `SpectrumPlotData`.
+- Read the measured powers from `spectrum.powers`. Pass the spectrum to `SpectrumEnsemble.add_spectrum()` or use the powers in `SpectrumPlotData`.
 - Use `calculator=TemporalVarianceCalculator()` for temporal variance. The default is `MeanSquaredPowerCalculator()`.
 - To supply custom powers during construction, pass a custom calculator.
 - Spectrum JSON stores measured powers under `powers` when arrays are included. It records `power_definition`, `power_unit`, `reference_radius`, and `radius_unit`. The `r0` value is in micrometers.

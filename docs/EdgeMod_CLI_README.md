@@ -298,13 +298,18 @@ Ensemble fits use free sigma by default. Supply
 For exposure-aware ensemble fits, supply the radius when adding **each** replica:
 
 ```python
-ensemble.add_spectrum(spectrum.powers, spectrum.modes, spectrum.kC, r0=spectrum.r0)
+ensemble.add_spectrum(spectrum)
 fit = ensemble.extract_kc_from_fit(
     SpectrumFitConfig(camera_integration=True, exposure_time=0.030,
                       viscosity_in=0.00102, viscosity_out=0.00097),
     weight_by_replica_sem=True,
 )
 ```
+
+For saved replicas, pass `EnsembleMember.from_json(path)` to `add_spectrum()`.
+The ensemble exposes its retained records in `ensemble.members`, including the
+source path and any saved fit history.
+
 
 The ensemble model averages predictions at the individual radii with shared
 kC and reduced tension, using the same equal replica weights as the measured
@@ -499,8 +504,9 @@ requires at least two included vesicles and positive SEM for each fitted mode.
 
 To apply an exclusion policy, pass `--exclusion-policy MODULE:FUNCTION`. The module
 must be importable in the Python environment running EdgeMod. The function takes
-a `Path` and a spectrum record with `modes`, `powers`, `r0` (micrometers),
-`power_definition`, `power_unit`, `kC`, `surface_tension`, and `fit_results` and returns `None` to include the vesicle or a nonempty
+a `Path` and an `EnsembleMember` with `modes`, `powers`, `r0` (micrometers),
+`power_definition`, `power_unit`, `kC`, `surface_tension`, and `fit_results`.
+Saved fit results are available as `SpectrumFit` objects. The policy returns `None` to include the vesicle or a nonempty
 string explaining its exclusion. The same function can be called in a Python
 workflow before adding the spectrum to a `SpectrumEnsemble`.
 
