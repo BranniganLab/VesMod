@@ -5,6 +5,7 @@ import numpy as np
 import pytest
 from scipy.constants import Boltzmann
 from scipy.integrate import quad
+from vesmod.edgemod import EnsembleMember
 from vesmod.edgemod import Spectrum, SpectrumFitConfig, SpectrumEnsemble
 from vesmod.edgemod.fitting.fitting_functions.spherical_model import (
     spherical_contour_spectrum,
@@ -90,16 +91,13 @@ def test_spectrum_and_ensemble_use_individual_radii():
         fit = spectrum.extract_kc_from_fit(config)
         assert fit.kC == pytest.approx(25, rel=1e-5)
         assert fit.to_dict()['config']['exposure_time'] == .030
-        ensemble.add_spectrum(spectrum.powers, spectrum.modes, fit.kC, r0=radius)
+        ensemble.add_spectrum(EnsembleMember(spectrum.powers, spectrum.modes, fit.kC, r0=radius))
         predictions.append(spectrum.powers[3:8])
     np.testing.assert_allclose(predict_spherical_contour_power(range(3, 8), 25, 0, 50, config=config, radii=[5, 15]),
                                np.mean(predictions, axis=0))
     fit = ensemble.extract_kc_from_fit(config, weight_by_replica_sem=True)
     assert fit.kC == pytest.approx(25, rel=1e-5)
     assert fit.to_dict()['radii'] == [5, 15]
-    ensemble.add_spectrum(spectrum.powers, spectrum.modes, 25)
-    with pytest.raises(ValueError, match='r0 for every replica'):
-        ensemble.extract_kc_from_fit(config)
 
 
 def test_cli_camera_settings(monkeypatch):
@@ -306,7 +304,7 @@ def test_eta_m_cli_and_synthetic_ensemble_fit(monkeypatch):
         fit = spectrum.extract_kc_from_fit(config)
         assert fit.kC == pytest.approx(25, rel=1e-5)
         assert fit.surface_tension == pytest.approx(4 * 25 * Boltzmann * 295 / (radius * 1e-6)**2, rel=1e-5)
-        ensemble.add_spectrum(spectrum.powers, spectrum.modes, fit.kC, r0=radius)
+        ensemble.add_spectrum(EnsembleMember(spectrum.powers, spectrum.modes, fit.kC, r0=radius))
     fit = ensemble.extract_kc_from_fit(config)
     assert fit.kC == pytest.approx(25, rel=1e-5)
     assert fit.to_dict()['config']['eta_m'] == 4.1e-9

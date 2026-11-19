@@ -2,9 +2,8 @@
 
 import json
 from importlib import import_module
-from types import SimpleNamespace
 
-from vesmod.edgemod import PowerCalculationResult, SpectrumEnsemble
+from vesmod.edgemod import EnsembleMember, SpectrumEnsemble
 from vesmod.cli.batch_policy import exit_code
 from vesmod.io.input_selection import select_input_files
 
@@ -29,41 +28,6 @@ def _load_exclusion_policy(spec):
     if not callable(policy):
         raise TypeError(f"Exclusion policy {spec} must be callable.")
     return policy
-
-
-def _read_spectrum(path):
-    """Load and validate the measured powers and metadata in a spectrum export.
-
-    Parameters
-    ----------
-    path : pathlib.Path
-        Path to saved per-vesicle spectrum JSON.
-
-    Returns
-    -------
-    SimpleNamespace
-        Validated spectrum arrays and saved fit metadata.
-    """
-    with path.open(encoding="utf-8") as source:
-        data = json.load(source)
-    if not isinstance(data, dict) or not {"modes", "powers", "r0"} <= data.keys():
-        raise ValueError("Expected a per-vesicle spectrum JSON with modes, powers, and r0.")
-    result = PowerCalculationResult(
-        modes=data["modes"],
-        powers=data["powers"],
-        reference_radius=data["r0"],
-        radius_unit="um",
-        power_definition=data.get("power_definition"),
-        power_unit=data.get("power_unit"),
-    )
-    if result.power_unit != "dimensionless":
-        raise ValueError("Ensemble fitting requires dimensionless powers.")
-    return SimpleNamespace(
-        modes=result.modes, powers=result.powers, r0=result.reference_radius,
-        power_definition=result.power_definition, power_unit=result.power_unit,
-        kC=data.get("kC"), surface_tension=data.get("surface_tension"),
-        fit_results=data.get("fit_results", []),
-    )
 
 
 def run_ensemble(args, config):
@@ -92,7 +56,6 @@ def run_ensemble(args, config):
     ensemble = SpectrumEnsemble()
     replicas = []
     failed = 0
-    power_definition = None
     report = {
         "exclusion_policy": args.exclusion_policy,
         "config": config.to_dict(),
@@ -107,7 +70,7 @@ def run_ensemble(args, config):
                 row = {"path": str(path.resolve())}
                 replicas.append(row)
                 try:
-                    spectrum = _read_spectrum(path)
+                    spectrum = EnsembleMember.from_json(path)
                     try:
                         reason = policy(path, spectrum) if policy is not None else None
                     except Exception as exc:
@@ -121,11 +84,8 @@ def run_ensemble(args, config):
                             raise ValueError("Exclusion policy must return None or a nonempty reason.")
                         row.update(status="excluded", reason=reason)
                         continue
-                    if power_definition is not None and spectrum.power_definition != power_definition:
-                        raise ValueError("Included spectra must share a power definition.")
-                    ensemble.add_spectrum(spectrum.powers, spectrum.modes, spectrum.kC, r0=spectrum.r0)
-                    power_definition = spectrum.power_definition
-                    report["power_definition"] = power_definition
+                    ensemble.add_spectrum(spectrum)
+                    report["power_definition"] = spectrum.power_definition
                     row.update(status="included", kC=spectrum.kC, radius_um=spectrum.r0)
                 except (OSError, ValueError, TypeError, FloatingPointError) as exc:
                     row.update(status="error", reason=str(exc))

@@ -244,6 +244,11 @@ class Spectrum:
             raise ValueError("Unsupported radius_unit; use um, m or nm.") from error
 
     @property
+    def power_unit(self) -> str:
+        """Return the unit of the measured mode powers."""
+        return self._calculation.power_unit
+
+    @property
     def power_definition(self) -> str:
         """Read-only description of the calculated powers.
 

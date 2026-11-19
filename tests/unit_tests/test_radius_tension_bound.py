@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
+from vesmod.edgemod import EnsembleMember
 from vesmod.edgemod import Spectrum, SpectrumEnsemble, SpectrumFitConfig
 from vesmod.edgemod.fitting.fitting_functions.spherical_model import configure_spectrum_model
 
@@ -27,18 +28,21 @@ def test_public_single_and_ensemble_bounds(monkeypatch, exposure, chi, free_sigm
     for radius in [7.0, 2.0, 5.0]:
         spectrum = Spectrum.from_radii(np.full((2, 32), radius))
         spectrum.extract_kc_from_fit(config)
-        ensemble.add_spectrum(spectrum.powers, spectrum.modes, 25, r0=radius)
+        ensemble.add_spectrum(EnsembleMember(spectrum.powers, spectrum.modes, 25, r0=radius))
     fit = ensemble.extract_kc_from_fit(config)
     assert captured == pytest.approx([4900, 400, 2500, 100 * (14 / 3)**2])
     assert fit.to_dict()['radii'] == [7, 2, 5]
 
 
-def test_ensemble_missing_radius_fails_without_exposure():
-    ensemble = SpectrumEnsemble()
-    ensemble.add_spectrum(np.ones(5), range(3, 8), 25, r0=5)
-    ensemble.add_spectrum(np.ones(5), range(3, 8), 25)
-    with pytest.raises(ValueError, match='r0 for every replica'):
-        ensemble.extract_kc_from_fit()
+def test_ensemble_member_requires_radius():
+    with pytest.raises(TypeError, match="r0"):
+        EnsembleMember(np.ones(5), range(3, 8))
+
+
+@pytest.mark.parametrize("radius", [None, 0, -1, float("nan"), float("inf")])
+def test_ensemble_member_rejects_invalid_radius(radius):
+    with pytest.raises((TypeError, ValueError), match="reference_radius"):
+        EnsembleMember(np.ones(5), range(3, 8), kC=25, r0=radius)
 
 
 def test_direct_fit_requires_radii_without_exposure():

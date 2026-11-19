@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 from lmfit import Parameters
 
+from vesmod.edgemod import EnsembleMember
 from vesmod.edgemod import Spectrum, SpectrumEnsemble, SpectrumFitConfig
 from vesmod.edgemod.fitting.fitting_functions.spherical_model import spherical_contour_spectrum
 from vesmod.edgemod.fitting.optimization.least_squares import (
@@ -75,7 +76,7 @@ def test_fit_estimates_are_retained(monkeypatch, caplog, entry_point, condition)
             kc = fit.kC
         else:
             ensemble = SpectrumEnsemble()
-            ensemble.add_spectrum(powers, modes, 5.0, r0=5.0)
+            ensemble.add_spectrum(EnsembleMember(powers, modes, 5.0, r0=5.0))
             fit = ensemble.extract_kc_from_fit(config)
             assert ensemble.fit_results == [fit]
             assert fit.reduced_sigma == params["sigma"].value

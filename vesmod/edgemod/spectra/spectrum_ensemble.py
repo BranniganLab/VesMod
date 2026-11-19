@@ -12,7 +12,8 @@ implicitly to ensemble fits; ensemble fitting retains its existing fixed-range
 behavior.
 """
 import numpy as np
-from vesmod.validation import require_positive_real
+from vesmod.edgemod.spectra.ensemble_member import EnsembleMember
+from vesmod.edgemod.spectra.spectrum import Spectrum
 from vesmod.edgemod.fitting.optimization.least_squares import fit_configured_spectrum
 from vesmod.edgemod.fitting.config import SpectrumFitConfig
 from vesmod.edgemod.fitting.fit_result import EnsembleFit
@@ -22,7 +23,7 @@ from vesmod.edgemod.fitting.fit_result import EnsembleFit
 class SpectrumEnsemble:
     """Store and analyze fluctuation spectra from multiple replicas.
 
-    Each replica contributes average squared mode amplitudes and may supply an
+    Each replica contributes average squared mode amplitudes and supplies an
     independently determined bending modulus. All spectra must use the same Fourier modes.
 
     The ensemble provides averaged amplitudes, replica dispersion/error, and a
@@ -30,13 +31,10 @@ class SpectrumEnsemble:
 
     Attributes
     ----------
-    spectra_list : list[np.ndarray]
-        Average squared amplitudes from each replica.
-    kC_list : list[float | None]
-        Optional bending modulus estimate associated with each replica.
-    modes : np.ndarray or None
-        Fourier mode indices shared by all stored spectra. Set automatically
-        when the first spectrum is added.
+    members : tuple[EnsembleMember, ...]
+        Replica records in insertion order.
+    modes : numpy.ndarray or None
+        Fourier modes shared by all members.
     """
 
     def __init__(self) -> None:
@@ -47,11 +45,18 @@ class SpectrumEnsemble:
         None
             Initializes an empty ensemble.
         """
-        self.spectra_list: list[np.ndarray] = []
-        self.kC_list: list[float | None] = []
-        self.radii_list: list[float | None] = []
-        self.modes: np.ndarray[int] = None
+        self._members: list[EnsembleMember] = []
         self.fit_results: list[EnsembleFit] = []
+
+    @property
+    def members(self) -> tuple[EnsembleMember, ...]:
+        """Return the replica records in insertion order."""
+        return tuple(self._members)
+
+    @property
+    def modes(self) -> np.ndarray | None:
+        """Return the common Fourier modes, or None for an empty ensemble."""
+        return self._members[0].modes if self._members else None
 
     def __len__(self) -> int:
         """Return the number of replica spectra.
@@ -61,7 +66,7 @@ class SpectrumEnsemble:
         int
             Number of added replica spectra.
         """
-        return len(self.spectra_list)
+        return len(self._members)
 
     @property
     def avg_amps2(self) -> np.ndarray:
@@ -72,7 +77,7 @@ class SpectrumEnsemble:
         numpy.ndarray
             Mean power per Fourier mode across replicas.
         """
-        return np.mean(np.array(self.spectra_list), axis=0)
+        return np.mean(np.array([member.powers for member in self._members]), axis=0)
 
     @property
     def avg_amps2_std(self) -> np.ndarray:
@@ -83,7 +88,7 @@ class SpectrumEnsemble:
         numpy.ndarray
             Sample standard deviation per Fourier mode.
         """
-        return np.std(np.array(self.spectra_list), axis=0, ddof=1)
+        return np.std(np.array([member.powers for member in self._members]), axis=0, ddof=1)
 
     @property
     def avg_amps2_ste(self) -> np.ndarray:
@@ -94,7 +99,7 @@ class SpectrumEnsemble:
         numpy.ndarray
             Standard error per Fourier mode.
         """
-        return self.avg_amps2_std / np.sqrt(len(self.spectra_list))
+        return self.avg_amps2_std / np.sqrt(len(self._members))
 
     @property
     def kC(self) -> float:
@@ -114,9 +119,9 @@ class SpectrumEnsemble:
         Returns
         -------
         float
-            Sample standard deviation of available replica estimates in kBT.
+            Sample standard deviation of replica estimates in kBT.
         """
-        return np.std([kc for kc in self.kC_list if kc is not None], ddof=1)
+        return np.std([member.kC for member in self._members], ddof=1)
 
     @property
     def kC_ste(self) -> float:
@@ -125,50 +130,35 @@ class SpectrumEnsemble:
         Returns
         -------
         float
-            Standard error of available replica estimates in kBT.
+            Standard error of replica estimates in kBT.
         """
-        return self.kC_std / np.sqrt(sum(kc is not None for kc in self.kC_list))
+        return self.kC_std / np.sqrt(len(self._members))
 
-    def add_spectrum(self, avg_amps2: list[float], modes: list[int], kC: float | None = None,
-                     *, r0: float | None = None) -> None:
-        """Add one replica spectrum and its fitted bending modulus.
+    def add_spectrum(self, spectrum: Spectrum | EnsembleMember) -> None:
+        """Add a measured replica spectrum.
 
         Parameters
         ----------
-        avg_amps2 : array-like of float
-            Average squared fluctuation amplitudes for each Fourier mode.
-        modes : array-like of int
-            Fourier mode indices corresponding to ``avg_amps2``. The mode array
-            must match all previously added spectra.
-        r0 : float or None
-            Replica mean radius in microns, required for every fit.
-        kC : float
-            Bending modulus determined independently for this replica.
+        spectrum : Spectrum or EnsembleMember
+            In-memory spectrum or a member with source and fit provenance.
 
         Returns
         -------
         None
-            Adds the replica powers and metadata to the ensemble.
-
-        Raises
-        ------
-        ValueError
-            If ``modes`` does not match the mode indices already stored.
-        TypeError
-            If ``self.modes`` is neither ``None`` nor a NumPy array.
+            Adds the member after checking compatibility.
         """
-        if r0 is not None:
-            r0 = require_positive_real(r0, "r0")
-        if isinstance(self.modes, np.ndarray):
-            if not np.array_equal(np.array(modes), self.modes):
-                raise ValueError(f"{modes} does not equal {self.modes}")
-        elif self.modes is None:
-            self.modes = np.array(modes)
-        else:
-            raise TypeError(f"self.modes must be ndarray or None, not {type(self.modes)}")
-        self.spectra_list.append(avg_amps2)
-        self.kC_list.append(kC)
-        self.radii_list.append(r0)
+        if isinstance(spectrum, Spectrum):
+            spectrum = EnsembleMember.from_spectrum(spectrum)
+        if not isinstance(spectrum, EnsembleMember):
+            raise TypeError("Expected a Spectrum or EnsembleMember.")
+        if spectrum.power_unit != "dimensionless":
+            raise ValueError("Ensemble fitting requires dimensionless powers.")
+        if self._members:
+            if not np.array_equal(spectrum.modes, self.modes):
+                raise ValueError("Included spectra must share the same modes.")
+            if spectrum.power_definition != self._members[0].power_definition:
+                raise ValueError("Included spectra must share a power definition.")
+        self._members.append(spectrum)
 
     def extract_kc_from_fit(
         self,
@@ -206,20 +196,19 @@ class SpectrumEnsemble:
             raise TypeError("config must be a SpectrumFitConfig or None.")
         if not isinstance(weight_by_replica_sem, bool):
             raise TypeError("weight_by_replica_sem must be a bool.")
-        if weight_by_replica_sem and len(self.spectra_list) < 2:
+        if weight_by_replica_sem and len(self._members) < 2:
             raise ValueError(
                 "At least two replica spectra are required for SEM-weighted fitting."
             )
 
-        if len(self.radii_list) != len(self.spectra_list) or any(
-            radius is None for radius in self.radii_list
-        ):
-            raise ValueError("Supply r0 for every replica to set the reduced-tension bound.")
-        sem = self.avg_amps2_ste if len(self.spectra_list) >= 2 else None
+        if not self._members:
+            raise ValueError("At least one replica spectrum is required for fitting.")
+        radii = tuple(member.r0 for member in self._members)
+        sem = self.avg_amps2_ste if len(self._members) >= 2 else None
         result, config = fit_configured_spectrum(
-            self.modes, self.avg_amps2, config, self.radii_list,
+            self.modes, self.avg_amps2, config, radii,
             model=model, sem=sem, weighted=weight_by_replica_sem,
-            expected_replica_count=len(self.spectra_list),
+            expected_replica_count=len(self._members),
         )
         kC = result.best_values["kC"]
         reduced_sigma = result.best_values["sigma"]
@@ -228,7 +217,7 @@ class SpectrumEnsemble:
             reduced_sigma=float(reduced_sigma),
             config=config,
             weight_by_replica_sem=weight_by_replica_sem,
-            radii=tuple(self.radii_list),
+            radii=radii,
             chisqr=float(result.chisqr),
             redchi=(float(result.redchi) if getattr(result, "nfree", 1) > 0 else None),
         )
