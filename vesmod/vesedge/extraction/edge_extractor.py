@@ -34,9 +34,10 @@ def extract_edge_from_frame(frame, debug_path=None):
     ----------
     frame : numpy ndarray
         The 2D array of intensity values from a vesicle video frame.
-    debug_path : pathlib.Path, optional
-        If not None, output debug images to ``debug_path`` and skip normal edge
-        extraction.
+    debug_path : str or pathlib.Path, optional
+        Directory for PDF diagnostics showing the initial center estimate and
+        extraction about that center. The returned edge uses the normal
+        origin refinement described above.
 
     Returns
     -------
@@ -51,7 +52,6 @@ def extract_edge_from_frame(frame, debug_path=None):
         debug_path = Path(debug_path)
         debug_path.mkdir(parents=True, exist_ok=True)
         _make_debug_image(frame, debug_path)
-        return None, None
 
     origin = approximate_vesicle_com(frame)
 
