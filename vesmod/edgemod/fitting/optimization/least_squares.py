@@ -36,10 +36,13 @@ def _log_relative_rmse(result, powers):
     relative_rmse = (rmse / mean_power if mean_power > 0
                      else (np.nan if rmse == 0 else np.inf))
     logger.info("Spectrum fit relative RMSE=%g", relative_rmse)
+    result.power_rmse = rmse
+    result.power_relative_rmse = relative_rmse
 
 
 def fit_spectrum(modes, powers, lmax, free_sigma=False, weighted=False,
-                       *, kc_bounds, sigma_bounds, sem=None, model=spherical_contour_spectrum):
+                       *, kc_bounds, sigma_bounds, sem=None, model=spherical_contour_spectrum,
+                       kC_start=15.0, sigma_start=0.0, max_nfev=20000):
     """Fit selected modes and powers, with optional per-mode replica SEM.
 
     The model takes q, kC, sigma, and lmax and returns powers at q.
@@ -76,12 +79,12 @@ def fit_spectrum(modes, powers, lmax, free_sigma=False, weighted=False,
         raise ValueError("sigma_bounds must include zero when free_sigma is false.")
     lmfit_model = Model(model)
     pars = lmfit_model.make_params(
-        kC={"value": 15, "min": kc_bounds[0], "max": kc_bounds[1], "vary": True},
-        sigma={"value": 0, "min": sigma_bounds[0], "max": sigma_bounds[1], "vary": free_sigma},
+        kC={"value": kC_start, "min": kc_bounds[0], "max": kc_bounds[1], "vary": True},
+        sigma={"value": sigma_start if free_sigma else 0, "min": sigma_bounds[0], "max": sigma_bounds[1], "vary": free_sigma},
         lmax={"value": lmax, "vary": False},
     )
 
-    fit_kwargs = {"q": modes, "params": pars, "max_nfev": 20000}
+    fit_kwargs = {"q": modes, "params": pars, "max_nfev": max_nfev}
     if weighted:
         if sem is None:
             raise ValueError("Replica SEM values are required for a weighted fit.")
@@ -171,6 +174,10 @@ def fit_configured_spectrum(modes, powers, config, radii, *, model=None, sem=Non
     elif config.model == "spherical_contour_spectrum":
         config = replace(config, model=getattr(model, "__name__", type(model).__name__))
     fit_mode_mask = select_manual_range(modes, config.lower_bound, config.upper_bound)
+    if sem is not None:
+        sem = np.asarray(sem, dtype=float)
+        if sem.shape != np.shape(powers):
+            raise ValueError("Power standard errors must match the spectrum powers.")
     modes, powers, sem = slice_fit_arrays(fit_mode_mask, modes, powers, sem=sem)
     if modes.size == 0:
         raise ValueError("Configured q range contains no spectrum modes.")
@@ -180,7 +187,11 @@ def fit_configured_spectrum(modes, powers, config, radii, *, model=None, sem=Non
     result = fit_spectrum(
         modes, powers, config.lmax, config.free_sigma, weighted=weighted,
         sem=sem, model=predict, kc_bounds=kc_bounds, sigma_bounds=sigma_bounds,
+        kC_start=config.kC_start, sigma_start=config.sigma_start, max_nfev=config.max_nfev,
     )
+    result.power_fit_bounds = (tuple(kc_bounds), tuple(sigma_bounds))
+    result.power_fit_modes = tuple(int(mode) for mode in modes)
+    result.power_fit_weights = tuple(float(1 / error) for error in sem) if weighted else None
     if config.camera_integration:
         instantaneous_config = replace(config, camera_integration=False)
         fitted_radii = tuple(radii)

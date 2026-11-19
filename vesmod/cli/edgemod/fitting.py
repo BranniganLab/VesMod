@@ -342,6 +342,12 @@ def _prepare_fit_output(args: argparse.Namespace, paths: list[Path]) -> None:
         existing = json.loads(provenance_path.read_text(encoding="utf-8"))
         comparable = dict(existing) if isinstance(existing, dict) else {}
         comparable["managed_artifacts"] = []
+        previous_config = comparable.get("fit_config")
+        if isinstance(previous_config, dict):
+            comparable["fit_config"] = {
+                "kC_start": 15.0, "sigma_start": 0.0, "max_nfev": 20000,
+                **previous_config,
+            }
         if comparable == provenance:
             if args.overwrite:
                 _remove_fit_artifacts(args.output_dir, existing)

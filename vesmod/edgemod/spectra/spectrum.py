@@ -25,7 +25,7 @@ from vesmod.edgemod.plotting.spectrum_plotting import (
 from vesmod.edgemod.fitting.config import SpectrumFitConfig
 from vesmod.edgemod.spectra.power_calculation.calculators import MeanSquaredPowerCalculator
 from vesmod.edgemod.spectra.power_calculation.base import PowerCalculationResult, SpectrumCalculator
-from vesmod.edgemod.fitting.fit_result import SpectrumFit
+from vesmod.edgemod.fitting.fit_result import FitDiagnostics, SpectrumFit
 from vesmod.edgemod.fitting.optimization.least_squares import fit_configured_spectrum
 from vesmod.edgemod.fitting.tension import calc_tension_from_reduced_tension
 
@@ -264,6 +264,7 @@ class Spectrum:
         config: SpectrumFitConfig | None = None,
         *,
         model=None,
+        power_errors=None,
     ) -> SpectrumFit:
         """Fit the configured fixed q interval to the theoretical spectrum.
 
@@ -277,6 +278,9 @@ class Spectrum:
         model : callable or None
             Optional factory accepting config, radii in micrometers, and expected_replica_count.
             Returns a power predictor and bounds for bending modulus and reduced tension.
+        power_errors : array-like or None
+            Standard errors of measured powers aligned with all spectrum modes.
+            Fitted modes receive inverse-error weights when supplied.
 
         Returns
         -------
@@ -291,7 +295,8 @@ class Spectrum:
         self.fit_result = None
         self.fit_result, config = fit_configured_spectrum(
             self.modes, self.powers, config, [self.r0],
-            model=model, expected_replica_count=1,
+            model=model, sem=power_errors, weighted=power_errors is not None,
+            expected_replica_count=1,
         )
 
         fitted_kc = self.fit_result.best_values["kC"]
@@ -308,6 +313,9 @@ class Spectrum:
 
         fit_result = SpectrumFit(
             kC=float(fitted_kc),
+            reduced_sigma=float(reduced_sigma),
+            r0=self.r0,
+            diagnostics=FitDiagnostics.from_optimizer(self.fit_result),
             surface_tension=float(fitted_surface_tension),
             lower_bound=config.lower_bound,
             upper_bound=config.upper_bound,

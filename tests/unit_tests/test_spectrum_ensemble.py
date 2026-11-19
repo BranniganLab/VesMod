@@ -268,7 +268,11 @@ def test_ensemble_fit_serializes_reduced_sigma():
     config = SpectrumFitConfig(free_sigma=True)
     fit = EnsembleFit(kC=12.0, reduced_sigma=3.5, config=config)
 
-    assert fit.to_dict() == {
+    payload = fit.to_dict()
+    assert EnsembleFit.from_dict(payload) == fit
+    assert "surface_tension" not in payload
+    assert {key: payload[key] for key in ("kC", "reduced_sigma", "config",
+                                           "weight_by_replica_sem", "chisqr", "redchi", "radii")} == {
         "kC": 12.0,
         "reduced_sigma": 3.5,
         "config": config.to_dict(),

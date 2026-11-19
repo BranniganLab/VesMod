@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from vesmod.validation import require_integer, require_positive_real, require_nonnegative_real
+from vesmod.validation import require_finite_real, require_integer, require_positive_real, require_nonnegative_real
 
 from vesmod.edgemod.fitting.mode_relaxation.relaxation import RELAXATION_MODELS
 
@@ -61,6 +61,11 @@ class SpectrumFitConfig:
         Dynamic viscosities in Pa s. Camera integration requires both for
         solvent_only. For solvent_and_membrane, viscosity_out supplies the
         common solvent viscosity; viscosity_in may be omitted or equal it.
+    kC_start, sigma_start : float
+        Requested optimizer starting values for bending modulus and reduced tension.
+        Fixed tension starts at zero. The optimizer clips starts to the model bounds.
+    max_nfev : int, default=20000
+        Maximum number of optimizer function evaluations.
     eta_m : float or None, default=None
         Fixed membrane surface viscosity in Pa s m, required (including zero)
         for solvent_and_membrane and prohibited for solvent_only. Ensembles
@@ -81,6 +86,10 @@ class SpectrumFitConfig:
     camera_integration: bool = False
     relaxation_model: str = "solvent_only"
 
+    kC_start: float = 15.0
+    sigma_start: float = 0.0
+    max_nfev: int = 20000
+
     def __post_init__(self) -> None:
         """Validate physical-fit parameters and establish config invariants.
 
@@ -89,6 +98,13 @@ class SpectrumFitConfig:
         None
             Validates and normalizes the configuration.
         """
+        for name in ("kC_start", "sigma_start"):
+            object.__setattr__(self, name, require_finite_real(getattr(self, name), name))
+        object.__setattr__(self, "max_nfev", require_integer(self.max_nfev, "max_nfev"))
+        if self.max_nfev < 1:
+            raise ValueError("max_nfev must be positive.")
+        if not self.free_sigma and self.sigma_start != 0:
+            raise ValueError("sigma_start must be zero when sigma is fixed.")
         for name in ("viscosity_in", "viscosity_out"):
             value = getattr(self, name)
             if value is not None:
@@ -149,6 +165,9 @@ class SpectrumFitConfig:
             JSON-serializable physical fit settings.
         """
         return {
+            "kC_start": self.kC_start,
+            "sigma_start": self.sigma_start,
+            "max_nfev": self.max_nfev,
             "lmax": int(self.lmax),
             "free_sigma": self.free_sigma,
             "temperature": float(self.temperature),

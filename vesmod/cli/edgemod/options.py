@@ -145,6 +145,9 @@ def add_fit_options(parser: argparse.ArgumentParser, *, ensemble=False) -> None:
     parser.add_argument("--eta-m", type=float, default=None,
                         help="Fixed membrane surface viscosity in Pa s m; required for solvent_and_membrane. "
                              "Does not select the relaxation model.")
+    parser.add_argument("--kc-start", type=float, help="Starting bending modulus in kBT.")
+    parser.add_argument("--sigma-start", type=float, help="Starting reduced surface tension.")
+    parser.add_argument("--max-nfev", type=int, help="Maximum optimizer function evaluations.")
     add_batch_policy_argument(parser)
 
 def build_fit_config(args: argparse.Namespace) -> SpectrumFitConfig:
@@ -160,7 +163,14 @@ def build_fit_config(args: argparse.Namespace) -> SpectrumFitConfig:
     SpectrumFitConfig
         Validated fitting configuration.
     """
+    optimizer = {
+        setting: getattr(args, flag)
+        for setting, flag in (("kC_start", "kc_start"), ("sigma_start", "sigma_start"),
+                              ("max_nfev", "max_nfev"))
+        if getattr(args, flag, None) is not None
+    }
     return SpectrumFitConfig(
+        **optimizer,
         lower_bound=args.lower_fitting_bound,
         upper_bound=args.upper_fitting_bound,
         lmax=args.lmax,

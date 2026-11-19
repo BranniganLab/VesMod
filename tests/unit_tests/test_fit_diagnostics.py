@@ -81,6 +81,10 @@ def test_fit_estimates_are_retained(monkeypatch, caplog, entry_point, condition)
             assert ensemble.fit_results == [fit]
             assert fit.reduced_sigma == params["sigma"].value
             kc = fit.kC
+    if entry_point in {"spectrum", "ensemble"}:
+        restored = type(fit).from_dict(fit.to_dict())
+        assert restored.diagnostics.success is (condition != "unsuccessful")
+        assert restored.diagnostics.message == result.message
     assert kc == params["kC"].value
     assert "Spectrum fit relative RMSE=1" in caplog.text
 

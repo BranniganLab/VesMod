@@ -111,3 +111,53 @@ def test_fit_records_temporal_variance_definition(monkeypatch):
 
     assert fit.power_definition == "temporal_variance"
     assert fit.to_dict()["power_definition"] == "temporal_variance"
+
+
+def test_weighted_fit_diagnostics_round_trip(tmp_path):
+    """An actual weighted optimizer fit retains ordered covariance and settings."""
+    import json
+
+    from vesmod.edgemod import EnsembleMember
+    from vesmod.edgemod.fitting.fitting_functions.spherical_model import spherical_contour_spectrum
+
+    spectrum = Spectrum.from_radii(np.full((4, 32), 5.0))
+    selected = (spectrum.modes >= 3) & (spectrum.modes < 8)
+    spectrum.powers[selected] = (
+        np.asarray(spherical_contour_spectrum(spectrum.modes[selected], 25, 0, 30))
+        * np.array([0.98, 1.01, 1.00, 1.02, 0.99])
+    )
+    errors = np.linspace(1e-5, 2e-5, len(spectrum.modes))
+    config = SpectrumFitConfig(lmax=30, free_sigma=False, kC_start=20, max_nfev=150)
+    fit = spectrum.extract_kc_from_fit(config, power_errors=errors.tolist())
+
+    assert fit.reduced_sigma == 0
+    assert fit.diagnostics.success is True
+    assert fit.diagnostics.parameter_names == ("kC",)
+    assert fit.diagnostics.parameter_stderr[0] > 0
+    np.testing.assert_allclose(fit.diagnostics.covariance, spectrum.fit_result.covar)
+    np.testing.assert_allclose(fit.diagnostics.weights, 1 / errors[selected])
+    assert fit.diagnostics.rmse > 0
+    assert fit.config.max_nfev == 150
+
+    fit_path = tmp_path / "fit.json"
+    fit_path.write_text(json.dumps(fit.to_dict()), encoding="utf-8")
+    assert SpectrumFit.from_json(fit_path) == fit
+    spectrum_path = tmp_path / "spectrum.json"
+    spectrum.to_json(spectrum_path)
+    assert EnsembleMember.from_json(spectrum_path).fit_results == (fit,)
+
+
+def test_unversioned_spectrum_fit_restores_unavailable_diagnostics():
+    """Historical fit exports load without fabricating optimizer results."""
+    saved = {
+        "kC": 22.0,
+        "surface_tension": 0.0,
+        "lower_bound": 3,
+        "upper_bound": 8,
+        "config": {},
+    }
+    restored = SpectrumFit.from_dict(saved)
+    assert restored.kC == 22
+    assert restored.diagnostics is None
+    assert restored.reduced_sigma is None
+    assert restored.vesmod_version is None

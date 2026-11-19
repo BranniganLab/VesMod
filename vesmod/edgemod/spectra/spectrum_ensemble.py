@@ -16,7 +16,7 @@ from vesmod.edgemod.spectra.ensemble_member import EnsembleMember
 from vesmod.edgemod.spectra.spectrum import Spectrum
 from vesmod.edgemod.fitting.optimization.least_squares import fit_configured_spectrum
 from vesmod.edgemod.fitting.config import SpectrumFitConfig
-from vesmod.edgemod.fitting.fit_result import EnsembleFit
+from vesmod.edgemod.fitting.fit_result import EnsembleFit, FitDiagnostics
 
 
 
@@ -77,6 +77,8 @@ class SpectrumEnsemble:
         numpy.ndarray
             Mean power per Fourier mode across replicas.
         """
+        if not self._members:
+            return np.empty(0)
         return np.mean(np.array([member.powers for member in self._members]), axis=0)
 
     @property
@@ -88,6 +90,8 @@ class SpectrumEnsemble:
         numpy.ndarray
             Sample standard deviation per Fourier mode.
         """
+        if len(self) < 2:
+            return np.full(0 if self.modes is None else len(self.modes), np.nan)
         return np.std(np.array([member.powers for member in self._members]), axis=0, ddof=1)
 
     @property
@@ -99,7 +103,9 @@ class SpectrumEnsemble:
         numpy.ndarray
             Standard error per Fourier mode.
         """
-        return self.avg_amps2_std / np.sqrt(len(self._members))
+        if len(self) < 2:
+            return self.avg_amps2_std
+        return self.avg_amps2_std / np.sqrt(len(self))
 
     @property
     def kC(self) -> float:
@@ -121,6 +127,8 @@ class SpectrumEnsemble:
         float
             Sample standard deviation of replica estimates in kBT.
         """
+        if len(self) < 2:
+            return float("nan")
         return np.std([member.kC for member in self._members], ddof=1)
 
     @property
@@ -132,7 +140,9 @@ class SpectrumEnsemble:
         float
             Standard error of replica estimates in kBT.
         """
-        return self.kC_std / np.sqrt(len(self._members))
+        if len(self) < 2:
+            return float("nan")
+        return self.kC_std / np.sqrt(len(self))
 
     def add_spectrum(self, spectrum: Spectrum | EnsembleMember) -> None:
         """Add a measured replica spectrum.
@@ -212,14 +222,19 @@ class SpectrumEnsemble:
         )
         kC = result.best_values["kC"]
         reduced_sigma = result.best_values["sigma"]
+        diagnostics = FitDiagnostics.from_optimizer(result)
         fit = EnsembleFit(
             kC=float(kC),
             reduced_sigma=float(reduced_sigma),
             config=config,
             weight_by_replica_sem=weight_by_replica_sem,
             radii=radii,
-            chisqr=float(result.chisqr),
-            redchi=(float(result.redchi) if getattr(result, "nfree", 1) > 0 else None),
+            chisqr=diagnostics.chisqr,
+            redchi=diagnostics.redchi,
+            diagnostics=diagnostics,
+            replica_count=len(self),
+            replica_kC_std=float(self.kC_std) if len(self) >= 2 else None,
+            replica_kC_sem=float(self.kC_ste) if len(self) >= 2 else None,
         )
         self.fit_results.append(fit)
         return fit
