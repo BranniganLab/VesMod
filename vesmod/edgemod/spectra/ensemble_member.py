@@ -8,7 +8,6 @@ import numpy as np
 
 from vesmod.validation import require_positive_real
 
-from vesmod.edgemod.fitting.config import SpectrumFitConfig
 from vesmod.edgemod.fitting.fit_result import SpectrumFit
 from vesmod.edgemod.spectra.power_calculation.base import PowerCalculationResult
 
@@ -122,7 +121,7 @@ class EnsembleMember:
         for fit in data.get("fit_results", []):
             if not isinstance(fit, dict) or not isinstance(fit.get("config"), dict):
                 raise ValueError("Expected a saved spectrum fit with a configuration.")
-            fits.append(SpectrumFit(**{**fit, "config": SpectrumFitConfig(**fit["config"])}))
+            fits.append(SpectrumFit.from_dict(fit))
         return cls(
             powers=data["powers"],
             modes=data["modes"],

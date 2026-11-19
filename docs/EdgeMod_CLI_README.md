@@ -385,11 +385,29 @@ their correction extrapolates the fitted model.
 
 ### Fit diagnostics
 
-Individual spectra, ensembles, and the tuple-returning fitting helper retain
-returned optimizer estimates without checking convergence status, parameter-bound
-proximity, uncertainty, or `kC`–`sigma` correlation. Relative RMSE is logged for
-each fit; uncertainties and residuals remain visible in diagnostic plots.
-Optimizer parameter bounds and input validation still apply.
+Individual and ensemble fit records include optimizer status, parameter standard
+errors, covariance and its parameter order, fit statistics, and unweighted
+power RMSE. They also record the fitted modes, model bounds, and any weights.
+Use `--kc-start`, `--sigma-start`, and `--max-nfev` to set optimizer starting
+values and the evaluation limit. EdgeMod retains estimates when the optimizer
+reports nonconvergence and records that outcome in the diagnostics.
+
+In Python, pass `power_errors=` to `Spectrum.extract_kc_from_fit()` to weight
+an individual fit by inverse measured-power standard errors. The errors must
+align with the full mode array. For an ensemble fit, `--weight-by-replica-sem`
+weights each mode by the inverse SEM of measured powers across replicas.
+
+Ensemble fit exports distinguish the optimizer's parameter standard errors
+for the fit to the mean spectrum from `replica_kC_std` and `replica_kC_sem`,
+which summarize the individual vesicle's fitted values across replicas.
+These two replica statistics are undefined below two replicas and serialize
+as JSON null. Optimizer errors are local least-squares estimates based on
+lmfit's covariance scaling.
+
+Use `SpectrumFit.from_dict()` or `EnsembleFit.from_dict()` to read a saved
+fit entry. Each class also offers `from_json()` for a standalone fit record.
+Unversioned fit entries load with unavailable diagnostics represented by
+`None`.
 
 ### Membrane viscosity in camera averaging (Faizi 2024)
 

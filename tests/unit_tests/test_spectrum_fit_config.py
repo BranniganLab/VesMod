@@ -40,6 +40,9 @@ def test_config_serializes_physical_fit_parameters():
 
     assert config.to_dict() == {
         "lmax": 400,
+        "kC_start": 15.0,
+        "sigma_start": 0.0,
+        "max_nfev": 20000,
         "free_sigma": False,
         "temperature": 310.0,
         "lower_bound": 5,
