@@ -451,7 +451,9 @@ def test_ensemble_cli_applies_importable_policy(monkeypatch, tmp_path):
     paths = [tmp_path / f"vesicle-{radius}.json" for radius in (3, 5, 6)]
     rng = np.random.default_rng(42)
     for path, radius in zip(paths, (3, 5, 6)):
-        Spectrum.from_radii(radius + rng.normal(0, 0.05, (64, 32))).to_json(path)
+        spectrum = Spectrum.from_radii(radius + rng.normal(0, 0.05, (64, 32)))
+        spectrum.kC = 25.0
+        spectrum.to_json(path)
     (tmp_path / "edgemod_fit.json").write_text('{"analysis": "edgemod_fit"}')
     output = tmp_path / "ensemble.json"
     monkeypatch.setattr(sys, "argv", [
@@ -468,7 +470,7 @@ def test_ensemble_cli_applies_importable_policy(monkeypatch, tmp_path):
     assert report["replicas"][0]["reason"] == "Small vesicle"
     assert report["fit"]["radii"] == pytest.approx([5, 6], abs=0.01)
     assert report["fit"]["weight_by_replica_sem"] is True
-    assert report["replicas"][1]["kC"] is None
+    assert report["replicas"][1]["kC"] == 25.0
 
 
 @pytest.mark.parametrize(
@@ -492,6 +494,7 @@ def test_ensemble_cli_policy_exception_handling(
 
     monkeypatch.setattr(edgemod_ensemble, "_load_exclusion_policy", lambda spec: policy)
     spectrum = Spectrum.from_radii(np.full((4, 32), 5.0))
+    spectrum.kC = 25.0
     spectrum.to_json(tmp_path / "first.json")
     spectrum.to_json(tmp_path / "second.json")
     output = tmp_path / "ensemble.json"

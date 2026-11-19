@@ -336,3 +336,18 @@ def test_custom_model_is_used_by_single_and_ensemble_fits(tmp_path):
     assert fit.kC == pytest.approx(25)
     assert replica.config.model == fit.config.model == "custom_model"
     assert calls == [((5.0,), 1), ((5.0,), 1)]
+
+
+def test_ensemble_rejects_unfitted_spectra(tmp_path):
+    from vesmod.edgemod import Spectrum
+
+    spectrum = Spectrum.from_radii(np.full((4, 32), 5.0))
+    ensemble = SpectrumEnsemble()
+    with pytest.raises(ValueError, match="requires a fitted kC"):
+        ensemble.add_spectrum(spectrum)
+    assert ensemble.members == ()
+
+    path = tmp_path / "unfitted.json"
+    spectrum.to_json(path)
+    with pytest.raises(ValueError, match="requires a fitted kC"):
+        EnsembleMember.from_json(path)

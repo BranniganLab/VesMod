@@ -308,7 +308,8 @@ fit = ensemble.extract_kc_from_fit(
 
 For saved replicas, pass `EnsembleMember.from_json(path)` to `add_spectrum()`.
 The ensemble exposes its retained records in `ensemble.members`, including the
-source path and any saved fit history.
+source path and any saved fit history. Every member requires a positive, finite
+bending modulus from its latest fit or saved fit summary.
 
 
 The ensemble model averages predictions at the individual radii with shared

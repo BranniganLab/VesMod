@@ -42,7 +42,7 @@ def test_ensemble_member_requires_radius():
 @pytest.mark.parametrize("radius", [None, 0, -1, float("nan"), float("inf")])
 def test_ensemble_member_rejects_invalid_radius(radius):
     with pytest.raises((TypeError, ValueError), match="reference_radius"):
-        EnsembleMember(np.ones(5), range(3, 8), r0=radius)
+        EnsembleMember(np.ones(5), range(3, 8), kC=25, r0=radius)
 
 
 def test_direct_fit_requires_radii_without_exposure():

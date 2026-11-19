@@ -6,6 +6,8 @@ from pathlib import Path
 
 import numpy as np
 
+from vesmod.validation import require_positive_real
+
 from vesmod.edgemod.fitting.config import SpectrumFitConfig
 from vesmod.edgemod.fitting.fit_result import SpectrumFit
 from vesmod.edgemod.spectra.power_calculation.base import PowerCalculationResult
@@ -19,8 +21,10 @@ class EnsembleMember:
     ----------
     powers, modes : array-like
         Measured powers and their corresponding Fourier modes.
-    kC, surface_tension : float or None
-        Summary values from a saved spectrum without a selected fit.
+    kC : float or None
+        Positive, finite bending modulus in kBT. Required when there is no fit history.
+    surface_tension : float or None
+        Summary tension from a saved spectrum without a selected fit.
     r0 : float
         Required positive, finite reference radius in micrometers.
     power_definition, power_unit : str
@@ -58,8 +62,12 @@ class EnsembleMember:
             raise TypeError("fit_results must contain SpectrumFit records.")
         object.__setattr__(self, "fit_results", fits)
         if fits:
-            object.__setattr__(self, "kC", fits[-1].kC)
             object.__setattr__(self, "surface_tension", fits[-1].surface_tension)
+
+        kC = fits[-1].kC if fits else self.kC
+        if kC is None:
+            raise ValueError("An ensemble member requires a fitted kC.")
+        object.__setattr__(self, "kC", require_positive_real(kC, "kC"))
 
     @classmethod
     def from_spectrum(cls, spectrum, *, source=None):

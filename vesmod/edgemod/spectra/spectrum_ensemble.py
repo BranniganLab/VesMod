@@ -23,7 +23,7 @@ from vesmod.edgemod.fitting.fit_result import EnsembleFit
 class SpectrumEnsemble:
     """Store and analyze fluctuation spectra from multiple replicas.
 
-    Each replica contributes average squared mode amplitudes and may supply an
+    Each replica contributes average squared mode amplitudes and supplies an
     independently determined bending modulus. All spectra must use the same Fourier modes.
 
     The ensemble provides averaged amplitudes, replica dispersion/error, and a
@@ -119,9 +119,9 @@ class SpectrumEnsemble:
         Returns
         -------
         float
-            Sample standard deviation of available replica estimates in kBT.
+            Sample standard deviation of replica estimates in kBT.
         """
-        return np.std([member.kC for member in self._members if member.kC is not None], ddof=1)
+        return np.std([member.kC for member in self._members], ddof=1)
 
     @property
     def kC_ste(self) -> float:
@@ -130,9 +130,9 @@ class SpectrumEnsemble:
         Returns
         -------
         float
-            Standard error of available replica estimates in kBT.
+            Standard error of replica estimates in kBT.
         """
-        return self.kC_std / np.sqrt(sum(member.kC is not None for member in self._members))
+        return self.kC_std / np.sqrt(len(self._members))
 
     def add_spectrum(self, spectrum: Spectrum | EnsembleMember) -> None:
         """Add a measured replica spectrum.
