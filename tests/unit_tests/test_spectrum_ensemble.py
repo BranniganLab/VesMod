@@ -31,7 +31,7 @@ def test_add_spectrum_stores_first_spectrum_and_modes():
     """Test that the first added spectrum defines the stored mode array and is saved."""
     avg = SpectrumEnsemble()
 
-    avg.add_spectrum(EnsembleMember(powers=[1.0, 2.0, 3.0], modes=[1, 2, 3], kC=20.0))
+    avg.add_spectrum(EnsembleMember(powers=[1.0, 2.0, 3.0], modes=[1, 2, 3], kC=20.0, r0=5.0))
 
     assert len(avg) == 1
     np.testing.assert_array_equal(avg.modes, np.array([1, 2, 3]))
@@ -43,8 +43,8 @@ def test_add_spectrum_accepts_matching_modes_after_first_spectrum():
     """Test that additional spectra are accepted when their modes match the stored modes exactly."""
     avg = SpectrumEnsemble()
 
-    avg.add_spectrum(EnsembleMember(powers=[1.0, 2.0, 3.0], modes=[1, 2, 3], kC=20.0))
-    avg.add_spectrum(EnsembleMember(powers=[2.0, 4.0, 6.0], modes=[1, 2, 3], kC=24.0))
+    avg.add_spectrum(EnsembleMember(powers=[1.0, 2.0, 3.0], modes=[1, 2, 3], kC=20.0, r0=5.0))
+    avg.add_spectrum(EnsembleMember(powers=[2.0, 4.0, 6.0], modes=[1, 2, 3], kC=24.0, r0=5.0))
 
     assert len(avg) == 2
     np.testing.assert_array_equal(avg.modes, np.array([1, 2, 3]))
@@ -56,19 +56,19 @@ def test_add_spectrum_rejects_nonmatching_modes():
     """Test that add_spectrum raises ValueError when a later spectrum uses different modes."""
     avg = SpectrumEnsemble()
 
-    avg.add_spectrum(EnsembleMember(powers=[1.0, 2.0, 3.0], modes=[1, 2, 3], kC=20.0))
+    avg.add_spectrum(EnsembleMember(powers=[1.0, 2.0, 3.0], modes=[1, 2, 3], kC=20.0, r0=5.0))
 
     with pytest.raises(ValueError, match="share the same modes"):
-        avg.add_spectrum(EnsembleMember(powers=[1.0, 2.0, 3.0], modes=[1, 3, 5], kC=22.0))
+        avg.add_spectrum(EnsembleMember(powers=[1.0, 2.0, 3.0], modes=[1, 3, 5], kC=22.0, r0=5.0))
 
 
 def test_avg_amps2_returns_elementwise_mean_across_spectra():
     """Test that avg_amps2 returns the elementwise mean of all stored spectra."""
     avg = SpectrumEnsemble()
 
-    avg.add_spectrum(EnsembleMember(powers=[1.0, 2.0, 3.0], modes=[1, 2, 3], kC=20.0))
-    avg.add_spectrum(EnsembleMember(powers=[3.0, 4.0, 5.0], modes=[1, 2, 3], kC=22.0))
-    avg.add_spectrum(EnsembleMember(powers=[5.0, 6.0, 7.0], modes=[1, 2, 3], kC=24.0))
+    avg.add_spectrum(EnsembleMember(powers=[1.0, 2.0, 3.0], modes=[1, 2, 3], kC=20.0, r0=5.0))
+    avg.add_spectrum(EnsembleMember(powers=[3.0, 4.0, 5.0], modes=[1, 2, 3], kC=22.0, r0=5.0))
+    avg.add_spectrum(EnsembleMember(powers=[5.0, 6.0, 7.0], modes=[1, 2, 3], kC=24.0, r0=5.0))
 
     np.testing.assert_allclose(avg.avg_amps2, np.array([3.0, 4.0, 5.0]))
 
@@ -85,7 +85,7 @@ def test_avg_amps2_std_returns_sample_standard_deviation_across_spectra():
         ]
     )
     for spectrum in spectra:
-        avg.add_spectrum(EnsembleMember(powers=spectrum.tolist(), modes=[1, 2, 3], kC=20.0))
+        avg.add_spectrum(EnsembleMember(powers=spectrum.tolist(), modes=[1, 2, 3], kC=20.0, r0=5.0))
 
     expected = np.std(spectra, axis=0, ddof=1)
     np.testing.assert_allclose(avg.avg_amps2_std, expected)
@@ -107,7 +107,7 @@ def test_avg_amps2_ste_returns_standard_error_of_average_spectrum():
     )
 
     for spectrum in spectra:
-        avg.add_spectrum(EnsembleMember(spectrum, [1, 2, 3], kC=20.0))
+        avg.add_spectrum(EnsembleMember(spectrum, [1, 2, 3], kC=20.0, r0=5.0))
 
     expected = np.std(spectra, axis=0, ddof=1) / np.sqrt(len(spectra))
 
@@ -118,9 +118,9 @@ def test_kC_std_returns_sample_standard_deviation_of_replica_kC_values():
     """Test that kC_std uses ddof=1 to calculate sample standard deviation of replica kC values."""
     avg = SpectrumEnsemble()
 
-    avg.add_spectrum(EnsembleMember(powers=[1.0, 2.0], modes=[1, 2], kC=20.0))
-    avg.add_spectrum(EnsembleMember(powers=[2.0, 3.0], modes=[1, 2], kC=22.0))
-    avg.add_spectrum(EnsembleMember(powers=[3.0, 4.0], modes=[1, 2], kC=24.0))
+    avg.add_spectrum(EnsembleMember(powers=[1.0, 2.0], modes=[1, 2], kC=20.0, r0=5.0))
+    avg.add_spectrum(EnsembleMember(powers=[2.0, 3.0], modes=[1, 2], kC=22.0, r0=5.0))
+    avg.add_spectrum(EnsembleMember(powers=[3.0, 4.0], modes=[1, 2], kC=24.0, r0=5.0))
 
     expected = np.std([20.0, 22.0, 24.0], ddof=1)
     assert avg.kC_std == pytest.approx(expected)
@@ -130,9 +130,9 @@ def test_kC_ste_returns_standard_error_of_replica_kC_values():
     """Test that kC_ste divides kC_std by sqrt of the number of replica kC values."""
     avg = SpectrumEnsemble()
 
-    avg.add_spectrum(EnsembleMember(powers=[1.0, 2.0], modes=[1, 2], kC=20.0))
-    avg.add_spectrum(EnsembleMember(powers=[2.0, 3.0], modes=[1, 2], kC=22.0))
-    avg.add_spectrum(EnsembleMember(powers=[3.0, 4.0], modes=[1, 2], kC=24.0))
+    avg.add_spectrum(EnsembleMember(powers=[1.0, 2.0], modes=[1, 2], kC=20.0, r0=5.0))
+    avg.add_spectrum(EnsembleMember(powers=[2.0, 3.0], modes=[1, 2], kC=22.0, r0=5.0))
+    avg.add_spectrum(EnsembleMember(powers=[3.0, 4.0], modes=[1, 2], kC=24.0, r0=5.0))
 
     expected = np.std([20.0, 22.0, 24.0], ddof=1) / np.sqrt(3)
     assert avg.kC_ste == pytest.approx(expected)

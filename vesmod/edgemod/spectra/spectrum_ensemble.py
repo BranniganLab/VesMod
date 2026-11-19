@@ -204,8 +204,6 @@ class SpectrumEnsemble:
         if not self._members:
             raise ValueError("At least one replica spectrum is required for fitting.")
         radii = tuple(member.r0 for member in self._members)
-        if any(radius is None for radius in radii):
-            raise ValueError("Supply r0 for every replica to set the reduced-tension bound.")
         sem = self.avg_amps2_ste if len(self._members) >= 2 else None
         result, config = fit_configured_spectrum(
             self.modes, self.avg_amps2, config, radii,

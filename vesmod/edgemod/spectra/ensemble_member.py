@@ -1,6 +1,6 @@
 """Replica spectra and fit provenance retained by an ensemble."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
 from pathlib import Path
 
@@ -21,8 +21,8 @@ class EnsembleMember:
         Measured powers and their corresponding Fourier modes.
     kC, surface_tension : float or None
         Summary values from a saved spectrum without a selected fit.
-    r0 : float or None
-        Reference radius in micrometers.
+    r0 : float
+        Required positive, finite reference radius in micrometers.
     power_definition, power_unit : str
         Definition and unit of the measured powers.
     source : pathlib.Path or None
@@ -34,7 +34,7 @@ class EnsembleMember:
     powers: np.ndarray
     modes: np.ndarray
     kC: float | None = None
-    r0: float | None = None
+    r0: float = field(kw_only=True)
     power_definition: str = "mean_square"
     power_unit: str = "dimensionless"
     source: Path | None = None
@@ -45,15 +45,14 @@ class EnsembleMember:
         """Validate measured powers and bind the summary to the selected fit."""
         calculation = PowerCalculationResult(
             modes=self.modes, powers=self.powers,
-            reference_radius=1.0 if self.r0 is None else self.r0,
+            reference_radius=self.r0,
             radius_unit="um", power_definition=self.power_definition,
             power_unit=self.power_unit,
         )
         for name in ("modes", "powers"):
             array = getattr(calculation, name)
             object.__setattr__(self, name, np.frombuffer(array.tobytes(), dtype=array.dtype))
-        if self.r0 is not None:
-            object.__setattr__(self, "r0", calculation.reference_radius)
+        object.__setattr__(self, "r0", calculation.reference_radius)
         fits = tuple(self.fit_results)
         if any(not isinstance(fit, SpectrumFit) for fit in fits):
             raise TypeError("fit_results must contain SpectrumFit records.")

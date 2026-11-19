@@ -98,9 +98,6 @@ def test_spectrum_and_ensemble_use_individual_radii():
     fit = ensemble.extract_kc_from_fit(config, weight_by_replica_sem=True)
     assert fit.kC == pytest.approx(25, rel=1e-5)
     assert fit.to_dict()['radii'] == [5, 15]
-    ensemble.add_spectrum(EnsembleMember(spectrum.powers, spectrum.modes, 25))
-    with pytest.raises(ValueError, match='r0 for every replica'):
-        ensemble.extract_kc_from_fit(config)
 
 
 def test_cli_camera_settings(monkeypatch):
