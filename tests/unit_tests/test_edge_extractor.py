@@ -33,20 +33,21 @@ def test_approximate_vesicle_com_creates_debug_output(tmp_path):
     assert tmp_path.joinpath("centroid_process_debug.pdf").is_file()
 
 
-def test_extract_edge_from_frame_debug_mode_returns_none(tmp_path):
-    """Test that extract_edge_from_frame skips edge extraction and returns None values when debug output is requested."""
+def test_extract_edge_from_frame_debug_mode_preserves_detection(tmp_path):
+    """Debug PDFs accompany the same detection returned without diagnostics."""
     n = 101
     y, x = np.indices((n, n))
     r = np.sqrt((x - 50)**2 + (y - 50)**2)
     image = np.exp(-((r - 25)**2) / 2)
 
-    r_vals, center = extract_edge_from_frame(
-        image,
-        debug_path=tmp_path,
-    )
+    expected_radii, expected_center = extract_edge_from_frame(image)
+    debug_path = tmp_path / "debug"
+    r_vals, center = extract_edge_from_frame(image, debug_path=debug_path)
 
-    assert r_vals is None
-    assert center is None
+    np.testing.assert_array_equal(r_vals, expected_radii)
+    assert center == expected_center
+    assert (debug_path / "centroid_process_debug.pdf").is_file()
+    assert (debug_path / "edge_extraction_debug.pdf").is_file()
 
 
 def test_extract_edge_from_frame_reextracts_from_refined_origin(monkeypatch):
